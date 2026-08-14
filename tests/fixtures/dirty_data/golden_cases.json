@@ -1,0 +1,71 @@
+{
+  "schema_version": "golden_cases.v1",
+  "sources": {
+    "fy25_frontdesk_daily": {
+      "filename": "FY25 前台日报—2025-05-31(1).xlsx",
+      "sha256": "fa00f38da50a61b8eefc142a4c388e455782c1773e34691868838c3a7f04376b"
+    },
+    "fy27_frontdesk_daily": {
+      "filename": "FY27 前台日报—2026-08-10（新） (3).xlsx",
+      "sha256": "fdcd26c7ef49bbbc3f2ab2b3872ba8eecb5b715d48191601efb8d5a3c5a393bc"
+    },
+    "current_work_orders": {
+      "filename": "工单表_20260809.xlsx",
+      "sha256": "edf9f8cc8b0a3e3f176ef2e00454c7972e525bac61bb6d5f22f1d7ffd5f1e79f"
+    },
+    "archived_work_orders": {
+      "filename": "工单表旧数据封存.xlsx",
+      "sha256": "45deb1c2777aae5e0caab39b34c66f429a3e4e17b09bf99439ab0cc6f72bb2ad"
+    }
+  },
+  "cases": [
+    {
+      "case_id": "golden_registration_cash",
+      "source_ids": ["fy25_frontdesk_daily", "fy27_frontdesk_daily"],
+      "metric": {
+        "metric_id": "registration_cash",
+        "amount_field": "实缴金额",
+        "business_form_field": "业务形式",
+        "included_business_forms": ["报班", "报班-预收"],
+        "excluded_examples": ["转入", "转出", "退班退费", "退班放储值", "储值账户退费"]
+      },
+      "minimum_acceptance": {
+        "fy25_frontdesk_daily": {
+          "required_sheets": ["FY25-汇总"],
+          "sheet": "FY25-汇总",
+          "data_rows": 31927,
+          "negative_amount_rows": 8642,
+          "registration_cash_rows": 16433,
+          "registration_cash": "146126124.8"
+        },
+        "fy27_frontdesk_daily": {
+          "required_sheets": ["FY27-汇总", "报名系统操作明细", "挂转退", "现金日报看板", "进度看板", "青少周", "工作表7", "小语种数据看板", "小语种报名登记", "小语种退费", "小语种同期报名"],
+          "sheet": "FY27-汇总",
+          "data_rows": 7827,
+          "negative_amount_rows": 1654,
+          "registration_cash_rows": 4771,
+          "registration_cash": "41200607.1",
+          "required_business_forms": ["报班", "报班-预收", "转入", "转出", "退班退费", "退班放储值"]
+        }
+      }
+    },
+    {
+      "case_id": "golden_work_orders",
+      "source_ids": ["current_work_orders", "archived_work_orders"],
+      "minimum_acceptance": {
+        "current_work_orders": {
+          "required_sheets": ["工单分析", "新表区域"],
+          "data_rows": {"工单分析": 414, "新表区域": 14948},
+          "date_storage": {"工单分析.最新回访时间": "text", "新表区域.分配时间": "numeric"}
+        },
+        "archived_work_orders": {
+          "required_sheets": ["FY24", "FY25", "FY26"],
+          "declared_dimensions": {"FY24": "A1", "FY25": "A1", "FY26": "A1"},
+          "data_rows": {"FY24": 7303, "FY25": 8420, "FY26": 3924},
+          "date_fields": {"FY24": "分配时间", "FY25": "分配日期", "FY26": "分配时间"},
+          "blank_date_rows": {"FY24": 634, "FY25": 634, "FY26": 634}
+        }
+      }
+    }
+  ]
+}

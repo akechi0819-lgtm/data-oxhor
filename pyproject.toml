@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "education-business-analyst"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+  "duckdb==1.5.5",
+]
+
+[project.optional-dependencies]
+test = ["openpyxl==3.1.5"]
+
+[project.scripts]
+data-foundation = "interfaces.data_foundation:main"
+
+[tool.setuptools.packages.find]
+include = ["data_foundation*", "interfaces*"]

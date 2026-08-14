@@ -1,0 +1,33 @@
+{
+  "schema_version": "dirty_data_corpus.v1",
+  "corpus_id": "corpus_stage0_external_workbooks_20260813",
+  "fixture_policy": "External read-only source workbooks. Repository stores only logical IDs, filenames, SHA-256 values, and privacy-safe aggregate expectations.",
+  "groups": [
+    {
+      "case_id": "golden_registration_cash",
+      "name": "报名现金",
+      "source_ids": ["fy25_frontdesk_daily", "fy27_frontdesk_daily"],
+      "tags": ["multi_sheet", "mixed_types", "formula_cells", "negative_amounts", "business_enum_drift", "duplicate_columns", "missing_dates", "wps_style_anomaly"]
+    },
+    {
+      "case_id": "golden_work_orders",
+      "name": "工单跨年度组",
+      "source_ids": ["current_work_orders", "archived_work_orders"],
+      "tags": ["multi_sheet", "incorrect_used_range", "missing_dates", "field_name_drift", "text_dates", "cross_year_data"]
+    }
+  ],
+  "tag_catalog": {
+    "multi_sheet": "Workbook contains multiple sheets that must all be discovered.",
+    "mixed_types": "One logical field contains different storage types.",
+    "formula_cells": "Workbook contains formulas and cached values.",
+    "negative_amounts": "Cash fields contain negative, zero, and positive values.",
+    "business_enum_drift": "Business-form enumerations differ between years.",
+    "duplicate_columns": "A sheet contains repeated header names.",
+    "missing_dates": "Date fields contain source blanks.",
+    "wps_style_anomaly": "A mainstream XLSX reader rejects a WPS style definition.",
+    "incorrect_used_range": "Declared worksheet dimension is smaller than actual populated cells.",
+    "field_name_drift": "Equivalent candidate fields use different raw names across years.",
+    "text_dates": "A date-like field is stored as text.",
+    "cross_year_data": "The group spans at least two fiscal years."
+  }
+}
