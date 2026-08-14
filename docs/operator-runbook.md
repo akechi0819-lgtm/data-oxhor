@@ -9,11 +9,15 @@
 | Harness 共享目录 | `/Users/akechi/.dsh` |
 | Python | `>=3.12` |
 | DuckDB | `1.5.5` |
-| Git | 已初始化 `main`，尚无首个提交 |
+| Git | 已有基线提交 `a5df0b6`；工作树有未提交改动 |
 
 Harness 是全局工具，不安装到项目目录。`/Users/akechi/.dsh` 可能包含机器配置和凭据，不纳入项目版本控制。
 
 ## 2. Harness 冒烟检查
+
+macOS 可双击项目根目录的 `启动 DeepSeek Harness.command`。快捷方式会复用已经运行的本地服务；若服务未运行，则启动 `dsh web`，等待 HTTP 可用后自动打开默认浏览器。启动后保持终端窗口打开，停止服务使用 `Ctrl-C`。
+
+等价的手动命令：
 
 ```bash
 /Users/akechi/.local/bin/dsh --version
@@ -28,26 +32,27 @@ curl -fsSL -o /dev/null -w '%{http_code}\n' http://127.0.0.1:3080
 
 预期 HTTP 状态是 `200`。开发模式只绑定 `127.0.0.1`，不要在未配置认证和网络边界时暴露到局域网或公网。停止前台服务使用 `Ctrl-C`。
 
-## 3. Data Foundation 验证
+## 3. 核心模块验证
 
 ```bash
 python3 -m interfaces.data_foundation --help
+python3 -m interfaces.business_pack validate
+python3 -m interfaces.business_pack describe
 python3 -m unittest discover -s tests -p 'test_*.py' -v
 ```
 
-基线是 21 项现行测试通过。测试失败时先区分：Python/DuckDB 版本、外部 Golden Case 是否可读、源 SHA-256 是否变化、还是代码回归。不要通过修改 Golden 值掩盖源文件变化。
+基线是 30 项现行测试通过，Pack 校验状态为 `passed`。测试失败时先区分：Python/DuckDB 版本、外部 Golden Case 是否可读、源 SHA-256 是否变化、Pack 交叉引用错误，还是代码回归。不要通过修改 Golden 值掩盖源文件变化。
 
 ## 4. 模型和密钥
 
-模型 Provider 与 API Key 只在 Harness 的机器级设置中配置，不写入仓库、客户配置样例或日志。当前未配置 API Key，因此以下项目尚无通过证据：
+模型 Provider 与 API Key 已在 Harness 的机器级设置中配置，不写入仓库、客户配置样例或日志。2026-08-14 已确认：Harness 真实模型回合可用，模型在项目 Workspace 通过 Shell 执行 `python3 -m interfaces.data_foundation --help`，退出码为 0，并发现全部 7 个子命令。
 
-- 真实模型回合；
+以下项目尚无通过证据：
+
+- 完整 Data Foundation 数据链路；
 - Session 重启后继续对话；
 - 项目 Skill 实际调用；
-- CLI 的模型侧调用；
 - Deliverables 生成和展示。
-
-配置密钥前可以完成 Python 单测、Codex CLI 调用验证和 Web 静态验证。
 
 ## 5. 升级策略
 

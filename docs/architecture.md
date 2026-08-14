@@ -63,14 +63,14 @@
   → Renderer 生成交付物
 ```
 
-运行以显式 `run_id` 区分，查询和恢复以显式 `snapshot_id` 定位仓库。源 SHA-256 用于 inspect/ingest 的源绑定以及 Snapshot/Artifact manifest，不要求在每次查询、Session 或交付物中继续传播。SQL 是直接查询输入或保存查询内容，不建立额外的统一血缘平台。Pack/Bridge 尚未实现，当前 Data Foundation 不伪造其版本。
+运行以显式 `run_id` 区分，查询和恢复以显式 `snapshot_id` 定位仓库。源 SHA-256 用于 inspect/ingest 的源绑定以及 Snapshot/Artifact manifest，不要求在每次查询、Session 或交付物中继续传播。SQL 是直接查询输入或保存查询内容，不建立额外的统一血缘平台。Education Pack 已独立版本化；Bridge 尚未实现，当前 Data Foundation 不伪造 Pack/Bridge 选择。
 
 ## 4. 确定性边界
 
 项目不建设独立 Harness Reinforcement 插件。确定性约束由拥有数据或文件的模块直接实现：
 
 - Data Foundation 保证源文件只读、Snapshot 不原地覆盖、查询入口只读并限制结果规模；
-- Pack/Bridge 建成后由语义模块阻断未确认映射成为正式事实；
+- Pack 校验器检查稳定 ID 和交叉引用；Bridge 建成后由语义模块阻断未确认映射成为正式事实；
 - Renderer 建成后由输出模块完成文件打开性与最小内容验收；
 - 状态恢复使用显式 `run_id`、`snapshot_id` 和后续 Pack/Bridge 版本，不通过 `latest`、修改时间或模糊文件名猜测。
 
