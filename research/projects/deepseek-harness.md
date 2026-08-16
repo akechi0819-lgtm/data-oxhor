@@ -23,16 +23,17 @@
 
 ## 采用决策
 
-作为 Education Business Analyst 的目标 Agent 运行宿主，替代自建通用 Agent Loop、对话 UI、插件生命周期和多数工作流编排。
+作为 Education Business Analyst 的一个已验证可选 Agent Host，用于证明外部宿主能通过受控 Shell 消费同一项目核心。项目不指定默认或目标宿主，也不自建通用 Agent Loop、对话 UI 和插件生命周期。
 
-选择理由不是安装包体积小，而是运行时职责中性、插件能力可裁剪。相比自带长期记忆和固定工作习惯的成型智能体，它更容易只承担 Session、对话和工具装配，避免与本项目的 Memory、Cases、Eval 和 Promotion 形成双重长期事实来源。
+选择它做验证的理由不是安装包体积小，而是运行时职责中性、插件能力可裁剪。若客户部署选择 DeepSeek Harness，它只承担 Session、对话、工具装配和可选交互 UI，避免与本项目的 Memory、Cases、Eval 和 Promotion 形成双重长期事实来源。
 
 项目业务模块保持独立：
 
 - Data Foundation 通过受控 Shell 直接调用现有 Python CLI；不建设 MCP 服务；
-- Education Business Pack 独立插件；
-- 每家企业使用独立 Company Bridge 插件；
-- Customer Profile 组合 Pack、Bridge、Data 和 Skills；
+- Education Business Pack 是项目目录内的独立版本化资产；
+- 每家企业使用项目目录内的独立 Company Bridge；
+- Analysis Contract/Evidence Gate 保持宿主无关，正式结论不依赖 Harness UI；
+- Customer Profile 组合 Pack、Bridge、Analysis Contract、Data 和 Skills；
 - 需要 Harness 生命周期或自定义 UI 时才编写原生 TypeScript 插件。
 
 ## 不采用
@@ -43,14 +44,14 @@
 - 不在验证期修改上游源码或把业务逻辑写入上游 checkout；
 - 不因宿主是 TypeScript 而重写成熟 Python 数据代码。
 
-## 验证项目
+## 按部署需要验证
 
 1. Web UI 启动和本地访问；
 2. Session 创建、持久化和重启恢复；
 3. 项目 `.agents/skills` / `.dsh/skills` 发现；
 4. Python CLI 的模型侧调用、超时和错误处理；
 5. 文件生成和 Deliverables 展示；
-6. Customer Profile 装配 Pack、Bridge 和 Data 插件；
+6. Customer Profile 装配 Pack、Bridge、Analysis Contract 和 Data；
 7. 连续追问中 Snapshot、Pack 和 Bridge 身份保持稳定。
 
 ## 2026-08-14 部署验证
@@ -62,18 +63,19 @@
 - 插件管理页识别 133 个条目；
 - Session JSONL、Session Query SQLite、Storage、Sandbox、Approval、Workspace、Deliverables、Skill、Subagent、Plan、Trajectory 等服务已观察到装载；
 - 未选择 Workspace 时，文件和 Skill consumer 等依赖能力保持停用，未出现半初始化假成功；
-- 尚未配置模型 API Key，真实模型回合、Session 恢复、项目 Skill 调用和 Deliverable 生成待验证。
+- 真实 headless 模型已通过受控 Shell 调用 Data Foundation CLI：未运行 inspect、未生成 cleaning plan，将 3 个真实 XLSX 的 6 个 Sheet、47,087 个有内容行写入 landing，并完成 describe、quality 和受控 SQL 汇总；
+- Session 恢复、项目 Skill、Deliverables 和交互表格仅在选择 DeepSeek Harness 且客户需要这些体验时再验收，不是项目核心门槛。
 
 ## 开放风险
 
 - 无正式稳定 Tag，升级可能破坏插件接口；
-- 真实模型通过受控 Shell 调用项目 CLI 的能力尚未验收；
 - 间接生成的文件可能需要原生工具展示元数据才能进入 Deliverables；
-- 交互图表需要验证或开发 Client Plugin。
+- 交互图表需要验证或开发 Client Plugin，但不影响静态核心输出；
+- Developer Preview 升级可能影响选择 DeepSeek Harness 的客户部署，不应传播到项目核心合同。
 
 ## 当前使用边界
 
-- DeepSeek Harness 是默认宿主，不是业务核心；
+- DeepSeek Harness 是已验证可选宿主，不是默认宿主或业务核心；
 - Data Foundation、Pack、Bridge、Renderer 和学习资产必须保持宿主无关；
-- 当前唯一接入工作是让 Codex 与 DeepSeek Harness 调用同一 Data Foundation CLI；不建设 MCP 或 echo 插件；
-- `0.1.0-rc.6` 的部署结果不能代替真实模型、Session、CLI 调用和 Deliverables 验收。
+- `0.1.0-rc.6` 已证明真实模型可以调用同一 Data Foundation CLI；不建设 MCP 或 echo 插件；
+- Session、交互 UI 和 Deliverables 结果只代表该宿主体验，不能成为 Pack、Bridge、Analysis Contract、Renderer 或学习资产的依赖。
