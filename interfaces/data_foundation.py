@@ -44,7 +44,7 @@ def _bindings(values: list[str]) -> dict[str, Path]:
 
 def inspect_sources(*, run_id: str, manifest_path: Path, source_values: list[str]) -> dict[str, Any]:
     result: dict[str, Any] = {
-        "schema_version": "data_foundation_inspection.v1",
+        "schema_version": "data_foundation_inspection.v2",
         "status": "passed",
         "run_id": run_id,
         "sources": [],
@@ -87,7 +87,7 @@ def inspect_sources(*, run_id: str, manifest_path: Path, source_values: list[str
             result["errors"].append(_error("HASH_MISMATCH", "source hash does not match manifest", source_id))
             continue
         try:
-            inspection = inspect_workbook(path, source_id)
+            inspection = inspect_workbook(path)
         except (XlsxReadError, ET.ParseError) as exc:
             result["errors"].append(_error("INVALID_XLSX", str(exc), source_id))
             continue
@@ -149,7 +149,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 def ingest_sources(*, run_id: str, snapshot_id: str, output_root: Path, manifest_path: Path, source_values: list[str]) -> dict[str, Any]:
     if not RUN_ID.fullmatch(run_id):
-        return {"schema_version": "data_foundation_ingest.v1", "status": "failed", "run_id": run_id, "snapshot_id": snapshot_id, "artifacts": [], "warnings": [], "errors": [_error("RUN_ID_INVALID", "run_id must match run_[a-z0-9][a-z0-9_-]{2,67}")]}
+        return {"schema_version": "data_foundation_ingest.v2", "status": "failed", "run_id": run_id, "snapshot_id": snapshot_id, "artifacts": [], "warnings": [], "errors": [_error("RUN_ID_INVALID", "run_id must match run_[a-z0-9][a-z0-9_-]{2,67}")]}
     try:
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
         bindings = _bindings(source_values)
@@ -161,7 +161,7 @@ def ingest_sources(*, run_id: str, snapshot_id: str, output_root: Path, manifest
         code, message = exc.code, str(exc)
     except (OSError, json.JSONDecodeError, KeyError, ValueError, XlsxReadError, ET.ParseError, zipfile.BadZipFile) as exc:
         code, message = "INGEST_FAILED", str(exc)
-    return {"schema_version": "data_foundation_ingest.v1", "status": "failed", "run_id": run_id, "snapshot_id": snapshot_id, "artifacts": [], "warnings": [], "errors": [_error(code, message)]}
+    return {"schema_version": "data_foundation_ingest.v2", "status": "failed", "run_id": run_id, "snapshot_id": snapshot_id, "artifacts": [], "warnings": [], "errors": [_error(code, message)]}
 
 
 def _query_failure(command: str, exc: Exception) -> dict[str, Any]:

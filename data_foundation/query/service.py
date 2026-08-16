@@ -12,7 +12,7 @@ from typing import Any
 
 import duckdb
 
-ALLOWED_SCHEMAS = frozenset({"ingest", "clean", "quality", "semantic", "queries"})
+ALLOWED_SCHEMAS = frozenset({"ingest", "landing", "quality", "queries"})
 DENIED_FUNCTIONS = re.compile(r"\b(read_csv|read_csv_auto|read_parquet|read_json|read_json_auto|read_xlsx|glob|httpfs_scan)\s*\(", re.IGNORECASE)
 DENIED_CATALOG_RELATIONS = re.compile(
     r'(?<![a-z0-9_])(?:"?system"?\s*\.\s*)?"?information_schema"?\s*\.',
@@ -93,7 +93,7 @@ def describe_warehouse(*, warehouse: Path, snapshot_id: str) -> dict[str, Any]:
             """
             SELECT table_schema, table_name, table_type
             FROM information_schema.tables
-            WHERE table_schema IN ('ingest','clean','quality','semantic','queries')
+            WHERE table_schema IN ('ingest','landing','quality','queries')
             ORDER BY table_schema, table_name
             """
         ).fetchall()
@@ -101,7 +101,7 @@ def describe_warehouse(*, warehouse: Path, snapshot_id: str) -> dict[str, Any]:
             """
             SELECT table_schema, table_name, column_name, data_type, ordinal_position
             FROM information_schema.columns
-            WHERE table_schema IN ('ingest','clean','quality','semantic','queries')
+            WHERE table_schema IN ('ingest','landing','quality','queries')
             ORDER BY table_schema, table_name, ordinal_position
             """
         ).fetchall()

@@ -14,12 +14,12 @@ from data_foundation.query.service import QueryError, describe_warehouse, execut
 
 def warehouse(path: Path) -> None:
     with duckdb.connect(str(path)) as connection:
-        for schema in ("ingest", "clean", "quality", "semantic", "queries", "private"):
+        for schema in ("ingest", "landing", "quality", "queries", "private"):
             connection.execute(f"CREATE SCHEMA {schema}")
         connection.execute("CREATE TABLE ingest.sources(source_id VARCHAR, snapshot_id VARCHAR)")
         connection.execute("INSERT INTO ingest.sources VALUES ('fixture', 'snapshot_query_test')")
-        connection.execute("CREATE TABLE clean.values_table(category VARCHAR, amount INTEGER)")
-        connection.execute("INSERT INTO clean.values_table VALUES ('a',1),('a',2),('b',3)")
+        connection.execute("CREATE TABLE landing.values_table(category VARCHAR, amount INTEGER)")
+        connection.execute("INSERT INTO landing.values_table VALUES ('a',1),('a',2),('b',3)")
         connection.execute("CREATE TABLE quality.issues(issue_code VARCHAR, source_id VARCHAR, sheet_name VARCHAR, source_row_number BIGINT)")
         connection.execute("INSERT INTO quality.issues VALUES ('TEST','fixture','Sheet1',1)")
         connection.execute("CREATE TABLE private.secret(value INTEGER)")
@@ -37,10 +37,10 @@ class QueryServiceTests(unittest.TestCase):
             self.assertEqual(described["status"], "passed")
             self.assertFalse(any(item["schema"] == "private" for item in described["relations"]))
             queries = [
-                "SELECT * FROM clean.values_table ORDER BY category, amount",
-                "WITH selected AS (SELECT * FROM clean.values_table) SELECT category, sum(amount) total FROM selected GROUP BY category ORDER BY category",
-                "SELECT category, amount, row_number() OVER (PARTITION BY category ORDER BY amount) AS row_rank FROM clean.values_table",
-                "SELECT a.category, a.amount, b.amount other FROM clean.values_table a JOIN clean.values_table b USING(category)",
+                "SELECT * FROM landing.values_table ORDER BY category, amount",
+                "WITH selected AS (SELECT * FROM landing.values_table) SELECT category, sum(amount) total FROM selected GROUP BY category ORDER BY category",
+                "SELECT category, amount, row_number() OVER (PARTITION BY category ORDER BY amount) AS row_rank FROM landing.values_table",
+                "SELECT a.category, a.amount, b.amount other FROM landing.values_table a JOIN landing.values_table b USING(category)",
             ]
             for sql in queries:
                 with self.subTest(sql=sql):
@@ -49,8 +49,8 @@ class QueryServiceTests(unittest.TestCase):
 
     def test_rejects_writes_external_access_and_multiple_statements(self):
         denied = [
-            "CREATE TABLE clean.bad(a int)",
-            "INSERT INTO clean.values_table VALUES ('x', 1)",
+            "CREATE TABLE landing.bad(a int)",
+            "INSERT INTO landing.values_table VALUES ('x', 1)",
             "COPY (SELECT 1) TO '/tmp/query.csv'",
             "ATTACH '/tmp/other.db' AS other",
             "DETACH other",
@@ -78,7 +78,7 @@ class QueryServiceTests(unittest.TestCase):
             after = hashlib.sha256(db.read_bytes()).hexdigest()
             self.assertEqual(after, before)
             with duckdb.connect(str(db), read_only=True) as connection:
-                self.assertEqual(connection.execute("SELECT count(*) FROM clean.values_table").fetchone()[0], 3)
+                self.assertEqual(connection.execute("SELECT count(*) FROM landing.values_table").fetchone()[0], 3)
             with self.assertRaises(QueryError) as invalid_run:
                 execute_query(warehouse=db, snapshot_id="snapshot_query_test", sql="SELECT 1", run_id="../escape", output_root=root)
             self.assertEqual(invalid_run.exception.code, "RUN_ID_INVALID")
@@ -89,7 +89,7 @@ class QueryServiceTests(unittest.TestCase):
             db = root / "warehouse.duckdb"
             warehouse(db)
             with self.assertRaises(QueryError) as row_error:
-                execute_query(warehouse=db, snapshot_id="snapshot_query_test", sql="SELECT * FROM clean.values_table", run_id="run_query_test", output_root=root, max_rows=2)
+                execute_query(warehouse=db, snapshot_id="snapshot_query_test", sql="SELECT * FROM landing.values_table", run_id="run_query_test", output_root=root, max_rows=2)
             self.assertEqual(row_error.exception.code, "QUERY_LIMIT_EXCEEDED")
             with self.assertRaises(QueryError) as byte_error:
                 execute_query(warehouse=db, snapshot_id="snapshot_query_test", sql="SELECT repeat('x', 1000)", run_id="run_query_test", output_root=root, max_result_bytes=100)
@@ -133,7 +133,7 @@ class QueryServiceTests(unittest.TestCase):
             registry = root / "registry"
             warehouse(db)
             before = hashlib.sha256(db.read_bytes()).hexdigest()
-            sql = "SELECT * FROM clean.values_table WHERE category = $category ORDER BY amount"
+            sql = "SELECT * FROM landing.values_table WHERE category = $category ORDER BY amount"
             with self.assertRaises(QueryError):
                 promote_query(warehouse=db, snapshot_id="snapshot_query_test", sql=sql, registry_root=registry, query_id="category_values", version="v1", confirmed_by="")
             promoted = promote_query(warehouse=db, snapshot_id="snapshot_query_test", sql=sql, registry_root=registry, query_id="category_values", version="v1", confirmed_by="user@example")
@@ -154,7 +154,7 @@ class QueryServiceTests(unittest.TestCase):
             db = root / "warehouse.duckdb"
             registry = root / "registry"
             warehouse(db)
-            promote_query(warehouse=db, snapshot_id="snapshot_query_test", sql="SELECT * FROM clean.values_table", registry_root=registry, query_id="snapshot_bound", version="v1", confirmed_by="user@example")
+            promote_query(warehouse=db, snapshot_id="snapshot_query_test", sql="SELECT * FROM landing.values_table", registry_root=registry, query_id="snapshot_bound", version="v1", confirmed_by="user@example")
             with self.assertRaises(QueryError) as mismatch:
                 run_saved_query(warehouse=db, snapshot_id="snapshot_other", registry_root=registry, query_id="snapshot_bound", version="v1", parameters=None, run_id="run_query_test", output_root=root, max_rows=10, max_result_bytes=10000)
             self.assertEqual(mismatch.exception.code, "SNAPSHOT_MISMATCH")

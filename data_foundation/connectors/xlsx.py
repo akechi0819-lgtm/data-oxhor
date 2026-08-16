@@ -14,12 +14,8 @@ REL_NS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
 PACKAGE_REL_NS = "http://schemas.openxmlformats.org/package/2006/relationships"
 NS = {"m": MAIN_NS, "r": REL_NS, "p": PACKAGE_REL_NS}
 
-CLEAN_CANDIDATE_SHEETS = {
-    "fy25_frontdesk_daily": frozenset({"FY25-汇总"}),
-    "fy27_frontdesk_daily": frozenset({"FY27-汇总"}),
-    "current_work_orders": frozenset({"工单分析", "新表区域"}),
-    "archived_work_orders": frozenset({"FY24", "FY25", "FY26"}),
-}
+HEADER_SCAN_ROWS = 20
+HEADER_CANDIDATE_LIMIT = 5
 
 
 class XlsxReadError(ValueError):
@@ -165,6 +161,42 @@ def _technical_headers(cells: dict[int, Cell]) -> list[dict[str, object]]:
     return headers
 
 
+def dimension_max(reference: str | None) -> tuple[int, int] | None:
+    if not reference:
+        return None
+    last = reference.split(":")[-1]
+    match = re.fullmatch(r"([A-Z]+)([0-9]+)", last.upper())
+    if not match:
+        return None
+    return column_number(match.group(1)), int(match.group(2))
+
+
+def _header_candidate(row_number: int, cells: dict[int, Cell]) -> dict[str, object] | None:
+    meaningful = {column: cell for column, cell in cells.items() if cell.value not in (None, "")}
+    if len(meaningful) < 2:
+        return None
+    headers = _technical_headers(meaningful)
+    labels = [str(item["original_name"]) for item in headers if item["original_name"]]
+    text_cells = sum(cell.storage_type in {"s", "inlineStr", "str"} for cell in meaningful.values())
+    if text_cells / len(meaningful) < 0.8:
+        return None
+    unique_labels = len(set(labels))
+    span = max(meaningful) - min(meaningful) + 1
+    score = (
+        0.45 * (text_cells / len(meaningful))
+        + 0.25 * (unique_labels / len(meaningful))
+        + 0.15 * (len(meaningful) / span)
+        + 0.15 * min(len(meaningful) / 6, 1)
+        - min(row_number - 1, HEADER_SCAN_ROWS) * 0.05
+    )
+    return {
+        "row_number": row_number,
+        "score": round(score, 4),
+        "cell_count": len(meaningful),
+        "labels": headers,
+    }
+
+
 def inspect_sheet(archive: zipfile.ZipFile, sheet: SheetTarget, shared: list[str]) -> dict[str, object]:
     row_count = 0
     populated_rows = 0
@@ -174,6 +206,7 @@ def inspect_sheet(archive: zipfile.ZipFile, sheet: SheetTarget, shared: list[str
     storage_types: Counter[str] = Counter()
     formula_cells = 0
     formula_cache_missing = 0
+    candidates = []
     for row_number, cells in iter_sheet_rows(archive, sheet.target, shared):
         meaningful = {column: cell for column, cell in cells.items() if cell.value not in (None, "") or cell.formula is not None}
         if meaningful:
@@ -183,6 +216,10 @@ def inspect_sheet(archive: zipfile.ZipFile, sheet: SheetTarget, shared: list[str
             max_column = max(max_column, max(meaningful))
         if row_number == 1:
             header_cells = meaningful
+        if row_number <= HEADER_SCAN_ROWS:
+            candidate = _header_candidate(row_number, cells)
+            if candidate is not None:
+                candidates.append(candidate)
         for cell in meaningful.values():
             storage_types[cell.storage_type] += 1
             if cell.formula is not None:
@@ -192,6 +229,7 @@ def inspect_sheet(archive: zipfile.ZipFile, sheet: SheetTarget, shared: list[str
     duplicate_names = sorted(
         name for name, count in Counter(item["original_name"] for item in headers if item["original_name"]).items() if count > 1
     )
+    candidates.sort(key=lambda item: (-float(item["score"]), int(item["row_number"])))
     return {
         "name": sheet.name,
         "state": sheet.state,
@@ -201,15 +239,16 @@ def inspect_sheet(archive: zipfile.ZipFile, sheet: SheetTarget, shared: list[str
         "data_rows": max(row_count - (1 if header_cells else 0), 0),
         "actual_max_row": max_row,
         "actual_max_column": max_column,
-        "headers": headers,
-        "duplicate_header_names": duplicate_names,
+        "first_row_headers": headers,
+        "first_row_duplicate_header_names": duplicate_names,
+        "header_candidates": candidates[:HEADER_CANDIDATE_LIMIT],
         "storage_type_counts": dict(sorted(storage_types.items())),
         "formula_cells": formula_cells,
         "formula_cache": {"present": formula_cells - formula_cache_missing, "missing": formula_cache_missing},
     }
 
 
-def inspect_workbook(path: Path, source_id: str) -> dict[str, object]:
+def inspect_workbook(path: Path) -> dict[str, object]:
     try:
         archive = zipfile.ZipFile(path)
     except (OSError, zipfile.BadZipFile) as exc:
@@ -222,12 +261,24 @@ def inspect_workbook(path: Path, source_id: str) -> dict[str, object]:
         shared = shared_strings(archive)
         sheets = []
         quality = []
-        candidates = CLEAN_CANDIDATE_SHEETS.get(source_id, frozenset())
         for target in sheet_targets(archive):
             summary = inspect_sheet(archive, target, shared)
-            is_candidate = target.name in candidates
-            summary["clean_candidate"] = is_candidate
             sheets.append(summary)
-            if not is_candidate:
-                quality.append({"issue_code": "SHEET_NOT_CLEAN_CANDIDATE", "sheet_name": target.name, "status": "pending"})
+            declared_max = dimension_max(summary["declared_dimension"])
+            if declared_max and (
+                int(summary["actual_max_column"]) > declared_max[0]
+                or int(summary["actual_max_row"]) > declared_max[1]
+            ):
+                quality.append({"issue_code": "DECLARED_DIMENSION_MISMATCH", "sheet_name": target.name, "status": "pending"})
+            if target.state != "visible":
+                quality.append({"issue_code": "SHEET_HIDDEN", "sheet_name": target.name, "status": "pending"})
+            if int(summary["formula_cache"]["missing"]):
+                quality.append({
+                    "issue_code": "FORMULA_CACHE_MISSING",
+                    "sheet_name": target.name,
+                    "count": summary["formula_cache"]["missing"],
+                    "status": "pending",
+                })
+            if not summary["header_candidates"]:
+                quality.append({"issue_code": "HEADER_CANDIDATE_NOT_FOUND", "sheet_name": target.name, "status": "pending"})
         return {"sheets": sheets, "quality": quality}
