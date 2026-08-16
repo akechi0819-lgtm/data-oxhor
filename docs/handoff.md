@@ -9,10 +9,10 @@
 - Company Bridge 合同、历史候选扫描、人工复核门禁、CLI 和 Snapshot 兼容性校验已完成。
 - 当前 reviewed v3 含 119 个 confirmed 候选；正式 Bridge 1.2.0 含 3 个源合同、10 个字段映射、105 条归一规则、1 个 Override、0 个 unresolved。
 - Bridge 1.2.0 已通过真实 Data Foundation v2 Snapshot 兼容性校验；企业字段与列位不再硬编码在 Data Foundation。
-- Bridge 对齐向导最小切片已完成：显式会话、Snapshot 画像、可注入模型合同、少量关键确认、追加目录只读扫描、确认不可覆盖、自动 confirmed_review/build/validate。
+- Bridge 对齐向导 S3.5 已完成：显式会话、Snapshot 画像、候选合同、少量关键确认、追加目录只读扫描、确认不可覆盖、自动 confirmed_review/build/validate。
 - 陌生四表 + 七月到八月当前文件替换 + 补充数据字典 fixture 已覆盖工作区内数据管理、同公司语义复用、新公司隔离、关键问题阻断和最终 Bridge；工作区只保留当前 Snapshot，成功刷新清理旧 Run，失败或未完成会话不切换；61 项 Python 测试通过。
 - 2026-08-16 已用三张真实教务表完成跨端口运行验收：Data Foundation 发布六个 landing 关系，DeepSeek Harness 的四个短表级回合一致识别教师、上课日期和时长角色；正式教务 Bridge 含 8 个字段映射、4 条 Excel 序列日期解析和 4 条课量规则，并通过当前 Snapshot 校验。
-- 真实运行暴露并修复空候选会话可 finalize 的门禁缺陷；现在必须先 propose。当前 Harness headless 对长结构化任务异常只返回内部 `SESSION_ID`，短回合可用，正式 adapter 仍需解决该宿主调度问题。
+- 真实运行暴露并修复空候选会话可 finalize 的门禁缺陷；现在必须先 propose。当前 Harness headless 对单次长结构化任务异常只返回内部 `SESSION_ID`，短步骤原生 Agent 调用可用；这是宿主已知风险，不通过建设正式 Adapter 或第二层 Agent 解决，也不阻断 S3.5 完成。
 - 重叠处理边界已确定：不新增 Bridge 重叠模块。项目 Skill `diagnose-source-overlap` 已通过 Harness 真实调用，模型用 Data Foundation `describe/query` 自主检查日期范围、候选业务键、重复与冲突，确认后以保存查询固化 SQL；日期区间交集本身不能触发删除。
 
 ## 当前合同
@@ -28,17 +28,14 @@
 - Snapshot 只用于运行兼容性校验，不写入 Bridge；Bridge 不通过 `latest` 或修改时间选择状态。
 - 真实源工作簿、DuckDB、Parquet 和运行目录不进入 Git。
 
-## 尚未完成
+## 当前未完成
 
-- 首个 Customer Profile；
-- DeepSeek Harness 或其他默认宿主的真实 `CandidateAdapter` 与客户会话验收；
-- Harness Session 重启后通过显式 Snapshot/Pack/Bridge 身份继续；
-- 小型 Deliverable 的生成、打开性验收和会话展示；
-- 输出模块和学习与质量工作区。
+- S4 项目级交付 Skills 的选型与最小装配；
+- 用现有正确查询结果完成一个可打开、内容非空且数字可回查的真实 PPT/表格/图表交付物。
 
 ## 唯一下一步
 
-先实现默认宿主的真实 `CandidateAdapter`，在非开发客户会话中验证关键问题、追加目录扫描和最终 Bridge 交付；随后实现首个 Customer Profile，显式选择 Data Foundation endpoint、Snapshot、Pack、Bridge、模型、Skills 和隔离工作区，并验证 Session 恢复和小型 Deliverable。
+进入 S4：先讨论并选定最小项目级 Skills 组合，重点评估 PPT Master、电子表格和数据可视化能力；核对来源、许可证、维护状态、宿主兼容性和当前环境是否已有同等能力后再安装。随后由 Codex 或 DeepSeek Harness 原生 Agent 使用现有教务查询结果生成真实交付物并验收。不要开发 Customer Profile、清理按钮、Renderer、HTML 平台或 Deliverables 系统。
 
 不要增加 MCP、独立强化插件、完整 Artifact 平台或通用工作流编排；新增治理必须对应可复现失败或明确客户要求。
 
@@ -46,8 +43,8 @@
 
 - DeepSeek Harness 仍是 Developer Preview，升级可能破坏插件接口；
 - 当前 landing 关系名由 `source_id + sheet_name` 确定，源 Sheet 改名后必须重新做 Bridge 兼容性校验；
-- fake adapter 只用于测试，当前不能把向导描述成已具备正式模型推理能力；
-- 尚未确认可直接复用的官方 PPT/图表市场能力。
+- fake adapter 只用于候选合同测试；正式推理由 Codex 或 DeepSeek Harness 的原生 Agent 承担，不建设宿主 Adapter；
+- PPT Master 及其他候选 Skills 的来源、许可证、维护状态和与当前宿主的兼容性尚待 S4 讨论确认。
 
 ## 技术依据
 

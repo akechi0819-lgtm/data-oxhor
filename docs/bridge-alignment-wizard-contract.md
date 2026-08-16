@@ -47,12 +47,12 @@ python3 -m interfaces.bridge_alignment_wizard <command>
 | `init` | 创建自包含客户工作目录，复制 Pack 和可选同公司 Bridge |
 | `sync-data` | 将当前 `Input/Data` 发布为新 Snapshot 并更新明确的 current pointer |
 | `start` | 基于当前 Snapshot、Pack 和 Bridge 建立对齐会话 |
-| `propose` | 调用宿主注入的 `CandidateAdapter`，生成并校验 proposed 候选 |
+| `propose` | 校验并保存程序化注入的 proposed 候选；主要用于合同测试或批处理集成 |
 | `answer` | Host 将客户自然语言理解为一个内部选项，记录原回答、选项和确认人 |
 | `add-evidence` | 把目录/U 盘中的支持文件复制进 `Input/Reference`，重新计算候选 |
 | `finalize` | 生成 `confirmed_review`、正式 Bridge 和当前 Snapshot 验证结果 |
 
-完成当前阶段且无需客户输入时退出 `0`；等待确认或被关键问题阻断时退出 `2`；合同、身份、adapter、文件或验证错误退出 `1`。stdout JSON 是 Host 机器接口，不是客户回答格式。
+完成当前阶段且无需客户输入时退出 `0`；等待确认或被关键问题阻断时退出 `2`；合同、身份、候选注入、文件或验证错误退出 `1`。stdout JSON 是 Host 机器接口，不是客户回答格式。
 
 ## 4. 哈希边界
 
@@ -62,7 +62,9 @@ SHA-256 只保留在 Data Foundation 的 inspect/ingest 内部，用于确认导
 
 ## 5. 模型与确认
 
-核心只依赖 `CandidateAdapter.propose(model_input) -> document`，不依赖宿主 SDK。模型输出只包含候选类型、proposal、置信度、证据、替代解释和可选问题；模型不生成业务身份。
+正式运行由 Codex、DeepSeek Harness 等宿主的原生 Agent 主控：宿主自己的模型读取 Snapshot 画像和 Pack/Bridge 上下文，提出候选并向客户确认。项目核心不调用模型、不管理模型 Provider、不创建 Agent Loop，也不依赖宿主 SDK。
+
+代码保留 `CandidateAdapter.propose(model_input) -> document` 作为程序化候选注入和测试缝，用于验证候选格式与确定性门禁；它不是正式 Harness/Codex Adapter，不是生产运行前置条件，也不是后续施工项。候选只包含类型、proposal、置信度、证据、替代解释和可选问题；模型不生成业务身份。
 
 核心根据 `candidate_type + source_id + relation + field_name/source_value + capability` 生成确定性 `candidate_key`。确认绑定该语义键，因此追加证据后即使模型改变临时候选顺序或名称，已确认决定仍优先且不得静默覆盖。
 
@@ -70,13 +72,13 @@ SHA-256 只保留在 Data Foundation 的 inspect/ingest 内部，用于确认导
 
 ## 6. JSON 边界
 
-保留结构化 JSON 的机器边界：adapter 输入/输出、工作区当前指针、单一 `session.json`、`confirmed_review`、正式 `company_bridge.v1`、Snapshot 验证结果、CLI 错误码和产物路径。
+保留结构化 JSON 的机器边界：程序化候选输入/输出、工作区当前指针、单一 `session.json`、`confirmed_review`、正式 `company_bridge.v1`、Snapshot 验证结果、CLI 错误码和产物路径。
 
 客户不需要操作 `profile.json`、`questions.json`、`decisions.jsonl` 等散文件；这些状态收敛在 `Work/Sessions/<session_id>/session.json`。正式 Bridge 仍必须经过现有确定性 schema 和引用校验，不能改成自由文本。
 
 ## 7. 追加资料与 finalize
 
-`add-evidence` 只读取指定目录，把支持的文本、CSV、JSON、XLSX/XLSM 复制到 `Input/Reference`。相同相对路径直接更新；其他文件保留。随后重建证据画像并调用同一 adapter，已有 `candidate_key` 决定保持不变。
+`add-evidence` 只读取指定目录，把支持的文本、CSV、JSON、XLSX/XLSM 复制到 `Input/Reference`。相同相对路径直接更新；其他文件保留。随后重建证据画像；程序化入口可再次注入候选，宿主原生 Agent 也可重新评估。已有 `candidate_key` 决定保持不变。
 
 `finalize` 只把客户 confirmed 和显式 unresolved 转换成固定 `company_bridge_candidates.v1 / confirmed_review`，随后复用现有 `build_bridge` 和 `validate_bridge`。任何关键问题未答时返回原问题且不生成正式文件。正式版本目录已存在时失败，不覆盖已发布 Bridge。
 
