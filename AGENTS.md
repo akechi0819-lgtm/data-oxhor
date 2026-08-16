@@ -30,6 +30,7 @@
 - `company_bridge/` 已提供候选扫描、人工复核门禁、正式构建和 Snapshot 兼容性校验；当前 reviewed v3 生成正式 Bridge 1.2.0，映射 3 个真实 landing 源合同；
 - 真实三表已通过 Data Foundation v2 全量 landing，Bridge 1.2.0 已对同一 Snapshot 兼容性校验通过；
 - `bridge_alignment/` 与 `interfaces/bridge_alignment_wizard.py` 已提供 `start`、`propose`、`answer`、`add-evidence`、`finalize`，支持同公司口径复用、新公司隔离、追加只读证据、关键歧义阻断和自动 build/validate；核心只有可注入 adapter 合同，没有宿主 SDK；
+- `.agents/skills/diagnose-source-overlap` 已通过 DeepSeek Harness 项目 Skill 真实调用；模型使用现有 Data Foundation `describe/query` 自主诊断全量刷新、日期重叠、候选业务键和冲突，确认后以 `promote-query/run-saved-query` 固化只读去重 SQL；
 - 56 项现行 Python 测试通过；真实宿主模型 adapter、Customer Profile、输出插件和学习与质量工作区尚未实现；MCP 不在当前计划内。
 
 ## 当前最小红线
@@ -45,7 +46,7 @@
 
 ## 开发顺序
 
-Data Foundation、Pack、Bridge 和 Bridge 对齐向导最小切片已完成。下一施工项是把真实宿主模型 adapter 接入向导并完成客户会话验收，再实现首个 Customer Profile、Session 恢复、项目 Skill 和小型文件交付。不得把企业字段、枚举、SQL、清洗规则或单次分析结论回填进 Pack 或 Data Foundation。
+Data Foundation、Pack、Bridge、Bridge 对齐向导最小切片和首个重叠诊断项目 Skill 已完成。下一施工项是把真实宿主模型 adapter 接入向导并完成客户会话验收，再实现首个 Customer Profile、Session 恢复和小型文件交付。企业字段与确认后的物理处理 SQL不回填 Pack；去重 SQL进入 Data Foundation 保存查询，不进入 Bridge。
 
 ## 文档路由
 

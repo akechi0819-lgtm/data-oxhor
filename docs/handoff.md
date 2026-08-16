@@ -13,6 +13,7 @@
 - 陌生四表 + 七月到八月当前文件替换 + 补充数据字典 fixture 已覆盖工作区内数据管理、同公司语义复用、新公司隔离、关键问题阻断和最终 Bridge；56 项 Python 测试通过。
 - 2026-08-16 已用三张真实教务表完成跨端口运行验收：Data Foundation 发布六个 landing 关系，DeepSeek Harness 的四个短表级回合一致识别教师、上课日期和时长角色；正式教务 Bridge 含 8 个字段映射、4 条 Excel 序列日期解析和 4 条课量规则，并通过当前 Snapshot 校验。
 - 真实运行暴露并修复空候选会话可 finalize 的门禁缺陷；现在必须先 propose。当前 Harness headless 对长结构化任务异常只返回内部 `SESSION_ID`，短回合可用，正式 adapter 仍需解决该宿主调度问题。
+- 重叠处理边界已确定：不新增 Bridge 重叠模块。项目 Skill `diagnose-source-overlap` 已通过 Harness 真实调用，模型用 Data Foundation `describe/query` 自主检查日期范围、候选业务键、重复与冲突，确认后以保存查询固化 SQL；日期区间交集本身不能触发删除。
 
 ## 当前合同
 
@@ -31,7 +32,6 @@
 - 首个 Customer Profile；
 - DeepSeek Harness 或其他默认宿主的真实 `CandidateAdapter` 与客户会话验收；
 - Harness Session 重启后通过显式 Snapshot/Pack/Bridge 身份继续；
-- 项目 Skill 的真实调用；
 - 小型 Deliverable 的生成、打开性验收和会话展示；
 - 输出模块和学习与质量工作区。
 

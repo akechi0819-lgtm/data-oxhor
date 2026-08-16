@@ -75,7 +75,11 @@ Codex 可以通过项目 Shell 直接调用上述命令。Stage 1 需要用现�
 DeepSeek Harness → controlled shell → Python CLI → Data Foundation
 ```
 
-Harness 全局安装、Web、真实模型回合、项目 Workspace、受控 Shell 和真实三表 `inspect → ingest → describe → quality → query` 已通过。Session 恢复、项目 Skill 及 Deliverables 仍待验收。
+Harness 全局安装、Web、真实模型回合、项目 Workspace、受控 Shell、真实三表 `inspect → ingest → describe → quality → query` 和项目 Skill `diagnose-source-overlap` 调用已通过。Session 恢复及 Deliverables 仍待验收。
+
+### 重叠与清洗
+
+同一端口全量文件更新时替换同一 `Input/Data/<source_id>` 当前文件并发布新 Snapshot，不跨 Snapshot 合并。当前 Snapshot 内多来源可能重叠时，宿主使用项目 Skill `diagnose-source-overlap`，通过现有 `describe/query` 自主检查日期范围、候选业务键、重复和冲突；客户确认业务键与来源优先级后，再用 `promote-query` / `run-saved-query` 固化只读 SQL。该逻辑不进入 Bridge，也不修改 landing。
 
 ## 4. Education Business Pack
 

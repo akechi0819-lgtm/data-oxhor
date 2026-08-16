@@ -54,8 +54,9 @@ python3 -m unittest discover -s tests -p 'test_*.py' -v
 真实三表已经通过 `inspect → ingest → describe → quality → query` 和 Bridge 兼容性验证。以下项目尚无通过证据：
 
 - Session 重启后继续对话；
-- 项目 Skill 实际调用；
 - Deliverables 生成和展示。
+
+项目 Skill `diagnose-source-overlap` 已在 2026-08-16 由 Harness headless 真实调用，能正确区分全量刷新与多来源并存，并把去重处理路由到 Data Foundation 只读查询和保存查询。
 
 ## 5. 升级策略
 

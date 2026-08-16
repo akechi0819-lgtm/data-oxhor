@@ -44,11 +44,12 @@ Data Foundation  业务语义组          输出与交付
 - Pack 的 `validate` / `describe` CLI 与确定性交叉引用校验；
 - Company Bridge 1.2.0：3 个当前源合同、10 个字段映射、105 条归一规则和 1 个企业 Override；
 - Bridge 对齐向导 v1：提供自包含 `Input/Work/Output` 客户工作区、稳定数据源槽位和月度替换同步，通过可注入 adapter 接收模型候选，由宿主收集关键确认，并自动生成 confirmed_review、build 和 Snapshot validate；
+- 项目 Skill `diagnose-source-overlap`：提示模型主动检查全量刷新、日期范围、候选业务键、重复率和冲突；客户确认后用现有保存查询固化去重，不增加专用重叠平台；
 - 56 项现行 Python 测试；
 - 本机全局 DeepSeek Harness `0.1.0-rc.6`，Web 健康检查通过。
 - Harness 真实模型回合可用，并已在项目 Workspace 通过 Shell 执行 Data Foundation `--help`，退出码为 0，发现全部 7 个子命令。
 
-真实三表已在 Harness 与 Data Foundation v2 上完成入仓、描述、质量和查询验证；Bridge 1.2.0 已通过同一 Snapshot 的兼容性校验。向导已用陌生四表 fixture、追加数据字典、关键确认和最终 build/validate 完成端到端测试；真实宿主模型 adapter 尚未接入。Customer Profile、输出插件和学习与质量工作区尚未实现；Session 恢复、项目 Skill 和 Deliverables 尚未验收。MCP 不在当前开发计划内。
+真实三表已在 Harness 与 Data Foundation v2 上完成入仓、描述、质量和查询验证；Bridge 1.2.0 已通过同一 Snapshot 的兼容性校验。向导已用陌生四表 fixture、追加数据字典、关键确认和最终 build/validate 完成端到端测试；重叠诊断项目 Skill 已由 Harness 真实调用。真实宿主模型 adapter 尚未接入。Customer Profile、输出插件和学习与质量工作区尚未实现；Session 恢复和 Deliverables 尚未验收。MCP 不在当前开发计划内。
 
 Data Foundation 不再保存企业 Sheet 白名单、业务列名或 `semantic.registration_cash`。企业表头与 `column_N` 的对应关系、枚举和清洗口径只进入 Company Bridge。
 

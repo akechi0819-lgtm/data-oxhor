@@ -73,6 +73,7 @@
 - Data Foundation 保证源文件只读、Snapshot 不原地覆盖、查询入口只读并限制结果规模；
 - Pack 校验器检查稳定 ID 和交叉引用；Bridge 建成后由语义模块阻断未确认映射成为正式事实；
 - Bridge 对齐向导把模型候选限制为 proposed，以不可覆盖决定生成 confirmed_review；关键问题未答时阻断，非关键未答项显式 unresolved 并禁用能力；
+- 多来源重叠和清洗由项目 Skill 提示模型使用 Data Foundation 只读查询举证；客户确认业务键、来源优先级和 SQL 后，以 saved query 固化。Bridge 只保存企业语义映射，不保存物理去重或合并 SQL；
 - Renderer 建成后由输出模块完成文件打开性与最小内容验收；
 - 状态恢复使用显式 `run_id`、`snapshot_id` 和后续 Pack/Bridge 版本，不通过 `latest`、修改时间或模糊文件名猜测。
 

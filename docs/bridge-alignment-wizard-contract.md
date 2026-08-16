@@ -28,6 +28,12 @@ CustomerWorkspace/
 
 `sync-data` 自动检查每个来源槽位恰有一个工作簿，内部生成 Data Foundation 所需 manifest，并发布新的显式 `snapshot_id`。当前输入可以替换，已发布 Snapshot 永不覆盖；旧工作簿已经保存在旧 Snapshot 中。`Work/workspace.json` 明确记录 `current_snapshot_id` 和历史，不通过 `latest`、修改时间或模糊文件名猜测。
 
+### 2.1 两类重叠场景
+
+同一端口的全量刷新不做跨 Snapshot 合并。例如六月文件覆盖 `2025-01-01..2026-06-01`，七月文件仍从 `2025-01-01` 开始但延长到 `2026-07-01`：客户在同一 `source_id` 槽位替换当前文件并执行 `sync-data`。新 Snapshot 只查询七月全量文件，六月 Snapshot 留作历史，因此不会重复累计。
+
+同一 Snapshot 内确实需要并存的多个端口或分段文件，重叠识别与查询时去重属于 Data Foundation 的受控只读分析，不属于 Bridge。宿主模型先通过 `describe/query` 检查日期范围、候选业务键、重复率和内容冲突；日期交集只表示“可能重叠”，不能单独删除记录。经客户确认的业务键与来源优先级形成只读 SQL，使用现有 `promote-query` 保存并通过 `run-saved-query` 重用。Bridge 只保存字段和业务语义映射，不保存物理合并 SQL。
+
 ## 3. CLI
 
 ```text
