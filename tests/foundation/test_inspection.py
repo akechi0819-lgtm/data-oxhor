@@ -77,19 +77,26 @@ class WorkbookInspectionTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "source.xlsx"
             write_workbook(path)
-            result = inspect_workbook(path, "fy25_frontdesk_daily")
+            result = inspect_workbook(path)
 
         first, second = result["sheets"]
         self.assertEqual(first["declared_dimension"], "A1")
         self.assertEqual(first["actual_max_row"], 8)
         self.assertEqual(first["populated_rows"], 3)
-        self.assertEqual(first["duplicate_header_names"], ["名称"])
-        self.assertEqual([item["technical_name"] for item in first["headers"]], ["名称", "名称__2", "金额"])
+        self.assertEqual(first["first_row_duplicate_header_names"], ["名称"])
+        self.assertEqual([item["technical_name"] for item in first["first_row_headers"]], ["名称", "名称__2", "金额"])
+        self.assertEqual(first["header_candidates"][0]["row_number"], 1)
         self.assertEqual(first["formula_cache"], {"present": 1, "missing": 1})
-        self.assertTrue(first["clean_candidate"])
-        self.assertFalse(second["clean_candidate"])
         self.assertEqual(second["state"], "hidden")
-        self.assertEqual(result["quality"], [{"issue_code": "SHEET_NOT_CLEAN_CANDIDATE", "sheet_name": "看板", "status": "pending"}])
+        self.assertEqual(
+            result["quality"],
+            [
+                {"issue_code": "DECLARED_DIMENSION_MISMATCH", "sheet_name": "FY25-汇总", "status": "pending"},
+                {"issue_code": "FORMULA_CACHE_MISSING", "sheet_name": "FY25-汇总", "count": 1, "status": "pending"},
+                {"issue_code": "SHEET_HIDDEN", "sheet_name": "看板", "status": "pending"},
+                {"issue_code": "HEADER_CANDIDATE_NOT_FOUND", "sheet_name": "看板", "status": "pending"},
+            ],
+        )
 
     def test_cli_contract_does_not_emit_absolute_source_path_or_rows(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -106,7 +113,7 @@ class WorkbookInspectionTests(unittest.TestCase):
             )
 
         serialized = json.dumps(result, ensure_ascii=False)
-        self.assertEqual(result["schema_version"], "data_foundation_inspection.v1")
+        self.assertEqual(result["schema_version"], "data_foundation_inspection.v2")
         self.assertEqual(result["status"], "passed_with_warnings")
         self.assertNotIn(str(source.parent), serialized)
         self.assertNotIn("示例", serialized)
