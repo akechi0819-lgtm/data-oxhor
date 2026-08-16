@@ -16,9 +16,10 @@ test = ["openpyxl==3.1.5"]
 [project.scripts]
 data-foundation = "interfaces.data_foundation:main"
 business-pack = "interfaces.business_pack:main"
+company-bridge = "interfaces.company_bridge:main"
 
 [tool.setuptools.packages.find]
-include = ["business_pack*", "data_foundation*", "interfaces*"]
+include = ["business_pack*", "company_bridge*", "data_foundation*", "interfaces*"]
 
 [tool.setuptools.package-data]
 business_pack = ["packs/**/*.json"]
