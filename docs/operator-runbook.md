@@ -45,7 +45,7 @@ python3 -m interfaces.bridge_alignment_wizard --help
 python3 -m unittest discover -s tests -p 'test_*.py' -v
 ```
 
-基线是 55 项现行测试通过，Pack 与 Bridge 校验状态均为 `passed`。向导测试使用 fake adapter，不代表真实宿主模型已接入。测试失败时先区分：Python/DuckDB 版本、外部 Golden Case 是否可读、源 SHA-256 是否变化、Pack/Bridge 交叉引用错误，还是代码回归。不要通过修改 Golden 值掩盖源文件变化。
+基线是 56 项现行测试通过，Pack 与 Bridge 校验状态均为 `passed`。向导测试使用 fake adapter，不代表真实宿主模型已接入。`finalize` 必须在 `propose` 产生至少一个候选后才能执行；空候选返回 `CANDIDATES_MISSING`。测试失败时先区分：Python/DuckDB 版本、外部 Golden Case 是否可读、源 SHA-256 是否变化、Pack/Bridge 交叉引用错误，还是代码回归。不要通过修改 Golden 值掩盖源文件变化。
 
 ## 4. 模型和密钥
 

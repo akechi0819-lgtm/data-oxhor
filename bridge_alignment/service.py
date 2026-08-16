@@ -334,6 +334,8 @@ def finalize_session(*, root: Path, session_id: str, bridge_id: str, bridge_vers
     paths, config = load_workspace(root)
     session_path = _session_path(paths, session_id)
     session = load_json(session_path)
+    if not session["model_candidates"]:
+        raise AlignmentError("CANDIDATES_MISSING", "run propose before finalizing the Bridge", session_id=session_id)
     pending_critical = [item for item in session["questions"] if item["criticality"] == "critical"]
     if pending_critical:
         raise AlignmentError("CRITICAL_QUESTIONS_PENDING", "critical questions remain unanswered", session_id=session_id, pending_questions=pending_critical)

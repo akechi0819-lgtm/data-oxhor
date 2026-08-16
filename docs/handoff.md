@@ -10,7 +10,9 @@
 - 当前 reviewed v3 含 119 个 confirmed 候选；正式 Bridge 1.2.0 含 3 个源合同、10 个字段映射、105 条归一规则、1 个 Override、0 个 unresolved。
 - Bridge 1.2.0 已通过真实 Data Foundation v2 Snapshot 兼容性校验；企业字段与列位不再硬编码在 Data Foundation。
 - Bridge 对齐向导最小切片已完成：显式会话、Snapshot 画像、可注入模型合同、少量关键确认、追加目录只读扫描、确认不可覆盖、自动 confirmed_review/build/validate。
-- 陌生四表 + 七月到八月当前文件替换 + 补充数据字典 fixture 已覆盖工作区内数据管理、同公司语义复用、新公司隔离、关键问题阻断和最终 Bridge；55 项 Python 测试通过。
+- 陌生四表 + 七月到八月当前文件替换 + 补充数据字典 fixture 已覆盖工作区内数据管理、同公司语义复用、新公司隔离、关键问题阻断和最终 Bridge；56 项 Python 测试通过。
+- 2026-08-16 已用三张真实教务表完成跨端口运行验收：Data Foundation 发布六个 landing 关系，DeepSeek Harness 的四个短表级回合一致识别教师、上课日期和时长角色；正式教务 Bridge 含 8 个字段映射、4 条 Excel 序列日期解析和 4 条课量规则，并通过当前 Snapshot 校验。
+- 真实运行暴露并修复空候选会话可 finalize 的门禁缺陷；现在必须先 propose。当前 Harness headless 对长结构化任务异常只返回内部 `SESSION_ID`，短回合可用，正式 adapter 仍需解决该宿主调度问题。
 
 ## 当前合同
 

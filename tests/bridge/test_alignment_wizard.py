@@ -149,6 +149,16 @@ class BridgeAlignmentWizardTests(unittest.TestCase):
             self.assertEqual("completed", result["status"])
             self.assertTrue((root / "Output" / "Bridge" / "1.0.0" / "company_bridge.v1.json").is_file())
 
+    def test_finalize_rejects_a_session_without_model_candidates(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = self._workspace(Path(directory))
+            start_session(root=root, session_id="session_empty")
+
+            with self.assertRaises(AlignmentError) as captured:
+                finalize_session(root=root, session_id="session_empty", bridge_id="bridge_company_fixture", bridge_version="1.0.0")
+
+        self.assertEqual("CANDIDATES_MISSING", captured.exception.code)
+
     def test_unanswered_optional_disables_capability(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = self._workspace(Path(directory))

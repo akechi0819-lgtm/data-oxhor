@@ -30,7 +30,7 @@
 - `company_bridge/` 已提供候选扫描、人工复核门禁、正式构建和 Snapshot 兼容性校验；当前 reviewed v3 生成正式 Bridge 1.2.0，映射 3 个真实 landing 源合同；
 - 真实三表已通过 Data Foundation v2 全量 landing，Bridge 1.2.0 已对同一 Snapshot 兼容性校验通过；
 - `bridge_alignment/` 与 `interfaces/bridge_alignment_wizard.py` 已提供 `start`、`propose`、`answer`、`add-evidence`、`finalize`，支持同公司口径复用、新公司隔离、追加只读证据、关键歧义阻断和自动 build/validate；核心只有可注入 adapter 合同，没有宿主 SDK；
-- 55 项现行 Python 测试通过；真实宿主模型 adapter、Customer Profile、输出插件和学习与质量工作区尚未实现；MCP 不在当前计划内。
+- 56 项现行 Python 测试通过；真实宿主模型 adapter、Customer Profile、输出插件和学习与质量工作区尚未实现；MCP 不在当前计划内。
 
 ## 当前最小红线
 
