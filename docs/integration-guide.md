@@ -2,7 +2,7 @@
 
 ## 1. 当前公开入口
 
-当前唯一已实现入口是 Python CLI：
+Data Foundation 的公开入口是 Python CLI：
 
 ```bash
 python3 -m interfaces.data_foundation --help
@@ -75,8 +75,21 @@ Codex 可以通过项目 Shell 直接调用上述命令。Stage 1 需要用现�
 DeepSeek Harness → controlled shell → Python CLI → Data Foundation
 ```
 
-当前只完成 Harness 全局安装和 Web 静态验证。真实模型通过 Shell 调用 CLI、Session 恢复及 Deliverables 仍待用户配置 Provider 后验收。
+Harness 全局安装、Web、真实模型回合、项目 Workspace、受控 Shell 和 Data Foundation 顶层 `--help` 已通过。完整数据链路、Session 恢复及 Deliverables 仍待验收。
 
-## 4. Pack 与 Bridge 的未来接入
+## 4. Education Business Pack
 
-Pack 与 Bridge 将分别提供版本化 manifest。调用时先选择 Customer Profile，再冻结 `snapshot_id`、Pack version 和 Bridge version。未确认 Bridge 项必须显式返回，不允许工具静默选择字段或枚举。
+首版 Pack 可通过同一 Python 环境调用：
+
+```bash
+python3 -m interfaces.business_pack validate
+python3 -m interfaces.business_pack describe
+```
+
+`validate` 校验 manifest schema、稳定 ID、重复项以及概念、指标、维度、旅程、漏斗和 Playbook 的交叉引用；失败返回结构化 JSON 和非零退出码。`describe` 返回版本、范围和精简清单，不展开全部知识正文。两条命令都可用 `--pack PATH` 指向待校验的 Pack。
+
+内置 Pack 为 `education_training_operations_cn` v1.0.0。它不接收 `snapshot_id`，也不包含当前企业字段、枚举、SQL 或清洗选择。
+
+## 5. Bridge 的未来接入
+
+Bridge 将提供独立版本化 manifest。调用时先选择 Customer Profile，再冻结 `snapshot_id`、Pack version 和 Bridge version。未确认 Bridge 项必须显式返回，不允许工具静默选择字段或枚举。

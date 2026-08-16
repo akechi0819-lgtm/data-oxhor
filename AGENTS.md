@@ -24,9 +24,10 @@
 - `data_foundation/` 已实现 XLSX 全 Sheet 探查、OOXML 流式读取、不可变 Snapshot、DuckDB/Parquet 入仓、质量问题查询和受控只读 SQL；
 - `interfaces/data_foundation.py` 已提供 `inspect`、`ingest`、`describe`、`quality`、`query`、`run-saved-query`、`promote-query`；
 - Data Foundation 已要求关键运行入口携带 `run_id`，查询通过显式 `snapshot_id` 定位仓库，并为 Snapshot 与大结果写入最小 Artifact manifest；这不是完整 Run/Artifact 平台；
+- `business_pack/` 已提供 `education_training_operations_cn` v1.0.0，包含行业概念、指标、维度、三段客户旅程、漏斗和诊断 Playbook；`interfaces/business_pack.py` 提供 `validate`、`describe`；
 - DeepSeek Harness `@deepseek-ai/dsh@0.1.0-rc.6` 已安装到本机全局环境，Web 健康检查通过；模型 Provider/API Key 已配置，真实模型回合可用，并已在项目 Workspace 通过 Shell 成功执行 Data Foundation 顶层 `--help`（退出码 0、发现 7 个子命令）；
-- 项目 Git 仓库已在 `main` 分支初始化，尚无首个提交；
-- Business Pack、Bridge、Customer Profile、输出插件和学习与质量工作区尚未实现；MCP 不在当前计划内。
+- 项目 Git 仓库已有基线提交 `a5df0b6`；当前工作树包含未提交施工改动；
+- Company Bridge、Customer Profile、输出插件和学习与质量工作区尚未实现；MCP 不在当前计划内。
 
 ## 当前最小红线
 
@@ -40,7 +41,7 @@
 
 ## 开发顺序
 
-唯一当前施工项是：用现有 Data Foundation CLI 完成宿主接入验证。普通模型回合、Workspace、Shell 和 CLI 顶层发现已经通过；下一步用一次性小型 fixture 完成“探查 → 入仓 → 描述 → 质量 → 查询”，随后验证 Session 恢复和小型文件交付。完成前不并行施工 Pack、Bridge 或输出插件。
+Education Business Pack v1 已完成。下一施工阶段是 Company Bridge 的需求确认与最小映射切片；不得把企业字段、枚举、SQL、清洗规则或单次分析结论回填进 Pack。Harness 的完整数据链路、Session 恢复和小型文件交付仍是独立待验收项。
 
 ## 文档路由
 

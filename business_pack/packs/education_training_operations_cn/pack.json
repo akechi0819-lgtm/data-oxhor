@@ -1,0 +1,652 @@
+{
+  "schema_version": "business_pack.v1",
+  "pack_id": "education_training_operations_cn",
+  "pack_version": "1.0.0",
+  "name": "校外教育培训经营分析基础包",
+  "scope": "面向校外及非学历教育培训机构的经营分析通用知识，覆盖招生转化、资金合同、服务履约、收入确认与退费。",
+  "non_goals": [
+    "不保存任何企业表名、字段、枚举、清洗规则或经营阈值",
+    "不提供单次分析的事实结论",
+    "不替代企业会计判断、法律意见或监管合规审查",
+    "不规定宿主、SQL 引擎或输出文件格式"
+  ],
+  "concepts": [
+    {
+      "concept_id": "organization.campus",
+      "name": "校区",
+      "definition": "提供培训服务或承接经营责任的组织经营单元。",
+      "related_concept_ids": ["offering.product", "customer.student"]
+    },
+    {
+      "concept_id": "offering.product_line",
+      "name": "产品线",
+      "definition": "按服务对象、教学目标或经营管理方式归并的一组产品。",
+      "related_concept_ids": ["offering.product", "offering.course"]
+    },
+    {
+      "concept_id": "offering.product",
+      "name": "产品",
+      "definition": "可被销售、履约和分析的培训服务组合。",
+      "related_concept_ids": ["offering.product_line", "offering.course", "contract.training_contract"]
+    },
+    {
+      "concept_id": "offering.course",
+      "name": "课程",
+      "definition": "构成培训产品并实际交付给学员的教学服务内容。",
+      "related_concept_ids": ["offering.product", "delivery.service_delivery"]
+    },
+    {
+      "concept_id": "customer.student",
+      "name": "学员",
+      "definition": "接受培训服务的人。学员与付款人可以是不同主体。",
+      "related_concept_ids": ["customer.payer", "contract.enrollment"]
+    },
+    {
+      "concept_id": "customer.payer",
+      "name": "付款人",
+      "definition": "为培训合同支付对价的个人或组织。",
+      "related_concept_ids": ["customer.student", "cash.payment"]
+    },
+    {
+      "concept_id": "acquisition.lead",
+      "name": "线索",
+      "definition": "表达潜在培训需求并可被机构识别的客户机会。",
+      "related_concept_ids": ["acquisition.effective_lead"]
+    },
+    {
+      "concept_id": "acquisition.effective_lead",
+      "name": "有效线索或有效工单",
+      "definition": "满足机构可跟进条件并进入正式转化流程的线索。有效条件由 Company Bridge 映射。",
+      "related_concept_ids": ["acquisition.lead", "acquisition.appointment"]
+    },
+    {
+      "concept_id": "acquisition.appointment",
+      "name": "预约",
+      "definition": "潜在客户与机构约定后续到访、咨询或体验的行为。",
+      "related_concept_ids": ["acquisition.effective_lead", "acquisition.arrival"]
+    },
+    {
+      "concept_id": "acquisition.arrival",
+      "name": "到访",
+      "definition": "潜在客户实际到达约定咨询或体验场景。",
+      "related_concept_ids": ["acquisition.appointment", "acquisition.trial"]
+    },
+    {
+      "concept_id": "acquisition.trial",
+      "name": "试听或体验",
+      "definition": "潜在学员实际接受用于购买决策的课程体验或服务体验。",
+      "related_concept_ids": ["acquisition.arrival", "contract.enrollment"]
+    },
+    {
+      "concept_id": "contract.enrollment",
+      "name": "报名或签约",
+      "definition": "客户接受培训产品并形成可识别合同、订单或报名关系的行为。",
+      "related_concept_ids": ["contract.training_contract", "acquisition.trial"]
+    },
+    {
+      "concept_id": "contract.training_contract",
+      "name": "培训合同",
+      "definition": "机构与客户之间关于培训服务、价格、支付、履约和退费权利义务的约定。",
+      "related_concept_ids": ["contract.enrollment", "cash.receivable", "revenue.performance_obligation"]
+    },
+    {
+      "concept_id": "cash.receivable",
+      "name": "应收金额",
+      "definition": "依据合同或结算安排，机构有权向客户收取但尚未实际收取的金额。",
+      "related_concept_ids": ["contract.training_contract", "cash.payment"]
+    },
+    {
+      "concept_id": "cash.payment",
+      "name": "现金流入",
+      "definition": "客户实际支付并形成机构资金流入的交易金额。",
+      "related_concept_ids": ["customer.payer", "cash.refund", "cash.net_cash"]
+    },
+    {
+      "concept_id": "cash.refund",
+      "name": "退款流出",
+      "definition": "机构因解除、变更或调整培训交易而实际退还给客户的金额。源系统中的正负号不属于通用定义。",
+      "related_concept_ids": ["cash.payment", "delivery.unconsumed_fee_balance", "cash.net_cash"]
+    },
+    {
+      "concept_id": "cash.adjustment",
+      "name": "资金调整",
+      "definition": "不直接等同于新增收款或退款、但会改变交易归属或余额的业务处理，例如转班、转课或冲正。",
+      "related_concept_ids": ["cash.payment", "cash.refund", "contract.training_contract"]
+    },
+    {
+      "concept_id": "cash.net_cash",
+      "name": "净现金",
+      "definition": "同一统计范围内现金流入扣除实际退款流出后的净额。净现金与已确认收入采用不同计量基础，可能受同一经营活动影响，但同一期间不必同向或同比例变化。净现金下降只表示该净资金流量下降，不能单独推出已确认收入下降；应结合合同负债、履约结转和退款对应服务状态判断。",
+      "related_concept_ids": ["cash.payment", "cash.refund", "revenue.recognized_revenue"]
+    },
+    {
+      "concept_id": "revenue.performance_obligation",
+      "name": "履约义务",
+      "definition": "合同中机构向客户转让可明确区分培训商品或服务的承诺。",
+      "related_concept_ids": ["contract.training_contract", "delivery.service_delivery", "revenue.recognized_revenue"]
+    },
+    {
+      "concept_id": "revenue.recognized_revenue",
+      "name": "已确认收入",
+      "definition": "机构履行相关履约义务后，按适用收入确认口径计入相应期间的收入。",
+      "related_concept_ids": ["revenue.performance_obligation", "revenue.contract_liability", "revenue.recognition_transfer"]
+    },
+    {
+      "concept_id": "revenue.contract_liability",
+      "name": "合同负债",
+      "definition": "机构已收或应收客户对价，但仍负有向客户提供培训商品或服务义务的余额。",
+      "related_concept_ids": ["cash.payment", "revenue.performance_obligation", "revenue.recognition_transfer"]
+    },
+    {
+      "concept_id": "revenue.recognition_transfer",
+      "name": "收入结转",
+      "definition": "随着履约义务完成，将相应合同负债按适用口径转为已确认收入的过程或金额。",
+      "related_concept_ids": ["revenue.contract_liability", "revenue.recognized_revenue", "delivery.service_delivery"]
+    },
+    {
+      "concept_id": "delivery.service_start",
+      "name": "服务开始",
+      "definition": "培训合同对应的服务进入实际可交付状态。",
+      "related_concept_ids": ["delivery.service_delivery"]
+    },
+    {
+      "concept_id": "delivery.service_delivery",
+      "name": "服务交付或课时消耗",
+      "definition": "机构实际向学员提供课程、课时或其他培训服务的履约活动。",
+      "related_concept_ids": ["delivery.service_start", "delivery.unconsumed_fee_balance", "revenue.recognition_transfer"]
+    },
+    {
+      "concept_id": "delivery.unconsumed_fee_balance",
+      "name": "未消耗培训费余额",
+      "definition": "客户已支付但对应培训服务尚未交付的金额余额。它通常与合同负债相关，但两者是否完全相等取决于会计和业务口径。",
+      "related_concept_ids": ["delivery.service_delivery", "revenue.contract_liability", "cash.refund"]
+    },
+    {
+      "concept_id": "delivery.completion",
+      "name": "结课或服务完成",
+      "definition": "约定培训服务已经完成或合同进入正常结束状态。",
+      "related_concept_ids": ["delivery.service_delivery", "retention.renewal", "retention.churn"]
+    },
+    {
+      "concept_id": "retention.renewal",
+      "name": "续费或续报",
+      "definition": "现有学员或付款人在既有服务关系基础上购买后续培训服务。",
+      "related_concept_ids": ["delivery.completion", "contract.enrollment"]
+    },
+    {
+      "concept_id": "retention.churn",
+      "name": "流失",
+      "definition": "在约定观察范围内，客户未继续进入预期后续服务或购买关系。",
+      "related_concept_ids": ["delivery.completion", "retention.renewal"]
+    }
+  ],
+  "dimensions": [
+    {"dimension_id": "time.cash_transaction_date", "name": "收款日期", "definition": "现金流入实际发生的日期角色。"},
+    {"dimension_id": "time.refund_date", "name": "退款日期", "definition": "退款实际支付或确认发生的日期角色。"},
+    {"dimension_id": "time.contract_date", "name": "签约日期", "definition": "合同、订单或报名关系形成的日期角色。"},
+    {"dimension_id": "time.service_date", "name": "服务日期", "definition": "课程、课时或培训服务实际交付的日期角色。"},
+    {"dimension_id": "time.revenue_period", "name": "收入确认期间", "definition": "已确认收入归属的会计或经营分析期间。"},
+    {"dimension_id": "time.balance_date", "name": "余额日期", "definition": "合同负债、未消耗培训费等时点余额对应的观察日期。"},
+    {"dimension_id": "time.stage_occurrence_date", "name": "阶段发生日期", "definition": "业务对象进入所选旅程阶段的日期角色，具体字段由 Bridge 映射。"},
+    {"dimension_id": "time.cohort_window", "name": "队列观察窗口", "definition": "确定同一批业务对象及其后续转化结果的起止窗口。"},
+    {"dimension_id": "time.comparison_window", "name": "比较窗口", "definition": "当前期间与目标、同期或环期等已声明基线的配对窗口。"},
+    {"dimension_id": "organization.region", "name": "区域", "definition": "高于校区的组织或地理汇总层级。"},
+    {"dimension_id": "organization.campus", "name": "校区", "definition": "按经营责任校区进行分组和下钻。"},
+    {"dimension_id": "offering.product_line", "name": "产品线", "definition": "按产品组合进行汇总和比较。"},
+    {"dimension_id": "offering.product", "name": "产品", "definition": "按具体培训产品进行分组和下钻。"},
+    {"dimension_id": "offering.course", "name": "课程", "definition": "按实际课程内容进行履约分析。"},
+    {"dimension_id": "offering.class", "name": "班级或班型", "definition": "按班级、班型或交付单元分析。"},
+    {"dimension_id": "customer.student_type", "name": "学员类型", "definition": "例如新生、续费生等客户生命周期分类。", "taxonomy_id": "customer.lifecycle_type"},
+    {"dimension_id": "customer.grade_or_age", "name": "年级或年龄段", "definition": "按适用教育阶段或年龄范围分析。"},
+    {"dimension_id": "acquisition.channel", "name": "获客渠道", "definition": "客户机会最初或主要归属的来源渠道。"},
+    {"dimension_id": "acquisition.campaign", "name": "活动或投放批次", "definition": "可识别的市场活动、资源或投放批次。"},
+    {"dimension_id": "acquisition.adviser", "name": "顾问或跟进责任人", "definition": "承担咨询、跟进或转化责任的业务角色。"},
+    {"dimension_id": "transaction.business_type", "name": "业务类型", "definition": "收款、续费、转班、退费等交易业务分类。"},
+    {"dimension_id": "transaction.direction", "name": "资金交易方向", "definition": "区分现金流入、退款流出和不直接构成二者的资金调整。", "taxonomy_id": "transaction.direction"},
+    {"dimension_id": "transaction.payment_method", "name": "支付方式", "definition": "客户完成支付或退款所使用的资金渠道。"},
+    {"dimension_id": "transaction.refund_reason", "name": "退款原因", "definition": "经确认的退款原因分类。"},
+    {"dimension_id": "delivery.teacher", "name": "教师", "definition": "承担实际培训服务交付的教师角色。"},
+    {"dimension_id": "delivery.fulfillment_status", "name": "履约状态", "definition": "服务未开始、进行中、完成或终止等状态。"}
+  ],
+  "metrics": [
+    {
+      "metric_id": "cash.gross_inflow",
+      "name": "现金流入",
+      "definition": "统计期间和范围内实际收到的培训业务相关现金总额。",
+      "formula_semantics": "对符合现金流入定义的交易金额求和。",
+      "unit": "currency",
+      "time_dimension_ids": ["time.cash_transaction_date"],
+      "required_concept_ids": ["cash.payment"],
+      "compatible_dimension_ids": ["organization.region", "organization.campus", "offering.product_line", "offering.product", "customer.student_type", "acquisition.channel", "acquisition.adviser", "transaction.business_type", "transaction.payment_method"],
+      "depends_on_metric_ids": []
+    },
+    {
+      "metric_id": "cash.refund_outflow",
+      "name": "退款流出",
+      "definition": "统计期间和范围内实际退还给客户的金额总额，按正向金额表达。",
+      "formula_semantics": "对符合退款定义的实际退款金额取绝对业务金额后求和。",
+      "unit": "currency",
+      "time_dimension_ids": ["time.refund_date"],
+      "required_concept_ids": ["cash.refund"],
+      "compatible_dimension_ids": ["organization.region", "organization.campus", "offering.product_line", "offering.product", "customer.student_type", "transaction.refund_reason", "transaction.payment_method"],
+      "depends_on_metric_ids": []
+    },
+    {
+      "metric_id": "cash.net_cash",
+      "name": "净现金",
+      "definition": "统计期间和范围内现金流入扣除退款流出后的净额。",
+      "formula_semantics": "cash.gross_inflow - cash.refund_outflow",
+      "unit": "currency",
+      "time_dimension_ids": ["time.cash_transaction_date", "time.refund_date"],
+      "required_concept_ids": ["cash.net_cash", "cash.payment", "cash.refund"],
+      "compatible_dimension_ids": ["organization.region", "organization.campus", "offering.product_line", "offering.product", "customer.student_type", "acquisition.channel", "acquisition.adviser", "transaction.business_type"],
+      "depends_on_metric_ids": ["cash.gross_inflow", "cash.refund_outflow"]
+    },
+    {
+      "metric_id": "cash.payer_count",
+      "name": "付款人数",
+      "definition": "统计期间和范围内发生有效现金流入的去重付款人数量。",
+      "formula_semantics": "按确认的付款人身份去重计数。",
+      "unit": "count",
+      "time_dimension_ids": ["time.cash_transaction_date"],
+      "required_concept_ids": ["customer.payer", "cash.payment"],
+      "compatible_dimension_ids": ["organization.campus", "offering.product_line", "offering.product", "customer.student_type", "acquisition.channel", "acquisition.adviser"],
+      "depends_on_metric_ids": []
+    },
+    {
+      "metric_id": "cash.gross_cash_per_payer",
+      "name": "付款人平均现金流入",
+      "definition": "每名付款人在统计期间贡献的平均现金流入。",
+      "formula_semantics": "cash.gross_inflow / cash.payer_count",
+      "unit": "currency_per_payer",
+      "time_dimension_ids": ["time.cash_transaction_date"],
+      "required_concept_ids": ["customer.payer", "cash.payment"],
+      "compatible_dimension_ids": ["organization.campus", "offering.product_line", "offering.product", "customer.student_type", "acquisition.channel", "acquisition.adviser"],
+      "depends_on_metric_ids": ["cash.gross_inflow", "cash.payer_count"]
+    },
+    {
+      "metric_id": "cash.refund_to_inflow_rate",
+      "name": "同期退款现金压力比",
+      "definition": "统计期间退款流出相对于同期现金流入的比例，用于观察资金流出压力。",
+      "formula_semantics": "cash.refund_outflow / cash.gross_inflow；现金流入为零时不计算。",
+      "unit": "ratio",
+      "time_dimension_ids": ["time.cash_transaction_date", "time.refund_date"],
+      "required_concept_ids": ["cash.payment", "cash.refund"],
+      "compatible_dimension_ids": ["organization.campus", "offering.product_line", "offering.product", "customer.student_type", "transaction.refund_reason"],
+      "depends_on_metric_ids": ["cash.refund_outflow", "cash.gross_inflow"]
+    },
+    {
+      "metric_id": "cash.refund_transaction_count",
+      "name": "退款笔数",
+      "definition": "统计期间和范围内实际发生的去重退款交易数量。",
+      "formula_semantics": "按确认的退款交易键去重计数；冲正和重复记录由 Bridge 明确处理。",
+      "unit": "count",
+      "time_dimension_ids": ["time.refund_date"],
+      "required_concept_ids": ["cash.refund"],
+      "compatible_dimension_ids": ["organization.campus", "offering.product_line", "offering.product", "customer.student_type", "transaction.refund_reason", "delivery.fulfillment_status"],
+      "depends_on_metric_ids": []
+    },
+    {
+      "metric_id": "cash.refunded_student_count",
+      "name": "退款学员数",
+      "definition": "统计期间和范围内至少关联一笔实际退款的去重学员数量。",
+      "formula_semantics": "将退款关联到学员身份后去重计数；无法关联学员的退款不得静默计入该指标。",
+      "unit": "count",
+      "time_dimension_ids": ["time.refund_date"],
+      "required_concept_ids": ["cash.refund", "customer.student"],
+      "compatible_dimension_ids": ["organization.campus", "offering.product_line", "offering.product", "customer.student_type", "transaction.refund_reason", "delivery.fulfillment_status"],
+      "depends_on_metric_ids": []
+    },
+    {
+      "metric_id": "cash.average_refund_amount",
+      "name": "平均每笔退款金额",
+      "definition": "统计期间退款流出分摊到每笔退款交易的平均金额。",
+      "formula_semantics": "cash.refund_outflow / cash.refund_transaction_count；退款笔数为零时不计算。",
+      "unit": "currency_per_transaction",
+      "time_dimension_ids": ["time.refund_date"],
+      "required_concept_ids": ["cash.refund"],
+      "compatible_dimension_ids": ["organization.campus", "offering.product_line", "offering.product", "customer.student_type", "transaction.refund_reason", "delivery.fulfillment_status"],
+      "depends_on_metric_ids": ["cash.refund_outflow", "cash.refund_transaction_count"]
+    },
+    {
+      "metric_id": "cash.cohort_refund_student_rate",
+      "name": "队列学员退费发生率",
+      "definition": "同一已声明付款学员队列中，观察窗口内发生实际退款的去重学员占比。它衡量退费发生范围，不等同于同期退款现金压力比。",
+      "formula_semantics": "队列内退款学员数 / 队列内具备观察资格的已付款学员数；分子必须属于分母队列。",
+      "unit": "ratio",
+      "time_dimension_ids": ["time.cohort_window"],
+      "required_concept_ids": ["cash.refund", "cash.payment", "customer.student"],
+      "compatible_dimension_ids": ["organization.campus", "offering.product_line", "offering.product", "customer.student_type", "delivery.fulfillment_status"],
+      "depends_on_metric_ids": []
+    },
+    {
+      "metric_id": "revenue.recognized_revenue",
+      "name": "已确认收入",
+      "definition": "统计期间内因履行培训服务义务而确认的收入。",
+      "formula_semantics": "按适用收入确认方法汇总归属于统计期间的已履约金额。",
+      "unit": "currency",
+      "time_dimension_ids": ["time.revenue_period"],
+      "required_concept_ids": ["revenue.recognized_revenue", "revenue.performance_obligation", "delivery.service_delivery"],
+      "compatible_dimension_ids": ["organization.region", "organization.campus", "offering.product_line", "offering.product", "offering.course", "customer.student_type", "delivery.teacher", "delivery.fulfillment_status"],
+      "depends_on_metric_ids": []
+    },
+    {
+      "metric_id": "revenue.recognition_transfer",
+      "name": "收入结转额",
+      "definition": "统计期间内因履约而从既有合同负债转为已确认收入的金额。它是已确认收入的一种来源，不代表全部已确认收入。",
+      "formula_semantics": "按完成的履约义务和适用履约进度确定。",
+      "unit": "currency",
+      "time_dimension_ids": ["time.revenue_period"],
+      "required_concept_ids": ["revenue.recognition_transfer", "revenue.contract_liability", "delivery.service_delivery"],
+      "compatible_dimension_ids": ["organization.campus", "offering.product_line", "offering.product", "offering.course", "offering.class", "delivery.teacher", "delivery.fulfillment_status"],
+      "depends_on_metric_ids": []
+    },
+    {
+      "metric_id": "revenue.contract_liability_balance",
+      "name": "合同负债余额",
+      "definition": "指定时点已收或应收但尚待履约的客户对价余额。",
+      "formula_semantics": "读取或重建指定时点符合合同负债定义的余额。",
+      "unit": "currency",
+      "time_dimension_ids": ["time.balance_date"],
+      "required_concept_ids": ["revenue.contract_liability"],
+      "compatible_dimension_ids": ["organization.campus", "offering.product_line", "offering.product", "customer.student_type", "delivery.fulfillment_status"],
+      "depends_on_metric_ids": []
+    },
+    {
+      "metric_id": "revenue.contract_liability_change",
+      "name": "合同负债变动额",
+      "definition": "期末合同负债余额相对于期初的净变化。",
+      "formula_semantics": "期末合同负债余额 - 期初合同负债余额。",
+      "unit": "currency",
+      "time_dimension_ids": ["time.balance_date"],
+      "required_concept_ids": ["revenue.contract_liability"],
+      "compatible_dimension_ids": ["organization.campus", "offering.product_line", "offering.product", "customer.student_type", "delivery.fulfillment_status"],
+      "depends_on_metric_ids": ["revenue.contract_liability_balance"]
+    },
+    {
+      "metric_id": "delivery.unconsumed_fee_balance",
+      "name": "未消耗培训费余额",
+      "definition": "指定时点客户已支付、但对应服务尚未交付的培训费余额。",
+      "formula_semantics": "按合同、服务交付记录和有效调整计算剩余未履约金额。",
+      "unit": "currency",
+      "time_dimension_ids": ["time.balance_date"],
+      "required_concept_ids": ["delivery.unconsumed_fee_balance", "delivery.service_delivery", "cash.payment"],
+      "compatible_dimension_ids": ["organization.campus", "offering.product_line", "offering.product", "offering.course", "offering.class", "customer.student_type", "delivery.fulfillment_status"],
+      "depends_on_metric_ids": []
+    },
+    {
+      "metric_id": "funnel.stage_count",
+      "name": "漏斗阶段数量",
+      "definition": "在指定观察窗口内达到某一旅程阶段的去重业务对象数量。",
+      "formula_semantics": "按阶段规定的统计对象与去重键计数。",
+      "unit": "count",
+      "time_dimension_ids": ["time.stage_occurrence_date"],
+      "required_concept_ids": [],
+      "compatible_dimension_ids": ["organization.campus", "offering.product_line", "offering.product", "customer.student_type", "customer.grade_or_age", "acquisition.channel", "acquisition.campaign", "acquisition.adviser"],
+      "depends_on_metric_ids": []
+    },
+    {
+      "metric_id": "funnel.transition_rate",
+      "name": "漏斗阶段转化率",
+      "definition": "进入后一阶段的去重对象数占具备进入资格的前一阶段对象数的比例。",
+      "formula_semantics": "后一阶段合格对象数 / 前一阶段合格对象数。分子必须来自分母对象集合或明确的可追踪关联。",
+      "unit": "ratio",
+      "time_dimension_ids": ["time.cohort_window"],
+      "required_concept_ids": [],
+      "compatible_dimension_ids": ["organization.campus", "offering.product_line", "offering.product", "customer.student_type", "customer.grade_or_age", "acquisition.channel", "acquisition.campaign", "acquisition.adviser"],
+      "depends_on_metric_ids": ["funnel.stage_count"]
+    },
+    {
+      "metric_id": "comparison.gap_amount",
+      "name": "缺口金额",
+      "definition": "实际值相对于明确比较基线的金额差。负值表示低于基线。",
+      "formula_semantics": "实际金额 - 基线金额。基线可以是目标、同期或其他已声明参照。",
+      "unit": "currency",
+      "time_dimension_ids": ["time.comparison_window"],
+      "required_concept_ids": [],
+      "compatible_dimension_ids": ["organization.region", "organization.campus", "offering.product_line", "offering.product", "customer.student_type", "acquisition.channel", "acquisition.adviser"],
+      "depends_on_metric_ids": []
+    },
+    {
+      "metric_id": "comparison.attainment_rate",
+      "name": "目标达成率",
+      "definition": "实际值相对于明确目标值的完成比例。",
+      "formula_semantics": "实际值 / 目标值；目标值为零时不计算。",
+      "unit": "ratio",
+      "time_dimension_ids": ["time.comparison_window"],
+      "required_concept_ids": [],
+      "compatible_dimension_ids": ["organization.region", "organization.campus", "offering.product_line", "offering.product"],
+      "depends_on_metric_ids": []
+    },
+    {
+      "metric_id": "comparison.period_growth_rate",
+      "name": "期间增长率",
+      "definition": "当前期间指标相对可比期间的变化比例，可用于同比或环比。",
+      "formula_semantics": "(当前值 - 可比期值) / 可比期值；可比期值为零时不计算。",
+      "unit": "ratio",
+      "time_dimension_ids": ["time.comparison_window"],
+      "required_concept_ids": [],
+      "compatible_dimension_ids": ["organization.region", "organization.campus", "offering.product_line", "offering.product", "customer.student_type", "acquisition.channel"],
+      "depends_on_metric_ids": []
+    }
+  ],
+  "taxonomies": [
+    {
+      "taxonomy_id": "customer.lifecycle_type",
+      "name": "客户生命周期类型",
+      "members": [
+        {"member_id": "new", "name": "新生或新客"},
+        {"member_id": "renewal", "name": "续费或续报"}
+      ]
+    },
+    {
+      "taxonomy_id": "transaction.direction",
+      "name": "资金交易方向",
+      "members": [
+        {"member_id": "inflow", "name": "现金流入"},
+        {"member_id": "refund", "name": "退款流出"},
+        {"member_id": "adjustment", "name": "资金调整"}
+      ]
+    }
+  ],
+  "journeys": [
+    {
+      "journey_id": "journey.acquisition_conversion",
+      "name": "获客转化旅程",
+      "description": "从潜在需求到形成报名或签约关系的典型过程。中间阶段可按企业实际能力缺失或跳过。",
+      "stages": [
+        {"stage_id": "lead", "concept_id": "acquisition.lead", "optional": false},
+        {"stage_id": "effective_lead", "concept_id": "acquisition.effective_lead", "optional": true},
+        {"stage_id": "appointment", "concept_id": "acquisition.appointment", "optional": true},
+        {"stage_id": "arrival", "concept_id": "acquisition.arrival", "optional": true},
+        {"stage_id": "trial", "concept_id": "acquisition.trial", "optional": true},
+        {"stage_id": "enrollment", "concept_id": "contract.enrollment", "optional": false}
+      ],
+      "transitions": [
+        {"from_stage_id": "lead", "to_stage_id": "effective_lead", "kind": "typical"},
+        {"from_stage_id": "effective_lead", "to_stage_id": "appointment", "kind": "typical"},
+        {"from_stage_id": "appointment", "to_stage_id": "arrival", "kind": "typical"},
+        {"from_stage_id": "arrival", "to_stage_id": "trial", "kind": "typical"},
+        {"from_stage_id": "trial", "to_stage_id": "enrollment", "kind": "typical"},
+        {"from_stage_id": "arrival", "to_stage_id": "enrollment", "kind": "allowed_skip"}
+      ]
+    },
+    {
+      "journey_id": "journey.contract_cash",
+      "name": "资金合同旅程",
+      "description": "从合同形成到应收、实收以及后续退款或调整的资金过程。退款和调整是分支，不是所有合同的必经阶段。",
+      "stages": [
+        {"stage_id": "contract", "concept_id": "contract.training_contract", "optional": false},
+        {"stage_id": "receivable", "concept_id": "cash.receivable", "optional": true},
+        {"stage_id": "payment", "concept_id": "cash.payment", "optional": false},
+        {"stage_id": "refund", "concept_id": "cash.refund", "optional": true},
+        {"stage_id": "adjustment", "concept_id": "cash.adjustment", "optional": true}
+      ],
+      "transitions": [
+        {"from_stage_id": "contract", "to_stage_id": "receivable", "kind": "typical"},
+        {"from_stage_id": "receivable", "to_stage_id": "payment", "kind": "typical"},
+        {"from_stage_id": "contract", "to_stage_id": "payment", "kind": "allowed_skip"},
+        {"from_stage_id": "payment", "to_stage_id": "refund", "kind": "alternative"},
+        {"from_stage_id": "payment", "to_stage_id": "adjustment", "kind": "alternative"}
+      ]
+    },
+    {
+      "journey_id": "journey.service_fulfillment",
+      "name": "服务履约旅程",
+      "description": "从服务开始、持续交付到结课以及续费或流失的客户过程。收入确认是随履约计量的财务过程，不作为离散旅程阶段。",
+      "stages": [
+        {"stage_id": "service_start", "concept_id": "delivery.service_start", "optional": false},
+        {"stage_id": "service_delivery", "concept_id": "delivery.service_delivery", "optional": false},
+        {"stage_id": "completion", "concept_id": "delivery.completion", "optional": false},
+        {"stage_id": "renewal", "concept_id": "retention.renewal", "optional": true},
+        {"stage_id": "churn", "concept_id": "retention.churn", "optional": true}
+      ],
+      "transitions": [
+        {"from_stage_id": "service_start", "to_stage_id": "service_delivery", "kind": "typical"},
+        {"from_stage_id": "service_delivery", "to_stage_id": "completion", "kind": "typical"},
+        {"from_stage_id": "completion", "to_stage_id": "renewal", "kind": "alternative"},
+        {"from_stage_id": "completion", "to_stage_id": "churn", "kind": "alternative"}
+      ]
+    }
+  ],
+  "funnels": [
+    {
+      "funnel_id": "funnel.acquisition_conversion",
+      "name": "招生转化漏斗",
+      "journey_id": "journey.acquisition_conversion",
+      "stage_ids": ["lead", "effective_lead", "appointment", "arrival", "trial", "enrollment"],
+      "measurement": "使用同一观察窗口或可追踪 cohort，按明确对象键计算阶段数量和相邻转化率。"
+    },
+    {
+      "funnel_id": "funnel.contract_to_payment",
+      "name": "签约到支付漏斗",
+      "journey_id": "journey.contract_cash",
+      "stage_ids": ["contract", "receivable", "payment"],
+      "measurement": "按可追踪合同或订单关系计算签约、应收和支付阶段。"
+    },
+    {
+      "funnel_id": "funnel.delivery_to_renewal",
+      "name": "履约到续费漏斗",
+      "journey_id": "journey.service_fulfillment",
+      "stage_ids": ["service_start", "service_delivery", "completion", "renewal"],
+      "measurement": "按服务 cohort 观察交付、完成和续费，流失作为替代结果单独分析。"
+    }
+  ],
+  "playbooks": [
+    {
+      "playbook_id": "diagnose.net_cash_gap",
+      "name": "净现金缺口诊断",
+      "use_when": "净现金低于目标或可比期间，需要定位主要负向贡献和资金原因。",
+      "metric_ids": ["cash.net_cash", "cash.gross_inflow", "cash.refund_outflow", "cash.payer_count", "cash.gross_cash_per_payer", "comparison.gap_amount", "comparison.period_growth_rate"],
+      "dimension_ids": ["organization.campus", "offering.product_line", "offering.product", "customer.student_type", "acquisition.channel", "acquisition.adviser", "transaction.refund_reason"],
+      "hypotheses": [
+        {"hypothesis_id": "fewer_payers", "statement": "当付款人数下降、付款人平均现金流入基本稳定时，现金流入缺口由付款人数减少驱动。", "reason": "现金流入可分解为付款人数与付款人平均现金流入。", "evidence_check": "比较付款人数、平均现金流入及其在产品、校区、渠道和顾问维度的缺口贡献。"},
+        {"hypothesis_id": "lower_cash_per_payer", "statement": "当付款人数基本稳定、付款人平均现金流入下降时，现金流入缺口由平均现金降低驱动。", "reason": "产品结构、价格、优惠、分期或单次支付金额变化会改变付款人平均现金流入。", "evidence_check": "比较付款人数和平均现金流入，并检查产品、学员类型和支付方式结构。"},
+        {"hypothesis_id": "higher_refunds", "statement": "在现金流入不变时，退款流出增加会等额压低净现金；若退款增量解释主要缺口，则退款是主驱动。", "reason": "净现金等于现金流入减退款流出。", "evidence_check": "比较退款流出增量及其对净现金缺口的贡献；若退款是主驱动，进入退款增长诊断继续定位。"},
+        {"hypothesis_id": "cash_timing_shift", "statement": "净现金缺口可能包含收款或退款时点变化，而非经营规模的等比例变化。", "reason": "分期、预收和退款处理时间会改变期间现金分布。", "evidence_check": "对齐可比窗口并检查合同日期、收款日期和退款日期的错位。"}
+      ]
+    },
+    {
+      "playbook_id": "diagnose.product_campus_gap",
+      "name": "产品与校区缺口下钻",
+      "use_when": "需要从总体缺口定位到具体产品线、产品和校区。",
+      "metric_ids": ["cash.net_cash", "revenue.recognized_revenue", "comparison.gap_amount", "comparison.attainment_rate", "comparison.period_growth_rate"],
+      "dimension_ids": ["organization.region", "organization.campus", "offering.product_line", "offering.product", "customer.student_type"],
+      "hypotheses": [
+        {"hypothesis_id": "product_concentration", "statement": "当少数产品线或产品贡献了主要负向缺口时，总体问题应先定位到这些产品。", "reason": "不同产品的规模和变化方向会在总体中相互抵消。", "evidence_check": "按产品线计算可加总的缺口金额及贡献度并排序，再对主要负向产品下钻。"},
+        {"hypothesis_id": "campus_concentration", "statement": "固定问题产品后，若少数校区贡献主要负向缺口，则校区表现是下一层定位对象。", "reason": "同一产品在不同校区的客群、渠道和执行表现不同。", "evidence_check": "固定产品和比较口径后，按校区比较缺口金额、贡献度、规模和增长率。"}
+      ]
+    },
+    {
+      "playbook_id": "diagnose.traffic_vs_conversion",
+      "name": "流量不足与转化下降区分",
+      "use_when": "报名或付款人数下降，或上层诊断已确认现金流入下降主要由付款人数减少驱动，需要区分流量规模与转化效率。",
+      "metric_ids": ["funnel.stage_count", "funnel.transition_rate", "cash.payer_count", "cash.gross_inflow", "comparison.period_growth_rate"],
+      "dimension_ids": ["organization.campus", "offering.product", "customer.grade_or_age", "acquisition.channel", "acquisition.campaign", "acquisition.adviser"],
+      "hypotheses": [
+        {"hypothesis_id": "upstream_volume_decline", "statement": "当上游有效线索或工单规模下降而阶段转化率稳定时，报名或付款人数缺口由流量不足驱动。", "reason": "上游规模下降会按现有转化效率传导至报名和付款人数。", "evidence_check": "比较同一口径下各阶段数量与转化率的同比、环比或目标缺口。"},
+        {"hypothesis_id": "stage_conversion_decline", "statement": "当上游规模稳定而某一阶段转化率下降时，报名或付款人数缺口由该阶段转化效率下降驱动。", "reason": "阶段效率下降会减少进入后续报名和支付的对象数。", "evidence_check": "使用可追踪对象集合比较相邻阶段转化率，并定位校区、渠道或顾问组合。"},
+        {"hypothesis_id": "mixed_volume_and_efficiency", "statement": "规模与转化同时变化时，单看最终报名或付款人数无法区分两者贡献。", "reason": "上游数量和阶段效率共同决定进入后续阶段的对象规模。", "evidence_check": "同时展示阶段数量和转化率的绝对变化与相对变化。"}
+      ]
+    },
+    {
+      "playbook_id": "diagnose.refund_growth",
+      "name": "退款增长诊断",
+      "use_when": "退款流出、同期退款现金压力比或队列学员退费发生率上升，需要定位来源和业务环节。",
+      "metric_ids": ["cash.refund_outflow", "cash.refund_to_inflow_rate", "cash.refund_transaction_count", "cash.refunded_student_count", "cash.average_refund_amount", "cash.cohort_refund_student_rate", "delivery.unconsumed_fee_balance", "comparison.gap_amount", "comparison.period_growth_rate"],
+      "dimension_ids": ["organization.campus", "offering.product_line", "offering.product", "customer.student_type", "transaction.refund_reason", "delivery.fulfillment_status"],
+      "hypotheses": [
+        {"hypothesis_id": "refund_volume_growth", "statement": "当平均每笔退款金额稳定而退款笔数上升时，退款流出增长由退款事件规模驱动；反之应检查单笔金额。", "reason": "退款流出可分解为退款笔数与平均每笔退款金额。", "evidence_check": "同时比较退款笔数、退款学员数、队列学员退费发生率和平均每笔退款金额。"},
+        {"hypothesis_id": "refund_concentration", "statement": "当特定产品、校区或原因贡献主要退款增量时，退款问题集中在该组合。", "reason": "总体同期退款现金压力比会掩盖局部集中变化。", "evidence_check": "按产品、校区、退款原因和履约状态计算退款金额、笔数和退款学员数；队列退费发生率只按分母可完整归属的维度切分。"},
+        {"hypothesis_id": "unconsumed_balance_release", "statement": "退费金额可能与未消耗培训费余额和服务进度相关。", "reason": "培训退费通常需要结合尚未交付的服务余额判断。", "evidence_check": "关联合同、服务交付、未消耗余额、应退金额和实退金额。"}
+      ]
+    },
+    {
+      "playbook_id": "diagnose.payers_and_ticket",
+      "name": "付款人数与平均现金拆解",
+      "use_when": "现金流入变化，需要区分付款人数与每名付款人平均现金的影响。",
+      "metric_ids": ["cash.gross_inflow", "cash.payer_count", "cash.gross_cash_per_payer", "comparison.gap_amount", "comparison.period_growth_rate"],
+      "dimension_ids": ["organization.campus", "offering.product_line", "offering.product", "customer.student_type", "acquisition.channel"],
+      "hypotheses": [
+        {"hypothesis_id": "payer_count_driver", "statement": "当平均现金稳定而付款人数变化时，现金流入变化由付款人数驱动。", "reason": "现金流入可以按付款人数与平均现金流入拆解。", "evidence_check": "比较付款人数、平均现金和两者的缺口贡献。"},
+        {"hypothesis_id": "ticket_driver", "statement": "当付款人数稳定而付款人平均现金流入变化时，现金流入变化由平均现金驱动。", "reason": "产品结构、价格、优惠和支付安排会影响平均现金。", "evidence_check": "比较付款人数和平均现金，并检查产品、学员类型与支付方式结构。"}
+      ]
+    },
+    {
+      "playbook_id": "diagnose.cash_vs_revenue",
+      "name": "净现金与已确认收入背离分析",
+      "use_when": "净现金与已确认收入在同一期间变化方向或幅度不同。",
+      "metric_ids": ["cash.net_cash", "cash.gross_inflow", "cash.refund_outflow", "revenue.recognized_revenue", "revenue.recognition_transfer", "revenue.contract_liability_balance", "revenue.contract_liability_change"],
+      "dimension_ids": ["organization.campus", "offering.product_line", "offering.product", "time.cash_transaction_date", "time.service_date", "time.revenue_period", "delivery.fulfillment_status"],
+      "hypotheses": [
+        {"hypothesis_id": "prior_prepayment_recognition", "statement": "本期现金流入下降时，已确认收入仍可能因以前期间预收款随本期履约结转而保持或增长。", "reason": "现金发生和收入确认的时间基础不同。", "evidence_check": "检查期初合同负债、服务交付和本期收入结转。"},
+        {"hypothesis_id": "current_prepayment_growth", "statement": "本期净现金增长时，已确认收入未必同步增长。", "reason": "新增预收款在服务尚未履行时通常形成合同负债。", "evidence_check": "检查新增收款、期末合同负债和履约进度。"},
+        {"hypothesis_id": "refund_and_recognition_timing", "statement": "退款会直接压低净现金，但其对已确认收入和合同负债的影响取决于相关服务的履约状态。", "reason": "已履约与未履约部分的处理基础不同。", "evidence_check": "关联退款合同、未消耗余额、已交付服务和收入调整。"}
+      ]
+    },
+    {
+      "playbook_id": "diagnose.liability_and_fulfillment",
+      "name": "合同负债与履约异常分析",
+      "use_when": "合同负债、未消耗余额或收入结转出现异常变化。",
+      "metric_ids": ["revenue.contract_liability_balance", "revenue.contract_liability_change", "revenue.recognition_transfer", "delivery.unconsumed_fee_balance", "cash.gross_inflow", "cash.refund_outflow"],
+      "dimension_ids": ["organization.campus", "offering.product_line", "offering.product", "offering.course", "offering.class", "time.service_date", "time.revenue_period", "delivery.teacher", "delivery.fulfillment_status"],
+      "hypotheses": [
+        {"hypothesis_id": "prepayment_accumulation", "statement": "合同负债增长可能来自新增预收款超过同期履约结转和退款调整。", "reason": "合同负债反映已收或应收但尚待履约的义务。", "evidence_check": "对比新增收款、结转、退款调整和期初期末余额。"},
+        {"hypothesis_id": "fulfillment_slowdown", "statement": "未消耗余额或合同负债积累可能与服务交付放缓有关。", "reason": "履约进度下降会减少可结转收入并保留更多待履约余额。", "evidence_check": "检查开课、课时消耗、班级和教师交付进度。"},
+        {"hypothesis_id": "balance_definition_gap", "statement": "未消耗培训费余额与合同负债的差异可能来自业务余额与会计余额的范围不同。", "reason": "税费、调整、合同拆分和会计政策可能使两类余额不完全相等。", "evidence_check": "对齐合同范围、余额组成、调整记录和收入确认口径。"}
+      ]
+    }
+  ],
+  "references": [
+    {
+      "reference_id": "reference.cas14_revenue",
+      "name": "企业会计准则第14号——收入",
+      "url": "https://www.mof.gov.cn/zcsjtsgb/gfxwj/201707/P020200907398079240429.pdf",
+      "note": "用于收入、履约义务、合同负债和退款相关基础概念。"
+    },
+    {
+      "reference_id": "reference.training_finance_rules",
+      "name": "校外培训机构财务管理暂行办法",
+      "url": "https://www.moe.gov.cn/srcsite/A29/202303/t20230322_1052122.html",
+      "note": "用于校外培训预收费、负债管理和收入确认边界。"
+    },
+    {
+      "reference_id": "reference.training_contract_model",
+      "name": "中小学生校外培训服务合同示范文本",
+      "url": "https://htsfwb.samr.gov.cn/View?id=d9a2049a-15fb-4b71-a502-373cc75a879e",
+      "note": "用于培训合同、未消耗课时余额和退费基础关系。"
+    },
+    {
+      "reference_id": "reference.microsoft_cdm",
+      "name": "Microsoft Common Data Model",
+      "url": "https://github.com/microsoft/CDM",
+      "note": "用于通用客户、线索、产品和关系模型参考。"
+    },
+    {
+      "reference_id": "reference.open_education_analytics",
+      "name": "Open Education Analytics",
+      "url": "https://github.com/OpenEducationAnalytics/OpenEducationAnalytics",
+      "note": "用于教育行业资产包与模块化知识组织参考。"
+    }
+  ]
+}
