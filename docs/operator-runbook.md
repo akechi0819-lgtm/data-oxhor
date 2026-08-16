@@ -9,7 +9,7 @@
 | Harness 共享目录 | `/Users/akechi/.dsh` |
 | Python | `>=3.12` |
 | DuckDB | `1.5.5` |
-| Git | 已有基线提交 `a5df0b6`；工作树有未提交改动 |
+| Git | `main` 已合并 Data v2、Pack v1 和 Bridge v1.2.0 |
 
 Harness 是全局工具，不安装到项目目录。`/Users/akechi/.dsh` 可能包含机器配置和凭据，不纳入项目版本控制。
 
@@ -38,18 +38,20 @@ curl -fsSL -o /dev/null -w '%{http_code}\n' http://127.0.0.1:3080
 python3 -m interfaces.data_foundation --help
 python3 -m interfaces.business_pack validate
 python3 -m interfaces.business_pack describe
+python3 -m interfaces.company_bridge validate \
+  --bridge artifacts/company_bridge/bridges/company_bridge.v1_2_0.json \
+  --pack business_pack/packs/education_training_operations_cn/pack.json
 python3 -m unittest discover -s tests -p 'test_*.py' -v
 ```
 
-基线是 30 项现行测试通过，Pack 校验状态为 `passed`。测试失败时先区分：Python/DuckDB 版本、外部 Golden Case 是否可读、源 SHA-256 是否变化、Pack 交叉引用错误，还是代码回归。不要通过修改 Golden 值掩盖源文件变化。
+基线是 47 项现行测试通过，Pack 与 Bridge 校验状态均为 `passed`。测试失败时先区分：Python/DuckDB 版本、外部 Golden Case 是否可读、源 SHA-256 是否变化、Pack/Bridge 交叉引用错误，还是代码回归。不要通过修改 Golden 值掩盖源文件变化。
 
 ## 4. 模型和密钥
 
 模型 Provider 与 API Key 已在 Harness 的机器级设置中配置，不写入仓库、客户配置样例或日志。2026-08-14 已确认：Harness 真实模型回合可用，模型在项目 Workspace 通过 Shell 执行 `python3 -m interfaces.data_foundation --help`，退出码为 0，并发现全部 7 个子命令。
 
-以下项目尚无通过证据：
+真实三表已经通过 `inspect → ingest → describe → quality → query` 和 Bridge 兼容性验证。以下项目尚无通过证据：
 
-- 完整 Data Foundation 数据链路；
 - Session 重启后继续对话；
 - 项目 Skill 实际调用；
 - Deliverables 生成和展示。

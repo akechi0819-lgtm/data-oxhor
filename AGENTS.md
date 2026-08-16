@@ -4,7 +4,7 @@
 
 ## 当前阶段
 
-项目处于“业务模块独立开发 + CLI 宿主接入验证”阶段。DeepSeek Harness 是默认客户运行宿主，Codex 是可直接验证的另一宿主；业务核心必须保持宿主无关。不得把本地验证环境描述成正式客户系统，也不得执行正式外部业务动作。
+项目已完成宿主基础验证、Data Foundation v2、Education Business Pack v1 和首个 Company Bridge v1.2.0，进入 Customer Profile 与对话交付验收阶段。DeepSeek Harness 是默认客户运行宿主，Codex 是直接验证宿主；业务核心保持宿主无关。不得把本地验证环境描述成正式客户系统，也不得执行正式外部业务动作。
 
 ## 固定架构边界
 
@@ -21,13 +21,14 @@
 ## 当前已实现事实
 
 - Python `>=3.12`，运行时依赖 DuckDB `1.5.5`；
-- `data_foundation/` 已实现 XLSX 全 Sheet 探查、OOXML 流式读取、不可变 Snapshot、DuckDB/Parquet 入仓、质量问题查询和受控只读 SQL；
+- `data_foundation/` 已实现 XLSX 全 Sheet 探查、OOXML 流式读取、通用 `landing.column_N`、不可变 Snapshot、DuckDB/Parquet 入仓、质量问题查询和受控只读 SQL；Data Foundation 不包含企业 Sheet 白名单、业务表头或语义视图；
 - `interfaces/data_foundation.py` 已提供 `inspect`、`ingest`、`describe`、`quality`、`query`、`run-saved-query`、`promote-query`；
 - Data Foundation 已要求关键运行入口携带 `run_id`，查询通过显式 `snapshot_id` 定位仓库，并为 Snapshot 与大结果写入最小 Artifact manifest；这不是完整 Run/Artifact 平台；
 - `business_pack/` 已提供 `education_training_operations_cn` v1.0.0，包含行业概念、指标、维度、三段客户旅程、漏斗和诊断 Playbook；`interfaces/business_pack.py` 提供 `validate`、`describe`；
 - DeepSeek Harness `@deepseek-ai/dsh@0.1.0-rc.6` 已安装到本机全局环境，Web 健康检查通过；模型 Provider/API Key 已配置，真实模型回合可用，并已在项目 Workspace 通过 Shell 成功执行 Data Foundation 顶层 `--help`（退出码 0、发现 7 个子命令）；
-- 项目 Git 仓库已有基线提交 `a5df0b6`；当前工作树包含未提交施工改动；
-- Company Bridge、Customer Profile、输出插件和学习与质量工作区尚未实现；MCP 不在当前计划内。
+- `company_bridge/` 已提供候选扫描、人工复核门禁、正式构建和 Snapshot 兼容性校验；当前 reviewed v3 生成正式 Bridge 1.2.0，映射 3 个真实 landing 源合同；
+- 真实三表已通过 Data Foundation v2 全量 landing，Bridge 1.2.0 已对同一 Snapshot 兼容性校验通过；
+- 47 项现行 Python 测试通过；Customer Profile、输出插件和学习与质量工作区尚未实现；MCP 不在当前计划内。
 
 ## 当前最小红线
 
@@ -41,7 +42,7 @@
 
 ## 开发顺序
 
-Education Business Pack v1 已完成。下一施工阶段是 Company Bridge 的需求确认与最小映射切片；不得把企业字段、枚举、SQL、清洗规则或单次分析结论回填进 Pack。Harness 的完整数据链路、Session 恢复和小型文件交付仍是独立待验收项。
+S0/S1/S2 已完成并合入 `main`。下一施工项是首个 Customer Profile，随后验证 Harness Session 恢复、项目 Skill 和小型文件交付。不得把企业字段、枚举、SQL、清洗规则或单次分析结论回填进 Pack 或 Data Foundation。
 
 ## 文档路由
 
@@ -50,5 +51,6 @@ Education Business Pack v1 已完成。下一施工阶段是 Company Bridge 的�
 - `分段施工计划.md`：阶段顺序与退出条件；
 - `docs/architecture.md`：权威架构与可移植性边界；
 - `docs/integration-guide.md`：现有 CLI 与各宿主的调用方式；
+- `docs/company-bridge-contract.md`：Bridge 候选、正式构建、状态门禁与兼容性校验；
 - `docs/operator-runbook.md`：本地运行、验证和排障；
 - `docs/handoff.md`：当前完成度、阻塞和唯一下一步。

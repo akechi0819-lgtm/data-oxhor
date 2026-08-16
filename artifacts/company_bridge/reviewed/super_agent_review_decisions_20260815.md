@@ -20,6 +20,13 @@
 
 ## Verification
 
-- Reviewed 输入：`artifacts/company_bridge/reviewed/super_agent_confirmed_review_20260815_v1.json`
-- 来源扫描：`artifacts/company_bridge/candidates/super_agent_history_scan_20260814_v6.json`
-- 正式 `company_bridge.v1` 不绑定某一批数据；运行兼容性校验时再提供 Data Foundation 输出的 `warehouse_description.v1` 和 `controlled_query_result.v1`。本次不把 Super Agent 的 SQLite 或历史文件冒充 Snapshot。
+- 当前 reviewed 输入：`artifacts/company_bridge/reviewed/super_agent_confirmed_review_20260816_v3.json`。
+- 当前正式 Bridge：`artifacts/company_bridge/bridges/company_bridge.v1_2_0.json`。
+- 2026-08-16 使用三份真实工作簿验证 Data Foundation v2，所有 Sheet 进入 `landing.column_N`；Bridge 将业务字段定位迁移到实际 `landing` 关系和列位，业务决定不变。
+- 正式 `company_bridge.v1` 不绑定某一批数据；运行兼容性校验时再提供 Data Foundation 输出的 `warehouse_description.v1` 和 `controlled_query_result.v1`。
+
+## Landing Contract
+
+- `br_cash/现金明细表` → `landing.br_cash__sheet_39b8dee2e4b3`；
+- `current_work_orders/新表区域` → `landing.current_work_orders__sheet_717cac52ce22`；
+- `fy27_frontdesk_daily/FY27-汇总` → `landing.fy27_frontdesk_daily__fy27`。

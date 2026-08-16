@@ -32,8 +32,8 @@ python3 -m interfaces.data_foundation query --help
 
 ## 2. 已实现合同
 
-- `inspect` 输出 schema `data_foundation_inspection.v1`；
-- `ingest` 输出 schema `data_foundation_ingest.v1`；
+- `inspect` 输出 schema `data_foundation_inspection.v2`；
+- `ingest` 输出 schema `data_foundation_ingest.v2`，Snapshot manifest 为 `warehouse_snapshot.v2`；
 - `inspect`、`ingest`、`quality`、`query` 和 `run-saved-query` 要求显式 `run_id`；`describe` 与 `promote-query` 按当前 CLI 参数不要求 `run_id`；
 - Snapshot 发布后不可原地覆盖；
 - 查询拒绝写操作、外部 reader、系统目录和绕过形式；
@@ -43,7 +43,7 @@ python3 -m interfaces.data_foundation query --help
 
 源 SHA-256 用于 inspect/ingest 的 manifest 绑定和 Snapshot/Artifact manifest。它不需要成为每次查询、Session 或交付物都传播的公共身份字段。
 
-这组能力不是完整 Run/Artifact 平台。当前代码仍有为已确认脏数据语料建立的特定源表映射和 `semantic.registration_cash` 视图；不要把它误认为完整 Education Pack 或企业语义层。
+这组能力不是完整 Run/Artifact 平台。所有 Sheet 进入 `landing.column_N`；`ingest.sheets.target_table` 给出实际关系名。业务表头、字段含义和清洗口径必须从 Company Bridge 获取，不能在 Data Foundation 中硬编码。
 
 ## 3. Agent Host 接入
 
@@ -75,7 +75,7 @@ Codex 可以通过项目 Shell 直接调用上述命令。Stage 1 需要用现�
 DeepSeek Harness → controlled shell → Python CLI → Data Foundation
 ```
 
-Harness 全局安装、Web、真实模型回合、项目 Workspace、受控 Shell 和 Data Foundation 顶层 `--help` 已通过。完整数据链路、Session 恢复及 Deliverables 仍待验收。
+Harness 全局安装、Web、真实模型回合、项目 Workspace、受控 Shell 和真实三表 `inspect → ingest → describe → quality → query` 已通过。Session 恢复、项目 Skill 及 Deliverables 仍待验收。
 
 ## 4. Education Business Pack
 
@@ -90,6 +90,21 @@ python3 -m interfaces.business_pack describe
 
 内置 Pack 为 `education_training_operations_cn` v1.0.0。它不接收 `snapshot_id`，也不包含当前企业字段、枚举、SQL 或清洗选择。
 
-## 5. Bridge 的未来接入
+## 5. Company Bridge
 
-Bridge 将提供独立版本化 manifest。调用时先选择 Customer Profile，再冻结 `snapshot_id`、Pack version 和 Bridge version。未确认 Bridge 项必须显式返回，不允许工具静默选择字段或枚举。
+Company Bridge 通过同一 Python 环境调用：
+
+```bash
+python3 -m interfaces.company_bridge --help
+python3 -m interfaces.company_bridge validate-candidates \
+  --input artifacts/company_bridge/reviewed/super_agent_confirmed_review_20260816_v3.json \
+  --pack business_pack/packs/education_training_operations_cn/pack.json \
+  --require-role confirmed_review
+python3 -m interfaces.company_bridge validate \
+  --bridge artifacts/company_bridge/bridges/company_bridge.v1_2_0.json \
+  --pack business_pack/packs/education_training_operations_cn/pack.json
+```
+
+当前正式 Bridge 为 1.2.0。它引用 Data Foundation v2 的 `landing.*` 关系和 `column_N`，不绑定某个 Snapshot；具体运行时可额外传入同一 Snapshot 的 `--snapshot-description` 与 `--snapshot-quality` 做兼容性校验。
+
+历史扫描使用 `scan-history`，但输出角色是 `historical_scan`，不能直接构建正式 Bridge。只有人工复核后的 `confirmed_review` 可以传给 `build`；未确认项必须保留为 `unresolved` 或拒收，不能静默选择。完整合同见 [Company Bridge v1 合同](./company-bridge-contract.md)。

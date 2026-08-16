@@ -62,12 +62,12 @@
 - 插件管理页识别 133 个条目；
 - Session JSONL、Session Query SQLite、Storage、Sandbox、Approval、Workspace、Deliverables、Skill、Subagent、Plan、Trajectory 等服务已观察到装载；
 - 未选择 Workspace 时，文件和 Skill consumer 等依赖能力保持停用，未出现半初始化假成功；
-- 模型 Provider/API Key 已在机器级设置中配置；Harness 真实模型回合已通过，模型在项目 Workspace 通过 Shell 执行 Data Foundation 顶层 `--help`，退出码 0，并发现全部 7 个子命令；完整数据链路、Session 恢复、项目 Skill 调用和 Deliverables 仍待验证。
+- 模型 Provider/API Key 已在机器级设置中配置；Harness 真实模型回合、项目 Workspace、受控 Shell 和真实三表 Data Foundation 数据链路已通过；Session 恢复、项目 Skill 调用和 Deliverables 仍待验证。
 
 ## 开放风险
 
 - 无正式稳定 Tag，升级可能破坏插件接口；
-- 真实模型通过受控 Shell 调用完整数据链路的能力尚未验收；
+- Session 重启后保持显式 Snapshot/Pack/Bridge 身份尚未验收；
 - 间接生成的文件可能需要原生工具展示元数据才能进入 Deliverables；
 - 交互图表需要验证或开发 Client Plugin。
 
@@ -75,5 +75,5 @@
 
 - DeepSeek Harness 是默认宿主，不是业务核心；
 - Data Foundation、Pack、Bridge、Renderer 和学习资产必须保持宿主无关；
-- 当前唯一接入工作是让 Codex 与 DeepSeek Harness 调用同一 Data Foundation CLI；不建设 MCP 或 echo 插件；
-- `0.1.0-rc.6` 的部署结果不能代替真实模型、Session、CLI 调用和 Deliverables 验收。
+- 当前接入工作是用 Customer Profile 装配 Data、Pack、Bridge，并验证 Session 恢复与 Deliverables；不建设 MCP 或 echo 插件；
+- `0.1.0-rc.6` 的部署结果不能代替 Session 恢复、项目 Skill 和 Deliverables 验收。

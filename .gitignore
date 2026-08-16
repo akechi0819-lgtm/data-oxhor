@@ -3,3 +3,8 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 .venv/
+artifacts/data_foundation/
+artifacts/company_bridge/candidates/
+artifacts/company_bridge/bridges/company_bridge.v1.json
+artifacts/company_bridge/bridges/company_bridge.v1_1_0.json
+artifacts/company_bridge/reviewed/super_agent_confirmed_review_20260815_v1.json

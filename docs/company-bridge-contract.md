@@ -86,12 +86,12 @@ python3 -m interfaces.company_bridge validate \
   "evidence_summary": "业务日期是现金交易日期角色的候选。",
   "proposed_mapping_or_rule": {
     "source_id": "br_cash",
-    "relation": "clean.cash_ledger",
-    "field_name": "business_date",
+    "relation": "landing.br_cash__sheet_39b8dee2e4b3",
+    "field_name": "column_6",
     "target_type": "dimension",
     "target_id": "time.cash_transaction_date"
   },
-  "status": "proposed",
+  "status": "confirmed",
   "evidence_refs": ["data_layer/docs/数据接口对齐清单.md"]
 }
 ```
@@ -113,14 +113,27 @@ python3 -m interfaces.company_bridge validate \
 {
   "schema_version": "company_bridge.v1",
   "bridge_id": "bridge_company_super_agent",
-  "bridge_version": "1.0.0",
+  "bridge_version": "1.2.0",
   "company_id": "company_super_agent",
   "pack_ref": {
     "pack_id": "education_training_operations_cn",
     "pack_version": "1.0.0"
   },
-  "generated_from_candidate_ids": ["cand_cash_payment_date"],
-  "source_contracts": [],
+  "generated_from_candidate_ids": ["cand_landing_br_cash_20260816", "cand_cash_payment_date"],
+  "source_contracts": [
+    {
+      "candidate_id": "cand_landing_br_cash_20260816",
+      "source_locator": "artifacts/company_bridge/reviewed/super_agent_review_decisions_20260815.md#landing-contract",
+      "evidence_summary": "现金明细表通过 Data Foundation v2 全量 landing。",
+      "evidence_refs": ["artifacts/company_bridge/reviewed/super_agent_review_decisions_20260815.md"],
+      "status": "confirmed",
+      "source_id": "br_cash",
+      "sheet_name": "现金明细表",
+      "relation": "landing.br_cash__sheet_39b8dee2e4b3",
+      "field_names": ["column_6"],
+      "source_kind": "data_foundation_landing"
+    }
+  ],
   "field_mappings": [
     {
       "candidate_id": "cand_cash_payment_date",
@@ -129,8 +142,8 @@ python3 -m interfaces.company_bridge validate \
       "evidence_refs": ["data_layer/docs/数据接口对齐清单.md"],
       "status": "confirmed",
       "source_id": "br_cash",
-      "relation": "clean.cash_ledger",
-      "field_name": "business_date",
+      "relation": "landing.br_cash__sheet_39b8dee2e4b3",
+      "field_name": "column_6",
       "target_type": "dimension",
       "target_id": "time.cash_transaction_date"
     }
@@ -171,14 +184,10 @@ python3 -m interfaces.company_bridge validate \
 
 ## 8. 当前扫描与审核结果
 
-2026-08-14 对 `/Users/akechi/Desktop/super_agent` 的扫描结果写入本项目独立候选区：
-
-`artifacts/company_bridge/candidates/super_agent_history_scan_20260814_v6.json`
-
-结果已用当前 Pack 校验：136 个候选、851 个拒收记录；候选中 19 个是文件/Sheet/技术表头等客观源结构并标记 `confirmed`，其余语义映射、清洗或 unresolved 候选在历史扫描文件中保持 `proposed`。扫描没有修改 Super Agent；其现有未提交数据刷新改动也未被处理。用户在 2026-08-15 确认后，独立 reviewed 文件晋升 135 个 confirmed 候选，并用一个 `customer.payer` Override 指向 `customer.student`；两个历史 unresolved 不再作为首版阻断项。
+2026-08-14 对 `/Users/akechi/Desktop/super_agent` 完成只读扫描，得到 136 个候选和 851 条拒收记录。历史扫描只作为审计来源，不进入当前运行入口。2026-08-15 完成人工业务确认；2026-08-16 将数据定位迁移到 Data Foundation v2 的通用 landing 合同，业务决定不变。
 
 产品候选特别保留一条条件规则：标准现金产品字段先保留 `raw_product=剑五`，同一记录的 `班型` 为 `KET` 或 `PET` 时，二次归一为对应独立产品，并归入提能线/小高；其他班型保留剑五并告警。该规则已在 reviewed 文件中确认。扫描还明确拒收“默认看新生”的分析筛选偏好。
 
 日报明细候选把三件事拆开：`现金收入/报入现金收入/实缴金额` 的正负值用于净现金有符号求和；只有 `退班退费`、`储值账户退费`、`返款退费` 等明确业务形式，或排除“放储值/转班/重报”后的明确原因，才归为退款；`转出`、`转入`、`退班放储值`、转班/退班重报归为 `adjustment`。用户已确认退款规则，且付款人统计沿用学员身份；1500 人头资格门槛仍不进入 Bridge。
 
-第一版 reviewed 闭环已覆盖收款/退款方向、现金交易日期、校区、产品、学员身份和交易类型。按真实 Data Foundation 三表字段对齐的 `confirmed_review` v2 已生成正式 Bridge 1.1.0，并在 `snapshot_super_agent_inputs_20260815_v2` 上通过兼容性校验；现金明细中的 `产品=剑五` 通过 `班型` 二次筛出 KET/PET，真实查询结果为 KET 4,143 行、PET 1,337 行。
+当前 `confirmed_review` v3 位于 `artifacts/company_bridge/reviewed/super_agent_confirmed_review_20260816_v3.json`，包含 119 个 confirmed 候选。它生成正式 Bridge 1.2.0 `artifacts/company_bridge/bridges/company_bridge.v1_2_0.json`，并通过真实三表 Data Foundation v2 Snapshot 兼容性校验。现金明细中的 `产品=剑五` 仍通过 `班型` 二次筛出 KET/PET；付款人、净现金、退款与调整口径均未因定位迁移而改变。

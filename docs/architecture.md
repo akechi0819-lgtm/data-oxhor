@@ -63,7 +63,7 @@
   → Renderer 生成交付物
 ```
 
-运行以显式 `run_id` 区分，查询和恢复以显式 `snapshot_id` 定位仓库。源 SHA-256 用于 inspect/ingest 的源绑定以及 Snapshot/Artifact manifest，不要求在每次查询、Session 或交付物中继续传播。SQL 是直接查询输入或保存查询内容，不建立额外的统一血缘平台。Education Pack 已独立版本化；Bridge 尚未实现，当前 Data Foundation 不伪造 Pack/Bridge 选择。
+运行以显式 `run_id` 区分，查询和恢复以显式 `snapshot_id` 定位仓库。源 SHA-256 用于 inspect/ingest 的源绑定以及 Snapshot/Artifact manifest，不要求在每次查询、Session 或交付物中继续传播。SQL 是直接查询输入或保存查询内容，不建立额外的统一血缘平台。Education Pack 1.0.0 与 Company Bridge 1.2.0 已独立版本化；Data Foundation 不伪造 Pack/Bridge 选择。
 
 ## 4. 确定性边界
 
@@ -87,7 +87,7 @@ Session 存储、沙箱、用户审批、模型路由、工具选择和计划管
 
 第一家企业可能让 Pack 和 Bridge 看起来近似，但物理分离能保证第二家企业只新增 Bridge，跨行业时新增 Pack 与 Bridge。
 
-当前 `data_foundation/` 仍包含特定源表映射和 `semantic.registration_cash` 视图。这是现有代码事实和待分离的边界债务，不代表上述目标边界已经完全实现。
+Data Foundation v2 将每个 Sheet 原样落入 `landing.column_N`，并在 `ingest.sheets` 登记目标表。表头行、企业业务列名、枚举和清洗规则由 Company Bridge 保存；Data Foundation 不再包含特定源表映射或企业语义视图。
 
 ## 6. 输出和交互
 
