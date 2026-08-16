@@ -1,0 +1,4 @@
+interface:
+  display_name: "诊断数据源重叠"
+  short_description: "识别全量刷新、区间重叠和重复导出，并用受控只读 SQL 验证。"
+  default_prompt: "检查当前 Snapshot 是否存在数据源重叠或重复，先举证再提出处理方案。"

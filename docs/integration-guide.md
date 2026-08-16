@@ -1,4 +1,4 @@
-# Data Foundation 接入指南
+# 核心 CLI 接入指南
 
 ## 1. 当前公开入口
 
@@ -75,7 +75,11 @@ Codex 可以通过项目 Shell 直接调用上述命令。Stage 1 需要用现�
 DeepSeek Harness → controlled shell → Python CLI → Data Foundation
 ```
 
-Harness 全局安装、Web、真实模型回合、项目 Workspace、受控 Shell 和真实三表 `inspect → ingest → describe → quality → query` 已通过。Session 恢复、项目 Skill 及 Deliverables 仍待验收。
+Harness 全局安装、Web、真实模型回合、项目 Workspace、受控 Shell、真实三表 `inspect → ingest → describe → quality → query` 和项目 Skill `diagnose-source-overlap` 调用已通过。Session 恢复及 Deliverables 仍待验收。
+
+### 重叠与清洗
+
+同一端口全量文件更新时替换同一 `Input/Data/<source_id>` 当前文件并发布新 Snapshot，不跨 Snapshot 合并。当前 Snapshot 内多来源可能重叠时，宿主使用项目 Skill `diagnose-source-overlap`，通过现有 `describe/query` 自主检查日期范围、候选业务键、重复和冲突；客户确认业务键与来源优先级后，再用 `promote-query` / `run-saved-query` 固化只读 SQL。该逻辑不进入 Bridge，也不修改 landing。
 
 ## 4. Education Business Pack
 
@@ -108,3 +112,24 @@ python3 -m interfaces.company_bridge validate \
 当前正式 Bridge 为 1.2.0。它引用 Data Foundation v2 的 `landing.*` 关系和 `column_N`，不绑定某个 Snapshot；具体运行时可额外传入同一 Snapshot 的 `--snapshot-description` 与 `--snapshot-quality` 做兼容性校验。
 
 历史扫描使用 `scan-history`，但输出角色是 `historical_scan`，不能直接构建正式 Bridge。只有人工复核后的 `confirmed_review` 可以传给 `build`；未确认项必须保留为 `unresolved` 或拒收，不能静默选择。完整合同见 [Company Bridge v1 合同](./company-bridge-contract.md)。
+
+## 6. Bridge 对齐向导
+
+公开入口：
+
+```bash
+python3 -m interfaces.bridge_alignment_wizard --help
+python3 -m interfaces.bridge_alignment_wizard init \
+  --workspace customers/company_customer \
+  --company-id company_customer \
+  --pack business_pack/packs/education_training_operations_cn/pack.json
+python3 -m interfaces.bridge_alignment_wizard sync-data \
+  --workspace customers/company_customer \
+  --snapshot-id snapshot_customer_2026_08
+```
+
+`init` 创建 `Input/Work/Output`，并把 Pack 与可选同公司 Bridge 复制进工作区。客户把当前文件分别放进 `Input/Data/<source_id>/`；每个稳定来源槽位只放一个 XLSX/XLSM。七月换八月时直接替换当前文件，再用新的显式 `snapshot_id` 执行 `sync-data`；向导先发布并切换新 Snapshot，再删除旧 Snapshot，工作区只保留当前 Snapshot。导入失败或当前 Snapshot 尚有未完成会话时不会切换。
+
+`start` 从当前 Snapshot 建立单一 `session.json`；同公司的旧 Bridge 仅作为企业口径参考，不代表已适配当前 Snapshot。`propose --adapter module:attribute` 调用宿主注入的 `CandidateAdapter`；宿主理解客户自由回答后，通过 `answer` 传 `candidate_key`、`option_id`、原回答和确认人；`add-evidence` 把 U 盘/目录资料复制进 `Input/Reference`；`finalize` 写入 `Output/Bridge/<version>`。新公司不得传上一家 Bridge。
+
+CLI 完成当前阶段且无需客户输入时退出 `0`，等待确认或被关键问题阻断时退出 `2`，合同/身份/adapter/文件错误退出 `1`。stdout JSON 是宿主机器接口，客户不需要查看或编写。当前项目只提供 adapter 协议和测试 fake adapter，未把 DeepSeek Harness SDK 写入核心，也尚未提供正式宿主 adapter。精确合同见 [Bridge 对齐向导 v1 合同](./bridge-alignment-wizard-contract.md)。
