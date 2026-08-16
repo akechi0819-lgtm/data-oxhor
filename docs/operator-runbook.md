@@ -9,7 +9,7 @@
 | Harness 共享目录 | `/Users/akechi/.dsh` |
 | Python | `>=3.12` |
 | DuckDB | `1.5.5` |
-| Git | `main` 已合并 Data v2、Pack v1 和 Bridge v1.2.0 |
+| Git | 当前任务分支含 Bridge 对齐向导最小切片；合并状态以 `git status` 为准 |
 
 Harness 是全局工具，不安装到项目目录。`/Users/akechi/.dsh` 可能包含机器配置和凭据，不纳入项目版本控制。
 
@@ -41,10 +41,11 @@ python3 -m interfaces.business_pack describe
 python3 -m interfaces.company_bridge validate \
   --bridge artifacts/company_bridge/bridges/company_bridge.v1_2_0.json \
   --pack business_pack/packs/education_training_operations_cn/pack.json
+python3 -m interfaces.bridge_alignment_wizard --help
 python3 -m unittest discover -s tests -p 'test_*.py' -v
 ```
 
-基线是 47 项现行测试通过，Pack 与 Bridge 校验状态均为 `passed`。测试失败时先区分：Python/DuckDB 版本、外部 Golden Case 是否可读、源 SHA-256 是否变化、Pack/Bridge 交叉引用错误，还是代码回归。不要通过修改 Golden 值掩盖源文件变化。
+基线是 54 项现行测试通过，Pack 与 Bridge 校验状态均为 `passed`。向导测试使用 fake adapter，不代表真实宿主模型已接入。测试失败时先区分：Python/DuckDB 版本、外部 Golden Case 是否可读、源 SHA-256 是否变化、Pack/Bridge 交叉引用错误，还是代码回归。不要通过修改 Golden 值掩盖源文件变化。
 
 ## 4. 模型和密钥
 
@@ -77,3 +78,6 @@ DeepSeek Harness 处于 Developer Preview。升级前必须：
 | 模型无法回复 | 检查 Provider、API Key、额度和网络，不修改业务代码 |
 | 查询被拒绝 | 先确认 SQL 是否只读、是否引用外部 reader 或系统目录 |
 | Snapshot 冲突 | 使用新的 `run_id` 和显式输出目录，不覆盖已发布 Snapshot |
+| 向导 `awaiting_confirmation` / 退出 2 | 读取 stdout 的 `pending_questions`，把客户自然语言答案传给 `answer` |
+| 向导拒绝工作区 | 使用项目代码目录之外的绝对工作区；不要把客户数据或向导产物写进 Git |
+| `ADAPTER_LOAD_FAILED` | 检查宿主 adapter 的 `module:attribute` 引用及其 `propose(model_input)` 方法 |

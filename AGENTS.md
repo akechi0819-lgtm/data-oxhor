@@ -4,7 +4,7 @@
 
 ## 当前阶段
 
-项目已完成宿主基础验证、Data Foundation v2、Education Business Pack v1 和首个 Company Bridge v1.2.0，进入 Customer Profile 与对话交付验收阶段。DeepSeek Harness 是默认客户运行宿主，Codex 是直接验证宿主；业务核心保持宿主无关。不得把本地验证环境描述成正式客户系统，也不得执行正式外部业务动作。
+项目已完成宿主基础验证、Data Foundation v2、Education Business Pack v1、首个 Company Bridge v1.2.0 和 Bridge 对齐向导最小端到端切片，进入宿主模型 adapter、Customer Profile 与客户对话验收阶段。DeepSeek Harness 是默认客户运行宿主，Codex 是直接验证宿主；业务核心保持宿主无关。不得把本地验证环境描述成正式客户系统，也不得执行正式外部业务动作。
 
 ## 固定架构边界
 
@@ -17,6 +17,7 @@
 7. 宿主 Session 只承担短期对话上下文。长期业务 Memory、Good/Bad Case、Eval 和 Promotion 进入独立学习与质量工作区。
 8. 新宿主优先通过受控 Shell 消费同一套 Python CLI、Pack、Bridge、Skills 和输出器；只有出现不支持 Shell 的真实消费者时才评估薄适配器，不提前建设协议层。
 9. 只读、不可覆盖、unresolved 阻断和文件验收由各自业务模块的确定性代码负责；没有可复现失败时不建设独立强化插件、统一治理层或跨模块身份平台。
+10. Bridge 对齐向导只编排显式 Snapshot、Pack、可选同公司 Bridge、模型候选和人工确认；模型只能生成 proposed，确定性服务负责 confirmed_review、build 和 Snapshot validate。
 
 ## 当前已实现事实
 
@@ -28,7 +29,8 @@
 - DeepSeek Harness `@deepseek-ai/dsh@0.1.0-rc.6` 已安装到本机全局环境，Web 健康检查通过；模型 Provider/API Key 已配置，真实模型回合可用，并已在项目 Workspace 通过 Shell 成功执行 Data Foundation 顶层 `--help`（退出码 0、发现 7 个子命令）；
 - `company_bridge/` 已提供候选扫描、人工复核门禁、正式构建和 Snapshot 兼容性校验；当前 reviewed v3 生成正式 Bridge 1.2.0，映射 3 个真实 landing 源合同；
 - 真实三表已通过 Data Foundation v2 全量 landing，Bridge 1.2.0 已对同一 Snapshot 兼容性校验通过；
-- 47 项现行 Python 测试通过；Customer Profile、输出插件和学习与质量工作区尚未实现；MCP 不在当前计划内。
+- `bridge_alignment/` 与 `interfaces/bridge_alignment_wizard.py` 已提供 `start`、`propose`、`answer`、`add-evidence`、`finalize`，支持同公司口径复用、新公司隔离、追加只读证据、关键歧义阻断和自动 build/validate；核心只有可注入 adapter 合同，没有宿主 SDK；
+- 54 项现行 Python 测试通过；真实宿主模型 adapter、Customer Profile、输出插件和学习与质量工作区尚未实现；MCP 不在当前计划内。
 
 ## 当前最小红线
 
@@ -38,11 +40,12 @@
 - 运行使用显式 `run_id`，查询和恢复使用显式 `snapshot_id`；源 SHA-256 只用于 inspect/ingest 的源绑定和 manifest，不要求在每次查询、Session 或交付物中传播；
 - 正式文件必须可打开并通过最小内容检查；
 - 不通过 `latest`、修改时间或模糊文件名继承状态；
+- 向导工作区必须显式位于项目外；不得提交客户源数据、DuckDB、Parquet 或向导运行产物；
 - 不提前建设 MCP、通用 DAG、多 Agent 编排、多层 Reviewer、独立强化插件或完整治理平台；新增治理必须对应可复现失败或明确客户要求。
 
 ## 开发顺序
 
-S0/S1/S2 已完成并合入 `main`。下一施工项是首个 Customer Profile，随后验证 Harness Session 恢复、项目 Skill 和小型文件交付。不得把企业字段、枚举、SQL、清洗规则或单次分析结论回填进 Pack 或 Data Foundation。
+Data Foundation、Pack、Bridge 和 Bridge 对齐向导最小切片已完成。下一施工项是把真实宿主模型 adapter 接入向导并完成客户会话验收，再实现首个 Customer Profile、Session 恢复、项目 Skill 和小型文件交付。不得把企业字段、枚举、SQL、清洗规则或单次分析结论回填进 Pack 或 Data Foundation。
 
 ## 文档路由
 
@@ -52,5 +55,6 @@ S0/S1/S2 已完成并合入 `main`。下一施工项是首个 Customer Profile�
 - `docs/architecture.md`：权威架构与可移植性边界；
 - `docs/integration-guide.md`：现有 CLI 与各宿主的调用方式；
 - `docs/company-bridge-contract.md`：Bridge 候选、正式构建、状态门禁与兼容性校验；
+- `docs/bridge-alignment-wizard-contract.md`：向导 CLI、模型候选、问题、追加扫描和 finalize 合同；
 - `docs/operator-runbook.md`：本地运行、验证和排障；
 - `docs/handoff.md`：当前完成度、阻塞和唯一下一步。

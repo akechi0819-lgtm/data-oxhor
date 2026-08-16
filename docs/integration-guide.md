@@ -1,4 +1,4 @@
-# Data Foundation 接入指南
+# 核心 CLI 接入指南
 
 ## 1. 当前公开入口
 
@@ -108,3 +108,22 @@ python3 -m interfaces.company_bridge validate \
 当前正式 Bridge 为 1.2.0。它引用 Data Foundation v2 的 `landing.*` 关系和 `column_N`，不绑定某个 Snapshot；具体运行时可额外传入同一 Snapshot 的 `--snapshot-description` 与 `--snapshot-quality` 做兼容性校验。
 
 历史扫描使用 `scan-history`，但输出角色是 `historical_scan`，不能直接构建正式 Bridge。只有人工复核后的 `confirmed_review` 可以传给 `build`；未确认项必须保留为 `unresolved` 或拒收，不能静默选择。完整合同见 [Company Bridge v1 合同](./company-bridge-contract.md)。
+
+## 6. Bridge 对齐向导
+
+公开入口：
+
+```bash
+python3 -m interfaces.bridge_alignment_wizard --help
+python3 -m interfaces.bridge_alignment_wizard start \
+  --workspace /absolute/external/workspace \
+  --session-id session_customer_port_v1 \
+  --company-id company_customer \
+  --warehouse /absolute/snapshot/warehouse.duckdb \
+  --snapshot-id snapshot_customer_port_v1 \
+  --pack business_pack/packs/education_training_operations_cn/pack.json
+```
+
+同公司换端口时可额外传 `--existing-bridge`；新公司不得传上一家 Bridge。`workspace` 必须位于项目外。`start` 写入画像和 `model_input.json`；`propose --adapter module:attribute` 调用宿主注入的 `CandidateAdapter`；`answer` 接收 question id、自然语言答案和确认人；`add-evidence` 只读扫描补充目录；`finalize` 生成 confirmed_review、正式 Bridge 和 Snapshot validation。
+
+CLI 完成当前阶段且无需客户输入时退出 `0`，等待确认或被关键问题阻断时退出 `2`，合同/身份/adapter/文件错误退出 `1`。当前项目只提供 adapter 协议和测试 fake adapter，未把 DeepSeek Harness SDK 写入核心，也尚未提供正式宿主 adapter。精确 JSON 合同见 [Bridge 对齐向导 v1 合同](./bridge-alignment-wizard-contract.md)。

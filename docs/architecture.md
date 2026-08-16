@@ -58,6 +58,7 @@
   → DuckDB / Parquet
   → describe / quality / read-only query
   → result identity / artifact manifest
+  → Bridge 对齐向导（profile → proposed → confirm → build/validate）
   → Pack + Bridge 解释
   → Skill 组织分析
   → Renderer 生成交付物
@@ -71,6 +72,7 @@
 
 - Data Foundation 保证源文件只读、Snapshot 不原地覆盖、查询入口只读并限制结果规模；
 - Pack 校验器检查稳定 ID 和交叉引用；Bridge 建成后由语义模块阻断未确认映射成为正式事实；
+- Bridge 对齐向导把模型候选限制为 proposed，以不可覆盖决定生成 confirmed_review；关键问题未答时阻断，非关键未答项显式 unresolved 并禁用能力；
 - Renderer 建成后由输出模块完成文件打开性与最小内容验收；
 - 状态恢复使用显式 `run_id`、`snapshot_id` 和后续 Pack/Bridge 版本，不通过 `latest`、修改时间或模糊文件名猜测。
 
@@ -83,11 +85,14 @@ Session 存储、沙箱、用户审批、模型路由、工具选择和计划管
 | Data Foundation | 文件有什么结构、能否稳定查询 | 教育口径推断 |
 | Education Pack | 教育行业通常如何定义 | 某客户当前事实 |
 | Company Bridge | 这家客户如何命名和映射 | 修改行业标准概念身份 |
+| Bridge 对齐向导 | 哪些新结构映射需要客户确认 | 让模型候选直接成为正式事实 |
 | Customer Profile | 当前部署选择哪些模块 | 业务逻辑和事实 |
 
 第一家企业可能让 Pack 和 Bridge 看起来近似，但物理分离能保证第二家企业只新增 Bridge，跨行业时新增 Pack 与 Bridge。
 
 Data Foundation v2 将每个 Sheet 原样落入 `landing.column_N`，并在 `ingest.sheets` 登记目标表。表头行、企业业务列名、枚举和清洗规则由 Company Bridge 保存；Data Foundation 不再包含特定源表映射或企业语义视图。
+
+向导工作区位于项目外，保存显式会话状态、画像、模型输入、候选、问题、追加证据摘要、决定和最终产物。模型适配由宿主注入；核心不依赖 Harness SDK。旧 Bridge 只在 `company_id` 与 Pack 身份都相同时提供企业口径摘要，旧字段定位不会复用到新 Snapshot。
 
 ## 6. 输出和交互
 
