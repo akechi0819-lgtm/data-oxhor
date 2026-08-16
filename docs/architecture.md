@@ -63,14 +63,16 @@
   → Renderer 生成交付物
 ```
 
-运行以显式 `run_id` 区分，查询和恢复以显式 `snapshot_id` 定位仓库。源 SHA-256 用于 inspect/ingest 的源绑定以及 Snapshot/Artifact manifest，不要求在每次查询、Session 或交付物中继续传播。SQL 是直接查询输入或保存查询内容，不建立额外的统一血缘平台。Education Pack 已独立版本化；Bridge 尚未实现，当前 Data Foundation 不伪造 Pack/Bridge 选择。
+运行以显式 `run_id` 区分，查询和恢复以显式 `snapshot_id` 定位仓库。源 SHA-256 用于 inspect/ingest 的源绑定以及 Snapshot/Artifact manifest，不要求在每次查询、Session 或交付物中继续传播。SQL 是直接查询输入或保存查询内容，不建立额外的统一血缘平台。Education Pack 已独立版本化；Company Bridge v1 的合同、校验器、CLI 和正式 Bridge v1.1.0 已实现，并已在真实三表 Snapshot 上通过兼容性校验。Snapshot 只承担具体运行批次的兼容性校验。历史扫描只产生隔离候选，Data Foundation 不伪造 Pack/Bridge 选择。
 
 ## 4. 确定性边界
+
+当前已验证：真实三表 Snapshot `snapshot_super_agent_inputs_20260815_v2` 已由 Company Bridge 1.1.0 兼容性通过；Snapshot 只承担运行批次校验，不写入 Bridge。
 
 项目不建设独立 Harness Reinforcement 插件。确定性约束由拥有数据或文件的模块直接实现：
 
 - Data Foundation 保证源文件只读、Snapshot 不原地覆盖、查询入口只读并限制结果规模；
-- Pack 校验器检查稳定 ID 和交叉引用；Bridge 建成后由语义模块阻断未确认映射成为正式事实；
+- Pack 校验器检查稳定 ID 和交叉引用；Company Bridge 校验器检查候选状态、Pack/Snapshot 引用、重复映射、悬空引用和污染内容，并阻断未确认映射成为正式事实；
 - Renderer 建成后由输出模块完成文件打开性与最小内容验收；
 - 状态恢复使用显式 `run_id`、`snapshot_id` 和后续 Pack/Bridge 版本，不通过 `latest`、修改时间或模糊文件名猜测。
 

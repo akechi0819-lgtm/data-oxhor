@@ -25,9 +25,13 @@
 - `interfaces/data_foundation.py` 已提供 `inspect`、`ingest`、`describe`、`quality`、`query`、`run-saved-query`、`promote-query`；
 - Data Foundation 已要求关键运行入口携带 `run_id`，查询通过显式 `snapshot_id` 定位仓库，并为 Snapshot 与大结果写入最小 Artifact manifest；这不是完整 Run/Artifact 平台；
 - `business_pack/` 已提供 `education_training_operations_cn` v1.0.0，包含行业概念、指标、维度、三段客户旅程、漏斗和诊断 Playbook；`interfaces/business_pack.py` 提供 `validate`、`describe`；
+- `company_bridge/` 与 `interfaces/company_bridge.py` 已提供 `company_bridge.v1` 正式合同、`company_bridge_candidates.v1` 候选合同、确定性校验/构建和宿主无关 CLI；历史扫描只能输出独立候选集，不能直接生成正式 Bridge；
+- 已对 `/Users/akechi/Desktop/super_agent` 完成只读历史资产盘点，当前候选结果保存在 `artifacts/company_bridge/candidates/super_agent_history_scan_20260814_v6.json`，不修改该项目；日报的有符号净现金、明确退款业务形式/原因、转班/重报调整、并归渠道优先和新生/老生字段边界均保持为候选或拒收，不自动晋升；
+- 已根据 2026-08-15 的企业确认生成独立 `artifacts/company_bridge/reviewed/super_agent_confirmed_review_20260815_v1.json`：付款人统计沿用学员身份，净现金正负直接求和，明确退款与转班/重报调整分开，剑五按 KET/PET 班型二次归一；历史扫描文件本身仍保持只读候选角色；
+- 已通过 DeepSeek Harness 使用三份真实工作簿发布 `snapshot_super_agent_inputs_20260815_v2`：现金明细、FY27 报名系统操作明细、工单表；Data Foundation `inspect`、`ingest`、`describe`、`quality` 均通过；真实查询确认剑五 KET 4,143 行、PET 1,337 行；
 - DeepSeek Harness `@deepseek-ai/dsh@0.1.0-rc.6` 已安装到本机全局环境，Web 健康检查通过；模型 Provider/API Key 已配置，真实模型回合可用，并已在项目 Workspace 通过 Shell 成功执行 Data Foundation 顶层 `--help`（退出码 0、发现 7 个子命令）；
-- 项目 Git 仓库已有基线提交 `a5df0b6`；当前工作树包含未提交施工改动；
-- Company Bridge、Customer Profile、输出插件和学习与质量工作区尚未实现；MCP 不在当前计划内。
+- 项目 Git 仓库当前基线提交为 `8992e8a2dd07b00cb17ca4e166e702003b3c69c`；当前工作树包含未提交施工改动；
+- 正式企业 Bridge v1.1.0 已发布到 `artifacts/company_bridge/bridges/company_bridge.v1_1_0.json`，并已对 `snapshot_super_agent_inputs_20260815_v2` 兼容性校验通过；v1.0.0 保留为上一版历史产物；Customer Profile、输出插件和学习与质量工作区尚未实现；MCP 不在当前计划内。
 
 ## 当前最小红线
 
@@ -41,7 +45,7 @@
 
 ## 开发顺序
 
-Education Business Pack v1 已完成。下一施工阶段是 Company Bridge 的需求确认与最小映射切片；不得把企业字段、枚举、SQL、清洗规则或单次分析结论回填进 Pack。Harness 的完整数据链路、Session 恢复和小型文件交付仍是独立待验收项。
+Education Business Pack v1 已完成。Company Bridge v1 的合同、校验器、CLI、Super Agent 只读候选扫描、`confirmed_review`、正式 Bridge 和真实 Snapshot 兼容性验收已完成。不得把企业字段、枚举、SQL、清洗规则或单次分析结论回填进 Pack。Harness 的 Session 恢复和小型文件交付仍是独立待验收项。
 
 ## 文档路由
 
@@ -50,5 +54,6 @@ Education Business Pack v1 已完成。下一施工阶段是 Company Bridge 的�
 - `分段施工计划.md`：阶段顺序与退出条件；
 - `docs/architecture.md`：权威架构与可移植性边界；
 - `docs/integration-guide.md`：现有 CLI 与各宿主的调用方式；
+- `docs/company-bridge-contract.md`：Bridge 正式入口、历史扫描入口、候选状态和合法/非法样例；
 - `docs/operator-runbook.md`：本地运行、验证和排障；
 - `docs/handoff.md`：当前完成度、阻塞和唯一下一步。

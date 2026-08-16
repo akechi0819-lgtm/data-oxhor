@@ -90,6 +90,50 @@ python3 -m interfaces.business_pack describe
 
 内置 Pack 为 `education_training_operations_cn` v1.0.0。它不接收 `snapshot_id`，也不包含当前企业字段、枚举、SQL 或清洗选择。
 
-## 5. Bridge 的未来接入
+## 5. Company Bridge 接入
 
-Bridge 将提供独立版本化 manifest。调用时先选择 Customer Profile，再冻结 `snapshot_id`、Pack version 和 Bridge version。未确认 Bridge 项必须显式返回，不允许工具静默选择字段或枚举。
+Company Bridge 也通过宿主无关 Python CLI 消费，但有意分为两个入口：历史扫描入口只读取外部历史资产并生成候选；正式构建入口读取 Pack 和已确认候选，不读取历史报告或 SQL 原文。Snapshot 描述/质量是运行兼容性校验的可选输入，不写入 Bridge。
+
+```bash
+python3 -m interfaces.company_bridge --help
+python3 -m interfaces.company_bridge scan-history --help
+python3 -m interfaces.company_bridge validate-candidates --help
+python3 -m interfaces.company_bridge validate --help
+python3 -m interfaces.company_bridge build --help
+```
+
+历史扫描示例：
+
+```bash
+python3 -m interfaces.company_bridge scan-history \
+  --root /path/to/super_agent \
+  --output /path/to/candidates/scan.json \
+  --company-id company_super_agent \
+  --candidate-set-id scan_super_agent_20260814
+```
+
+候选必须先形成独立的 `confirmed_review` 文件，再构建正式 Bridge：
+
+```bash
+python3 -m interfaces.company_bridge validate-candidates \
+  --input /path/to/candidates/confirmed.json \
+  --pack business_pack/packs/education_training_operations_cn/pack.json \
+  --require-role confirmed_review
+
+python3 -m interfaces.company_bridge build \
+  --candidates /path/to/candidates/confirmed.json \
+  --pack business_pack/packs/education_training_operations_cn/pack.json \
+  --bridge-id bridge_company_super_agent \
+  --bridge-version 1.1.0 \
+  --company-id company_super_agent \
+  --output /path/to/bridge/company_bridge.v1_1_0.json
+
+# 可选：用当前 Snapshot 检查 Bridge 能否落到实际表结构
+python3 -m interfaces.company_bridge validate \
+  --bridge /path/to/bridge/company_bridge.v1_1_0.json \
+  --pack business_pack/packs/education_training_operations_cn/pack.json \
+  --snapshot-description /path/to/snapshot-description.json \
+  --snapshot-quality /path/to/snapshot-quality.json
+```
+
+正式 `company_bridge.v1` 只有六类内容：`source_contracts`、`field_mappings`、`enum_mappings`、`normalization_rules`、`overrides`、`unresolved`。所有命令输出结构化 JSON、失败返回非零退出码，已有输出文件不覆盖。完整字段合同、状态语义、拒收分类和合法/非法样例见 [Company Bridge v1 合同](./company-bridge-contract.md)。

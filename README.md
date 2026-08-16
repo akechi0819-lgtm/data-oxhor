@@ -42,11 +42,12 @@ Data Foundation  业务语义组          输出与交付
 - `run_id`、Snapshot 身份、源 SHA-256 绑定和最小 Artifact manifest；源 SHA-256 只作为 inspect/ingest 与 manifest 的内部完整性信息；
 - Education Business Pack v1：28 个概念、20 个指标、26 个维度、三段客户旅程、3 个漏斗和 7 个诊断 Playbook；
 - Pack 的 `validate` / `describe` CLI 与确定性交叉引用校验；
-- 30 项现行 Python 测试；
+- `company_bridge.v1` 合同、确定性加载/校验器、宿主无关 CLI，以及与正式 Bridge 严格分离的历史候选扫描入口；
+- 46 项现行 Python 测试；
 - 本机全局 DeepSeek Harness `0.1.0-rc.6`，Web 健康检查通过。
 - Harness 真实模型回合可用，并已在项目 Workspace 通过 Shell 执行 Data Foundation `--help`，退出码为 0，发现全部 7 个子命令。
 
-尚未实现：Company Bridge、Customer Profile、输出插件和学习与质量工作区。Harness 的完整 Data Foundation 数据链路、Session 恢复和 Deliverables 尚未验收。MCP 不在当前开发计划内。
+正式企业 Bridge `company_bridge.v1` v1.1.0 已生成并通过 Pack/Bridge 合同校验，并已对真实 Snapshot `snapshot_super_agent_inputs_20260815_v2` 兼容性通过；文件为 `artifacts/company_bridge/bridges/company_bridge.v1_1_0.json`。Data Foundation Snapshot 仍只承担具体运行批次的兼容性校验，不属于 Bridge 内容。当前确认的付款人、退款/调整、净现金和 KET/PET 规则已写入 Bridge，不写回 Pack。Customer Profile、输出插件和学习与质量工作区仍未实现。Harness 的 Session 恢复和 Deliverables 尚未验收。MCP 不在当前开发计划内。
 
 当前代码仍为已确认脏数据语料保留了特定源表映射和 `semantic.registration_cash` 视图；这是已实现事实，不代表 Data Foundation 已完成通用教育语义层。
 
@@ -56,15 +57,16 @@ Data Foundation  业务语义组          输出与交付
 python3 -m interfaces.data_foundation --help
 python3 -m interfaces.business_pack validate
 python3 -m interfaces.business_pack describe
+python3 -m interfaces.company_bridge --help
 python3 -m unittest discover -s tests -p 'test_*.py' -v
 /Users/akechi/.local/bin/dsh --version
 ```
 
-`data-foundation` 的完整命令和输入合同见 [接入指南](./docs/integration-guide.md)，Harness 启动与排障见 [运维手册](./docs/operator-runbook.md)。
+Data Foundation 与 Company Bridge 的命令和输入合同见 [接入指南](./docs/integration-guide.md) 与 [Company Bridge v1 合同](./docs/company-bridge-contract.md)，Harness 启动与排障见 [运维手册](./docs/operator-runbook.md)。
 
 ## 下一步
 
-先确认 Company Bridge 的首个企业映射切片，再实现字段、枚举、Selection、Override 与 unresolved。企业特定口径、清洗和 SQL 进入 Bridge，不进入 Pack。Harness 的完整 Data Foundation 数据链路、Session 恢复和小型文件交付仍需补充验收。
+真实表格已通过 Data Foundation 发布 Snapshot，Bridge 1.1.0 也已完成同一 Snapshot 的兼容性验收。下一步是 Harness Session 恢复、Customer Profile 和小型交付物验收；企业特定口径、清洗和 SQL 继续进入 Bridge 或候选拒收记录，不进入 Pack。
 
 ## 文档导航
 
@@ -72,6 +74,7 @@ python3 -m unittest discover -s tests -p 'test_*.py' -v
 - [开发规则](./开发文档.md)
 - [分段施工计划](./分段施工计划.md)
 - [接入指南](./docs/integration-guide.md)
+- [Company Bridge v1 合同](./docs/company-bridge-contract.md)
 - [运维手册](./docs/operator-runbook.md)
 - [交接状态](./docs/handoff.md)
 - [DeepSeek Harness 调研卡](./research/projects/deepseek-harness.md)

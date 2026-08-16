@@ -17,6 +17,7 @@ NS = {"m": MAIN_NS, "r": REL_NS, "p": PACKAGE_REL_NS}
 CLEAN_CANDIDATE_SHEETS = {
     "fy25_frontdesk_daily": frozenset({"FY25-汇总"}),
     "fy27_frontdesk_daily": frozenset({"FY27-汇总"}),
+    "br_cash": frozenset({"现金明细表"}),
     "current_work_orders": frozenset({"工单分析", "新表区域"}),
     "archived_work_orders": frozenset({"FY24", "FY25", "FY26"}),
 }

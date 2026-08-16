@@ -28,6 +28,7 @@ PROVENANCE = ["source_id", "source_sha256", "source_filename", "sheet_name", "so
 TABLE_NAMES = {
     ("fy25_frontdesk_daily", "FY25-汇总"): "fy25_frontdesk_daily__summary",
     ("fy27_frontdesk_daily", "FY27-汇总"): "fy27_frontdesk_daily__summary",
+    ("br_cash", "现金明细表"): "cash_ledger",
     ("current_work_orders", "工单分析"): "current_work_orders__analysis",
     ("current_work_orders", "新表区域"): "current_work_orders__records",
     ("archived_work_orders", "FY24"): "archived_work_orders__fy24",
@@ -159,6 +160,7 @@ def publish_snapshot(
     artifact_entries = []
     snapshot_sources = []
     quality_rows: list[tuple[Any, ...]] = []
+    ingested_clean_tables: set[tuple[str, str]] = set()
     connection: duckdb.DuckDBPyConnection | None = None
     try:
         connection = duckdb.connect(str(warehouse_path))
@@ -222,6 +224,7 @@ def publish_snapshot(
                         clean_relative = Path("clean") / f"{table}.parquet"
                         _write_parquet(connection, f"clean.{_quote(table)}", temporary / clean_relative)
                         csv_path.unlink()
+                        ingested_clean_tables.add((source_id, sheet.name))
                     else:
                         quality_rows.append(("SHEET_NOT_CLEAN_CANDIDATE", "info", source_id, sheet.name, None, None, None, None, "pending", snapshot_id))
                     connection.execute("INSERT INTO ingest.sheets VALUES (?, ?, ?, ?, ?, ?, ?, ?)", [source_id, sheet.name, declared_dimension(archive, sheet.target), physical_rows, meaningful_rows, max_source_row, candidate, snapshot_id])
@@ -231,28 +234,27 @@ def publish_snapshot(
         if quality_rows:
             connection.executemany("INSERT INTO quality.issues VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", quality_rows)
         _write_parquet(connection, "quality.issues", temporary / "quality" / "issues.parquet")
-        connection.execute(
-            """
-            CREATE VIEW semantic.registration_cash AS
-            SELECT
-                'FY25' AS fiscal_year,
-                source_id, source_sha256, source_filename, sheet_name,
-                source_row_number, ingest_batch_id, snapshot_id,
-                trim("业务形式") AS "业务形式",
-                TRY_CAST(regexp_replace("实缴金额", '[,￥¥元[:space:]]', '', 'g') AS DECIMAL(38, 6)) AS "实缴金额"
-            FROM clean.fy25_frontdesk_daily__summary
-            WHERE trim("业务形式") IN ('报班', '报班-预收')
-            UNION ALL
-            SELECT
-                'FY27' AS fiscal_year,
-                source_id, source_sha256, source_filename, sheet_name,
-                source_row_number, ingest_batch_id, snapshot_id,
-                trim("业务形式") AS "业务形式",
-                TRY_CAST(regexp_replace("实缴金额", '[,￥¥元[:space:]]', '', 'g') AS DECIMAL(38, 6)) AS "实缴金额"
-            FROM clean.fy27_frontdesk_daily__summary
-            WHERE trim("业务形式") IN ('报班', '报班-预收')
-            """
-        )
+        registration_selects = []
+        for fiscal_year, source_id, table in (
+            ("FY25", "fy25_frontdesk_daily", "fy25_frontdesk_daily__summary"),
+            ("FY27", "fy27_frontdesk_daily", "fy27_frontdesk_daily__summary"),
+        ):
+            if (source_id, "FY25-汇总" if fiscal_year == "FY25" else "FY27-汇总") not in ingested_clean_tables:
+                continue
+            registration_selects.append(
+                f"""
+                SELECT
+                    '{fiscal_year}' AS fiscal_year,
+                    source_id, source_sha256, source_filename, sheet_name,
+                    source_row_number, ingest_batch_id, snapshot_id,
+                    trim(\"业务形式\") AS \"业务形式\",
+                    TRY_CAST(regexp_replace(\"实缴金额\", '[,￥¥元[:space:]]', '', 'g') AS DECIMAL(38, 6)) AS \"实缴金额\"
+                FROM clean.{_quote(table)}
+                WHERE trim(\"业务形式\") IN ('报班', '报班-预收')
+                """
+            )
+        if registration_selects:
+            connection.execute("CREATE VIEW semantic.registration_cash AS " + " UNION ALL ".join(registration_selects))
         connection.execute("CHECKPOINT")
         connection.close()
         snapshot_manifest = {"schema_version": "warehouse_snapshot.v1", "run_id": run_id, "snapshot_id": snapshot_id, "sources": snapshot_sources, "artifacts": []}

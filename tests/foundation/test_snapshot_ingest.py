@@ -17,6 +17,7 @@ from interfaces.data_foundation import ingest_sources
 SOURCE_SHEETS = {
     "fy25_frontdesk_daily": ["FY25-汇总"],
     "fy27_frontdesk_daily": ["FY27-汇总", "看板"],
+    "br_cash": ["现金明细表"],
     "current_work_orders": ["工单分析", "新表区域"],
     "archived_work_orders": ["FY24", "FY25", "FY26"],
 }
@@ -32,6 +33,9 @@ def write_source(path: Path, source_id: str) -> None:
             sheet.append([45292, "1,200.10元", " 报班 ", " Ａ ", "空表头列值"])
             sheet.append(["bad-date", "bad-money", "报班-预收", None])
             sheet.append([None, None, None, None])
+        elif source_id == "br_cash":
+            sheet.append(["学员编号", "业务日期", "产品", "班型", "现金收入", "报入现金收入", "校区归属", "新老生类型"])
+            sheet.append(["student-1", "2026-08-15", "剑五", "KET", "1200", "1200", "南开", "新生"])
         else:
             date_field = "分配日期" if sheet_name == "FY25" else "分配时间"
             sheet.append(["工单ID", date_field])
@@ -64,10 +68,10 @@ class SnapshotIngestTests(unittest.TestCase):
 
             self.assertEqual(result["status"], "passed")
             self.assertTrue((snapshot / "warehouse.duckdb").is_file())
-            self.assertEqual(len(list((snapshot / "source_workbooks").rglob("*.xlsx"))), 4)
+            self.assertEqual(len(list((snapshot / "source_workbooks").rglob("*.xlsx"))), 5)
             self.assertFalse((snapshot / "raw_structure").exists())
             self.assertFalse((snapshot / "_work").exists())
-            self.assertEqual(len(list((snapshot / "clean").glob("*.parquet"))), 7)
+            self.assertEqual(len(list((snapshot / "clean").glob("*.parquet"))), 8)
             document = json.loads((snapshot / "snapshot_manifest.json").read_text(encoding="utf-8"))
             self.assertNotIn(str(root), json.dumps(document))
             fy25 = next(sheet for source in document["sources"] if source["source_id"] == "fy25_frontdesk_daily" for sheet in source["sheets"] if sheet["name"] == "FY25-汇总")
