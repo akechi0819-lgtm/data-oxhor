@@ -105,7 +105,7 @@ python3 -m interfaces.company_bridge validate \
 
 正式构建只接受 `candidate_set_role=confirmed_review`，且只接受 `confirmed`/`unresolved`。历史扫描输出的 `candidate_set_role=historical_scan` 永远不能直接构建 Bridge。
 
-Bridge 对齐向导把这条人工门禁产品化：adapter 输出包含置信度、证据、替代解释和提问建议的 proposed 候选；客户通过自然语言选项确认后，确定性服务才生成固定 `confirmed_review`。关键问题未答时不生成 review/Bridge；完整会话合同见 [Bridge 对齐向导 v1 合同](./bridge-alignment-wizard-contract.md)。
+Bridge 对齐向导把这条人工门禁产品化：adapter 输出包含置信度、证据、替代解释和提问建议的 proposed 候选；宿主理解客户自由回答并传入内部选项后，确定性服务才生成固定 `confirmed_review`。关键问题未答时不生成 review/Bridge；完整会话合同见 [Bridge 对齐向导 v1 合同](./bridge-alignment-wizard-contract.md)。
 
 ## 5. 合法与非法样例
 

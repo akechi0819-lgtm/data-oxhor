@@ -45,7 +45,7 @@ python3 -m interfaces.bridge_alignment_wizard --help
 python3 -m unittest discover -s tests -p 'test_*.py' -v
 ```
 
-基线是 54 项现行测试通过，Pack 与 Bridge 校验状态均为 `passed`。向导测试使用 fake adapter，不代表真实宿主模型已接入。测试失败时先区分：Python/DuckDB 版本、外部 Golden Case 是否可读、源 SHA-256 是否变化、Pack/Bridge 交叉引用错误，还是代码回归。不要通过修改 Golden 值掩盖源文件变化。
+基线是 55 项现行测试通过，Pack 与 Bridge 校验状态均为 `passed`。向导测试使用 fake adapter，不代表真实宿主模型已接入。测试失败时先区分：Python/DuckDB 版本、外部 Golden Case 是否可读、源 SHA-256 是否变化、Pack/Bridge 交叉引用错误，还是代码回归。不要通过修改 Golden 值掩盖源文件变化。
 
 ## 4. 模型和密钥
 
@@ -78,6 +78,7 @@ DeepSeek Harness 处于 Developer Preview。升级前必须：
 | 模型无法回复 | 检查 Provider、API Key、额度和网络，不修改业务代码 |
 | 查询被拒绝 | 先确认 SQL 是否只读、是否引用外部 reader 或系统目录 |
 | Snapshot 冲突 | 使用新的 `run_id` 和显式输出目录，不覆盖已发布 Snapshot |
-| 向导 `awaiting_confirmation` / 退出 2 | 读取 stdout 的 `pending_questions`，把客户自然语言答案传给 `answer` |
-| 向导拒绝工作区 | 使用项目代码目录之外的绝对工作区；不要把客户数据或向导产物写进 Git |
+| 向导 `awaiting_confirmation` / 退出 2 | 宿主向客户展示问题，理解自由回答后把 option、原回答和确认人传给 `answer` |
+| 月度文件更新 | 替换 `Input/Data/<source_id>` 当前文件并用新 `snapshot_id` 执行 `sync-data`；不要删除旧 Snapshot |
+| 客户工作区误入 Git | 使用默认忽略的 `customers/`，交付产品时可整体复制该客户工作区 |
 | `ADAPTER_LOAD_FAILED` | 检查宿主 adapter 的 `module:attribute` 引用及其 `propose(model_input)` 方法 |

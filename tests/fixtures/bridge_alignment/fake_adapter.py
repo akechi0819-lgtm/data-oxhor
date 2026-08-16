@@ -36,10 +36,8 @@ class FakeAdapter:
         }
         return {
             "schema_version": "bridge_alignment_model_candidates.v1",
-            "session_id": model_input["session_id"],
             "candidates": [
                 {
-                    "candidate_id": "cand_fixture_cash_date",
                     "candidate_type": "field_mapping",
                     "proposed_mapping_or_rule": date_proposal,
                     "target": {"target_type": "dimension", "target_id": "time.cash_transaction_date"},
@@ -56,7 +54,6 @@ class FakeAdapter:
                     ],
                 },
                 {
-                    "candidate_id": "cand_fixture_net_cash",
                     "candidate_type": "field_mapping",
                     "proposed_mapping_or_rule": amount_proposal,
                     "target": {"target_type": "concept", "target_id": "cash.net_cash"},

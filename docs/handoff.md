@@ -10,7 +10,7 @@
 - 当前 reviewed v3 含 119 个 confirmed 候选；正式 Bridge 1.2.0 含 3 个源合同、10 个字段映射、105 条归一规则、1 个 Override、0 个 unresolved。
 - Bridge 1.2.0 已通过真实 Data Foundation v2 Snapshot 兼容性校验；企业字段与列位不再硬编码在 Data Foundation。
 - Bridge 对齐向导最小切片已完成：显式会话、Snapshot 画像、可注入模型合同、少量关键确认、追加目录只读扫描、确认不可覆盖、自动 confirmed_review/build/validate。
-- 陌生四表 + 补充数据字典 fixture 已覆盖同公司语义复用、新公司隔离、关键问题阻断和最终 Bridge；54 项 Python 测试通过。
+- 陌生四表 + 七月到八月当前文件替换 + 补充数据字典 fixture 已覆盖工作区内数据管理、同公司语义复用、新公司隔离、关键问题阻断和最终 Bridge；55 项 Python 测试通过。
 
 ## 当前合同
 
@@ -19,7 +19,8 @@
 - Pack 保存行业通用知识；Bridge 保存企业表头、列位、枚举、归一规则和 Override。
 - 历史扫描只能生成候选；正式 Bridge 只接受人工复核的 `confirmed_review`。
 - 向导模型候选始终是 proposed；只有客户决定或显式 optional unresolved 能进入 reviewed，关键歧义必须阻断。
-- 向导运行产物只写项目外显式工作区，追加扫描不复制或修改证据目录。
+- 客户工作区使用固定 `Input/Work/Output` 并保存相对路径，可整体复制；追加资料持久化到 `Input/Reference`，源码 checkout 的 `customers/` 默认忽略。
+- Data Foundation 的 SHA-256 只负责导入完整性；向导候选、问题、决定和参考资料身份不使用哈希。
 - Snapshot 只用于运行兼容性校验，不写入 Bridge；Bridge 不通过 `latest` 或修改时间选择状态。
 - 真实源工作簿、DuckDB、Parquet 和运行目录不进入 Git。
 

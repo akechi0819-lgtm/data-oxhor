@@ -115,15 +115,17 @@ python3 -m interfaces.company_bridge validate \
 
 ```bash
 python3 -m interfaces.bridge_alignment_wizard --help
-python3 -m interfaces.bridge_alignment_wizard start \
-  --workspace /absolute/external/workspace \
-  --session-id session_customer_port_v1 \
+python3 -m interfaces.bridge_alignment_wizard init \
+  --workspace customers/company_customer \
   --company-id company_customer \
-  --warehouse /absolute/snapshot/warehouse.duckdb \
-  --snapshot-id snapshot_customer_port_v1 \
   --pack business_pack/packs/education_training_operations_cn/pack.json
+python3 -m interfaces.bridge_alignment_wizard sync-data \
+  --workspace customers/company_customer \
+  --snapshot-id snapshot_customer_2026_08
 ```
 
-同公司换端口时可额外传 `--existing-bridge`；新公司不得传上一家 Bridge。`workspace` 必须位于项目外。`start` 写入画像和 `model_input.json`；`propose --adapter module:attribute` 调用宿主注入的 `CandidateAdapter`；`answer` 接收 question id、自然语言答案和确认人；`add-evidence` 只读扫描补充目录；`finalize` 生成 confirmed_review、正式 Bridge 和 Snapshot validation。
+`init` 创建 `Input/Work/Output`，并把 Pack 与可选同公司 Bridge 复制进工作区。客户把当前文件分别放进 `Input/Data/<source_id>/`；每个稳定来源槽位只放一个 XLSX/XLSM。七月换八月时直接替换当前文件，再用新的显式 `snapshot_id` 执行 `sync-data`；旧 Snapshot 保留，工作区当前指针更新。
 
-CLI 完成当前阶段且无需客户输入时退出 `0`，等待确认或被关键问题阻断时退出 `2`，合同/身份/adapter/文件错误退出 `1`。当前项目只提供 adapter 协议和测试 fake adapter，未把 DeepSeek Harness SDK 写入核心，也尚未提供正式宿主 adapter。精确 JSON 合同见 [Bridge 对齐向导 v1 合同](./bridge-alignment-wizard-contract.md)。
+`start` 从当前 Snapshot 建立单一 `session.json`；`propose --adapter module:attribute` 调用宿主注入的 `CandidateAdapter`；宿主理解客户自由回答后，通过 `answer` 传 `candidate_key`、`option_id`、原回答和确认人；`add-evidence` 把 U 盘/目录资料复制进 `Input/Reference`；`finalize` 写入 `Output/Bridge/<version>`。新公司不得传上一家 Bridge。
+
+CLI 完成当前阶段且无需客户输入时退出 `0`，等待确认或被关键问题阻断时退出 `2`，合同/身份/adapter/文件错误退出 `1`。stdout JSON 是宿主机器接口，客户不需要查看或编写。当前项目只提供 adapter 协议和测试 fake adapter，未把 DeepSeek Harness SDK 写入核心，也尚未提供正式宿主 adapter。精确合同见 [Bridge 对齐向导 v1 合同](./bridge-alignment-wizard-contract.md)。

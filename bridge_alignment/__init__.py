@@ -1,7 +1,6 @@
 """Host-independent Bridge alignment workflow."""
 
 from bridge_alignment.service import (
-    AlignmentError,
     CandidateAdapter,
     add_evidence,
     answer_question,
@@ -9,6 +8,7 @@ from bridge_alignment.service import (
     propose_candidates,
     start_session,
 )
+from bridge_alignment.workspace import AlignmentError, init_workspace, sync_data
 
 __all__ = [
     "AlignmentError",
@@ -16,6 +16,8 @@ __all__ = [
     "add_evidence",
     "answer_question",
     "finalize_session",
+    "init_workspace",
     "propose_candidates",
     "start_session",
+    "sync_data",
 ]
