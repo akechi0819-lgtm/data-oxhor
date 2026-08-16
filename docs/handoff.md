@@ -4,6 +4,8 @@
 
 - 确定 DeepSeek Harness 为默认客户运行宿主，同时冻结宿主可替换原则；
 - 全局安装并静态验证 DeepSeek Harness `0.1.0-rc.6`；
+- 在 Harness 机器级设置中配置模型 Provider/API Key，未将凭据写入仓库；
+- 验证 Harness 真实模型回合、项目 Workspace 和受控 Shell；模型成功执行 Data Foundation 顶层 `--help`，退出码 0，并发现全部 7 个子命令；
 - 完成 Data Foundation 的 XLSX 探查、不可变 Snapshot、DuckDB/Parquet、质量问题、只读 SQL 和保存查询；
 - Data Foundation 使用 `run_id`、显式 Snapshot 身份和最小 Artifact manifest；源 SHA-256 保留在 inspect/ingest 与 manifest 内部，不作为跨 Session 强制字段；
 - 确定 CLI 是 Data Foundation 唯一公开入口，Codex、DeepSeek Harness 等具备受控 Shell 的宿主直接调用同一 CLI；
@@ -17,8 +19,7 @@
 
 ## 尚未完成
 
-- Codex 对现有 CLI 完整命令链和错误处理的宿主侧验证；
-- Harness 的真实模型回合、Session 恢复、项目 Skill、CLI 调用和 Deliverables 验收；
+- Harness 的完整 Data Foundation 数据链路、Session 恢复、项目 Skill 和 Deliverables 验收；
 - Education Business Pack；
 - 当前企业 Company Bridge；
 - 首个 Customer Profile；
@@ -29,16 +30,16 @@
 
 直接用现有 Data Foundation CLI 完成宿主接入验证：
 
-1. 在 Codex 工作区调用 `inspect/ingest/describe/quality/query/promote-query/run-saved-query`，确认现有 JSON、退出码和产物路径可直接消费；
+1. 用一次性小型 fixture 在 DeepSeek Harness 中调用 `inspect/ingest/describe/quality/query`，确认 JSON、退出码和产物路径可直接消费；
 2. 保持现有只读拒绝、Snapshot 身份和错误测试通过，不复制 Python 核心；
-3. 为 DeepSeek Harness 配置项目 Workspace、受控 Shell 和最小 CLI 调用说明；
-4. 用户配置模型 Provider 后完成真实 Session、重启恢复和小型 Deliverable 验收。
+3. 在同一 Session 连续追问后重启恢复，并用显式 `run_id`/`snapshot_id` 继续；
+4. 完成小型 Deliverable 验收。
 
 不要先开发 MCP、独立强化插件、Pack、Bridge、PPT 或完整 Run/Artifact 平台。当前调用链只依赖 CLI、显式 `run_id` 和 `snapshot_id`；源 SHA-256 继续作为源绑定和 manifest 的内部完整性信息。这个切片验证“同一 CLI 可由多个宿主直接消费”和“DeepSeek Harness 能作为默认运行宿主”两个关键假设。
 
 ## 已知阻塞与风险
 
-- 真实模型验收需要用户在本机 Harness 中配置 Provider/API Key；
+- 当前没有已知的外部阻塞；完整数据链路、Session 恢复和 Deliverables 仍需实际验证；
 - DeepSeek Harness 是 Developer Preview，插件接口可能破坏兼容；
 - 尚未确认可直接复用的官方 PPT/图表市场能力；
 - 当前 `data_foundation/` 仍硬编码特定源表映射和 `semantic.registration_cash` 视图；这是待 Pack/Bridge 建设时分离的边界债务；

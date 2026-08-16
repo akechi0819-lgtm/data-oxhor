@@ -42,8 +42,9 @@ Data Foundation  业务语义组          输出与交付
 - `run_id`、Snapshot 身份、源 SHA-256 绑定和最小 Artifact manifest；源 SHA-256 只作为 inspect/ingest 与 manifest 的内部完整性信息；
 - 21 项现行 Python 测试；
 - 本机全局 DeepSeek Harness `0.1.0-rc.6`，Web 健康检查通过。
+- Harness 真实模型回合可用，并已在项目 Workspace 通过 Shell 执行 Data Foundation `--help`，退出码为 0，发现全部 7 个子命令。
 
-尚未实现：Education Business Pack、Company Bridge、Customer Profile、输出插件和学习与质量工作区。真实 Harness 模型回合、CLI 调用、Session 恢复和 Deliverables 也尚未验收，因为本机没有配置模型 API Key。MCP 不在当前开发计划内。
+尚未实现：Education Business Pack、Company Bridge、Customer Profile、输出插件和学习与质量工作区。Harness 的完整 Data Foundation 数据链路、Session 恢复和 Deliverables 尚未验收。MCP 不在当前开发计划内。
 
 当前代码仍为已确认脏数据语料保留了特定源表映射和 `semantic.registration_cash` 视图；这是已实现事实，不代表 Data Foundation 已完成通用教育语义层。
 
@@ -59,7 +60,7 @@ python3 -m unittest discover -s tests -p 'test_*.py' -v
 
 ## 唯一下一步
 
-直接用现有 CLI 完成宿主接入验证：先确认 Codex 能调用 `python3 -m interfaces.data_foundation`，再在用户配置模型 Provider 后验证 DeepSeek Harness 的真实多轮调用、Session 恢复和小型文件交付。当前不增加 MCP、独立强化插件或统一 SHA-256 传播层，也不并行开发 Pack、Bridge 或 PPT。
+用一次性小型 fixture 在 DeepSeek Harness 中完成“探查 → 入仓 → 描述 → 质量 → 查询”，随后验证 Session 恢复和小型文件交付。普通模型回合、Workspace、Shell 和 CLI 顶层发现已经通过。当前不增加 MCP、独立强化插件或统一 SHA-256 传播层，也不并行开发 Pack、Bridge 或 PPT。
 
 ## 文档导航
 

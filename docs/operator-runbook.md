@@ -15,6 +15,10 @@ Harness 是全局工具，不安装到项目目录。`/Users/akechi/.dsh` 可能
 
 ## 2. Harness 冒烟检查
 
+macOS 可双击项目根目录的 `启动 DeepSeek Harness.command`。快捷方式会复用已经运行的本地服务；若服务未运行，则启动 `dsh web`，等待 HTTP 可用后自动打开默认浏览器。启动后保持终端窗口打开，停止服务使用 `Ctrl-C`。
+
+等价的手动命令：
+
 ```bash
 /Users/akechi/.local/bin/dsh --version
 /Users/akechi/.local/bin/dsh web --host 127.0.0.1 --port 3080
@@ -39,7 +43,7 @@ python3 -m unittest discover -s tests -p 'test_*.py' -v
 
 ## 4. 模型和密钥
 
-模型 Provider 与 API Key 只在 Harness 的机器级设置中配置，不写入仓库、客户配置样例或日志。当前未配置 API Key，因此以下项目尚无通过证据：
+模型 Provider 与 API Key 已在 Harness 的机器级设置中配置，不写入仓库、客户配置样例或日志。以下项目尚无通过证据：
 
 - 真实模型回合；
 - Session 重启后继续对话；
@@ -48,6 +52,8 @@ python3 -m unittest discover -s tests -p 'test_*.py' -v
 - Deliverables 生成和展示。
 
 配置密钥前可以完成 Python 单测、Codex CLI 调用验证和 Web 静态验证。
+
+2026-08-14 已确认：Harness 真实模型回合可用，模型在项目 Workspace 通过 Shell 执行 `python3 -m interfaces.data_foundation --help`，退出码为 0，并发现全部 7 个子命令。完整数据链路、Session 恢复和 Deliverables 仍待验证。
 
 ## 5. 升级策略
 
