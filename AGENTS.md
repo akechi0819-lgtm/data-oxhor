@@ -4,20 +4,20 @@
 
 ## 当前阶段
 
-项目已完成宿主基础验证、Data Foundation v2、Education Business Pack v1、首个 Company Bridge v1.2.0 和 Bridge 对齐向导最小端到端切片，进入宿主模型 adapter、Customer Profile 与客户对话验收阶段。DeepSeek Harness 是默认客户运行宿主，Codex 是直接验证宿主；业务核心保持宿主无关。不得把本地验证环境描述成正式客户系统，也不得执行正式外部业务动作。
+项目已完成宿主基础验证、Data Foundation v2、Education Business Pack v1、首个 Company Bridge v1.2.0 和 Bridge 对齐向导 S3.5（含 DeepSeek Harness 真实教务跨端口验收），当前进入 S4 项目级 Skills 装配与真实交付验收。DeepSeek Harness 是默认客户运行宿主，Codex 是直接运行与验证宿主；二者都使用自身原生 Agent、模型、Session、Skills、记忆清理、工具和文件交付能力，本项目只补充宿主无关的业务资产与项目级操作 Skills。不得把本地验证环境描述成正式客户系统，也不得执行正式外部业务动作。
 
 ## 固定架构边界
 
-1. DeepSeek Harness 负责对话、Session、模型、Skills、工具装配和插件生命周期；本项目不建设通用 Agent Loop。
-2. Data Foundation、Education Business Pack、Company Bridge、确定性输出器和学习与质量工作区是本项目资产，不写入 Harness 上游源码。
+1. Codex、DeepSeek Harness 等 Agent Host 负责对话、Session、模型、Skills、工具选择和调用；本项目不包装宿主，不建设第二层 Agent、通用 Agent Loop 或模型调度系统。
+2. Data Foundation、Education Business Pack、Company Bridge、Bridge 对齐向导和项目 Skills 是对宿主的业务补充，不写入任何宿主的上游源码或安装目录。
 3. Data Foundation 保持 Python 核心，CLI 是唯一公开入口。Codex、DeepSeek Harness 和其他具备受控 Shell 的宿主直接调用同一 CLI；当前不建设 MCP，也不得为迁移宿主而重写成熟逻辑。
 4. Business Pack 与 Company Bridge 从第一家企业起物理分离。Pack 保存行业标准知识；Bridge 保存企业术语、字段、枚举、选择和 Override。
-5. Customer Profile 只负责选择宿主、Data、Pack、Bridge、Skills、模型和工作区，不承载业务逻辑。
+5. 一套正常客户工作区默认服务一家公司和一个主要角色；公司或角色变化时使用宿主原生的新会话/记忆清理并重新初始化工作区。不建设 Customer Profile、公司路由器、角色路由器或项目清理按钮。
 6. Skills 只承载分析方法和操作说明；只读查询、数据身份、语义引用检查和文件验收必须由确定性代码完成。
-7. 宿主 Session 只承担短期对话上下文。长期业务 Memory、Good/Bad Case、Eval 和 Promotion 进入独立学习与质量工作区。
+7. 宿主 Session 承担对话上下文和记忆清理；当前不建设项目侧 Session 管理或预设的学习与质量平台。重复出现且值得长期复用的业务方法，按真实需求沉淀为项目 Skill、模板、Pack 或 Bridge。
 8. 新宿主优先通过受控 Shell 消费同一套 Python CLI、Pack、Bridge、Skills 和输出器；只有出现不支持 Shell 的真实消费者时才评估薄适配器，不提前建设协议层。
 9. 只读、不可覆盖、unresolved 阻断和文件验收由各自业务模块的确定性代码负责；没有可复现失败时不建设独立强化插件、统一治理层或跨模块身份平台。
-10. Bridge 对齐向导只编排显式 Snapshot、Pack、可选同公司 Bridge、模型候选和人工确认；模型只能生成 proposed，确定性服务负责 confirmed_review、build 和 Snapshot validate。
+10. Bridge 对齐向导只编排显式 Snapshot、Pack、可选同公司 Bridge、宿主原生模型提出的候选和人工确认；模型只能生成 proposed，确定性服务负责 confirmed_review、build 和 Snapshot validate。代码中的可注入 adapter 是程序化测试缝，不是正式宿主架构或后续施工目标。
 
 ## 当前已实现事实
 
@@ -29,10 +29,11 @@
 - DeepSeek Harness `@deepseek-ai/dsh@0.1.0-rc.6` 已安装到本机全局环境，Web 健康检查通过；模型 Provider/API Key 已配置，真实模型回合可用，并已在项目 Workspace 通过 Shell 成功执行 Data Foundation 顶层 `--help`（退出码 0、发现 7 个子命令）；
 - `company_bridge/` 已提供候选扫描、人工复核门禁、正式构建和 Snapshot 兼容性校验；当前 reviewed v3 生成正式 Bridge 1.2.0，映射 3 个真实 landing 源合同；
 - 真实三表已通过 Data Foundation v2 全量 landing，Bridge 1.2.0 已对同一 Snapshot 兼容性校验通过；
-- `bridge_alignment/` 与 `interfaces/bridge_alignment_wizard.py` 已提供 `start`、`propose`、`answer`、`add-evidence`、`finalize`，支持同公司口径复用、新公司隔离、追加只读证据、关键歧义阻断和自动 build/validate；核心只有可注入 adapter 合同，没有宿主 SDK；
+- `bridge_alignment/` 与 `interfaces/bridge_alignment_wizard.py` 已提供 `start`、`propose`、`answer`、`add-evidence`、`finalize`，支持同公司口径复用、新公司隔离、追加只读证据、关键歧义阻断和自动 build/validate；核心不包含宿主 SDK、Agent Loop 或模型调度；
 - Bridge 对齐工作区只保留当前 Snapshot：`sync-data` 先发布并切换新 Snapshot，再删除旧 Run；源文件承担历史归档，失败或存在未完成会话时不切换。仅保留已使用 `snapshot_id` 的标识符，禁止删除后复用身份；
 - `.agents/skills/diagnose-source-overlap` 已通过 DeepSeek Harness 项目 Skill 真实调用；模型使用现有 Data Foundation `describe/query` 自主诊断全量刷新、日期重叠、候选业务键和冲突，确认后以 `promote-query/run-saved-query` 固化只读去重 SQL；
-- 61 项现行 Python 测试通过；真实宿主模型 adapter、Customer Profile、输出插件和学习与质量工作区尚未实现；MCP 不在当前计划内。
+- DeepSeek Harness 已用三张真实教务表完成陌生结构识别、字段角色判断、教务 Bridge 生成与验证、教师课量查询；该真实宿主验收不需要正式 `CandidateAdapter`；
+- 61 项现行 Python 测试通过；Customer Profile、项目侧 Session 管理、独立输出模块和学习治理平台均不再列为预设施工项；MCP 不在当前计划内。
 
 ## 当前最小红线
 
@@ -48,7 +49,7 @@
 
 ## 开发顺序
 
-Data Foundation、Pack、Bridge、Bridge 对齐向导最小切片和首个重叠诊断项目 Skill 已完成。下一施工项是把真实宿主模型 adapter 接入向导并完成客户会话验收，再实现首个 Customer Profile、Session 恢复和小型文件交付。企业字段与确认后的物理处理 SQL不回填 Pack；去重 SQL进入 Data Foundation 保存查询，不进入 Bridge。
+S0 宿主验证、S1 Data Foundation、S2 Pack、S3 Bridge、S3.5 Bridge 对齐向导与真实教务跨端口验收均已完成。当前唯一施工阶段是 S4：讨论并装配项目实际需要的 PPT、表格、图表等成熟 Skills，再用现有正确查询链路完成真实交付验收；不开发 Renderer 或交付平台。S4 后进入真实使用与按需迭代，不预排 S5/S6/S7 平台工程。企业字段与确认后的物理处理 SQL不回填 Pack；去重 SQL进入 Data Foundation 保存查询，不进入 Bridge。
 
 ## 文档路由
 

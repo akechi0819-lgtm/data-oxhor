@@ -56,16 +56,17 @@ python3 -m interfaces.data_foundation <command> ...
 宿主侧只需要：
 
 - 把项目目录设置为受控工作区；
+- 使用宿主原生 Agent、模型、Session 和工具系统；
 - 允许调用项目 Python 环境和 Data Foundation CLI；
 - 用 Skill 或项目说明告诉模型子命令、参数和输出约定；
 - 读取 stdout JSON、进程退出码和显式产物路径；
 - 把 API Key、客户路径和源数据留在机器或客户工作区，不提交仓库。
 
-不建设 MCP Server，也不要求不同宿主安装同一协议插件。若未来出现不能调用 Shell 的真实宿主，再根据该消费者的实际限制评估最薄适配器。
+不建设 MCP Server，不要求不同宿主安装同一协议插件，也不把 Codex 或 DeepSeek Harness 再封装成项目内 Agent。若未来出现不能调用 Shell 的真实宿主，再根据该消费者的实际限制评估最薄调用适配器。
 
 ### Codex
 
-Codex 可以通过项目 Shell 直接调用上述命令。Stage 1 需要用现有小型 fixture 验证完整命令链和错误处理，不增加新的数据服务。
+Codex 已通过项目 Shell 完成 CLI 命令链和错误处理验证，不增加新的数据服务。日常直接在对应客户工作区调用同一 CLI；换公司或角色时使用 Codex 原生新任务/记忆清理并切换工作区。
 
 ### DeepSeek Harness
 
@@ -75,7 +76,7 @@ Codex 可以通过项目 Shell 直接调用上述命令。Stage 1 需要用现�
 DeepSeek Harness → controlled shell → Python CLI → Data Foundation
 ```
 
-Harness 全局安装、Web、真实模型回合、项目 Workspace、受控 Shell、真实三表 `inspect → ingest → describe → quality → query` 和项目 Skill `diagnose-source-overlap` 调用已通过。Session 恢复及 Deliverables 仍待验收。
+Harness 全局安装、Web、真实模型回合、项目 Workspace、受控 Shell、真实三表 `inspect → ingest → describe → quality → query`、项目 Skill `diagnose-source-overlap` 调用，以及三张真实教务表的陌生结构识别、Bridge 生成、教师课量查询和图表输出均已通过。该流程直接使用 Harness 原生 Agent，不依赖正式 `CandidateAdapter`。
 
 ### 重叠与清洗
 
@@ -130,6 +131,10 @@ python3 -m interfaces.bridge_alignment_wizard sync-data \
 
 `init` 创建 `Input/Work/Output`，并把 Pack 与可选同公司 Bridge 复制进工作区。客户把当前文件分别放进 `Input/Data/<source_id>/`；每个稳定来源槽位只放一个 XLSX/XLSM。七月换八月时直接替换当前文件，再用新的显式 `snapshot_id` 执行 `sync-data`；向导先发布并切换新 Snapshot，再删除旧 Snapshot，工作区只保留当前 Snapshot。导入失败或当前 Snapshot 尚有未完成会话时不会切换。
 
-`start` 从当前 Snapshot 建立单一 `session.json`；同公司的旧 Bridge 仅作为企业口径参考，不代表已适配当前 Snapshot。`propose --adapter module:attribute` 调用宿主注入的 `CandidateAdapter`；宿主理解客户自由回答后，通过 `answer` 传 `candidate_key`、`option_id`、原回答和确认人；`add-evidence` 把 U 盘/目录资料复制进 `Input/Reference`；`finalize` 写入 `Output/Bridge/<version>`。新公司不得传上一家 Bridge。
+`start` 从当前 Snapshot 建立单一 `session.json`；同公司的旧 Bridge 仅作为企业口径参考，不代表已适配当前 Snapshot。宿主原生 Agent 负责读取画像、调用自己的模型、向客户提问，并通过 CLI 提交确定性决定与 `finalize`。现有 `propose --adapter module:attribute` 是程序化候选注入入口，供合同测试或批处理集成使用；它不是需要建设的 Harness/Codex Adapter 服务。`add-evidence` 把 U 盘/目录资料复制进 `Input/Reference`；`finalize` 写入 `Output/Bridge/<version>`。新公司不得传上一家 Bridge。
 
-CLI 完成当前阶段且无需客户输入时退出 `0`，等待确认或被关键问题阻断时退出 `2`，合同/身份/adapter/文件错误退出 `1`。stdout JSON 是宿主机器接口，客户不需要查看或编写。当前项目只提供 adapter 协议和测试 fake adapter，未把 DeepSeek Harness SDK 写入核心，也尚未提供正式宿主 adapter。精确合同见 [Bridge 对齐向导 v1 合同](./bridge-alignment-wizard-contract.md)。
+CLI 完成当前阶段且无需客户输入时退出 `0`，等待确认或被关键问题阻断时退出 `2`，合同、身份、候选注入、文件或验证错误退出 `1`。stdout JSON 是宿主机器接口，客户不需要查看或编写。测试 fake adapter 只验证模型候选合同；生产运行由当前宿主原生 Agent 主控。精确合同见 [Bridge 对齐向导 v1 合同](./bridge-alignment-wizard-contract.md)。
+
+## 7. 项目级交付 Skills（S4）
+
+S4 不新增业务 CLI 或输出平台。先盘点当前环境已有的 PPT、表格和可视化 Skills，再评估 PPT Master 等外部候选的来源、许可证、维护状态与宿主兼容性。选中的能力放入项目可发现位置，并用已验证的教务查询结果生成真实交付物；文件必须可打开、内容非空且数字可回查。

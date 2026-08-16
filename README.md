@@ -2,25 +2,25 @@
 
 面向教育机构的对话式业务分析系统。它把脏 Excel 转成可追溯的数据快照，再用教育行业知识和企业语义映射支撑持续追问、自由下钻、图表和交付物生成。
 
-默认客户运行宿主是 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)。Harness 负责对话、Session、模型、Skills 和插件装配；本项目建设可跨宿主复用的数据、业务语义、输出和学习资产。Data Foundation、Business Pack 和 Company Bridge 均通过稳定 Python CLI 暴露，Codex、DeepSeek Harness 或其他具备受控 Shell 的宿主调用同一入口，不需要额外 MCP 服务。
+默认客户运行宿主是 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)，Codex 是直接运行与验证宿主。两者都使用自身原生的 Agent、模型、Session、Skills、记忆清理、工具和文件交付系统；本项目不再包装一层 Agent，而是通过 CLI、Pack、Bridge、对齐向导和项目级 Skills 补充教育业务能力。Data Foundation、Business Pack 和 Company Bridge 均通过稳定 Python CLI 暴露，不需要额外 MCP 服务。
 
 ## 架构一览
 
 ```text
       DeepSeek Harness（默认）/ Codex / 其他 Agent Host
-        对话 / Session / 模型 / Skills / 受控 Shell
+        原生 Agent / 对话 / Session / 模型 / Skills / 受控 Shell
                                │ CLI / files / JSON
-                 Customer Profile（只做选择和装配）
+                 客户工作区 + 项目 Skills
                                │
      ┌──────────────┬──────────┴─────────┐
      │              │                    │
-Data Foundation  业务语义组          输出与交付
-脏数据/Snapshot  Pack + Bridge       Skill + Renderer
+Data Foundation  业务语义组          宿主原生交付
+脏数据/Snapshot  Pack + Bridge       项目 Skills
      │              │                    │
      └──────────────┴──────────┬─────────┘
                                │
-                  学习与质量工作区（宿主无关）
-           Memory / Good Case / Bad Case / Eval / Promotion
+                  真实使用中的按需沉淀
+               Skill / Template / Pack / Bridge
 ```
 
 核心边界：
@@ -31,7 +31,7 @@ Data Foundation  业务语义组          输出与交付
 - Skill 指导模型，确定性工具负责数据权限、身份、计算和文件生成；
 - CLI 是 Data Foundation 的唯一公开入口；宿主可替换性不依赖 MCP；
 - 只读、Snapshot 不覆盖、unresolved 阻断和文件验收由对应模块的确定性代码承担，不建设独立强化层；
-- Harness Session 是短期对话记忆，长期业务学习进入独立工作区；
+- 宿主 Session 是短期对话记忆，长期业务学习进入独立工作区；
 - DeepSeek 专属交互 UI 可以增强体验，但不能成为核心分析能力的唯一入口。
 
 ## 已实现
@@ -43,13 +43,13 @@ Data Foundation  业务语义组          输出与交付
 - Education Business Pack v1：28 个概念、20 个指标、26 个维度、三段客户旅程、3 个漏斗和 7 个诊断 Playbook；
 - Pack 的 `validate` / `describe` CLI 与确定性交叉引用校验；
 - Company Bridge 1.2.0：3 个当前源合同、10 个字段映射、105 条归一规则和 1 个企业 Override；
-- Bridge 对齐向导 v1：提供自包含 `Input/Work/Output` 客户工作区、稳定数据源槽位和月度替换同步；工作区只保留当前 Snapshot，刷新成功后清理旧 Snapshot，通过可注入 adapter 接收模型候选，由宿主收集关键确认，并自动生成 confirmed_review、build 和 Snapshot validate；
+- Bridge 对齐向导 v1：提供自包含 `Input/Work/Output` 客户工作区、稳定数据源槽位和月度替换同步；工作区只保留当前 Snapshot，刷新成功后清理旧 Snapshot，宿主原生模型提出候选并收集关键确认，确定性服务自动生成 confirmed_review、build 和 Snapshot validate；
 - 项目 Skill `diagnose-source-overlap`：提示模型主动检查全量刷新、日期范围、候选业务键、重复率和冲突；客户确认后用现有保存查询固化去重，不增加专用重叠平台；
 - 61 项现行 Python 测试；
 - 本机全局 DeepSeek Harness `0.1.0-rc.6`，Web 健康检查通过。
 - Harness 真实模型回合可用，并已在项目 Workspace 通过 Shell 执行 Data Foundation `--help`，退出码为 0，发现全部 7 个子命令。
 
-真实三表已在 Harness 与 Data Foundation v2 上完成入仓、描述、质量和查询验证；Bridge 1.2.0 已通过同一 Snapshot 的兼容性校验。向导已用陌生四表 fixture、追加数据字典、关键确认和最终 build/validate 完成端到端测试；重叠诊断项目 Skill 已由 Harness 真实调用。真实宿主模型 adapter 尚未接入。Customer Profile、输出插件和学习与质量工作区尚未实现；Session 恢复和 Deliverables 尚未验收。MCP 不在当前开发计划内。
+真实三表已在 Harness 与 Data Foundation v2 上完成入仓、描述、质量和查询验证；Bridge 1.2.0 已通过同一 Snapshot 的兼容性校验。向导已用陌生四表 fixture 完成追加数据字典、关键确认和最终 build/validate；三张真实教务表也已由 Harness 原生模型完成陌生结构识别、教务 Bridge、教师课量查询和图表输出。项目不建设正式宿主模型 Adapter、Customer Profile、项目侧 Session 管理或独立输出平台。MCP 不在当前开发计划内。
 
 Data Foundation 不再保存企业 Sheet 白名单、业务列名或 `semantic.registration_cash`。企业表头与 `column_N` 的对应关系、枚举和清洗口径只进入 Company Bridge。
 
@@ -71,7 +71,7 @@ python3 -m unittest discover -s tests -p 'test_*.py' -v
 
 ## 下一步
 
-为默认宿主接入真实 `CandidateAdapter`，用客户会话验证向导的少量关键提问、追加目录扫描和最终 Bridge 交付；随后实现首个 Customer Profile，并验证 Session 恢复、项目 Skill 和小型 Deliverable。企业口径继续进入 Bridge，不回填 Pack 或 Data Foundation。
+当前进入 S4：先讨论并选定项目需要的最小交付 Skills 组合，重点评估 PPT Master、电子表格和数据可视化能力；确认来源、许可证和宿主兼容性后放入项目，再用现有教务查询完成真实交付物验收。S4 后进入真实使用，重复需求再沉淀 Skill 或模板，不预建后续平台。企业口径继续进入 Bridge，不回填 Pack 或 Data Foundation。
 
 ## 文档导航
 
