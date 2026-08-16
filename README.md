@@ -43,9 +43,9 @@ Data Foundation  业务语义组          输出与交付
 - Education Business Pack v1：28 个概念、20 个指标、26 个维度、三段客户旅程、3 个漏斗和 7 个诊断 Playbook；
 - Pack 的 `validate` / `describe` CLI 与确定性交叉引用校验；
 - Company Bridge 1.2.0：3 个当前源合同、10 个字段映射、105 条归一规则和 1 个企业 Override；
-- Bridge 对齐向导 v1：提供自包含 `Input/Work/Output` 客户工作区、稳定数据源槽位和月度替换同步，通过可注入 adapter 接收模型候选，由宿主收集关键确认，并自动生成 confirmed_review、build 和 Snapshot validate；
+- Bridge 对齐向导 v1：提供自包含 `Input/Work/Output` 客户工作区、稳定数据源槽位和月度替换同步；工作区只保留当前 Snapshot，刷新成功后清理旧 Snapshot，通过可注入 adapter 接收模型候选，由宿主收集关键确认，并自动生成 confirmed_review、build 和 Snapshot validate；
 - 项目 Skill `diagnose-source-overlap`：提示模型主动检查全量刷新、日期范围、候选业务键、重复率和冲突；客户确认后用现有保存查询固化去重，不增加专用重叠平台；
-- 56 项现行 Python 测试；
+- 61 项现行 Python 测试；
 - 本机全局 DeepSeek Harness `0.1.0-rc.6`，Web 健康检查通过。
 - Harness 真实模型回合可用，并已在项目 Workspace 通过 Shell 执行 Data Foundation `--help`，退出码为 0，发现全部 7 个子命令。
 

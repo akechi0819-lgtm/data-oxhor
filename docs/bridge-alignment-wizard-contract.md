@@ -10,9 +10,9 @@ CustomerWorkspace/
     Data/<source_id>/       当前数据；每个稳定来源槽位放一个 XLSX/XLSM
     Reference/              数据字典、表头说明等长期补充资料
   Work/
-    workspace.json          当前 Snapshot、Pack、Bridge 和历史记录
+    workspace.json          当前 Snapshot、Pack、Bridge 参考和已用 ID
     Pack/pack.json          当前 Pack 的工作区副本
-    Runs/                   Data Foundation 不可变 Snapshot
+    Runs/                   当前 Data Foundation Snapshot
     Sessions/<session_id>/session.json
   Output/
     Bridge/<bridge_version>/confirmed_review.json
@@ -26,13 +26,15 @@ CustomerWorkspace/
 
 `Input/Data/<source_id>/` 是稳定逻辑来源槽位，例如 `Input/Data/cash/`。客户可以用八月现金表替换七月现金表；文件名可以变化，但 `source_id=cash` 不变。
 
-`sync-data` 自动检查每个来源槽位恰有一个工作簿，内部生成 Data Foundation 所需 manifest，并发布新的显式 `snapshot_id`。当前输入可以替换，已发布 Snapshot 永不覆盖；旧工作簿已经保存在旧 Snapshot 中。`Work/workspace.json` 明确记录 `current_snapshot_id` 和历史，不通过 `latest`、修改时间或模糊文件名猜测。
+`sync-data` 自动检查每个来源槽位恰有一个工作簿，内部生成 Data Foundation 所需 manifest，并发布新的显式 `snapshot_id`。当前输入可以替换，单个已发布 Snapshot 永不原地覆盖；向导先完整生成新 Snapshot、更新 `current_snapshot_id` 和仓库指针，再删除旧 Snapshot Run。工作区不保存 `snapshot_history`，只保留已成功使用的 `snapshot_id` 字符串以禁止删除后复用身份；源文件承担长期归档，也不通过 `latest`、修改时间或模糊文件名猜测当前状态。
+
+如果新 Snapshot 构建失败，当前指针和旧 Snapshot 保持不变。如果当前 Snapshot 仍有未完成的对齐会话，`sync-data` 返回 `ACTIVE_SESSION_EXISTS`；会话完成后才允许刷新。切换成功但旧 Run 清理失败时，新 Snapshot 仍是当前事实，返回成功结果及 `warnings`，残留旧 Run 只作为待清理文件，不重新进入状态。已完成会话为只读终态；刷新后不能再用它修改或重新生成旧 Snapshot 的 Bridge。
 
 ### 2.1 两类重叠场景
 
-同一端口的全量刷新不做跨 Snapshot 合并。例如六月文件覆盖 `2025-01-01..2026-06-01`，七月文件仍从 `2025-01-01` 开始但延长到 `2026-07-01`：客户在同一 `source_id` 槽位替换当前文件并执行 `sync-data`。新 Snapshot 只查询七月全量文件，六月 Snapshot 留作历史，因此不会重复累计。
+同一端口的全量刷新不做跨 Snapshot 合并。例如六月文件覆盖 `2025-01-01..2026-06-01`，七月文件仍从 `2025-01-01` 开始但延长到 `2026-07-01`：客户在同一 `source_id` 槽位替换当前文件并执行 `sync-data`。新 Snapshot 只查询七月全量文件，成功切换后删除六月 Snapshot，因此不会重复累计。
 
-同一 Snapshot 内确实需要并存的多个端口或分段文件，重叠识别与查询时去重属于 Data Foundation 的受控只读分析，不属于 Bridge。宿主模型先通过 `describe/query` 检查日期范围、候选业务键、重复率和内容冲突；日期交集只表示“可能重叠”，不能单独删除记录。经客户确认的业务键与来源优先级形成只读 SQL，使用现有 `promote-query` 保存并通过 `run-saved-query` 重用。Bridge 只保存字段和业务语义映射，不保存物理合并 SQL。
+同一 Snapshot 内确实需要并存的多个端口或分段文件，重叠识别与查询时去重属于 Data Foundation 的受控只读分析，不属于 Bridge。宿主模型先通过 `describe/query` 检查日期范围、候选业务键、重复率和内容冲突；日期交集只表示“可能重叠”，不能单独删除记录。经客户确认的业务键与来源优先级形成只读 SQL，使用现有 `promote-query` 保存并通过 `run-saved-query` 重用。Bridge 只保存字段和业务语义映射，不保存物理合并 SQL。刷新后的上一版 Bridge 只作为企业口径参考，未通过新 Snapshot 的字段兼容性校验前不被标注为当前可运行 Bridge。
 
 ## 3. CLI
 
@@ -81,7 +83,8 @@ SHA-256 只保留在 Data Foundation 的 inspect/ingest 内部，用于确认导
 ## 8. 验证
 
 - 工作区可创建在产品目录内且所有持久路径相对工作区；
-- 七月文件替换为八月文件后生成新 Snapshot，旧 Snapshot 保留；
+- 七月文件替换为八月文件后生成新 Snapshot，成功切换后删除旧 Snapshot；
+- 新 Snapshot 失败或存在未完成会话时保留旧 Snapshot 和当前指针；
 - 同公司新 Snapshot 复用企业口径而不复制旧字段绑定；
 - 新公司只加载 Pack；
 - 追加证据后候选临时身份变化仍保留语义确认；

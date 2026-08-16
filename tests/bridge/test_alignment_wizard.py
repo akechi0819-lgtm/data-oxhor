@@ -6,6 +6,7 @@ import tempfile
 import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
+from unittest.mock import patch
 
 from openpyxl import Workbook
 
@@ -74,7 +75,7 @@ class BridgeAlignmentWizardTests(unittest.TestCase):
             self.assertFalse(Path(config["current_warehouse_path"]).is_absolute())
             self.assertTrue((root / config["current_warehouse_path"]).is_file())
 
-    def test_july_input_can_be_replaced_by_august_without_overwriting_snapshot(self) -> None:
+    def test_successful_refresh_replaces_the_previous_snapshot(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = self._workspace(Path(directory))
             _, july = load_workspace(root)
@@ -83,11 +84,101 @@ class BridgeAlignmentWizardTests(unittest.TestCase):
             result = sync_data(root=root, snapshot_id="snapshot_2026_08")
             _, august = load_workspace(root)
 
-            self.assertTrue(july_warehouse.is_file())
+            self.assertFalse(july_warehouse.exists())
             self.assertEqual("snapshot_2026_08", august["current_snapshot_id"])
-            self.assertEqual(["snapshot_2026_07", "snapshot_2026_08"], august["snapshot_history"])
+            self.assertNotIn("snapshot_history", august)
             self.assertTrue(Path(result["warehouse"]).is_file())
             self.assertEqual(["cash", "contracts", "delivery", "leads"], result["source_ids"])
+
+    def test_failed_refresh_preserves_the_current_snapshot(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = self._workspace(Path(directory))
+            _, july = load_workspace(root)
+            july_warehouse = root / july["current_warehouse_path"]
+            _put_current_inputs(root, 8)
+            failure = {
+                "status": "failed",
+                "errors": [{"code": "SOURCE_INVALID", "message": "source failed validation"}],
+            }
+
+            with patch("bridge_alignment.workspace.ingest_sources", return_value=failure):
+                with self.assertRaises(AlignmentError) as captured:
+                    sync_data(root=root, snapshot_id="snapshot_2026_08")
+
+            _, unchanged = load_workspace(root)
+            self.assertEqual("SOURCE_INVALID", captured.exception.code)
+            self.assertEqual("snapshot_2026_07", unchanged["current_snapshot_id"])
+            self.assertTrue(july_warehouse.is_file())
+
+    def test_refresh_never_reuses_a_deleted_snapshot_id(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = self._workspace(Path(directory))
+            _put_current_inputs(root, 8)
+            sync_data(root=root, snapshot_id="snapshot_2026_08")
+
+            with self.assertRaises(AlignmentError) as captured:
+                sync_data(root=root, snapshot_id="snapshot_2026_07")
+
+            self.assertEqual("SNAPSHOT_EXISTS", captured.exception.code)
+
+    def test_cleanup_failure_keeps_the_new_snapshot_current(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = self._workspace(Path(directory))
+            _put_current_inputs(root, 8)
+            remove_tree = __import__("shutil").rmtree
+
+            def fail_only_old_run(path, *args, **kwargs):
+                if Path(path).name == "run_2026_07":
+                    raise OSError("locked")
+                return remove_tree(path, *args, **kwargs)
+
+            with patch("bridge_alignment.workspace.shutil.rmtree", side_effect=fail_only_old_run):
+                result = sync_data(root=root, snapshot_id="snapshot_2026_08")
+
+            _, config = load_workspace(root)
+            self.assertEqual("snapshot_2026_08", config["current_snapshot_id"])
+            self.assertTrue(Path(result["warehouse"]).is_file())
+            self.assertEqual(1, len(result["warnings"]))
+
+    def test_active_session_blocks_refresh(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = self._workspace(Path(directory))
+            start_session(root=root, session_id="session_in_progress")
+            _put_current_inputs(root, 8)
+
+            with self.assertRaises(AlignmentError) as captured:
+                sync_data(root=root, snapshot_id="snapshot_2026_08")
+
+            _, unchanged = load_workspace(root)
+            self.assertEqual("ACTIVE_SESSION_EXISTS", captured.exception.code)
+            self.assertEqual("snapshot_2026_07", unchanged["current_snapshot_id"])
+
+    def test_completed_session_allows_refresh(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = self._workspace(Path(directory))
+            start_session(root=root, session_id="session_completed")
+            proposed = propose_candidates(root=root, session_id="session_completed", adapter=FakeAdapter())
+            for question in proposed["pending_questions"]:
+                answer_question(
+                    root=root, session_id="session_completed", candidate_key=question["candidate_key"],
+                    option_id=question["options"][0]["option_id"], answer_text=question["options"][0]["label"],
+                    confirmed_by="客户甲",
+                )
+            finalize_session(
+                root=root, session_id="session_completed",
+                bridge_id="bridge_company_fixture", bridge_version="1.0.0",
+            )
+            _put_current_inputs(root, 8)
+
+            result = sync_data(root=root, snapshot_id="snapshot_2026_08")
+
+            self.assertEqual("data_ready", result["status"])
+            self.assertEqual("snapshot_2026_08", result["snapshot_id"])
+
+            with self.assertRaises(AlignmentError) as captured:
+                propose_candidates(root=root, session_id="session_completed", adapter=FakeAdapter())
+
+            self.assertEqual("SESSION_COMPLETED", captured.exception.code)
 
     def test_new_company_has_no_enterprise_decisions(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

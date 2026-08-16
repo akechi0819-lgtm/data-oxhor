@@ -56,6 +56,16 @@ def _session_path(paths: dict[str, Path], session_id: str) -> Path:
     return paths["sessions"] / session_id / "session.json"
 
 
+def _mutable_current_session(paths: dict[str, Path], config: dict[str, Any], session_id: str) -> tuple[Path, dict[str, Any]]:
+    session_path = _session_path(paths, session_id)
+    session = load_json(session_path)
+    if session.get("status") == "completed":
+        raise AlignmentError("SESSION_COMPLETED", "completed sessions are read-only")
+    if session.get("snapshot_id") != config.get("current_snapshot_id"):
+        raise AlignmentError("SESSION_STALE", "session does not belong to the current Snapshot")
+    return session_path, session
+
+
 def start_session(*, root: Path, session_id: str) -> dict[str, Any]:
     paths, config = load_workspace(root)
     if not SESSION_ID.fullmatch(session_id):
@@ -74,8 +84,8 @@ def start_session(*, root: Path, session_id: str) -> dict[str, Any]:
         pack_ref=config["pack_ref"],
     )
     profile["supplemental_evidence"] = scan_reference_files(paths["input_reference"])
-    if config.get("current_bridge_path"):
-        bridge = load_bridge(root / config["current_bridge_path"])
+    if config.get("bridge_reference_path"):
+        bridge = load_bridge(root / config["bridge_reference_path"])
         profile["enterprise_decisions"] = _enterprise_decisions(bridge)
     session = {
         "schema_version": "bridge_alignment_session.v1",
@@ -254,8 +264,7 @@ def _refresh_questions(session: dict[str, Any]) -> None:
 
 def propose_candidates(*, root: Path, session_id: str, adapter: CandidateAdapter) -> dict[str, Any]:
     paths, config = load_workspace(root)
-    session_path = _session_path(paths, session_id)
-    session = load_json(session_path)
+    session_path, session = _mutable_current_session(paths, config, session_id)
     pack = load_pack(root / config["pack_path"])
     try:
         document = adapter.propose(_model_input(config, session, pack))
@@ -271,9 +280,8 @@ def answer_question(
     *, root: Path, session_id: str, candidate_key: str, option_id: str,
     answer_text: str, confirmed_by: str,
 ) -> dict[str, Any]:
-    paths, _ = load_workspace(root)
-    session_path = _session_path(paths, session_id)
-    session = load_json(session_path)
+    paths, config = load_workspace(root)
+    session_path, session = _mutable_current_session(paths, config, session_id)
     if any(item["candidate_key"] == candidate_key for item in session["decisions"]):
         raise AlignmentError("DECISION_EXISTS", "this semantic candidate already has a decision")
     candidate = next((item for item in session["model_candidates"] if item["candidate_key"] == candidate_key), None)
@@ -301,10 +309,9 @@ def answer_question(
 
 
 def add_evidence(*, root: Path, session_id: str, evidence_root: Path, adapter: CandidateAdapter) -> dict[str, Any]:
-    paths, _ = load_workspace(root)
+    paths, config = load_workspace(root)
+    session_path, session = _mutable_current_session(paths, config, session_id)
     updated = copy_reference_files(evidence_root, paths["input_reference"])
-    session_path = _session_path(paths, session_id)
-    session = load_json(session_path)
     session["profile"]["supplemental_evidence"] = scan_reference_files(paths["input_reference"])
     write_json(session_path, session)
     result = propose_candidates(root=root, session_id=session_id, adapter=adapter)
@@ -332,8 +339,7 @@ def _unresolved(decision: dict[str, Any]) -> dict[str, Any]:
 
 def finalize_session(*, root: Path, session_id: str, bridge_id: str, bridge_version: str) -> dict[str, Any]:
     paths, config = load_workspace(root)
-    session_path = _session_path(paths, session_id)
-    session = load_json(session_path)
+    session_path, session = _mutable_current_session(paths, config, session_id)
     if not session["model_candidates"]:
         raise AlignmentError("CANDIDATES_MISSING", "run propose before finalizing the Bridge", session_id=session_id)
     pending_critical = [item for item in session["questions"] if item["criticality"] == "critical"]
@@ -384,9 +390,9 @@ def finalize_session(*, root: Path, session_id: str, bridge_id: str, bridge_vers
     write_json(output / "confirmed_review.json", review, overwrite=False)
     write_json(output / "company_bridge.v1.json", bridge, overwrite=False)
     write_json(output / "validation.json", bridge_validation, overwrite=False)
-    paths["current_bridge"].parent.mkdir(parents=True, exist_ok=True)
-    write_json(paths["current_bridge"], bridge)
-    config["current_bridge_path"] = "Work/Bridge/current.json"
+    paths["bridge_reference"].parent.mkdir(parents=True, exist_ok=True)
+    write_json(paths["bridge_reference"], bridge)
+    config["bridge_reference_path"] = "Work/Bridge/reference.json"
     write_json(paths["config"], config)
     session["status"] = "completed"
     write_json(session_path, session)

@@ -56,7 +56,7 @@ def workspace_paths(root: Path) -> dict[str, Path]:
         "root": root,
         "config": root / "Work" / "workspace.json",
         "pack": root / "Work" / "Pack" / "pack.json",
-        "current_bridge": root / "Work" / "Bridge" / "current.json",
+        "bridge_reference": root / "Work" / "Bridge" / "reference.json",
         "input_data": root / "Input" / "Data",
         "input_reference": root / "Input" / "Reference",
         "runs": root / "Work" / "Runs",
@@ -83,7 +83,7 @@ def init_workspace(
             raise AlignmentError("EXISTING_BRIDGE_INVALID", "existing Bridge failed validation")
         if bridge.get("company_id") != company_id:
             raise AlignmentError("EXISTING_BRIDGE_COMPANY_MISMATCH", "existing Bridge belongs to a different company")
-        bridge_ref = "Work/Bridge/current.json"
+        bridge_ref = "Work/Bridge/reference.json"
     for directory in (
         paths["input_data"], paths["input_reference"], paths["runs"],
         paths["sessions"], paths["output_bridge"], paths["pack"].parent,
@@ -91,17 +91,17 @@ def init_workspace(
         directory.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(pack_path, paths["pack"])
     if existing_bridge_path is not None:
-        paths["current_bridge"].parent.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(existing_bridge_path, paths["current_bridge"])
+        paths["bridge_reference"].parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(existing_bridge_path, paths["bridge_reference"])
     config = {
         "schema_version": "bridge_alignment_workspace.v1",
         "company_id": company_id,
         "pack_path": "Work/Pack/pack.json",
         "pack_ref": {"pack_id": pack["pack_id"], "pack_version": pack["pack_version"]},
-        "current_bridge_path": bridge_ref,
+        "bridge_reference_path": bridge_ref,
         "current_snapshot_id": None,
         "current_warehouse_path": None,
-        "snapshot_history": [],
+        "used_snapshot_ids": [],
     }
     write_json(paths["config"], config, overwrite=False)
     return {
@@ -140,12 +140,56 @@ def _source_slots(input_data: Path) -> dict[str, Path]:
     return slots
 
 
+def _active_sessions(paths: dict[str, Path], snapshot_id: str | None) -> list[str]:
+    if snapshot_id is None:
+        return []
+    active = []
+    for session_path in sorted(paths["sessions"].glob("*/session.json")):
+        session = load_json(session_path)
+        if session.get("snapshot_id") == snapshot_id and session.get("status") != "completed":
+            active.append(str(session.get("session_id") or session_path.parent.name))
+    return active
+
+
+def _current_run_root(root: Path, paths: dict[str, Path], config: dict[str, Any]) -> Path | None:
+    warehouse_path = config.get("current_warehouse_path")
+    snapshot_id = config.get("current_snapshot_id")
+    if warehouse_path is None and snapshot_id is None:
+        return None
+    relative = Path(str(warehouse_path))
+    parts = relative.parts
+    if (
+        relative.is_absolute()
+        or len(parts) != 7
+        or parts[:2] != ("Work", "Runs")
+        or parts[2].startswith("run_") is False
+        or parts[3:5] != ("data", "snapshots")
+        or parts[5] != snapshot_id
+        or parts[6] != "warehouse.duckdb"
+    ):
+        raise AlignmentError("WORKSPACE_INVALID", "current warehouse pointer is invalid")
+    run_root = (root / Path(*parts[:3])).resolve()
+    if run_root.parent != paths["runs"].resolve():
+        raise AlignmentError("WORKSPACE_INVALID", "current Run path is outside workspace")
+    return run_root
+
+
 def sync_data(*, root: Path, snapshot_id: str) -> dict[str, Any]:
     paths, config = load_workspace(root)
     if not SNAPSHOT_PATTERN.fullmatch(snapshot_id):
         raise AlignmentError("SNAPSHOT_ID_INVALID", "snapshot_id is invalid")
-    if snapshot_id in config["snapshot_history"]:
-        raise AlignmentError("SNAPSHOT_EXISTS", "snapshot_id already exists in workspace history")
+    run_id = "run_" + snapshot_id.removeprefix("snapshot_")
+    new_run_root = paths["runs"] / run_id
+    new_snapshot_root = new_run_root / "data" / "snapshots" / snapshot_id
+    if snapshot_id in config.get("used_snapshot_ids", []) or new_snapshot_root.exists():
+        raise AlignmentError("SNAPSHOT_EXISTS", "snapshot already exists and cannot be overwritten")
+    active_sessions = _active_sessions(paths, config.get("current_snapshot_id"))
+    if active_sessions:
+        raise AlignmentError(
+            "ACTIVE_SESSION_EXISTS",
+            f"complete the current Snapshot sessions before refreshing data: {', '.join(active_sessions)}",
+        )
+    old_run_root = _current_run_root(root, paths, config)
     slots = _source_slots(paths["input_data"])
     manifest = {
         "sources": {
@@ -156,7 +200,6 @@ def sync_data(*, root: Path, snapshot_id: str) -> dict[str, Any]:
     import_dir = paths["runs"] / "_imports" / snapshot_id
     manifest_path = import_dir / "manifest.json"
     write_json(manifest_path, manifest, overwrite=False)
-    run_id = "run_" + snapshot_id.removeprefix("snapshot_")
     try:
         result = ingest_sources(
             run_id=run_id,
@@ -173,13 +216,21 @@ def sync_data(*, root: Path, snapshot_id: str) -> dict[str, Any]:
     warehouse_relative = Path("Work") / "Runs" / run_id / "data" / "snapshots" / snapshot_id / "warehouse.duckdb"
     config["current_snapshot_id"] = snapshot_id
     config["current_warehouse_path"] = warehouse_relative.as_posix()
-    config["snapshot_history"].append(snapshot_id)
+    config.pop("snapshot_history", None)
+    config["used_snapshot_ids"] = [*config.get("used_snapshot_ids", []), snapshot_id]
     write_json(paths["config"], config)
+    warnings = []
+    if old_run_root is not None and old_run_root != new_run_root.resolve():
+        try:
+            shutil.rmtree(old_run_root)
+        except OSError as exc:
+            warnings.append(f"old Snapshot cleanup pending: {exc}")
     return {
         "schema_version": "bridge_alignment_result.v1",
         "status": "data_ready",
         "snapshot_id": snapshot_id,
         "warehouse": str((root / warehouse_relative).resolve()),
         "source_ids": sorted(slots),
+        "warnings": warnings,
         "errors": [],
     }

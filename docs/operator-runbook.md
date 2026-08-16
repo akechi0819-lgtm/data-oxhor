@@ -80,6 +80,8 @@ DeepSeek Harness 处于 Developer Preview。升级前必须：
 | 查询被拒绝 | 先确认 SQL 是否只读、是否引用外部 reader 或系统目录 |
 | Snapshot 冲突 | 使用新的 `run_id` 和显式输出目录，不覆盖已发布 Snapshot |
 | 向导 `awaiting_confirmation` / 退出 2 | 宿主向客户展示问题，理解自由回答后把 option、原回答和确认人传给 `answer` |
-| 月度文件更新 | 替换 `Input/Data/<source_id>` 当前文件并用新 `snapshot_id` 执行 `sync-data`；不要删除旧 Snapshot |
+| 月度文件更新 | 先完成当前对齐会话；替换 `Input/Data/<source_id>` 当前文件并用新 `snapshot_id` 执行 `sync-data`，向导成功切换后自动删除旧 Snapshot |
+| `ACTIVE_SESSION_EXISTS` | 先完成当前 Snapshot 的对齐会话，再执行月度刷新 |
+| `sync-data` 返回 cleanup warning | 新 Snapshot 已是当前状态；在确认不再占用旧 Run 后手工清理该目录 |
 | 客户工作区误入 Git | 使用默认忽略的 `customers/`，交付产品时可整体复制该客户工作区 |
 | `ADAPTER_LOAD_FAILED` | 检查宿主 adapter 的 `module:attribute` 引用及其 `propose(model_input)` 方法 |

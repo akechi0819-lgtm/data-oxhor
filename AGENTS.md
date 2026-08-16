@@ -30,8 +30,9 @@
 - `company_bridge/` 已提供候选扫描、人工复核门禁、正式构建和 Snapshot 兼容性校验；当前 reviewed v3 生成正式 Bridge 1.2.0，映射 3 个真实 landing 源合同；
 - 真实三表已通过 Data Foundation v2 全量 landing，Bridge 1.2.0 已对同一 Snapshot 兼容性校验通过；
 - `bridge_alignment/` 与 `interfaces/bridge_alignment_wizard.py` 已提供 `start`、`propose`、`answer`、`add-evidence`、`finalize`，支持同公司口径复用、新公司隔离、追加只读证据、关键歧义阻断和自动 build/validate；核心只有可注入 adapter 合同，没有宿主 SDK；
+- Bridge 对齐工作区只保留当前 Snapshot：`sync-data` 先发布并切换新 Snapshot，再删除旧 Run；源文件承担历史归档，失败或存在未完成会话时不切换。仅保留已使用 `snapshot_id` 的标识符，禁止删除后复用身份；
 - `.agents/skills/diagnose-source-overlap` 已通过 DeepSeek Harness 项目 Skill 真实调用；模型使用现有 Data Foundation `describe/query` 自主诊断全量刷新、日期重叠、候选业务键和冲突，确认后以 `promote-query/run-saved-query` 固化只读去重 SQL；
-- 56 项现行 Python 测试通过；真实宿主模型 adapter、Customer Profile、输出插件和学习与质量工作区尚未实现；MCP 不在当前计划内。
+- 61 项现行 Python 测试通过；真实宿主模型 adapter、Customer Profile、输出插件和学习与质量工作区尚未实现；MCP 不在当前计划内。
 
 ## 当前最小红线
 
@@ -42,6 +43,7 @@
 - 正式文件必须可打开并通过最小内容检查；
 - 不通过 `latest`、修改时间或模糊文件名继承状态；
 - 客户工作区采用固定 `Input/Work/Output` 目录，可随产品整体复制；源码 checkout 中的 `customers/` 默认忽略，不得提交客户源数据、DuckDB、Parquet 或运行产物；
+- 客户工作区不保留 Snapshot 历史；更新输入后必须使用新 `snapshot_id`，成功切换才删除旧 Snapshot，未完成会话必须先完成；
 - 不提前建设 MCP、通用 DAG、多 Agent 编排、多层 Reviewer、独立强化插件或完整治理平台；新增治理必须对应可复现失败或明确客户要求。
 
 ## 开发顺序
