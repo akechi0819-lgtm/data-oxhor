@@ -1,0 +1,20 @@
+# Direct dependencies used by the vendored PPT Master runtime on macOS/Python 3.12.
+# Keep this project-owned lock separate from the unmodified upstream requirements.txt.
+python-pptx==1.0.2
+XlsxWriter==3.2.9
+skia-pathops==0.9.2
+uharfbuzz==0.56.0
+edge-tts==7.2.8
+PyMuPDF==1.28.2
+mammoth==1.12.1
+markdownify==1.2.3
+EbookLib==0.20
+nbconvert==7.17.1
+openpyxl==3.1.5
+Pillow==12.3.0
+numpy==2.5.2
+requests==2.34.2
+beautifulsoup4==4.15.0
+curl_cffi==0.16.0
+google-genai==2.18.1
+Flask==3.1.3

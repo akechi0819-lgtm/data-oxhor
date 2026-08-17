@@ -33,7 +33,8 @@
 - Bridge 对齐工作区只保留当前 Snapshot：`sync-data` 先发布并切换新 Snapshot，再删除旧 Run；源文件承担历史归档，失败或存在未完成会话时不切换。仅保留已使用 `snapshot_id` 的标识符，禁止删除后复用身份；
 - `.agents/skills/diagnose-source-overlap` 已通过 DeepSeek Harness 项目 Skill 真实调用；模型使用现有 Data Foundation `describe/query` 自主诊断全量刷新、日期重叠、候选业务键和冲突，确认后以 `promote-query/run-saved-query` 固化只读去重 SQL；
 - DeepSeek Harness 已用三张真实教务表完成陌生结构识别、字段角色判断、教务 Bridge 生成与验证、教师课量查询；该真实宿主验收不需要正式 `CandidateAdapter`；
-- 61 项现行 Python 测试通过；Customer Profile、项目侧 Session 管理、独立输出模块和学习治理平台均不再列为预设施工项；MCP 不在当前计划内。
+- `ppt-master` v4.7.0 已按固定上游提交完整装配到 `.agents/skills/ppt-master`，保留 MIT 许可证、来源元数据与离线完整性测试；S4 仍待 Codex 与 DeepSeek Harness 的真实 PPTX 双宿主交付验收；
+- Customer Profile、项目侧 Session 管理、独立输出模块和学习治理平台均不再列为预设施工项；MCP 不在当前计划内。
 
 ## 当前最小红线
 
@@ -49,7 +50,7 @@
 
 ## 开发顺序
 
-S0 宿主验证、S1 Data Foundation、S2 Pack、S3 Bridge、S3.5 Bridge 对齐向导与真实教务跨端口验收均已完成。当前唯一施工阶段是 S4：讨论并装配项目实际需要的 PPT、表格、图表等成熟 Skills，再用现有正确查询链路完成真实交付验收；不开发 Renderer 或交付平台。S4 后进入真实使用与按需迭代，不预排 S5/S6/S7 平台工程。企业字段与确认后的物理处理 SQL不回填 Pack；去重 SQL进入 Data Foundation 保存查询，不进入 Bridge。
+S0 宿主验证、S1 Data Foundation、S2 Pack、S3 Bridge、S3.5 Bridge 对齐向导与真实教务跨端口验收均已完成。当前唯一施工阶段是 S4：`ppt-master` 已完成固定版本装配，电子表格和可视化复用宿主能力；接着用现有正确查询链路完成真实双宿主交付验收，不开发 Renderer 或交付平台。S4 后进入真实使用与按需迭代，不预排 S5/S6/S7 平台工程。企业字段与确认后的物理处理 SQL不回填 Pack；去重 SQL进入 Data Foundation 保存查询，不进入 Bridge。
 
 ## 文档路由
 

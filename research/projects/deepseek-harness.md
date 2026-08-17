@@ -25,7 +25,7 @@
 
 作为 Education Business Analyst 的默认客户 Agent Host，直接使用其原生 Agent、模型、Session、Skills、工具和 UI。它替代自建通用 Agent Loop、对话 UI、模型调度和插件生命周期，不作为被项目再次封装的模型后端。Codex 则是直接运行与验证宿主。
 
-选择理由不是安装包体积小，而是运行时职责中性、插件能力可裁剪。相比自带长期记忆和固定工作习惯的成型智能体，它更容易只承担 Session、对话和工具装配，避免与本项目的 Memory、Cases、Eval 和 Promotion 形成双重长期事实来源。
+选择理由不是安装包体积小，而是运行时职责中性、插件能力可裁剪。它只承担宿主原生的 Session、对话和工具装配；项目通过 Pack、Bridge、Skill、模板和回归测试沉淀可复用业务资产，不建设第二套长期记忆或会话事实源。
 
 项目业务模块保持独立：
 

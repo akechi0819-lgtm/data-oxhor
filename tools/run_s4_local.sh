@@ -1,0 +1,19 @@
+#!/usr/bin/env sh
+set -eu
+
+repo_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+venv="$repo_root/.venv"
+
+if [ "$#" -eq 0 ]; then
+    echo "usage: tools/run_s4_local.sh COMMAND [ARGS...]" >&2
+    exit 2
+fi
+
+# Use a minimal environment for local-only data, dependency and PPTX checks.
+exec env -i \
+    PATH="$venv/bin:/usr/bin:/bin" \
+    LANG=C.UTF-8 \
+    LC_ALL=C.UTF-8 \
+    PYTHONNOUSERSITE=1 \
+    S4_OFFLINE=1 \
+    "$@"

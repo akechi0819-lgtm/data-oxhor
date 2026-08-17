@@ -11,9 +11,10 @@
 - Bridge 1.2.0 已通过真实 Data Foundation v2 Snapshot 兼容性校验；企业字段与列位不再硬编码在 Data Foundation。
 - Bridge 对齐向导 S3.5 已完成：显式会话、Snapshot 画像、候选合同、少量关键确认、追加目录只读扫描、确认不可覆盖、自动 confirmed_review/build/validate。
 - 陌生四表 + 七月到八月当前文件替换 + 补充数据字典 fixture 已覆盖工作区内数据管理、同公司语义复用、新公司隔离、关键问题阻断和最终 Bridge；工作区只保留当前 Snapshot，成功刷新清理旧 Run，失败或未完成会话不切换；61 项 Python 测试通过。
-- 2026-08-16 已用三张真实教务表完成跨端口运行验收：Data Foundation 发布六个 landing 关系，DeepSeek Harness 的四个短表级回合一致识别教师、上课日期和时长角色；正式教务 Bridge 含 8 个字段映射、4 条 Excel 序列日期解析和 4 条课量规则，并通过当前 Snapshot 校验。
+- 2026-08-16 的既有 S3.5 记录曾用三张真实教务表完成跨端口结构识别和查询验证；S4 使用独立的 `s4_teaching_validation` 工作区重新对齐，当前教务 Bridge 仍待宿主 proposed 候选和人工确认，不得用既有 Bridge 代替。
 - 真实运行暴露并修复空候选会话可 finalize 的门禁缺陷；现在必须先 propose。当前 Harness headless 对单次长结构化任务异常只返回内部 `SESSION_ID`，短步骤原生 Agent 调用可用；这是宿主已知风险，不通过建设正式 Adapter 或第二层 Agent 解决，也不阻断 S3.5 完成。
 - 重叠处理边界已确定：不新增 Bridge 重叠模块。项目 Skill `diagnose-source-overlap` 已通过 Harness 真实调用，模型用 Data Foundation `describe/query` 自主检查日期范围、候选业务键、重复与冲突，确认后以保存查询固化 SQL；日期区间交集本身不能触发删除。
+- S4 已按官方 Skill Installer 装配 `hugohe3/ppt-master` v4.7.0（提交 `e8323bfaee249cffe1301ec40fca5875eb544d46`），保留 MIT、模板、脚本、工作流和 notices；provenance、精确依赖锁和离线完整性测试已加入项目。PPT 交付合同保持通用，不固定教务页序；首轮禁用自动更新、外部研究、生图、TTS、旁白和本地 Web 辅助界面。
 
 ## 当前合同
 
@@ -30,12 +31,11 @@
 
 ## 当前未完成
 
-- S4 项目级交付 Skills 的选型与最小装配；
-- 用现有正确查询结果完成一个可打开、内容非空且数字可回查的真实 PPT/表格/图表交付物。
+- 先由原生宿主完成 `session_s4_align_01` 的 proposed 候选并由用户确认关键歧义，生成当前 Snapshot 兼容的正式 Bridge；再完成 Codex 与 DeepSeek Harness 双宿主的真实 PPTX/查询交付验收。当前不得以既有 Bridge 或 fake adapter 绕过门禁。
 
 ## 唯一下一步
 
-进入 S4：先讨论并选定最小项目级 Skills 组合，重点评估 PPT Master、电子表格和数据可视化能力；核对来源、许可证、维护状态、宿主兼容性和当前环境是否已有同等能力后再安装。随后由 Codex 或 DeepSeek Harness 原生 Agent 使用现有教务查询结果生成真实交付物并验收。不要开发 Customer Profile、清理按钮、Renderer、HTML 平台或 Deliverables 系统。
+继续 S4 双宿主验收：在 `customers/s4_teaching_validation/` 建立当前 Snapshot 和确认后的教务 Bridge，由 Codex 与 DeepSeek Harness 原生 Agent 分别发现并调用 `ppt-master`，完成同题查询/PPT 与随机临场 PPT，随后做 PPTX 打开、逐页渲染、内容非空、数字回查和候选空档表述检查。不要开发 Customer Profile、清理按钮、Renderer、HTML 平台或 Deliverables 系统。
 
 不要增加 MCP、独立强化插件、完整 Artifact 平台或通用工作流编排；新增治理必须对应可复现失败或明确客户要求。
 
@@ -44,7 +44,7 @@
 - DeepSeek Harness 仍是 Developer Preview，升级可能破坏插件接口；
 - 当前 landing 关系名由 `source_id + sheet_name` 确定，源 Sheet 改名后必须重新做 Bridge 兼容性校验；
 - fake adapter 只用于候选合同测试；正式推理由 Codex 或 DeepSeek Harness 的原生 Agent 承担，不建设宿主 Adapter；
-- PPT Master 及其他候选 Skills 的来源、许可证、维护状态和与当前宿主的兼容性尚待 S4 讨论确认。
+- PPT Master 已固定来源并通过离线完整性检查；Codex/Harness 的 Skill 发现、生成和交付兼容性仍待双宿主真实验收。
 
 ## 技术依据
 

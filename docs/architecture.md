@@ -17,9 +17,9 @@
 └───────┬────────────┬──────────────┬───────────┘
         │            │              │
 ┌───────▼────────┐ ┌─▼──────────┐ ┌─▼────────────┐
-│ Data Foundation│ │ Business   │ │ Output       │
-│ ingest/snapshot│ │ Pack+Bridge│ │ Skill+Render │
-│ DuckDB/query   │ │ 行业+企业  │ │ files/UI     │
+│ Data Foundation│ │ Business   │ │ 宿主原生交付 │
+│ ingest/snapshot│ │ Pack+Bridge│ │ files / UI   │
+│ DuckDB/query   │ │ 行业+企业  │ │ 项目 Skills  │
 └───────┬────────┘ └─┬──────────┘ └─┬────────────┘
         └────────────┴───────────────┘
                          │
@@ -46,7 +46,7 @@
 - Conversation Node 和对话内交互图表；
 - 各宿主的权限、沙箱和 Session 配置。
 
-因此换宿主时，PPT、HTML、DuckDB、数据预处理、确定性门禁和项目 Skills 不受影响；主要变化是宿主自己的对话、Session、工具授权和 UI。只有未来真实宿主不能调用 CLI 时，才为该消费者评估最薄调用适配器；不把现有宿主封装成另一套 Agent 系统。
+因此换宿主时，PPT、表格、图表、DuckDB、数据预处理、确定性门禁和项目 Skills 不受影响；主要变化是宿主自己的对话、Session、工具授权和 UI。只有未来真实宿主不能调用 CLI 时，才为该消费者评估最薄调用适配器；不把现有宿主封装成另一套 Agent 系统。
 
 ## 3. 数据流和身份
 
@@ -98,7 +98,7 @@ Data Foundation v2 将每个 Sheet 原样落入 `landing.column_N`，并在 `ing
 
 ## 6. 输出和交互
 
-Codex、DeepSeek Harness 等宿主已具备 HTML、图表和文件生成/交付能力。项目优先装配成熟 PPT、表格和可视化 Skills，Skill 负责方法和模板，宿主负责执行与交付；只有出现宿主无法满足的可复现文件正确性问题时，才增加最小确定性工具。当前不建设独立 Renderer 或 Deliverables 平台。
+Codex、DeepSeek Harness 等宿主已具备 HTML、图表和文件生成/交付能力。项目已装配固定版本的 `ppt-master` Skill，Skill 负责方法和模板，宿主负责执行与交付；表格和可视化先复用宿主能力。PPT 交付是通用会话合同，按需求选择直接回答、表格/查询结果或 PPTX，不固化教育业务页序。首轮验收关闭自动更新、外部研究、生图、TTS、旁白和本地 Web 辅助界面；只有出现宿主无法满足的可复现文件正确性问题时，才增加最小确定性工具。当前不建设独立 Renderer 或 Deliverables 平台。
 
 ## 7. 真实使用中的沉淀
 

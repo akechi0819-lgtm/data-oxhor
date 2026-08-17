@@ -51,7 +51,22 @@ python3 -m unittest discover -s tests -p 'test_*.py' -v
 
 模型 Provider 与 API Key 已在 Harness 的机器级设置中配置，不写入仓库、客户配置样例或日志。2026-08-14 已确认：Harness 真实模型回合可用，模型在项目 Workspace 通过 Shell 执行 `python3 -m interfaces.data_foundation --help`，退出码为 0，并发现全部 7 个子命令。
 
-真实三表已经通过 `inspect → ingest → describe → quality → query` 和 Bridge 兼容性验证；真实教务场景已完成图表输出。S4 需要补的是项目级 PPT、表格和可视化 Skills 的选型、安装和真实文件验收，不是 Session 或 Deliverables 平台开发。
+真实三表已经通过 `inspect → ingest → describe → quality → query`；既有教务 Bridge 的历史兼容性验证不等于 S4 临时工作区已完成重新对齐。S4 已把固定版本 PPT Master 放入 `.agents/skills/ppt-master`，可用以下命令做离线完整性检查：
+
+```bash
+python3 -m unittest tests.test_ppt_master_integrity tests.test_s4_teaching_fixture -v
+```
+
+S4 剩余工作是 Codex 与 DeepSeek Harness 双宿主在 `customers/s4_teaching_validation/` 中完成真实交付验收，不是 Session 或 Deliverables 平台开发。首轮关闭自动更新、外部研究、生图、TTS、旁白和本地 Web 辅助界面。
+
+首次或干净机器上的 S4 PPT 运行环境必须由项目脚本建立，不依赖系统 Python：
+
+```bash
+sh tools/install_s4_ppt_runtime.sh
+.venv/bin/python tools/s4_ppt_preflight.py
+```
+
+Codex 和 Harness 的 S4 回合都从项目根目录启动，并将 `.venv/bin` 放在 `PATH` 首位；依赖由 `tools/s4_ppt_requirements.lock` 精确锁定。首轮命令必须通过 `tools/run_s4_local.sh` 启动，任务提示还要声明不使用网络、外部素材、图片/语音生成、旁白或本地 Web UI。`tools/s4_ppt_preflight.py` 会检查 PPTX 导出所需模块，并在直接环境存在 provider 凭据时失败。
 
 项目 Skill `diagnose-source-overlap` 已在 2026-08-16 由 Harness headless 真实调用，能正确区分全量刷新与多来源并存，并把去重处理路由到 Data Foundation 只读查询和保存查询。
 
@@ -62,7 +77,7 @@ DeepSeek Harness 处于 Developer Preview。升级前必须：
 1. 记录目标 npm 版本和 integrity；
 2. 阅读上游变更；
 3. 在隔离工作区验证 Web、Workspace、Skill、受控 Shell、CLI 和文件交付；
-4. 通过当前端到端 Eval 后再替换默认版本。
+4. 通过当前端到端验收后再替换默认版本。
 
 不得把业务逻辑补丁直接打进全局 Harness 包或上游 checkout。
 

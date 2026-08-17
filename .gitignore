@@ -3,6 +3,7 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 .venv/
+runs/
 artifacts/data_foundation/
 artifacts/company_bridge/candidates/
 artifacts/company_bridge/bridges/company_bridge.v1.json
