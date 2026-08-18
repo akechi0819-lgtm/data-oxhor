@@ -39,18 +39,18 @@ Data Foundation  业务语义组          宿主原生交付
 - XLSX 全 Sheet 探查和 OOXML 流式读取；
 - 所有 Sheet 无需 cleaning plan 直接进入通用 `landing.column_N`，并发布不可变 DuckDB/Parquet Snapshot；
 - Schema 描述、数据质量问题、受控只读 SQL、保存查询；
-- `run_id`、Snapshot 身份、源 SHA-256 绑定和最小 Artifact manifest；源 SHA-256 只作为 inspect/ingest 与 manifest 的内部完整性信息；
+- `run_id`、Snapshot 身份、源 SHA-256 绑定和最小 Artifact manifest；受控查询结果会记录实际引用的 landing 关系和 `referenced_source_ids`，供冻结分析交付校验；
 - Education Business Pack v1：28 个概念、20 个指标、26 个维度、三段客户旅程、3 个漏斗和 7 个诊断 Playbook；
 - Pack 的 `validate` / `describe` CLI 与确定性交叉引用校验；
 - Company Bridge 1.2.0：3 个当前源合同、10 个字段映射、105 条归一规则和 1 个企业 Override；
 - Bridge 对齐向导 v1：提供自包含 `Input/Work/Output` 客户工作区、稳定数据源槽位和月度替换同步；工作区只保留当前 Snapshot，刷新成功后清理旧 Snapshot，宿主原生模型提出候选并收集关键确认，确定性服务自动生成 confirmed_review、build 和 Snapshot validate；
 - 项目 Skill `diagnose-source-overlap`：提示模型主动检查全量刷新、日期范围、候选业务键、重复率和冲突；客户确认后用现有保存查询固化去重，不增加专用重叠平台；
 - 项目 Skill `ppt-master` v4.7.0 已按固定上游提交装配到 `.agents/skills/ppt-master`，保留 MIT 许可证、模板、脚本、工作流和 notices；旁边的 `ppt-master.upstream.json` 记录来源与完整树摘要，并有离线完整性回归测试；
-- 61 项现行 Python 测试；
+- 短数据 PPT 通过 `tools/run_s4_local.sh quick-ppt prepare|finalize` 走共同 Quick 路线：冻结分析身份校验、官方最终 checker 与 Quick exporter；不建设第二套 Renderer、确认或 Spec 流程；
 - 本机全局 DeepSeek Harness `0.1.0-rc.6`，Web 健康检查通过。
 - Harness 真实模型回合可用，并已在项目 Workspace 通过 Shell 执行 Data Foundation `--help`，退出码为 0，发现全部 7 个子命令。
 
-真实三表已在 Harness 与 Data Foundation v2 上完成入仓、描述、质量和查询验证；既有 Bridge 1.2.0 只作为历史产物，不能替代 S4 临时工作区的重新对齐。向导已用陌生四表 fixture 完成追加数据字典、关键确认和最终 build/validate；S4 的三张真实教务表仍需当前 Snapshot 的宿主 proposed 候选、人工确认和双宿主交付验收。项目不建设正式宿主模型 Adapter、Customer Profile、项目侧 Session 管理或独立输出平台。MCP 不在当前开发计划内。
+真实三表已在 Harness 与 Data Foundation v2 上完成入仓、描述、质量和查询验证；主线 Bridge 1.2.0 对应现金明细与工单数据，S4 不再增加教务端口数据。教务跨端口 Bridge 验收是已完成的 S3.5 历史验证，不作为当前 PPT 交付输入。向导已用陌生四表 fixture 完成追加数据字典、关键确认和最终 build/validate。项目不建设正式宿主模型 Adapter、Customer Profile、项目侧 Session 管理或独立输出平台。MCP 不在当前开发计划内。
 
 Data Foundation 不再保存企业 Sheet 白名单、业务列名或 `semantic.registration_cash`。企业表头与 `column_N` 的对应关系、枚举和清洗口径只进入 Company Bridge。
 
@@ -72,7 +72,7 @@ python3 -m unittest discover -s tests -p 'test_*.py' -v
 
 ## 下一步
 
-当前处于 S4 施工与验收：PPT Master 已完成固定版本装配，仍需由 Codex 与 DeepSeek Harness 原生 Agent 在临时教务工作区完成双宿主发现、查询、PPTX 生成和逐页文件验收。PPT 内容、页序和结构由每次自然语言需求决定，不固化教务月报模板；宿主可按需求直接回答、返回表格/查询结果或生成 PPTX。首轮验收关闭自动更新、外部研究、生图、TTS、旁白和本地 Web 辅助界面。未具备工作时间、请假和通勤事实时，当前未占用时段只能表述为候选空档，不得称真实可用时间。S4 后进入真实使用，重复需求再沉淀 Skill 或模板，不预建后续平台。企业口径继续进入 Bridge，不回填 Pack 或 Data Foundation。
+当前处于 S4 性能回归与真实使用：Codex 与 DeepSeek Harness 已完成主线 Bridge 的分析与可打开 PPTX 生成验证。接下来以现金明细和工单数据，通过新版受控查询重新生成带 `referenced_source_ids`、哈希和 `key_queries` 的冻结分析，比较共同 Quick 入口的确定性工具耗时；旧冻结文件会被明确阻断。PPT 内容、页序和结构由每次自然语言需求决定，不固化月报模板；复杂任务才走 PPT Master Default。首轮验收关闭自动更新、外部研究、生图、TTS、旁白和本地 Web 辅助界面。未具备工作时间、请假和通勤事实时，当前未占用时段只能表述为候选空档，不得称真实可用时间。S4 后进入真实使用，重复需求再沉淀 Skill 或模板，不预建后续平台。企业口径继续进入 Bridge，不回填 Pack 或 Data Foundation。
 
 ## 文档导航
 
@@ -83,5 +83,6 @@ python3 -m unittest discover -s tests -p 'test_*.py' -v
 - [Company Bridge v1 合同](./docs/company-bridge-contract.md)
 - [Bridge 对齐向导合同](./docs/bridge-alignment-wizard-contract.md)
 - [运维手册](./docs/operator-runbook.md)
+- [S4 Quick PPT 宿主提示词](./docs/s4-ppt-quick-prompt.md)
 - [交接状态](./docs/handoff.md)
 - [DeepSeek Harness 调研卡](./research/projects/deepseek-harness.md)

@@ -21,6 +21,10 @@ DENIED_CATALOG_RELATIONS = re.compile(
 QUERY_ID = re.compile(r"^[a-z][a-z0-9_-]{2,63}$")
 VERSION = re.compile(r"^v[0-9]+(?:\.[0-9]+){0,2}$")
 RUN_ID = re.compile(r"^run_[a-z0-9][a-z0-9_-]{2,67}$")
+LANDING_RELATION = re.compile(
+    r'(?<![a-z0-9_])(?:landing|"landing")\s*\.\s*(?:"([^"]+)"|([a-z_][a-z0-9_]*))',
+    re.IGNORECASE,
+)
 
 
 class QueryError(ValueError):
@@ -56,6 +60,33 @@ def _require_snapshot(connection: duckdb.DuckDBPyConnection, snapshot_id: str) -
         raise QueryError("WAREHOUSE_INVALID", "warehouse lacks ingest.sources snapshot metadata") from exc
     if values != {snapshot_id}:
         raise QueryError("SNAPSHOT_MISMATCH", "requested snapshot_id does not identify this warehouse")
+
+
+def _strip_sql_literals_and_comments(sql: str) -> str:
+    sql = re.sub(r"--[^\n]*", "", sql)
+    sql = re.sub(r"/\*.*?\*/", "", sql, flags=re.DOTALL)
+    return re.sub(r"'(?:''|[^'])*'", "''", sql)
+
+
+def _referenced_landing_relations(sql: str) -> list[str]:
+    cleaned = _strip_sql_literals_and_comments(sql)
+    return sorted({match.group(1) or match.group(2) for match in LANDING_RELATION.finditer(cleaned)})
+
+
+def _query_source_provenance(connection: duckdb.DuckDBPyConnection, sql: str) -> tuple[list[str], list[str]]:
+    relations = _referenced_landing_relations(sql)
+    if not relations:
+        return [], []
+    placeholders = ", ".join("?" for _ in relations)
+    rows = connection.execute(
+        f"SELECT target_table, source_id FROM ingest.sheets WHERE target_table IN ({placeholders})",
+        relations,
+    ).fetchall()
+    mapped = {table: source_id for table, source_id in rows}
+    missing = sorted(set(relations) - set(mapped))
+    if missing:
+        raise QueryError("QUERY_PROVENANCE_INVALID", "landing relation has no source provenance: " + ", ".join(missing))
+    return [f"landing.{relation}" for relation in relations], sorted(set(mapped.values()))
 
 
 def validate_query(connection: duckdb.DuckDBPyConnection, sql: str, parameters: Any = None) -> None:
@@ -133,6 +164,7 @@ def execute_query(
     with _connect(warehouse) as connection:
         _require_snapshot(connection, snapshot_id)
         validate_query(connection, sql, parameters)
+        referenced_relations, referenced_source_ids = _query_source_provenance(connection, sql)
         cursor = connection.execute(sql, parameters)
         columns = [item[0] for item in cursor.description]
         rows = cursor.fetchmany(max_rows + 1)
@@ -152,6 +184,8 @@ def execute_query(
         "columns": columns,
         "result": None,
         "artifact": None,
+        "referenced_relations": referenced_relations,
+        "referenced_source_ids": referenced_source_ids,
         "errors": [],
     }
     if len(encoded) <= inline_bytes:

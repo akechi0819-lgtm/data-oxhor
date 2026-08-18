@@ -4,7 +4,7 @@
 
 ## 当前阶段
 
-项目已完成宿主基础验证、Data Foundation v2、Education Business Pack v1、首个 Company Bridge v1.2.0 和 Bridge 对齐向导 S3.5（含 DeepSeek Harness 真实教务跨端口验收），当前进入 S4 项目级 Skills 装配与真实交付验收。DeepSeek Harness 是默认客户运行宿主，Codex 是直接运行与验证宿主；二者都使用自身原生 Agent、模型、Session、Skills、记忆清理、工具和文件交付能力，本项目只补充宿主无关的业务资产与项目级操作 Skills。不得把本地验证环境描述成正式客户系统，也不得执行正式外部业务动作。
+项目已完成宿主基础验证、Data Foundation v2、Education Business Pack v1、首个 Company Bridge v1.2.0、Bridge 对齐向导 S3.5（含 DeepSeek Harness 真实教务跨端口验收）以及 Codex/DeepSeek Harness 主线分析和 PPTX 双宿主交付验证。当前进入 S4 Quick 性能回归与真实使用。DeepSeek Harness 是默认客户运行宿主，Codex 是直接运行与验证宿主；二者都使用自身原生 Agent、模型、Session、Skills、记忆清理、工具和文件交付能力，本项目只补充宿主无关的业务资产与项目级操作 Skills。不得把本地验证环境描述成正式客户系统，也不得执行正式外部业务动作。
 
 ## 固定架构边界
 
@@ -32,8 +32,10 @@
 - `bridge_alignment/` 与 `interfaces/bridge_alignment_wizard.py` 已提供 `start`、`propose`、`answer`、`add-evidence`、`finalize`，支持同公司口径复用、新公司隔离、追加只读证据、关键歧义阻断和自动 build/validate；核心不包含宿主 SDK、Agent Loop 或模型调度；
 - Bridge 对齐工作区只保留当前 Snapshot：`sync-data` 先发布并切换新 Snapshot，再删除旧 Run；源文件承担历史归档，失败或存在未完成会话时不切换。仅保留已使用 `snapshot_id` 的标识符，禁止删除后复用身份；
 - `.agents/skills/diagnose-source-overlap` 已通过 DeepSeek Harness 项目 Skill 真实调用；模型使用现有 Data Foundation `describe/query` 自主诊断全量刷新、日期重叠、候选业务键和冲突，确认后以 `promote-query/run-saved-query` 固化只读去重 SQL；
-- DeepSeek Harness 已用三张真实教务表完成陌生结构识别、字段角色判断、教务 Bridge 生成与验证、教师课量查询；该真实宿主验收不需要正式 `CandidateAdapter`；
-- `ppt-master` v4.7.0 已按固定上游提交完整装配到 `.agents/skills/ppt-master`，保留 MIT 许可证、来源元数据与离线完整性测试；S4 仍待 Codex 与 DeepSeek Harness 的真实 PPTX 双宿主交付验收；
+- DeepSeek Harness 曾用三张真实教务表完成陌生结构识别、字段角色判断、教务 Bridge 生成与验证、教师课量查询；这是 S3.5 历史跨端口验证，不再向当前主线增加教务数据或把教务 Bridge 用于 S4 交付；
+- 受控查询结果依据实际 SQL 引用的 `landing.*` 关系写入 `referenced_relations` 与 `referenced_source_ids`。Quick 冻结分析必须使用 `s4_ppt_frozen_analysis.v1`，以同一 Snapshot、证据 SHA-256、`key_queries` 和这些来源凭据锁定可用证据；
+- `ppt-master` v4.7.0 已按固定上游提交装配到 `.agents/skills/ppt-master`，保留 MIT 许可证、来源元数据与离线完整性测试；项目级 `tools/s4_ppt_quick.py` 只编排冻结身份、Quick 初始化、最终检查和导出，不复制上游 Renderer；Codex 与 DeepSeek Harness 的短数据 PPT 共用该入口；
+- Codex 与 DeepSeek Harness 均已用主线 Bridge 跑通分析和可打开的 PPTX 生成；Quick 的后续工作是以新版冻结身份协议做性能回归，不把这项既有双宿主能力再写成阻塞；
 - Customer Profile、项目侧 Session 管理、独立输出模块和学习治理平台均不再列为预设施工项；MCP 不在当前计划内。
 
 ## 当前最小红线
@@ -41,7 +43,7 @@
 - 原始输入只读，已发布 Snapshot 不得原地覆盖；
 - Agent 只能通过受控入口执行只读 SQL；
 - 未确认 Bridge 映射不得作为正式事实；
-- 运行使用显式 `run_id`，查询和恢复使用显式 `snapshot_id`；源 SHA-256 只用于 inspect/ingest 的源绑定和 manifest，不要求在每次查询、Session 或交付物中传播；
+- 运行使用显式 `run_id`，查询和恢复使用显式 `snapshot_id`；源 SHA-256 只用于 inspect/ingest 的源绑定和 manifest，不要求在每次查询、Session 或交付物中传播；例外是 Quick 冻结分析的证据文件 SHA-256，它是该交付的身份合同，缺失或变化必须阻断；
 - 正式文件必须可打开并通过最小内容检查；
 - 不通过 `latest`、修改时间或模糊文件名继承状态；
 - 客户工作区采用固定 `Input/Work/Output` 目录，可随产品整体复制；源码 checkout 中的 `customers/` 默认忽略，不得提交客户源数据、DuckDB、Parquet 或运行产物；
@@ -50,7 +52,7 @@
 
 ## 开发顺序
 
-S0 宿主验证、S1 Data Foundation、S2 Pack、S3 Bridge、S3.5 Bridge 对齐向导与真实教务跨端口验收均已完成。当前唯一施工阶段是 S4：`ppt-master` 已完成固定版本装配，电子表格和可视化复用宿主能力；接着用现有正确查询链路完成真实双宿主交付验收，不开发 Renderer 或交付平台。S4 后进入真实使用与按需迭代，不预排 S5/S6/S7 平台工程。企业字段与确认后的物理处理 SQL不回填 Pack；去重 SQL进入 Data Foundation 保存查询，不进入 Bridge。
+S0 宿主验证、S1 Data Foundation、S2 Pack、S3 Bridge、S3.5 Bridge 对齐向导与真实教务跨端口验收，以及主线分析/PPTX 双宿主交付验证均已完成。当前唯一施工阶段是 S4 的 Quick 性能回归：主线 Bridge `company_bridge.v1_2_0` 的现金明细与工单数据生成新版冻结分析；短数据、已冻结分析的 PPT 走项目 Quick 入口，复杂交付才走上游 Default；电子表格和可视化复用宿主能力；不开发 Renderer 或交付平台。不得向主线再增加教务数据。S4 后进入真实使用与按需迭代，不预排 S5/S6/S7 平台工程。企业字段与确认后的物理处理 SQL不回填 Pack；去重 SQL进入 Data Foundation 保存查询，不进入 Bridge。
 
 ## 文档路由
 

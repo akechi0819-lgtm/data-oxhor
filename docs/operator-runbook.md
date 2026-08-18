@@ -45,19 +45,20 @@ python3 -m interfaces.bridge_alignment_wizard --help
 python3 -m unittest discover -s tests -p 'test_*.py' -v
 ```
 
-基线是 61 项现行测试通过，Pack 与 Bridge 校验状态均为 `passed`。向导测试中的 fake adapter 只验证候选合同，不代表或替代宿主；真实 Harness 教务案例已另行通过。`finalize` 必须在 `propose` 产生至少一个候选后才能执行；空候选返回 `CANDIDATES_MISSING`。测试失败时先区分：Python/DuckDB 版本、外部 Golden Case 是否可读、源 SHA-256 是否变化、Pack/Bridge 交叉引用错误，还是代码回归。不要通过修改 Golden 值掩盖源文件变化。
+当前回归包括 Quick 与查询来源凭据测试。Pack 与主线 Bridge 校验状态均为 `passed`。完整测试会额外暴露 vendored PPT Master 文件树摘要与 pinned metadata 的既有不一致；这不是 Quick 代码失败，不能修改上游目录或摘要来掩盖。向导测试中的 fake adapter 只验证候选合同，不代表或替代宿主；真实 Harness 教务案例是 S3.5 历史验证。`finalize` 必须在 `propose` 产生至少一个候选后才能执行；空候选返回 `CANDIDATES_MISSING`。测试失败时先区分：Python/DuckDB 版本、外部 Golden Case 是否可读、源 SHA-256 是否变化、Pack/Bridge 交叉引用错误，还是代码回归。不要通过修改 Golden 值掩盖源文件变化。
 
 ## 4. 模型和密钥
 
 模型 Provider 与 API Key 已在 Harness 的机器级设置中配置，不写入仓库、客户配置样例或日志。2026-08-14 已确认：Harness 真实模型回合可用，模型在项目 Workspace 通过 Shell 执行 `python3 -m interfaces.data_foundation --help`，退出码为 0，并发现全部 7 个子命令。
 
-真实三表已经通过 `inspect → ingest → describe → quality → query`；既有教务 Bridge 的历史兼容性验证不等于 S4 临时工作区已完成重新对齐。S4 已把固定版本 PPT Master 放入 `.agents/skills/ppt-master`，可用以下命令做离线完整性检查：
+真实主线数据已经通过 `inspect → ingest → describe → quality → query`；教务 Bridge 只保留为 S3.5 历史兼容性验证，当前 S4 不再导入教务数据。S4 已把固定版本 PPT Master 放入 `.agents/skills/ppt-master`，可用以下命令分别检查 attribution 与项目回归：
 
 ```bash
-python3 -m unittest tests.test_ppt_master_integrity tests.test_s4_teaching_fixture -v
+.venv/bin/python .agents/skills/ppt-master/scripts/attribution_guard.py
+.venv/bin/python -m unittest tests.foundation.test_query_service tests.test_s4_ppt_quick -v
 ```
 
-S4 剩余工作是 Codex 与 DeepSeek Harness 双宿主在 `customers/s4_teaching_validation/` 中完成真实交付验收，不是 Session 或 Deliverables 平台开发。首轮关闭自动更新、外部研究、生图、TTS、旁白和本地 Web 辅助界面。
+Codex 与 DeepSeek Harness 已完成主线 Bridge 的分析和 PPTX 生成验证。S4 后续只需用现金明细和工单的新版冻结分析做 Quick 性能回归，核对 `validation/quick_run.json` 中确定性命令的耗时与退出码；这不是 Session 或 Deliverables 平台开发。首轮关闭自动更新、外部研究、生图、TTS、旁白和本地 Web 辅助界面。
 
 首次或干净机器上的 S4 PPT 运行环境必须由项目脚本建立，不依赖系统 Python：
 
@@ -67,6 +68,21 @@ sh tools/install_s4_ppt_runtime.sh
 ```
 
 Codex 和 Harness 的 S4 回合都从项目根目录启动，并将 `.venv/bin` 放在 `PATH` 首位；依赖由 `tools/s4_ppt_requirements.lock` 精确锁定。首轮命令必须通过 `tools/run_s4_local.sh` 启动，任务提示还要声明不使用网络、外部素材、图片/语音生成、旁白或本地 Web UI。`tools/s4_ppt_preflight.py` 会检查 PPTX 导出所需模块，并在直接环境存在 provider 凭据时失败。
+
+短数据 PPT 的双宿主 Quick 入口：
+
+```bash
+tools/run_s4_local.sh quick-ppt prepare <project> \
+  --analysis <analysis_frozen.json> \
+  --markdown <analysis_frozen.md> \
+  --evidence-root <evidence_dir>
+
+# Agent 仅在项目 svg_output/ 中写完 SVG 后执行
+tools/run_s4_local.sh quick-ppt finalize <project> \
+  --output <project>/exports/<name>.pptx
+```
+
+入口只编排冻结身份校验、Quick 初始化、最终 SVG checker 和 Quick export，不实现第二套 PPT Renderer。`prepare` 是唯一运行 attribution guard 和本地预检的阶段；`finalize` 不重复这两个门禁。`analysis_frozen.json` 必须是 `s4_ppt_frozen_analysis.v1`，逐项列明证据相对路径、SHA-256、允许来源和指向证据的 `key_queries`；每份证据还必须携带 Data Foundation 写入的实际 `referenced_source_ids`，禁止来源会因此直接阻断。旧格式或缺少该来源凭据时，先重新执行受控查询再冻结，不能手改清单绕过。`prepare` 的 JSON 输出会返回实际项目路径，`finalize` 必须使用它。若实际生成了数据驱动图表，Agent 必须在最终 checker 前按 PPT Master 的 Quick `verify-charts` 规则完成一次图表验证；没有 blocking error 时不得重复运行 checker。Quick 项目不需要 `project_manager validate`、Confirm UI、Live Preview、Design Spec、Spec Lock、Speaker Notes 或 `finalize_svg.py`，并拒绝 SVG 图片、远程/内嵌资源与动画。
 
 项目 Skill `diagnose-source-overlap` 已在 2026-08-16 由 Harness headless 真实调用，能正确区分全量刷新与多来源并存，并把去重处理路由到 Data Foundation 只读查询和保存查询。
 
@@ -97,3 +113,4 @@ DeepSeek Harness 处于 Developer Preview。升级前必须：
 | `sync-data` 返回 cleanup warning | 新 Snapshot 已是当前状态；在确认不再占用旧 Run 后手工清理该目录 |
 | 客户工作区误入 Git | 使用默认忽略的 `customers/`，交付产品时可整体复制该客户工作区 |
 | `ADAPTER_LOAD_FAILED` | 仅针对程序化 `propose --adapter` 入口：检查测试或批处理模块的 `module:attribute` 与 `propose(model_input)`；不要因此开发宿主包装层 |
+| Quick `unsupported frozen analysis schema` 或 `source provenance missing` | 用主线 Bridge 的受控查询重新写证据 JSON，再生成 `s4_ppt_frozen_analysis.v1`；旧冻结格式和手写来源标签不能复用 |

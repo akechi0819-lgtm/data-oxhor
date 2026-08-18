@@ -18,6 +18,8 @@ def warehouse(path: Path) -> None:
             connection.execute(f"CREATE SCHEMA {schema}")
         connection.execute("CREATE TABLE ingest.sources(source_id VARCHAR, snapshot_id VARCHAR)")
         connection.execute("INSERT INTO ingest.sources VALUES ('fixture', 'snapshot_query_test')")
+        connection.execute("CREATE TABLE ingest.sheets(source_id VARCHAR, target_table VARCHAR)")
+        connection.execute("INSERT INTO ingest.sheets VALUES ('fixture', 'values_table')")
         connection.execute("CREATE TABLE landing.values_table(category VARCHAR, amount INTEGER)")
         connection.execute("INSERT INTO landing.values_table VALUES ('a',1),('a',2),('b',3)")
         connection.execute("CREATE TABLE quality.issues(issue_code VARCHAR, source_id VARCHAR, sheet_name VARCHAR, source_row_number BIGINT)")
@@ -46,6 +48,7 @@ class QueryServiceTests(unittest.TestCase):
                 with self.subTest(sql=sql):
                     result = execute_query(warehouse=db, snapshot_id="snapshot_query_test", sql=sql, run_id="run_query_test", output_root=root)
                     self.assertEqual(result["status"], "passed")
+                    self.assertEqual(result["referenced_source_ids"], ["fixture"])
 
     def test_rejects_writes_external_access_and_multiple_statements(self):
         denied = [

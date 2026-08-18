@@ -63,6 +63,7 @@
 - Session JSONL、Session Query SQLite、Storage、Sandbox、Approval、Workspace、Deliverables、Skill、Subagent、Plan、Trajectory 等服务已观察到装载；
 - 未选择 Workspace 时，文件和 Skill consumer 等依赖能力保持停用，未出现半初始化假成功；
 - 模型 Provider/API Key 已在机器级设置中配置；Harness 真实模型回合、项目 Workspace、受控 Shell、真实三表 Data Foundation 数据链路、项目 Skill `diagnose-source-overlap`，以及三张真实教务表的陌生结构识别、Bridge 生成、教师课量查询和图表输出已通过。
+- 2026-08-18：Harness 已用主线 Bridge 的现金明细与工单数据完成分析、PPTX 生成和渲染回查；当前只需与 Codex 共用新版 Quick 冻结协议做性能回归。
 
 ## 开放风险
 
@@ -75,5 +76,5 @@
 - DeepSeek Harness 是默认宿主，不是业务核心；
 - Harness 原生 Agent 是主控；项目不建设正式 `CandidateAdapter`、第二层 Agent 或模型调度层；
 - Data Foundation、Pack、Bridge、项目 Skills 和模板必须保持宿主无关；
-- 当前 S4 工作是装配并验收项目需要的 PPT、表格和图表 Skills；不建设 Customer Profile、Session 管理、Renderer、Deliverables 平台、MCP 或 echo 插件；
-- `0.1.0-rc.6` 的部署结果不能代替 S4 对具体 PPT、表格和可视化 Skills 的兼容性与真实文件验收。
+- 当前 S4 工作是用新版冻结身份协议做 Quick 性能回归；不建设 Customer Profile、Session 管理、Renderer、Deliverables 平台、MCP 或 echo 插件；
+- `0.1.0-rc.6` 的部署结果不能代替升级后的 Quick 性能回归，但不影响已经完成的 PPT、表格和可视化真实文件验收。

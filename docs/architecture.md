@@ -55,7 +55,7 @@
   → inspect（结构与源 SHA-256 绑定）
   → ingest（run_id + immutable snapshot_id）
   → DuckDB / Parquet
-  → describe / quality / read-only query
+  → describe / quality / read-only query（实际 landing 关系与来源凭据）
   → result identity / artifact manifest
   → Bridge 对齐向导（profile → proposed → confirm → build/validate）
   → Pack + Bridge 解释
@@ -63,7 +63,7 @@
   → 宿主生成并交付文件
 ```
 
-运行以显式 `run_id` 区分，查询和恢复以显式 `snapshot_id` 定位仓库。源 SHA-256 用于 inspect/ingest 的源绑定以及 Snapshot/Artifact manifest，不要求在每次查询、Session 或交付物中继续传播。SQL 是直接查询输入或保存查询内容，不建立额外的统一血缘平台。Education Pack 1.0.0 与 Company Bridge 1.2.0 已独立版本化；Data Foundation 不伪造 Pack/Bridge 选择。
+运行以显式 `run_id` 区分，查询和恢复以显式 `snapshot_id` 定位仓库。源 SHA-256 用于 inspect/ingest 的源绑定以及 Snapshot/Artifact manifest。每个受控查询结果同时记录由 `ingest.sheets` 反查的 `referenced_relations` 与 `referenced_source_ids`；这只服务于冻结分析的来源校验，不扩张为统一血缘平台。SQL 是直接查询输入或保存查询内容。Education Pack 1.0.0 与 Company Bridge 1.2.0 已独立版本化；Data Foundation 不伪造 Pack/Bridge 选择。
 
 ## 4. 确定性边界
 
@@ -73,6 +73,7 @@
 - Pack 校验器检查稳定 ID 和交叉引用；Bridge 建成后由语义模块阻断未确认映射成为正式事实；
 - Bridge 对齐向导把模型候选限制为 proposed，以不可覆盖决定生成 confirmed_review；关键问题未答时阻断，非关键未答项显式 unresolved 并禁用能力；
 - 多来源重叠和清洗由项目 Skill 提示模型使用 Data Foundation 只读查询举证；客户确认业务键、来源优先级和 SQL 后，以 saved query 固化。Bridge 只保存企业语义映射，不保存物理去重或合并 SQL；
+- 已冻结的短数据 PPT 使用项目 Quick 入口：冻结清单绑定证据哈希、Snapshot、关键查询和受控查询生成的来源凭据；项目只调用 PPT Master 官方 Quick checker/exporter，拒绝 Default 混用和本地静态 Quick 不允许的媒体/动画；
 - 交付文件由宿主打开检查，数字必须可回查到同一查询结果；只有真实失败才增加最小确定性工具；
 - 状态恢复使用显式 `run_id`、`snapshot_id` 和后续 Pack/Bridge 版本，不通过 `latest`、修改时间或模糊文件名猜测。
 
@@ -98,7 +99,7 @@ Data Foundation v2 将每个 Sheet 原样落入 `landing.column_N`，并在 `ing
 
 ## 6. 输出和交互
 
-Codex、DeepSeek Harness 等宿主已具备 HTML、图表和文件生成/交付能力。项目已装配固定版本的 `ppt-master` Skill，Skill 负责方法和模板，宿主负责执行与交付；表格和可视化先复用宿主能力。PPT 交付是通用会话合同，按需求选择直接回答、表格/查询结果或 PPTX，不固化教育业务页序。首轮验收关闭自动更新、外部研究、生图、TTS、旁白和本地 Web 辅助界面；只有出现宿主无法满足的可复现文件正确性问题时，才增加最小确定性工具。当前不建设独立 Renderer 或 Deliverables 平台。
+Codex、DeepSeek Harness 等宿主已具备 HTML、图表和文件生成/交付能力。项目已装配固定版本的 `ppt-master` Skill，Skill 负责方法和模板，宿主负责执行与交付；表格和可视化先复用宿主能力。两个宿主已完成主线分析和可打开 PPTX 的交付验证。PPT 交付是通用会话合同，按需求选择直接回答、表格/查询结果或 PPTX，不固化教育业务页序。首轮验收关闭自动更新、外部研究、生图、TTS、旁白和本地 Web 辅助界面；只有出现宿主无法满足的可复现文件正确性问题时，才增加最小确定性工具。当前不建设独立 Renderer 或 Deliverables 平台。
 
 ## 7. 真实使用中的沉淀
 

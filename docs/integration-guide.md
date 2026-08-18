@@ -76,7 +76,7 @@ Codex 已通过项目 Shell 完成 CLI 命令链和错误处理验证，不增�
 DeepSeek Harness → controlled shell → Python CLI → Data Foundation
 ```
 
-Harness 全局安装、Web、真实模型回合、项目 Workspace、受控 Shell、真实三表 `inspect → ingest → describe → quality → query`、项目 Skill `diagnose-source-overlap` 调用，以及三张真实教务表的陌生结构识别、Bridge 生成、教师课量查询和图表输出均已通过。该流程直接使用 Harness 原生 Agent，不依赖正式 `CandidateAdapter`。
+Harness 全局安装、Web、真实模型回合、项目 Workspace、受控 Shell、真实三表 `inspect → ingest → describe → quality → query`、项目 Skill `diagnose-source-overlap` 调用，以及三张真实教务表的陌生结构识别、Bridge 生成、教师课量查询和图表输出均已通过。主线现金明细与工单分析、可打开 PPTX 生成及渲染回查也已通过；当前仅以新版冻结身份协议做 Quick 性能回归。该流程直接使用 Harness 原生 Agent，不依赖正式 `CandidateAdapter`。
 
 ### 重叠与清洗
 
@@ -137,6 +137,6 @@ CLI 完成当前阶段且无需客户输入时退出 `0`，等待确认或被关
 
 ## 7. 项目级交付 Skills（S4）
 
-S4 不新增业务 CLI 或输出平台。项目已将上游 `hugohe3/ppt-master` v4.7.0（提交 `e8323bfaee249cffe1301ec40fca5875eb544d46`）完整装配到 `.agents/skills/ppt-master`，MIT 许可证、发布包 SHA-256 和树摘要见 `.agents/skills/ppt-master.upstream.json`；离线测试会执行其 `scripts/attribution_guard.py`。电子表格和数据可视化先使用宿主原生能力，不增加项目依赖。
+S4 不新增业务 CLI 或输出平台。项目已将上游 `hugohe3/ppt-master` v4.7.0（提交 `e8323bfaee249cffe1301ec40fca5875eb544d46`）固定版本装配到 `.agents/skills/ppt-master`，MIT 许可证、发布包 SHA-256 和树摘要见 `.agents/skills/ppt-master.upstream.json`；离线检查会执行其 `scripts/attribution_guard.py`。电子表格和数据可视化先使用宿主原生能力，不增加项目依赖。项目只增加 `tools/s4_ppt_quick.py` 作为宿主无关的 Quick 编排入口，不复制 PPT Master 的 SVG、模板或 Renderer 实现。
 
-宿主通过自然语言需求决定直接回答、表格/查询结果或 PPTX，PPT 不采用固定教务月报结构或页序。首轮验收只使用本地数据和原生可编辑 PPTX，关闭自动更新、外部研究、生图、TTS、旁白和本地 Web 辅助界面。缺少工作时间、请假和通勤规则时，当前未占用只能称“候选空档”。真实教务临时工作区约定见 [S4 教务临时工作区](./s4-teaching-validation.md)。文件必须可打开、内容非空且关键数字可回查到同一只读查询结果。
+宿主通过自然语言需求决定直接回答、表格/查询结果或 PPTX，PPT 不采用固定月报结构或页序。分析已冻结且没有复杂交付要求时，Codex 与 DeepSeek Harness 都使用 [S4 Quick PPT 宿主提示词](./s4-ppt-quick-prompt.md) 和同一 `quick-ppt prepare/finalize` 入口；冻结清单以 Snapshot、SHA-256 与由受控查询真实写入的 `referenced_source_ids` 约束可用查询证据，入口会复核导入副本，不接受 manifest 自报的来源作为唯一凭据。当前主线只允许 `company_bridge.v1_2_0` 的现金明细与工单来源，教务数据不属于 S4 交付输入。模板、人工确认、图片、预览、讲稿、旁白或复杂动画才进入 PPT Master Default。首轮验收只使用本地数据和原生可编辑 PPTX，关闭自动更新、外部研究、生图、TTS、旁白和本地 Web 辅助界面。缺少工作时间、请假和通勤规则时，当前未占用只能称“候选空档”。历史教务验证边界见 [S4 历史教务验证](./s4-teaching-validation.md)。文件必须可打开、内容非空且关键数字可回查到同一只读查询结果。
