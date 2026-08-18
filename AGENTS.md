@@ -4,7 +4,7 @@
 
 ## 当前阶段
 
-项目已完成宿主基础验证、Data Foundation v2、Education Business Pack v1、首个 Company Bridge v1.2.0、Bridge 对齐向导 S3.5（含 DeepSeek Harness 真实教务跨端口验收）以及 Codex/DeepSeek Harness 主线分析和 PPTX 双宿主交付验证。当前进入 S4 Quick 性能回归与真实使用。DeepSeek Harness 是默认客户运行宿主，Codex 是直接运行与验证宿主；二者都使用自身原生 Agent、模型、Session、Skills、记忆清理、工具和文件交付能力，本项目只补充宿主无关的业务资产与项目级操作 Skills。不得把本地验证环境描述成正式客户系统，也不得执行正式外部业务动作。
+项目已完成宿主基础验证、Data Foundation v2、Education Business Pack v1、首个 Company Bridge v1.2.0、Bridge 对齐向导 S3.5（含 DeepSeek Harness 真实教务跨端口验收）、S5 Casebook/内测回收/引导路由以及 Codex/DeepSeek Harness 主线分析和 PPTX 双宿主交付验证。S4 Quick 的真实性能回归暂时挂起。DeepSeek Harness 是默认客户运行宿主，Codex 是直接运行与验证宿主；二者都使用自身原生 Agent、模型、Session、Skills、记忆清理、工具和文件交付能力，本项目只补充宿主无关的业务资产与项目级操作 Skills。不得把本地验证环境描述成正式客户系统，也不得执行正式外部业务动作。
 
 ## 固定架构边界
 
@@ -14,10 +14,10 @@
 4. Business Pack 与 Company Bridge 从第一家企业起物理分离。Pack 保存行业标准知识；Bridge 保存企业术语、字段、枚举、选择和 Override。
 5. 一套正常客户工作区默认服务一家公司和一个主要角色；公司或角色变化时使用宿主原生的新会话/记忆清理并重新初始化工作区。不建设 Customer Profile、公司路由器、角色路由器或项目清理按钮。
 6. Skills 只承载分析方法和操作说明；只读查询、数据身份、语义引用检查和文件验收必须由确定性代码完成。
-7. 宿主 Session 承担对话上下文和记忆清理；当前不建设项目侧 Session 管理或预设的学习与质量平台。重复出现且值得长期复用的业务方法，按真实需求沉淀为项目 Skill、模板、Pack 或 Bridge。
+7. 宿主 Session 承担对话上下文和记忆清理；S5 在客户工作区补充经人工确认、可回查的 Casebook 和用户主动导出的内测反馈，但不建设项目侧 Session 管理或自动学习平台。重复出现且值得长期复用的业务方法，按真实需求沉淀为项目 Skill、模板、Pack 或 Bridge。
 8. 新宿主优先通过受控 Shell 消费同一套 Python CLI、Pack、Bridge、Skills 和输出器；只有出现不支持 Shell 的真实消费者时才评估薄适配器，不提前建设协议层。
 9. 只读、不可覆盖、unresolved 阻断和文件验收由各自业务模块的确定性代码负责；没有可复现失败时不建设独立强化插件、统一治理层或跨模块身份平台。
-10. Bridge 对齐向导只编排显式 Snapshot、Pack、可选同公司 Bridge、宿主原生模型提出的候选和人工确认；模型只能生成 proposed，确定性服务负责 confirmed_review、build 和 Snapshot validate。代码中的可注入 adapter 是程序化测试缝，不是正式宿主架构或后续施工目标。
+10. Bridge 对齐向导只编排显式 Snapshot、Pack、可选同公司 Bridge、宿主原生模型提出的候选和人工确认；模型只能生成 proposed，确定性服务负责 confirmed_review、build 和 Snapshot validate。S5 引导路由只检查工作区是否应进入既有对齐流程或分析流程，不替代向导。代码中的可注入 adapter 是程序化测试缝，不是正式宿主架构或后续施工目标。
 
 ## 当前已实现事实
 
@@ -36,7 +36,8 @@
 - 受控查询结果依据实际 SQL 引用的 `landing.*` 关系写入 `referenced_relations` 与 `referenced_source_ids`。Quick 冻结分析必须使用 `s4_ppt_frozen_analysis.v1`，以同一 Snapshot、证据 SHA-256、`key_queries` 和这些来源凭据锁定可用证据；
 - `ppt-master` v4.7.0 已按固定上游提交装配到 `.agents/skills/ppt-master`，保留 MIT 许可证、来源元数据与离线完整性测试；项目级 `tools/s4_ppt_quick.py` 只编排冻结身份、Quick 初始化、最终检查和导出，不复制上游 Renderer；Codex 与 DeepSeek Harness 的短数据 PPT 共用该入口；
 - Codex 与 DeepSeek Harness 均已用主线 Bridge 跑通分析和可打开的 PPTX 生成；Quick 的后续工作是以新版冻结身份协议做性能回归，不把这项既有双宿主能力再写成阻塞；
-- Customer Profile、项目侧 Session 管理、独立输出模块和学习治理平台均不再列为预设施工项；MCP 不在当前计划内。
+- S5 已实现 Casebook、内测回收与引导路由：`runs/` 是客户本地原始运行证据，已确认案例只保存最小可回查证据；反馈包由用户主动导出，默认脱敏；
+- Customer Profile、项目侧 Session 管理、独立输出模块和自动学习治理平台均不再列为预设施工项；MCP 不在当前计划内。
 
 ## 当前最小红线
 
@@ -48,11 +49,13 @@
 - 不通过 `latest`、修改时间或模糊文件名继承状态；
 - 客户工作区采用固定 `Input/Work/Output` 目录，可随产品整体复制；源码 checkout 中的 `customers/` 默认忽略，不得提交客户源数据、DuckDB、Parquet 或运行产物；
 - 客户工作区不保留 Snapshot 历史；更新输入后必须使用新 `snapshot_id`，成功切换才删除旧 Snapshot，未完成会话必须先完成；
+- `runs/` 是客户本地原始运行证据，不直接作为 Agent 长期记忆且不得默认上传；Casebook 只保存人工确认的最小证据包，当前事实仍需查询当前 Snapshot；
+- 内测反馈由本地用户主动导出，默认仅含脱敏指标和评价；工作簿、DuckDB、Parquet、`runs/` 或业务证据必须逐项授权才能附带；
 - 不提前建设 MCP、通用 DAG、多 Agent 编排、多层 Reviewer、独立强化插件或完整治理平台；新增治理必须对应可复现失败或明确客户要求。
 
 ## 开发顺序
 
-S0 宿主验证、S1 Data Foundation、S2 Pack、S3 Bridge、S3.5 Bridge 对齐向导与真实教务跨端口验收，以及主线分析/PPTX 双宿主交付验证均已完成。当前唯一施工阶段是 S4 的 Quick 性能回归：主线 Bridge `company_bridge.v1_2_0` 的现金明细与工单数据生成新版冻结分析；短数据、已冻结分析的 PPT 走项目 Quick 入口，复杂交付才走上游 Default；电子表格和可视化复用宿主能力；不开发 Renderer 或交付平台。不得向主线再增加教务数据。S4 后进入真实使用与按需迭代，不预排 S5/S6/S7 平台工程。企业字段与确认后的物理处理 SQL不回填 Pack；去重 SQL进入 Data Foundation 保存查询，不进入 Bridge。
+S0 宿主验证、S1 Data Foundation、S2 Pack、S3 Bridge、S3.5 Bridge 对齐向导与真实教务跨端口验收、S5 Casebook/内测回收/引导路由，以及主线分析/PPTX 双宿主交付验证均已完成。S4 的 Quick 代码和自动化测试已完成，真实性能回归挂起。不自动上传数据、不做跨客户路由、不做向量库或自动 Skill 发布。主线 Bridge `company_bridge.v1_2_0` 的现金明细与工单仍是 S4 Quick 的唯一输入，恢复时短数据、已冻结分析的 PPT 走项目 Quick 入口，复杂交付才走上游 Default。不得向主线再增加教务数据。企业字段与确认后的物理处理 SQL不回填 Pack；去重 SQL进入 Data Foundation 保存查询，不进入 Bridge。
 
 ## 文档路由
 
@@ -64,4 +67,5 @@ S0 宿主验证、S1 Data Foundation、S2 Pack、S3 Bridge、S3.5 Bridge 对齐�
 - `docs/company-bridge-contract.md`：Bridge 候选、正式构建、状态门禁与兼容性校验；
 - `docs/bridge-alignment-wizard-contract.md`：向导 CLI、模型候选、问题、追加扫描和 finalize 合同；
 - `docs/operator-runbook.md`：本地运行、验证和排障；
+- `docs/casebook-pilot-contract.md`：S5 Casebook、内测回收与引导路由合同；
 - `docs/handoff.md`：当前完成度、阻塞和唯一下一步。
