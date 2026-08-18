@@ -1,0 +1,5 @@
+{
+  "schema_version": "data_foundation_query_result.v2",
+  "referenced_source_ids": ["cash"],
+  "rows": [{"campus": "north", "net_cash": 1200}]
+}

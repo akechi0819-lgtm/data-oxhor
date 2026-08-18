@@ -19,8 +19,8 @@ Data Foundation  业务语义组          宿主原生交付
      │              │                    │
      └──────────────┴──────────┬─────────┘
                                │
-                  真实使用中的按需沉淀
-               Skill / Template / Pack / Bridge
+             本地案例与内测反馈的按需沉淀
+     Casebook / Feedback / Skill / Template / Pack / Bridge
 ```
 
 核心边界：
@@ -31,7 +31,7 @@ Data Foundation  业务语义组          宿主原生交付
 - Skill 指导模型，确定性工具负责数据权限、身份、计算和文件生成；
 - CLI 是 Data Foundation 的唯一公开入口；宿主可替换性不依赖 MCP；
 - 只读、Snapshot 不覆盖、unresolved 阻断和文件验收由对应模块的确定性代码承担，不建设独立强化层；
-- 宿主 Session 是短期对话记忆，长期业务学习进入独立工作区；
+- 宿主 Session 是短期对话记忆；客户工作区的 Casebook 保存已确认、可回查的业务案例；
 - DeepSeek 专属交互 UI 可以增强体验，但不能成为核心分析能力的唯一入口。
 
 ## 已实现
@@ -70,9 +70,11 @@ python3 -m unittest discover -s tests -p 'test_*.py' -v
 
 `data-foundation` 的完整命令和输入合同见 [接入指南](./docs/integration-guide.md)，Harness 启动与排障见 [运维手册](./docs/operator-runbook.md)。
 
-## 下一步
+## 当前状态
 
-当前处于 S4 性能回归与真实使用：Codex 与 DeepSeek Harness 已完成主线 Bridge 的分析与可打开 PPTX 生成验证。接下来以现金明细和工单数据，通过新版受控查询重新生成带 `referenced_source_ids`、哈希和 `key_queries` 的冻结分析，比较共同 Quick 入口的确定性工具耗时；旧冻结文件会被明确阻断。PPT 内容、页序和结构由每次自然语言需求决定，不固化月报模板；复杂任务才走 PPT Master Default。首轮验收关闭自动更新、外部研究、生图、TTS、旁白和本地 Web 辅助界面。未具备工作时间、请假和通勤事实时，当前未占用时段只能表述为候选空档，不得称真实可用时间。S4 后进入真实使用，重复需求再沉淀 Skill 或模板，不预建后续平台。企业口径继续进入 Bridge，不回填 Pack 或 Data Foundation。
+S5「Casebook、内测回收与引导路由」已完成：客户工作区支持案例候选/确认/检索/证据校验、版本化内测评价、默认脱敏反馈 ZIP、用户授权证据和本地引导。入口为 `python3 -m interfaces.casebook_pilot --help`，完整边界见 [S5 合同](./docs/casebook-pilot-contract.md)。
+
+S4 Quick 的真实主线性能回归仍暂时挂起：代码、预检和自动化回归已具备，但新版冻结分析的双宿主 Quick 端到端验收尚未补齐。该项恢复时继续使用主线 Bridge 的现金明细与工单输入，不引入教务数据。
 
 ## 文档导航
 
@@ -84,5 +86,6 @@ python3 -m unittest discover -s tests -p 'test_*.py' -v
 - [Bridge 对齐向导合同](./docs/bridge-alignment-wizard-contract.md)
 - [运维手册](./docs/operator-runbook.md)
 - [S4 Quick PPT 宿主提示词](./docs/s4-ppt-quick-prompt.md)
+- [S5 Casebook、内测回收与引导路由合同](./docs/casebook-pilot-contract.md)
 - [交接状态](./docs/handoff.md)
 - [DeepSeek Harness 调研卡](./research/projects/deepseek-harness.md)

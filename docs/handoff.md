@@ -18,6 +18,7 @@
 - S4 短 PPT 性能链已收敛：`tools/s4_ppt_quick.py` 与 `tools/run_s4_local.sh quick-ppt` 统一 Codex/DeepSeek Harness 的冻结身份校验、Quick 初始化、最终 SVG checker 和 Quick export；不创建项目侧 Spec/Confirm/Renderer。
 - Data Foundation 的受控查询结果现记录实际引用的 landing 关系与 `referenced_source_ids`。Quick 冻结清单以这些来源凭据、同一 Snapshot 和证据哈希限制交付，旧冻结格式一律阻断。
 - Codex 与 DeepSeek Harness 均已完成主线 Bridge 的分析和 PPTX 生成；Codex 产物保存在 `runs/codex_mainbridge_acceptance_20260817/ppt/exports/`，Harness 的最终 PPTX 位于 `runs/deepseek_main_bridge_test_20260817/new_revenue_gap_20260818/projects/tanggu_cash_gap_ppt169_ppt169_20260818/exports/`。这两项宿主能力不再是施工阻塞。
+- 2026-08-18 已决定在 S4 后增加 S5「Casebook、内测回收与引导路由」：`runs/` 只作为客户本地原始证据，已确认案例复制最小可回查证据；内测用户主动导出默认脱敏反馈包，开发侧回收后再转为回归测试、Bridge、Skill/模板或 Pack 改进。
 
 ## 当前合同
 
@@ -32,13 +33,16 @@
 - Snapshot 只用于运行兼容性校验，不写入 Bridge；Bridge 不通过 `latest` 或修改时间选择状态。
 - 真实源工作簿、DuckDB、Parquet 和运行目录不进入 Git。
 
-## 当前未完成
+## 当前状态
 
-- 用主线 Bridge 的现金明细与工单数据重新执行受控查询，生成带来源凭据的冻结分析；再由两个已验证宿主以共同 Quick 入口完成性能回归。不得引入教务数据、既有教务 Bridge 或 fake adapter 绕过门禁。
+- S4 Quick 真实主线回归暂时挂起：用主线 Bridge 的现金明细与工单数据重新执行受控查询，生成带来源凭据的冻结分析；再由两个已验证宿主以共同 Quick 入口完成性能回归。不得引入教务数据、既有教务 Bridge 或 fake adapter 绕过门禁。
+- S5 已完成：S5.1 Casebook 候选/确认/检索/证据校验，S5.2 版本化内测测试包、本地评价与用户主动反馈包导出/校验，S5.3 工作区引导路由与重复问题候选沉淀提示。集成 CLI 为 `python3 -m interfaces.casebook_pilot`；合同、目录/schema、错误语义和测试矩阵见 [S5 合同](./casebook-pilot-contract.md#7-s51--s53-施工合同2026-08-18已实现)。
 
-## 唯一下一步
+## 后续施工项
 
-继续 S4 性能回归：用主线 Bridge 的现金明细与工单数据生成同一份新版冻结分析，由 Codex 与 DeepSeek Harness 原生 Agent 通过共同 Quick 入口完成同题 PPT；核对 `validation/quick_run.json` 中预检、最终 checker、export/postflight 的退出码与耗时，并确认无 Confirm UI、Live Preview、first-page checker 或 `finalize_svg.py`。复杂交付才直接走 `ppt-master` Default。随后做 PPTX 打开、逐页渲染、内容非空与数字回查。不要开发 Customer Profile、清理按钮、Renderer、HTML 平台或 Deliverables 系统。
+S5 已完成：合成/脱敏 fixture 覆盖案例、反馈、授权、重打包 ZIP 与人工评价门禁；本地临时客户工作区完成了现有对齐向导、受控查询 artifact、Casebook、评价、默认反馈导出/复核的端到端验收。独立审查的有效发现均已修复并回归。完整边界见 [S5 合同](./casebook-pilot-contract.md)。
+
+S4 Quick 性能回归不删除，保持挂起；恢复时继续执行新版冻结分析、双宿主 Quick、`validation/quick_run.json`、PPTX 打开与数字回查。不要把已有 Default PPTX 当成该验收结果。
 
 不要增加 MCP、独立强化插件、完整 Artifact 平台或通用工作流编排；新增治理必须对应可复现失败或明确客户要求。
 
@@ -49,6 +53,7 @@
 - fake adapter 只用于候选合同测试；正式推理由 Codex 或 DeepSeek Harness 的原生 Agent 承担，不建设宿主 Adapter；
 - PPT Master attribution guard 可通过；当前工作树摘要与 pinned metadata 不一致，不能将其写作“完整性已通过”。该风险不影响已完成的 Codex/Harness 主线生成验证，但在升级或重新装配前必须按发布包复核。
 - 当前工作树中的上游 PPT Master 实际文件树为 13,002 个文件，而 pinned metadata 记录 12,907 个；本次未修改上游目录或摘要，完整性测试失败时需先按发布包重新核对装配来源。
+- S5 不能以自动上传、自动打包 `runs/`、跨客户检索、宿主 Session 复制、向量库或自动发布 Skill 作为捷径；反馈证据只在用户明确授权时导出。
 
 ## 技术依据
 
@@ -56,4 +61,5 @@
 - [接入指南](./integration-guide.md)
 - [Company Bridge v1 合同](./company-bridge-contract.md)
 - [Bridge 对齐向导 v1 合同](./bridge-alignment-wizard-contract.md)
+- [Casebook、内测回收与引导路由合同](./casebook-pilot-contract.md)
 - [DeepSeek Harness 调研卡](../research/projects/deepseek-harness.md)

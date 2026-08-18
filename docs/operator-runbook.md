@@ -58,7 +58,7 @@ python3 -m unittest discover -s tests -p 'test_*.py' -v
 .venv/bin/python -m unittest tests.foundation.test_query_service tests.test_s4_ppt_quick -v
 ```
 
-Codex 与 DeepSeek Harness 已完成主线 Bridge 的分析和 PPTX 生成验证。S4 后续只需用现金明细和工单的新版冻结分析做 Quick 性能回归，核对 `validation/quick_run.json` 中确定性命令的耗时与退出码；这不是 Session 或 Deliverables 平台开发。首轮关闭自动更新、外部研究、生图、TTS、旁白和本地 Web 辅助界面。
+Codex 与 DeepSeek Harness 已完成主线 Bridge 的分析和 PPTX 生成验证。S5 Casebook、内测反馈回收和工作区引导路由已完成，可通过 `python3 -m interfaces.casebook_pilot --help` 检查入口。S4 后续的新版冻结分析 Quick 性能回归当前挂起，恢复时核对 `validation/quick_run.json` 中确定性命令的耗时与退出码；这不是 Session 或 Deliverables 平台开发。首轮关闭自动更新、外部研究、生图、TTS、旁白和本地 Web 辅助界面。
 
 首次或干净机器上的 S4 PPT 运行环境必须由项目脚本建立，不依赖系统 Python：
 

@@ -1,0 +1,28 @@
+{
+  "schema_version": "pilot_test_package.v1",
+  "pack_id": "pilot_synthetic",
+  "version": "1.0.0",
+  "title": "Synthetic pilot package",
+  "cards": [
+    {
+      "card_id": "cash_diagnosis",
+      "primary_role": "operator",
+      "question": "Why did synthetic cash change?",
+      "allowed_sources": ["cash"],
+      "expected_key_facts": ["compare periods"],
+      "forbidden_conclusions": ["do not call negative cash a refund without evidence"],
+      "expected_delivery": "short diagnosis",
+      "acceptance_rules": ["cite the allowed source"]
+    },
+    {
+      "card_id": "source_boundary",
+      "primary_role": "operator",
+      "question": "Can unrelated data be used?",
+      "allowed_sources": ["cash"],
+      "expected_key_facts": ["use only allowed sources"],
+      "forbidden_conclusions": ["do not infer unlisted data"],
+      "expected_delivery": "boundary statement",
+      "acceptance_rules": ["state the limitation"]
+    }
+  ]
+}
