@@ -4,6 +4,7 @@ import hashlib
 import json
 import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -19,7 +20,7 @@ def tree_digest(root: Path) -> tuple[str, int]:
     files = 0
     for path in sorted(
         path for path in root.rglob("*")
-        if path.is_file() and path.name != ".DS_Store"
+        if path.is_file() and path.name != ".DS_Store" and "__pycache__" not in path.parts
     ):
         relative = path.relative_to(root).as_posix()
         digest.update(f"{relative}\0".encode("utf-8"))
@@ -30,6 +31,16 @@ def tree_digest(root: Path) -> tuple[str, int]:
 
 
 class PptMasterIntegrityTests(unittest.TestCase):
+    def test_tree_digest_ignores_python_runtime_cache(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "module.py").write_text("value = 1\n", encoding="utf-8")
+            expected = tree_digest(root)
+            cache = root / "__pycache__"
+            cache.mkdir()
+            (cache / "module.cpython-312.pyc").write_bytes(b"runtime cache")
+            self.assertEqual(tree_digest(root), expected)
+
     def test_pinned_metadata_and_complete_tree(self) -> None:
         metadata = json.loads(METADATA_PATH.read_text(encoding="utf-8"))
         self.assertEqual(metadata["repository"], "https://github.com/hugohe3/ppt-master")
