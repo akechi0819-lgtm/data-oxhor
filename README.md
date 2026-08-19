@@ -55,19 +55,18 @@ Data Foundation  业务语义组          宿主原生交付
 - 所有 Sheet 无需 cleaning plan 直接进入通用 `landing.column_N`，并发布不可变 DuckDB/Parquet Snapshot；
 - Schema 描述、数据质量问题、受控只读 SQL、保存查询；
 - `run_id`、Snapshot 身份、源 SHA-256 绑定和最小 Artifact manifest；受控查询结果会记录实际引用的 landing 关系和 `referenced_source_ids`，供冻结分析交付校验；
-- Education Business Pack v1：28 个概念、20 个指标、26 个维度、三段客户旅程、3 个漏斗和 7 个诊断 Playbook；
+- Education Business Pack v1：行业概念、指标、维度、客户旅程、漏斗和诊断 Playbook；
 - Pack 的 `validate` / `describe` CLI 与确定性交叉引用校验；
-- Company Bridge 1.2.0：3 个当前源合同、10 个字段映射、105 条归一规则和 1 个企业 Override；
+- Company Bridge 1.2.0：当前源合同、企业字段映射、归一规则和 Override；
 - Bridge 对齐向导 v1：提供自包含 `Input/Work/Output` 客户工作区、稳定数据源槽位和月度替换同步；工作区只保留当前 Snapshot，刷新成功后清理旧 Snapshot，宿主原生模型提出候选并收集关键确认，确定性服务自动生成 confirmed_review、build 和 Snapshot validate；
 - 首次部署引导层 v1：`onboarding doctor/init/import-data/sync/status/handoff` 统一检查运行时、初始化客户工作区、复制基础工作簿、发布 Snapshot，并向宿主 Agent 交接 Bridge 对齐会话；不自动替用户确认或 finalize Bridge；
 - Codex 自然语言引导 Skill：`.agents/skills/first-deployment-onboarding`，用户可直接说“帮我首次部署/导入数据/建立 Bridge”，由 Codex 调用引导层并逐步询问缺失信息；
 - 项目 Skill `diagnose-source-overlap`：提示模型主动检查全量刷新、日期范围、候选业务键、重复率和冲突；客户确认后用现有保存查询固化去重，不增加专用重叠平台；
 - 项目 Skill `ppt-master` v4.7.0 已按固定上游提交装配到 `.agents/skills/ppt-master`，保留 MIT 许可证、模板、脚本、工作流和 notices；旁边的 `ppt-master.upstream.json` 记录来源与完整树摘要，并有离线完整性回归测试；
 - 短数据 PPT 通过 `tools/run_s4_local.sh quick-ppt prepare|finalize` 走共同 Quick 路线：冻结分析身份校验、官方最终 checker 与 Quick exporter；不建设第二套 Renderer、确认或 Spec 流程；
-- 本机全局 DeepSeek Harness `0.1.0-rc.6`，Web 健康检查通过。
-- Harness 真实模型回合可用，并已在项目 Workspace 通过 Shell 执行 Data Foundation `--help`，退出码为 0，发现全部 7 个子命令。
+- DeepSeek Harness 可作为默认宿主运行；宿主健康检查、模型回合和受控 Shell 能力不属于本项目 Python 核心。
 
-真实三表已在 Harness 与 Data Foundation v2 上完成入仓、描述、质量和查询验证；主线 Bridge 1.2.0 对应现金明细与工单数据，S4 不再增加教务端口数据。教务跨端口 Bridge 验收是已完成的 S3.5 历史验证，不作为当前 PPT 交付输入。向导已用陌生四表 fixture 完成追加数据字典、关键确认和最终 build/validate。项目不建设正式宿主模型 Adapter、Customer Profile、项目侧 Session 管理或独立输出平台。MCP 不在当前开发计划内。
+主线 Bridge 1.2.0 对应现金明细与工单数据；项目不建设正式宿主模型 Adapter、Customer Profile、项目侧 Session 管理或独立输出平台。MCP 不在当前开发计划内。
 
 Data Foundation 不再保存企业 Sheet 白名单、业务列名或 `semantic.registration_cash`。企业表头与 `column_N` 的对应关系、枚举和清洗口径只进入 Company Bridge。
 
@@ -114,7 +113,7 @@ python3 -m interfaces.onboarding handoff --workspace customers/company_customer 
 
 S5「Casebook、内测回收与引导路由」已完成：客户工作区支持案例候选/确认/检索/证据校验、版本化内测评价、默认脱敏反馈 ZIP、用户授权证据和本地引导。入口为 `python3 -m interfaces.casebook_pilot --help`，完整边界见 [S5 合同](./docs/casebook-pilot-contract.md)。
 
-S4 Quick 的真实主线性能回归仍暂时挂起：代码、预检和自动化回归已具备，但新版冻结分析的双宿主 Quick 端到端验收尚未补齐。该项恢复时继续使用主线 Bridge 的现金明细与工单输入，不引入教务数据。
+S4 Quick 的真实性能回归仍待补齐；恢复时继续使用主线 Bridge 的现金明细与工单输入。
 
 ## 文档导航
 
@@ -129,4 +128,3 @@ S4 Quick 的真实主线性能回归仍暂时挂起：代码、预检和自动�
 - [S4 Quick PPT 宿主提示词](./docs/s4-ppt-quick-prompt.md)
 - [S5 Casebook、内测回收与引导路由合同](./docs/casebook-pilot-contract.md)
 - [交接状态](./docs/handoff.md)
-- [DeepSeek Harness 调研卡](./research/projects/deepseek-harness.md)

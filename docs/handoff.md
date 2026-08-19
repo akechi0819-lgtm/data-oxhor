@@ -1,25 +1,10 @@
 # 项目交接状态
 
-## 截止 2026-08-19 已完成
+## 当前状态
 
-- DeepSeek Harness `0.1.0-rc.6` 已完成 Web、Provider、真实模型、Workspace 和受控 Shell 基础验证；业务核心保持宿主无关。
-- Data Foundation v2 已实现 XLSX 全 Sheet 探查、通用 `landing.column_N`、不可变 DuckDB/Parquet Snapshot、质量查询、受控只读 SQL 和保存查询。
-- 三份真实工作簿已完成 `inspect → ingest → describe → quality → query`；14 个 Sheet 无需 cleaning plan 全量 landing。
-- Education Business Pack `education_training_operations_cn` v1.0.0 已完成，包含 28 个概念、20 个指标、26 个维度、3 条旅程、3 个漏斗和 7 个诊断 Playbook。
-- Company Bridge 合同、历史候选扫描、人工复核门禁、CLI 和 Snapshot 兼容性校验已完成。
-- 当前 reviewed v3 含 119 个 confirmed 候选；正式 Bridge 1.2.0 含 3 个源合同、10 个字段映射、105 条归一规则、1 个 Override、0 个 unresolved。
-- Bridge 1.2.0 已通过真实 Data Foundation v2 Snapshot 兼容性校验；企业字段与列位不再硬编码在 Data Foundation。
-- Bridge 对齐向导 S3.5 已完成：显式会话、Snapshot 画像、候选合同、少量关键确认、追加目录只读扫描、确认不可覆盖、自动 confirmed_review/build/validate。
-- 陌生四表 + 七月到八月当前文件替换 + 补充数据字典 fixture 已覆盖工作区内数据管理、同公司语义复用、新公司隔离、关键问题阻断和最终 Bridge；工作区只保留当前 Snapshot，成功刷新清理旧 Run，失败或未完成会话不切换。
-- 2026-08-16 的 S3.5 记录曾用三张真实教务表完成跨端口结构识别和查询验证；这项历史验证已经结束，当前主线不再增加教务数据或重建教务 Bridge。
-- 真实运行暴露并修复空候选会话可 finalize 的门禁缺陷；现在必须先 propose。当前 Harness headless 对单次长结构化任务异常只返回内部 `SESSION_ID`，短步骤原生 Agent 调用可用；这是宿主已知风险，不通过建设正式 Adapter 或第二层 Agent 解决，也不阻断 S3.5 完成。
-- 重叠处理边界已确定：不新增 Bridge 重叠模块。项目 Skill `diagnose-source-overlap` 已通过 Harness 真实调用，模型用 Data Foundation `describe/query` 自主检查日期范围、候选业务键、重复与冲突，确认后以保存查询固化 SQL；日期区间交集本身不能触发删除。
-- S4 已按官方 Skill Installer 装配 `hugohe3/ppt-master` v4.7.0（提交 `e8323bfaee249cffe1301ec40fca5875eb544d46`），保留 MIT、模板、脚本、工作流和 notices；provenance、精确依赖锁和离线完整性测试已加入项目。PPT 交付合同保持通用，不固定教务页序；首轮禁用自动更新、外部研究、生图、TTS、旁白和本地 Web 辅助界面。
-- S4 短 PPT 性能链已收敛：`tools/s4_ppt_quick.py` 与 `tools/run_s4_local.sh quick-ppt` 统一 Codex/DeepSeek Harness 的冻结身份校验、Quick 初始化、最终 SVG checker 和 Quick export；不创建项目侧 Spec/Confirm/Renderer。
-- Data Foundation 的受控查询结果现记录实际引用的 landing 关系与 `referenced_source_ids`。Quick 冻结清单以这些来源凭据、同一 Snapshot 和证据哈希限制交付，旧冻结格式一律阻断。
-- Codex 与 DeepSeek Harness 均已完成主线 Bridge 的分析和 PPTX 生成；Codex 产物保存在 `runs/codex_mainbridge_acceptance_20260817/ppt/exports/`，Harness 的最终 PPTX 位于 `runs/deepseek_main_bridge_test_20260817/new_revenue_gap_20260818/projects/tanggu_cash_gap_ppt169_ppt169_20260818/exports/`。这两项宿主能力不再是施工阻塞。
-- 2026-08-18 已决定在 S4 后增加 S5「Casebook、内测回收与引导路由」：`runs/` 只作为客户本地原始证据，已确认案例复制最小可回查证据；内测用户主动导出默认脱敏反馈包，开发侧回收后再转为回归测试、Bridge、Skill/模板或 Pack 改进。
-- 2026-08-19 发布前功能对齐复核通过：项目 `.venv` 全量测试 102/102 通过，S4 PPT 预检通过，Pack 与 Company Bridge 校验通过，所有公开 CLI 帮助可调用，首次部署 `init → status` 烟测通过；PPT Master attribution guard 与 pinned tree digest 已复核一致。
+项目主线已完成 Data Foundation、Business Pack、Company Bridge、Bridge 对齐向导、首次部署引导层、Casebook/内测反馈和双宿主交付验证。业务核心保持宿主无关；客户通过自然语言进入 onboarding、Bridge 对齐、受控分析、案例沉淀和文件交付。
+
+PPT Master v4.7.0 保持为固定上游完整树，Quick 入口仍由项目代码编排；正式 Bridge 和 reviewed 证据继续作为当前产品基线。
 
 ## 当前合同
 
@@ -48,16 +33,9 @@ Codex 的自然语言入口见 [首次部署自然语言 Skill](../.agents/skill
 - Snapshot 只用于运行兼容性校验，不写入 Bridge；Bridge 不通过 `latest` 或修改时间选择状态。
 - 真实源工作簿、DuckDB、Parquet 和运行目录不进入 Git。
 
-## 当前状态
+## 唯一待办
 
-- S4 Quick 真实主线回归暂时挂起：用主线 Bridge 的现金明细与工单数据重新执行受控查询，生成带来源凭据的冻结分析；再由两个已验证宿主以共同 Quick 入口完成性能回归。不得引入教务数据、既有教务 Bridge 或 fake adapter 绕过门禁。
-- S5 已完成：S5.1 Casebook 候选/确认/检索/证据校验，S5.2 版本化内测测试包、本地评价与用户主动反馈包导出/校验，S5.3 工作区引导路由与重复问题候选沉淀提示。集成 CLI 为 `python3 -m interfaces.casebook_pilot`；合同、目录/schema、错误语义和测试矩阵见 [S5 合同](./casebook-pilot-contract.md#7-s51--s53-施工合同2026-08-18已实现)。
-
-## 后续施工项
-
-S5 已完成：合成/脱敏 fixture 覆盖案例、反馈、授权、重打包 ZIP 与人工评价门禁；本地临时客户工作区完成了现有对齐向导、受控查询 artifact、Casebook、评价、默认反馈导出/复核的端到端验收。独立审查的有效发现均已修复并回归。完整边界见 [S5 合同](./casebook-pilot-contract.md)。
-
-S4 Quick 性能回归不删除，保持挂起；恢复时继续执行新版冻结分析、双宿主 Quick、`validation/quick_run.json`、PPTX 打开与数字回查。不要把已有 Default PPTX 当成该验收结果。
+S4 Quick 真实性能回归仍待补齐。恢复时使用主线 Bridge 的现金明细与工单输入，通过新版冻结分析和共同 Quick 入口完成双宿主回归；不引入教务数据或 fake adapter 绕过门禁。
 
 不要增加 MCP、独立强化插件、完整 Artifact 平台或通用工作流编排；新增治理必须对应可复现失败或明确客户要求。
 
@@ -76,4 +54,3 @@ S4 Quick 性能回归不删除，保持挂起；恢复时继续执行新版冻�
 - [Company Bridge v1 合同](./company-bridge-contract.md)
 - [Bridge 对齐向导 v1 合同](./bridge-alignment-wizard-contract.md)
 - [Casebook、内测回收与引导路由合同](./casebook-pilot-contract.md)
-- [DeepSeek Harness 调研卡](../research/projects/deepseek-harness.md)

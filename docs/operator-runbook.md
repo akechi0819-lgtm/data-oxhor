@@ -60,13 +60,13 @@ python3 -m interfaces.onboarding --help
 sh tools/run_tests.sh -v
 ```
 
-当前回归包括 Quick 与查询来源凭据测试。Pack 与主线 Bridge 校验状态均为 `passed`；当前 `.agents/skills/ppt-master` 文件树摘要与 pinned metadata 已复核一致，完整测试通过。向导测试中的 fake adapter 只验证候选合同，不代表或替代宿主；真实 Harness 教务案例是 S3.5 历史验证。`finalize` 必须在 `propose` 产生至少一个候选后才能执行；空候选返回 `CANDIDATES_MISSING`。测试失败时先区分：Python/DuckDB 版本、外部 Golden Case 是否可读、源 SHA-256 是否变化、Pack/Bridge 交叉引用错误，还是代码回归。不要通过修改 Golden 值掩盖源文件变化。
+当前回归包括 Quick 与查询来源凭据测试。Pack 与主线 Bridge 校验状态均为 `passed`；当前 `.agents/skills/ppt-master` 文件树摘要与 pinned metadata 已复核一致，完整测试通过。向导测试中的 fake adapter 只验证候选合同，不代表或替代宿主；`finalize` 必须在 `propose` 产生至少一个候选后才能执行，空候选返回 `CANDIDATES_MISSING`。测试失败时先区分：Python/DuckDB 版本、外部 Golden Case 是否可读、源 SHA-256 是否变化、Pack/Bridge 交叉引用错误，还是代码回归。不要通过修改 Golden 值掩盖源文件变化。
 
 ## 4. 模型和密钥
 
 模型 Provider 与 API Key 已在 Harness 的机器级设置中配置，不写入仓库、客户配置样例或日志。2026-08-14 已确认：Harness 真实模型回合可用，模型在项目 Workspace 通过 Shell 执行 `python3 -m interfaces.data_foundation --help`，退出码为 0，并发现全部 7 个子命令。
 
-真实主线数据已经通过 `inspect → ingest → describe → quality → query`；教务 Bridge 只保留为 S3.5 历史兼容性验证，当前 S4 不再导入教务数据。S4 已把固定版本 PPT Master 放入 `.agents/skills/ppt-master`，可用以下命令分别检查 attribution 与项目回归：
+真实主线数据已经通过 `inspect → ingest → describe → quality → query`；当前 S4 不导入教务数据。S4 已把固定版本 PPT Master 放入 `.agents/skills/ppt-master`，可用以下命令分别检查 attribution 与项目回归：
 
 ```bash
 .venv/bin/python .agents/skills/ppt-master/scripts/attribution_guard.py
@@ -75,10 +75,10 @@ sh tools/run_tests.sh -v
 
 Codex 与 DeepSeek Harness 已完成主线 Bridge 的分析和 PPTX 生成验证。S5 Casebook、内测反馈回收和工作区引导路由已完成，可通过 `python3 -m interfaces.casebook_pilot --help` 检查入口。S4 后续的新版冻结分析 Quick 性能回归当前挂起，恢复时核对 `validation/quick_run.json` 中确定性命令的耗时与退出码；这不是 Session 或 Deliverables 平台开发。首轮关闭自动更新、外部研究、生图、TTS、旁白和本地 Web 辅助界面。
 
-首次或干净机器上的 S4 PPT 运行环境必须由项目脚本建立，不依赖系统 Python：
+首次或干净机器上的 S4 PPT 运行环境使用统一项目安装脚本，不依赖系统 Python：
 
 ```bash
-sh tools/install_s4_ppt_runtime.sh
+sh tools/install_runtime.sh ppt
 .venv/bin/python tools/s4_ppt_preflight.py
 ```
 
