@@ -92,6 +92,7 @@ def start_session(*, root: Path, session_id: str) -> dict[str, Any]:
         "session_id": session_id,
         "status": "ready_for_model",
         "snapshot_id": config["current_snapshot_id"],
+        "business_port": config.get("business_port", "general"),
         "profile": profile,
         "snapshot_description": description,
         "snapshot_quality": quality,

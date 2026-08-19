@@ -231,11 +231,12 @@ def repeat_candidates(*, root: Path, now: datetime | None = None) -> dict[str, A
     confirmed = root / "Work" / "Casebook" / "confirmed"
     if confirmed.is_dir():
         for path in sorted(confirmed.glob("*/case.json")):
-            if path.is_symlink() or not _inside(root, path):
+            case_path = path.parent
+            if case_path.is_symlink() or path.is_symlink() or not _inside(root, case_path):
                 _error("PATH_OUTSIDE_WORKSPACE", "Casebook path escapes the workspace")
             document = load_json(path)
             try:
-                _validate_case(document, case_path=path.parent, expected_status="confirmed")
+                _validate_case(document, case_path=case_path, expected_status="confirmed")
             except CasebookError as exc:
                 raise RouterError(exc.code, str(exc), path=exc.errors[0]["path"]) from exc
             if document["company_id"] != company_id:
@@ -261,6 +262,20 @@ def repeat_candidates(*, root: Path, now: datetime | None = None) -> dict[str, A
             "case_ids": [case["case_id"] for case in cases],
             "evaluation_ids": sorted({evaluation_id for case in cases for evaluation_id in case["evaluation_ids"]}),
             "window_days": 90,
+            "skill_draft": {
+                "schema_version": "skill_candidate_draft.v1",
+                "title": f"{category} analysis for {role}",
+                "purpose": f"Repeatable {category} analysis workflow for the {role} role.",
+                "reusable_steps": [
+                    "Inspect the current Snapshot and validated Bridge.",
+                    "Search confirmed Casebook cases for method references.",
+                    "Re-run controlled read-only queries against the current Snapshot.",
+                    "State evidence, limits, and the requested delivery format.",
+                ],
+                "evidence_requirements": ["current_snapshot", "validated_bridge", "controlled_query_result"],
+                "forbidden_conclusions": ["Treat historical case numbers as current facts."],
+                "source_cases": [case["case_id"] for case in cases],
+            },
         }
         for (role, category), cases in sorted(grouped.items())
         if len(cases) >= 3

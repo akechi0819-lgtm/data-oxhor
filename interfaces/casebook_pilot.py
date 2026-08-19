@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from casebook.router import RouterError, guide, repeat_candidates
-from casebook.service import CasebookError, confirm_case, create_case, reject_case, search_cases, supersede_case, verify_case
+from casebook.service import CasebookError, capture_case, confirm_case, create_case, reject_case, search_cases, supersede_case, verify_case
 from pilot_feedback.service import (
     PilotFeedbackError,
     attach_evidence,
@@ -26,6 +26,7 @@ def build_parser() -> argparse.ArgumentParser:
     workspace.add_argument("--workspace", type=Path, required=True)
 
     command = commands.add_parser("case-create", parents=[workspace]); command.add_argument("--case-id", required=True); command.add_argument("--primary-role", required=True); command.add_argument("--question-category", required=True); command.add_argument("--question", required=True); command.add_argument("--normalized-question", required=True); command.add_argument("--key-queries-json", required=True); command.add_argument("--evidence-json", required=True); command.add_argument("--summary", required=True); command.add_argument("--created-by", required=True); command.add_argument("--supersedes")
+    command = commands.add_parser("case-capture", parents=[workspace]); command.add_argument("--manifest", required=True, help="workspace-relative casebook_capture.v1 JSON manifest")
     for name in ("case-confirm", "case-reject"):
         command = commands.add_parser(name, parents=[workspace]); command.add_argument("--case-id", required=True); command.add_argument("--decided-by", required=True); command.add_argument("--decision-note", required=True)
     command = commands.add_parser("case-supersede", parents=[workspace]); command.add_argument("--case-id", required=True); command.add_argument("--superseding-case-id", required=True); command.add_argument("--decided-by", required=True); command.add_argument("--decision-note", required=True)
@@ -54,6 +55,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.command == "case-create":
             result = create_case(root=args.workspace, case_id=args.case_id, primary_role=args.primary_role, question_category=args.question_category, question=args.question, normalized_question=args.normalized_question, key_queries=_json(args.key_queries_json), evidence_sources=_json(args.evidence_json), summary=args.summary, created_by=args.created_by, supersedes=args.supersedes)
+        elif args.command == "case-capture": result = capture_case(root=args.workspace, manifest_path=args.manifest)
         elif args.command == "case-confirm": result = confirm_case(root=args.workspace, case_id=args.case_id, decided_by=args.decided_by, decision_note=args.decision_note)
         elif args.command == "case-reject": result = reject_case(root=args.workspace, case_id=args.case_id, decided_by=args.decided_by, decision_note=args.decision_note)
         elif args.command == "case-supersede": result = supersede_case(root=args.workspace, case_id=args.case_id, superseding_case_id=args.superseding_case_id, decided_by=args.decided_by, decision_note=args.decision_note)

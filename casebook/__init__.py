@@ -2,6 +2,7 @@
 
 from .service import (
     CasebookError,
+    capture_case,
     confirm_case,
     create_case,
     reject_case,
@@ -12,6 +13,7 @@ from .service import (
 
 __all__ = [
     "CasebookError",
+    "capture_case",
     "confirm_case",
     "create_case",
     "reject_case",

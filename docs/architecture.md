@@ -93,7 +93,9 @@ Session 存储、沙箱、用户审批、模型路由、工具选择和计划管
 
 Data Foundation v2 将每个 Sheet 原样落入 `landing.column_N`，并在 `ingest.sheets` 登记目标表。表头行、企业业务列名、枚举和清洗规则由 Company Bridge 保存；Data Foundation 不再包含特定源表映射或企业语义视图。
 
-向导工作区是可整体复制的客户产品目录：`Input` 保存当前数据与参考资料，`Work` 保存 Pack、当前指针、当前不可变 Snapshot 和单一会话文件，`Output` 保存正式 Bridge。源文件承担历史归档，工作区不保存 Snapshot 历史；刷新先成功发布并切换新 Snapshot，再清理旧 Run，失败或存在未完成会话时不动当前 Snapshot。仅保存已用 Snapshot ID，防止同名指向不同输入。路径相对工作区，不要求目录位于源码外；源码 checkout 仅通过 `.gitignore` 排除 `customers/`。宿主原生模型负责提出候选和理解客户回答，核心只校验候选、保存决定并确定性 build/validate，不依赖 Harness SDK 或 Codex SDK。旧 Bridge 只在 `company_id` 与 Pack 身份都相同时提供企业口径摘要，旧字段定位不会复用到新 Snapshot，也不在刷新后被标记为当前可运行 Bridge。
+首次部署先由宿主 Skill 询问业务端口（例如高中、初中、市场、运营、教学），再通过 onboarding CLI 初始化工作区、导入来源并发布 Snapshot。工作区配置中的 `business_port` 是用户选择的业务范围；`company_id` 只作为由工作区路径生成的内部隔离身份，不要求用户提供公司名称。Snapshot 发布后，Skill 自动调用 `handoff` 进入 Bridge 对齐；候选生成和关键口径确认仍由宿主原生 Agent 与用户完成。
+
+向导工作区是可整体复制的客户产品目录：`Input` 保存当前数据与参考资料，`Work` 保存 Pack、当前指针、当前不可变 Snapshot 和对齐会话文件，`Output` 保存正式 Bridge。源文件承担历史归档，工作区不保存 Snapshot 历史；刷新先成功发布并切换新 Snapshot，再清理旧 Run，失败或存在未完成会话时不动当前 Snapshot。仅保存已用 Snapshot ID，防止同名指向不同输入。路径相对工作区，不要求目录位于源码外；源码 checkout 仅通过 `.gitignore` 排除 `customers/`。宿主原生模型负责提出候选和理解客户回答，核心只校验候选、保存决定并确定性 build/validate，不依赖 Harness SDK 或 Codex SDK。旧 Bridge 只在 `company_id` 与 Pack 身份都相同时提供企业口径摘要，旧字段定位不会复用到新 Snapshot，也不在刷新后被标记为当前可运行 Bridge。
 
 一套正常客户工作区默认对应一家公司和一个主要角色。Codex 或 DeepSeek Harness 直接在该工作区使用 Data、Pack、Bridge 和项目 Skills；换公司或换角色时由宿主创建新会话或清理记忆，再进入另一工作区。不建设 Customer Profile、公司/角色路由器或项目清理按钮。
 

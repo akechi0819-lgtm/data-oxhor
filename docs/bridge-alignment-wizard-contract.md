@@ -72,7 +72,7 @@ SHA-256 只保留在 Data Foundation 的 inspect/ingest 内部，用于确认导
 
 ## 6. JSON 边界
 
-保留结构化 JSON 的机器边界：程序化候选输入/输出、工作区当前指针、单一 `session.json`、`confirmed_review`、正式 `company_bridge.v1`、Snapshot 验证结果、CLI 错误码和产物路径。
+保留结构化 JSON 的机器边界：程序化候选输入/输出、工作区当前指针、对齐会话的 `session.json`、`confirmed_review`、正式 `company_bridge.v1`、Snapshot 验证结果、CLI 错误码和产物路径。
 
 客户不需要操作 `profile.json`、`questions.json`、`decisions.jsonl` 等散文件；这些状态收敛在 `Work/Sessions/<session_id>/session.json`。正式 Bridge 仍必须经过现有确定性 schema 和引用校验，不能改成自由文本。
 

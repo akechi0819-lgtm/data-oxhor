@@ -2,6 +2,30 @@
 
 ## 1. 当前公开入口
 
+### 1.1 安装
+
+发布包按能力提供依赖集合：
+
+```bash
+python3 -m pip install "education-business-analyst[full]"
+```
+
+`core` 只安装数据分析运行时，`test` 是最小基础测试依赖；`tools/install_runtime.sh test` 会组合安装 `test + ppt`，因此包含 S4 的 `skia-pathops` 与 `uharfbuzz`；`ppt` 增加 Quick PPT 所需组件，`full` 覆盖当前项目的 Python 能力。源码用户可执行 `sh tools/install_runtime.sh test` 或 `sh tools/install_runtime.sh full`；不建议在系统 Python 中逐项安装。DeepSeek Harness、Office/字体和模型凭据仍属于宿主环境，不由 Python wheel 管理。
+
+首次部署引导层使用同一 Python 环境：
+
+```bash
+python3 -m interfaces.onboarding doctor --profile full
+python3 -m interfaces.onboarding init --workspace customers/company_customer --business-port operations
+python3 -m interfaces.onboarding import-data --workspace customers/company_customer --source-id cash --file /path/to/cash.xlsx
+python3 -m interfaces.onboarding sync --workspace customers/company_customer --snapshot-id snapshot_company_2026_08
+python3 -m interfaces.onboarding handoff --workspace customers/company_customer --session-id session_onboarding
+```
+
+引导层只编排确定性状态：运行时/Pack 检查、`Input/Work/Output` 初始化、工作簿复制、Snapshot 发布和 Bridge 会话交接。`import-data` 默认拒绝覆盖已有来源槽位，月度更新需显式 `--replace`；`sync` 使用新的显式 `snapshot_id`。引导层不会代替宿主 Agent 生成候选、理解自由回答、确认问题或发布正式 Bridge。所有命令 stdout 均为 `onboarding_result.v1` JSON；`doctor`、初始化、导入、同步和交接完成返回 0，仍需用户/宿主动作返回 2，合同或文件错误返回 1。
+
+完整输入、输出、错误和边界见 [首次部署引导层合同](./onboarding-contract.md)。
+
 Data Foundation 的公开入口是 Python CLI：
 
 ```bash
@@ -116,6 +140,8 @@ python3 -m interfaces.company_bridge validate \
 
 ## 6. Bridge 对齐向导
 
+首次部署优先使用上面的 `onboarding` 入口：用户只需选择业务端口，工作区路径会自动生成内部 `company_id`。下面是需要直接编排 Bridge 向导时的低层 CLI 示例，其中 `--company-id` 仅是机器身份字段，不是用户需要填写的公司名称。
+
 公开入口：
 
 ```bash
@@ -131,7 +157,7 @@ python3 -m interfaces.bridge_alignment_wizard sync-data \
 
 `init` 创建 `Input/Work/Output`，并把 Pack 与可选同公司 Bridge 复制进工作区。客户把当前文件分别放进 `Input/Data/<source_id>/`；每个稳定来源槽位只放一个 XLSX/XLSM。七月换八月时直接替换当前文件，再用新的显式 `snapshot_id` 执行 `sync-data`；向导先发布并切换新 Snapshot，再删除旧 Snapshot，工作区只保留当前 Snapshot。导入失败或当前 Snapshot 尚有未完成会话时不会切换。
 
-`start` 从当前 Snapshot 建立单一 `session.json`；同公司的旧 Bridge 仅作为企业口径参考，不代表已适配当前 Snapshot。宿主原生 Agent 负责读取画像、调用自己的模型、向客户提问，并通过 CLI 提交确定性决定与 `finalize`。现有 `propose --adapter module:attribute` 是程序化候选注入入口，供合同测试或批处理集成使用；它不是需要建设的 Harness/Codex Adapter 服务。`add-evidence` 把 U 盘/目录资料复制进 `Input/Reference`；`finalize` 写入 `Output/Bridge/<version>`。新公司不得传上一家 Bridge。
+`start` 从当前 Snapshot 建立一个对齐会话目录及其 `session.json`；同公司的旧 Bridge 仅作为企业口径参考，不代表已适配当前 Snapshot。宿主原生 Agent 负责读取画像、调用自己的模型、向客户提问，并通过 CLI 提交确定性决定与 `finalize`。现有 `propose --adapter module:attribute` 是程序化候选注入入口，供合同测试或批处理集成使用；它不是需要建设的 Harness/Codex Adapter 服务。`add-evidence` 把 U 盘/目录资料复制进 `Input/Reference`；`finalize` 写入 `Output/Bridge/<version>`。新公司不得传上一家 Bridge。
 
 CLI 完成当前阶段且无需客户输入时退出 `0`，等待确认或被关键问题阻断时退出 `2`，合同、身份、候选注入、文件或验证错误退出 `1`。stdout JSON 是宿主机器接口，客户不需要查看或编写。测试 fake adapter 只验证模型候选合同；生产运行由当前宿主原生 Agent 主控。精确合同见 [Bridge 对齐向导 v1 合同](./bridge-alignment-wizard-contract.md)。
 
@@ -144,12 +170,14 @@ python3 -m interfaces.casebook_pilot --help
 python3 -m interfaces.casebook_pilot guide --workspace customers/company_customer
 ```
 
-`runs/` 保持本地原始证据，不能作为长期记忆被整目录读取或自动上传。Casebook 使用 `case-create` 逐项指定证据，确认后用 `case-confirm`，检索使用 `case-search`；仅人工确认的案例复制最小查询证据、SQL、哈希、版本和限制，后续只能在同一客户与角色范围内检索；涉及当前事实时仍须查询当前 Snapshot。`case-verify` 可重算摘要和证据哈希。
+`runs/` 保持本地原始证据，不能作为长期记忆被整目录读取或自动上传。Casebook 使用 `case-create` 逐项指定证据，或使用 `case-capture --manifest Work/analysis_capture.json` 读取一个由宿主 Agent 明确整理的 `casebook_capture.v1` manifest；确认后用 `case-confirm`，检索使用 `case-search`。两种入口都复制最小查询证据、SQL、哈希、版本和限制，后续只能在同一客户与角色范围内检索；涉及当前事实时仍须查询当前 Snapshot。`case-verify` 可重算摘要和证据哈希。
 
 本地部署的内测用户用 `test-pack-import`、`evaluation-start`、`evaluation-record-card` 和 `evaluation-complete` 执行版本化测试包，主动用 `feedback-export --export-type metrics-only` 导出默认脱敏反馈；用户可用 `evaluation-attach-evidence` 显式选择附加证据，再导出 `evidence-approved`。`feedback-verify` 只校验 ZIP 清单和哈希，不联网。项目不自动上传客户工作簿、DuckDB、Parquet 或 `runs/`。引导路由只提示工作区初始化、数据同步、Bridge 对齐、分析或 `repeat-candidates` 候选沉淀，既不取代宿主 Session，也不自动发布 Skill。实现接口与目录合同以 [S5 合同](./casebook-pilot-contract.md) 为准。
+
+已完成 Bridge 对齐后，宿主 Agent 可使用项目级 [业务分析路由 Skill](../.agents/skills/business-analysis-routing/SKILL.md) 处理日常问题。它只规定最小调用顺序：先用 `guide` 检查当前工作区状态，再按角色/问题类别用 `case-search` 找同公司确认案例；案例只提供方法线索，当前数字必须通过 Data Foundation 以显式 `snapshot_id`、`run_id` 的只读 `describe`/`quality`/`query`（或确认后的 `run-saved-query`）重新取得。用户明确验收后才用 `case-create` 保存 candidate，交付物需回查本次查询；保存时的 Snapshot/Pack/Bridge 身份由当前工作区自动绑定，`casebook_capture.v1` manifest 不重复传入这些字段；`repeat-candidates` 只提出人工审核候选，不自动生成或发布 Skill。该 Skill 不实现 Agent Loop、Session、SQL 编译器或额外存储。
 
 ## 8. 项目级交付 Skills（S4）
 
 S4 不新增业务 CLI 或输出平台。项目已将上游 `hugohe3/ppt-master` v4.7.0（提交 `e8323bfaee249cffe1301ec40fca5875eb544d46`）固定版本装配到 `.agents/skills/ppt-master`，MIT 许可证、发布包 SHA-256 和树摘要见 `.agents/skills/ppt-master.upstream.json`；离线检查会执行其 `scripts/attribution_guard.py`。电子表格和数据可视化先使用宿主原生能力，不增加项目依赖。项目只增加 `tools/s4_ppt_quick.py` 作为宿主无关的 Quick 编排入口，不复制 PPT Master 的 SVG、模板或 Renderer 实现。
 
-宿主通过自然语言需求决定直接回答、表格/查询结果或 PPTX，PPT 不采用固定月报结构或页序。分析已冻结且没有复杂交付要求时，Codex 与 DeepSeek Harness 都使用 [S4 Quick PPT 宿主提示词](./s4-ppt-quick-prompt.md) 和同一 `quick-ppt prepare/finalize` 入口；冻结清单以 Snapshot、SHA-256 与由受控查询真实写入的 `referenced_source_ids` 约束可用查询证据，入口会复核导入副本，不接受 manifest 自报的来源作为唯一凭据。当前主线只允许 `company_bridge.v1_2_0` 的现金明细与工单来源，教务数据不属于 S4 交付输入。模板、人工确认、图片、预览、讲稿、旁白或复杂动画才进入 PPT Master Default。首轮验收只使用本地数据和原生可编辑 PPTX，关闭自动更新、外部研究、生图、TTS、旁白和本地 Web 辅助界面。缺少工作时间、请假和通勤规则时，当前未占用只能称“候选空档”。历史教务验证边界见 [S4 历史教务验证](./s4-teaching-validation.md)。文件必须可打开、内容非空且关键数字可回查到同一只读查询结果。
+宿主通过自然语言需求决定直接回答、表格/查询结果或 PPTX，PPT 不采用固定月报结构或页序。分析已冻结且没有复杂交付要求时，Codex 与 DeepSeek Harness 都使用 [S4 Quick PPT 宿主提示词](./s4-ppt-quick-prompt.md) 和同一 `quick-ppt prepare/finalize` 入口；冻结清单以 Snapshot、SHA-256 与由受控查询真实写入的 `referenced_source_ids` 约束可用查询证据，入口会复核导入副本，不接受 manifest 自报的来源作为唯一凭据。当前主线只允许 `company_bridge.v1_2_0` 的现金明细与工单来源，历史教务验收不属于当前交付输入。模板、人工确认、图片、预览、讲稿、旁白或复杂动画才进入 PPT Master Default。首轮验收只使用本地数据和原生可编辑 PPTX，关闭自动更新、外部研究、生图、TTS、旁白和本地 Web 辅助界面。缺少工作时间、请假和通勤规则时，当前未占用只能称“候选空档”。文件必须可打开、内容非空且关键数字可回查到同一只读查询结果。

@@ -30,6 +30,7 @@
 - `company_bridge/` 已提供候选扫描、人工复核门禁、正式构建和 Snapshot 兼容性校验；当前 reviewed v3 生成正式 Bridge 1.2.0，映射 3 个真实 landing 源合同；
 - 真实三表已通过 Data Foundation v2 全量 landing，Bridge 1.2.0 已对同一 Snapshot 兼容性校验通过；
 - `bridge_alignment/` 与 `interfaces/bridge_alignment_wizard.py` 已提供 `start`、`propose`、`answer`、`add-evidence`、`finalize`，支持同公司口径复用、新公司隔离、追加只读证据、关键歧义阻断和自动 build/validate；核心不包含宿主 SDK、Agent Loop 或模型调度；
+- `onboarding/` 与 `interfaces/onboarding.py` 已提供 `doctor`、`init`、`import-data`、`sync`、`status`、`handoff`；首次部署由用户选择 `business_port`（如高中、初中、市场、运营、教学），内部 `company_id` 由工作区路径确定，Snapshot 发布后由自然语言 Skill 自动交接到 Bridge 对齐；
 - Bridge 对齐工作区只保留当前 Snapshot：`sync-data` 先发布并切换新 Snapshot，再删除旧 Run；源文件承担历史归档，失败或存在未完成会话时不切换。仅保留已使用 `snapshot_id` 的标识符，禁止删除后复用身份；
 - `.agents/skills/diagnose-source-overlap` 已通过 DeepSeek Harness 项目 Skill 真实调用；模型使用现有 Data Foundation `describe/query` 自主诊断全量刷新、日期重叠、候选业务键和冲突，确认后以 `promote-query/run-saved-query` 固化只读去重 SQL；
 - DeepSeek Harness 曾用三张真实教务表完成陌生结构识别、字段角色判断、教务 Bridge 生成与验证、教师课量查询；这是 S3.5 历史跨端口验证，不再向当前主线增加教务数据或把教务 Bridge 用于 S4 交付；
@@ -60,8 +61,7 @@ S0 宿主验证、S1 Data Foundation、S2 Pack、S3 Bridge、S3.5 Bridge 对齐�
 ## 文档路由
 
 - `README.md`：五分钟项目总览；
-- `开发文档.md`：开发原则与模块合同；
-- `分段施工计划.md`：阶段顺序与退出条件；
+- `docs/user-guide.md`：面向客户的自然语言使用说明与启动关键词；
 - `docs/architecture.md`：权威架构与可移植性边界；
 - `docs/integration-guide.md`：现有 CLI 与各宿主的调用方式；
 - `docs/company-bridge-contract.md`：Bridge 候选、正式构建、状态门禁与兼容性校验；

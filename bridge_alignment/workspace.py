@@ -67,12 +67,15 @@ def workspace_paths(root: Path) -> dict[str, Path]:
 
 def init_workspace(
     *, root: Path, company_id: str, pack_path: Path, existing_bridge_path: Path | None = None,
+    business_port: str = "general",
 ) -> dict[str, Any]:
     paths = workspace_paths(root)
     if root.exists():
         raise AlignmentError("WORKSPACE_EXISTS", f"workspace already exists: {root}")
     if not ID_PATTERN.fullmatch(company_id):
         raise AlignmentError("COMPANY_ID_INVALID", "company_id must be a stable lowercase identifier")
+    if not ID_PATTERN.fullmatch(business_port):
+        raise AlignmentError("BUSINESS_PORT_INVALID", "business_port must be a stable lowercase identifier")
     pack = load_pack(pack_path)
     if validate_pack(pack)["status"] != "passed":
         raise AlignmentError("PACK_INVALID", "Pack failed validation")
@@ -96,6 +99,7 @@ def init_workspace(
     config = {
         "schema_version": "bridge_alignment_workspace.v1",
         "company_id": company_id,
+        "business_port": business_port,
         "pack_path": "Work/Pack/pack.json",
         "pack_ref": {"pack_id": pack["pack_id"], "pack_version": pack["pack_version"]},
         "bridge_reference_path": bridge_ref,
@@ -108,6 +112,8 @@ def init_workspace(
         "schema_version": "bridge_alignment_result.v1",
         "status": "workspace_ready",
         "workspace": str(root.resolve()),
+        "company_id": company_id,
+        "business_port": business_port,
         "input_data": str(paths["input_data"].resolve()),
         "input_reference": str(paths["input_reference"].resolve()),
         "output_bridge": str(paths["output_bridge"].resolve()),

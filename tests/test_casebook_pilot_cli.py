@@ -72,6 +72,31 @@ class CasebookPilotCliTests(unittest.TestCase):
             self.assertEqual(0, code)
             self.assertEqual("passed", result["status"])
 
+    def test_case_capture_cli_accepts_workspace_manifest(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = self._workspace(Path(directory))
+            config = json.loads((root / "Work" / "workspace.json").read_text(encoding="utf-8"))
+            config["current_snapshot_id"] = "snapshot_current"
+            config["bridge_reference_path"] = "Work/Bridge/reference.json"
+            (root / "Work" / "Bridge").mkdir()
+            (root / "Work" / "Pack").mkdir()
+            (root / "Work" / "Pack" / "pack.json").write_bytes(Path("business_pack/packs/education_training_operations_cn/pack.json").read_bytes())
+            bridge = json.loads(Path("artifacts/company_bridge/bridges/company_bridge.v1_2_0.json").read_text(encoding="utf-8"))
+            bridge["company_id"] = "company_fixture"
+            (root / "Work" / "Bridge" / "reference.json").write_text(json.dumps(bridge), encoding="utf-8")
+            (root / "Work" / "workspace.json").write_text(json.dumps(config), encoding="utf-8")
+            (root / "Work" / "evidence.txt").write_text("synthetic", encoding="utf-8")
+            (root / "Work" / "capture.json").write_text(json.dumps({
+                "schema_version": "casebook_capture.v1", "case_id": "case_capture_cli", "primary_role": "operator",
+                "question_category": "cash", "question": "q", "normalized_question": "q", "key_queries": [],
+                "evidence_sources": [{"path": "Work/evidence.txt", "kind": "log", "referenced_source_ids": ["cash"]}],
+                "summary": "synthetic", "created_by": "tester",
+            }), encoding="utf-8")
+            with patch("casebook.router.guide", return_value={"next_step": "analyze"}):
+                code, result = self._run(["case-capture", "--workspace", str(root), "--manifest", "Work/capture.json"])
+            self.assertEqual(0, code)
+            self.assertEqual("candidate_created", result["status"])
+
 
 if __name__ == "__main__":
     unittest.main()

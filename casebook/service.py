@@ -196,7 +196,7 @@ def create_case(
     if not isinstance(bridge_pointer, str) or not bridge_pointer:
         _error("BRIDGE_REFERENCE_MISSING", "workspace has no Bridge reference")
     bridge = load_bridge(_workspace_file(root, bridge_pointer, field="bridge_reference_path"))
-    pack = load_pack(root / config["pack_path"])
+    pack = load_pack(_workspace_file(root, config["pack_path"], field="pack_path"))
     validation = validate_bridge(bridge, pack=pack)
     if validation["status"] != "passed" or bridge.get("company_id") != config.get("company_id"):
         _error("BRIDGE_NOT_READY", "explicit Bridge is invalid for the workspace Pack or company")
@@ -265,6 +265,41 @@ def create_case(
     return {"schema_version": "casebook_result.v1", "status": "candidate_created", "case_id": case_id, "case_path": str(case_path.resolve())}
 
 
+def capture_case(*, root: Path, manifest_path: str) -> dict[str, Any]:
+    """Create one candidate from an explicit workspace-local capture manifest.
+
+    The manifest is only a lower-friction input shape; all Snapshot, Pack,
+    Bridge, path, evidence, and state gates remain in ``create_case``.
+    """
+    manifest = _workspace_file(root, manifest_path, field="manifest_path")
+    document = load_json(manifest)
+    if document.get("schema_version") != "casebook_capture.v1":
+        _error("CAPTURE_SCHEMA_INVALID", "unsupported Casebook capture manifest")
+    required = {
+        "schema_version", "case_id", "primary_role", "question_category", "question",
+        "normalized_question", "key_queries", "evidence_sources", "summary", "created_by",
+    }
+    missing = required - set(document)
+    if missing:
+        _error("CAPTURE_FIELDS_MISSING", f"capture manifest is missing required fields: {', '.join(sorted(missing))}")
+    allowed = required | {"supersedes"}
+    if set(document) - allowed:
+        _error("CAPTURE_FIELDS_INVALID", "capture manifest contains unsupported fields")
+    return create_case(
+        root=root,
+        case_id=document["case_id"],
+        primary_role=document["primary_role"],
+        question_category=document["question_category"],
+        question=document["question"],
+        normalized_question=document["normalized_question"],
+        key_queries=document["key_queries"],
+        evidence_sources=document["evidence_sources"],
+        summary=document["summary"],
+        created_by=document["created_by"],
+        supersedes=document.get("supersedes"),
+    )
+
+
 def _decide_case(*, root: Path, case_id: str, target_status: str, decided_by: str, decision_note: str) -> dict[str, Any]:
     case_path, document = _find_case(root, case_id)
     if document["status"] != "candidate":
@@ -316,6 +351,8 @@ def search_cases(*, root: Path, company_id: str, primary_role: str, question_cat
     results = []
     for case_json in sorted(_status_root(root, "confirmed").glob("*/case.json")):
         case_path = case_json.parent
+        if case_path.is_symlink() or case_json.is_symlink() or not _inside(root, case_path):
+            _error("PATH_OUTSIDE_WORKSPACE", "Casebook path escapes the workspace")
         document = load_json(case_json)
         _validate_case(document, case_path=case_path, expected_status="confirmed")
         if document["company_id"] != company_id or document["primary_role"] != primary_role:

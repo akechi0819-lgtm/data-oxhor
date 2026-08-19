@@ -9,6 +9,7 @@ from unittest.mock import patch
 
 from casebook.service import (
     CasebookError,
+    capture_case,
     confirm_case,
     create_case,
     reject_case,
@@ -69,6 +70,32 @@ class CasebookTests(unittest.TestCase):
             self.assertEqual("failed", verification["status"])
             self.assertEqual("EVIDENCE_HASH_MISMATCH", verification["errors"][0]["code"])
 
+    def test_capture_manifest_creates_candidate_through_existing_gates(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = self._workspace(Path(directory))
+            manifest = root / "Work" / "capture.json"
+            manifest.write_text(json.dumps({
+                "schema_version": "casebook_capture.v1", "case_id": "case_captured",
+                "primary_role": "operator", "question_category": "cash_diagnosis",
+                "question": "Why did net cash decline?", "normalized_question": "net cash decline diagnosis",
+                "key_queries": ["cash_by_campus"], "evidence_sources": [{
+                    "path": "Work/Runs/evidence/query-result.json", "kind": "query_result",
+                    "referenced_source_ids": ["cash"],
+                }], "summary": "Re-run the current Snapshot query before stating a conclusion.",
+                "created_by": "reviewer",
+            }), encoding="utf-8")
+            with patch("casebook.router.guide", return_value={"next_step": "analyze"}):
+                result = capture_case(root=root, manifest_path="Work/capture.json")
+            self.assertEqual("candidate_created", result["status"])
+
+    def test_capture_manifest_rejects_missing_fields(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = self._workspace(Path(directory))
+            (root / "Work" / "capture.json").write_text(json.dumps({"schema_version": "casebook_capture.v1"}), encoding="utf-8")
+            with self.assertRaises(CasebookError) as captured:
+                capture_case(root=root, manifest_path="Work/capture.json")
+            self.assertEqual("CAPTURE_FIELDS_MISSING", captured.exception.code)
+
     def test_confirmed_search_is_scoped_and_marks_stale_cases(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = self._workspace(Path(directory), snapshot_id="snapshot_new")
@@ -86,6 +113,20 @@ class CasebookTests(unittest.TestCase):
             with self.assertRaises(CasebookError) as captured:
                 search_cases(root=root, company_id="another_company", primary_role="operator")
             self.assertEqual("COMPANY_SCOPE_MISMATCH", captured.exception.code)
+
+    def test_confirmed_search_rejects_case_directory_symlink(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            parent = Path(directory)
+            root = self._workspace(parent)
+            self._create(root, "case_external")
+            confirm_case(root=root, case_id="case_external", decided_by="reviewer", decision_note="confirmed")
+            confirmed_case = root / "Work" / "Casebook" / "confirmed" / "case_external"
+            outside_case = parent / "outside-case"
+            shutil.move(str(confirmed_case), outside_case)
+            confirmed_case.symlink_to(outside_case, target_is_directory=True)
+            with self.assertRaises(CasebookError) as captured:
+                search_cases(root=root, company_id="company_fixture", primary_role="operator")
+            self.assertEqual("PATH_OUTSIDE_WORKSPACE", captured.exception.code)
 
     def test_reject_and_supersede_require_the_prescribed_states(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -118,6 +159,19 @@ class CasebookTests(unittest.TestCase):
                     )
             self.assertEqual("PATH_OUTSIDE_WORKSPACE", captured.exception.code)
             self.assertFalse((root / "Work" / "Casebook" / "candidates" / "case_unsafe").exists())
+
+            config_path = root / "Work" / "workspace.json"
+            config = json.loads(config_path.read_text(encoding="utf-8"))
+            config["pack_path"] = "../outside-pack.json"
+            config_path.write_text(json.dumps(config), encoding="utf-8")
+            with self.assertRaises(CasebookError) as captured:
+                with patch("casebook.router.guide", return_value={"next_step": "analyze"}):
+                    create_case(
+                        root=root, case_id="case_external_pack", primary_role="operator", question_category="cash", question="q",
+                        normalized_question="q", key_queries=[], summary="s", created_by="reviewer",
+                        evidence_sources=[{"path": "Work/Runs/evidence/query-result.json", "kind": "query_result", "referenced_source_ids": ["cash"]}],
+                    )
+            self.assertEqual("PATH_OUTSIDE_WORKSPACE", captured.exception.code)
 
     def test_create_requires_the_current_snapshot_bridge_gate(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

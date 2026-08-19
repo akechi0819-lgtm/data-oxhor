@@ -1,0 +1,4 @@
+interface:
+  display_name: "首次部署引导"
+  short_description: "用自然语言完成依赖、数据、Snapshot 和 Bridge 初始化。"
+  default_prompt: "使用 $first-deployment-onboarding 引导我完成这个项目的首次部署。"

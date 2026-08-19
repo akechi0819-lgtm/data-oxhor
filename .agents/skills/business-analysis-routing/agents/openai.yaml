@@ -1,0 +1,4 @@
+interface:
+  display_name: "业务分析路由"
+  short_description: "先复用 Casebook 线索，再用当前 Snapshot 查询并按需交付。"
+  default_prompt: "使用 $business-analysis-routing 分析当前客户数据并在需要时生成交付物。"

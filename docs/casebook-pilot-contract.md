@@ -103,7 +103,7 @@ Work/Casebook/
 
 创建只产生 candidate。确认/拒绝以原子目录移动改状态且需要非空 `decided_by`、说明；confirmed 不可原地编辑。替代必须先创建并确认新案例，新的 `supersedes` 指向旧 ID，再将旧案例移至 superseded 并写入 `superseded_by`。检索只返回相同公司、角色的 confirmed；可按类别缩小，旧 Snapshot 标记 `stale_for_current_snapshot` 但作为线索不阻断。
 
-命令：`case-create`、`case-confirm`、`case-reject`、`case-supersede`、`case-search`、`case-verify`。`case-create` 逐项列出证据，禁止目录参数；`case-verify` 重算摘要与证据 SHA-256。
+命令：`case-create`、`case-capture`、`case-confirm`、`case-reject`、`case-supersede`、`case-search`、`case-verify`。`case-create` 逐项列出证据，禁止目录参数；`case-capture` 只读取一个显式工作区相对 `casebook_capture.v1` JSON manifest，然后委托同一创建门禁；它不扫描 `runs/`、不执行 SQL，也不跳过人工确认。`case-verify` 重算摘要与证据 SHA-256。
 
 ### 7.3 S5.2：内测测试包与反馈回收
 
@@ -129,9 +129,9 @@ Work/Evaluation/
 
 `casebook/router.py` 只读工作区，返回固定优先级的一条下一步建议和可选重复问题候选；不写 Pack、Bridge、Skill、模板、客户配置或宿主 Session。
 
-`guide` 顺序：工作区缺失/无效（`initialize_workspace`）→ 无当前 Snapshot（`sync_data`）→ 当前 Snapshot 无可验证 Bridge（`align_bridge`）→ 可分析（`analyze`）。Bridge 仅从明确 `current_bridge_path` 或 `bridge_reference_path` 读取，并用当前 Snapshot 的 describe/quality 走现有 Bridge 校验；不按目录排序或修改时间选择。`repeat-candidates` 统计同客户、同角色、同类别、90 天内至少 3 个 confirmed 案例，且每例关联已完成并以 `reviewed_by`/ `reviewed_at` 明确记录人工评价的 evaluation ID。达到门槛只返回 `skill_or_template_candidate`，绝不创建、修改或发布资产。
+`guide` 顺序：工作区缺失/无效（`initialize_workspace`）→ 无当前 Snapshot（`sync_data`）→ 当前 Snapshot 无可验证 Bridge（`align_bridge`）→ 可分析（`analyze`）。Bridge 仅从明确 `current_bridge_path` 或 `bridge_reference_path` 读取，并用当前 Snapshot 的 describe/quality 走现有 Bridge 校验；不按目录排序或修改时间选择。`repeat-candidates` 统计同客户、同角色、同类别、90 天内至少 3 个 confirmed 案例，且每例关联已完成并以 `reviewed_by`/ `reviewed_at` 明确记录人工评价的 evaluation ID。达到门槛只返回 `skill_or_template_candidate` 和内联 `skill_candidate_draft.v1` 审阅草案，绝不创建、修改或发布 Skill/模板资产。
 
-命令：`guide`、`repeat-candidates`。分析建议必须写明 Casebook 命中只是线索，当前数字仍需在当前 Snapshot 执行受控查询。
+命令：`guide`、`repeat-candidates`。分析建议必须写明 Casebook 命中只是线索，当前数字仍需在当前 Snapshot 执行受控查询。宿主 Agent 的日常分析调用顺序和保存边界见项目级 [业务分析路由 Skill](../.agents/skills/business-analysis-routing/SKILL.md)：`guide` →（可选）`case-search`/`case-verify` → 当前 Snapshot 的 Data Foundation 受控查询 →（可选）交付；用户明确验收后才创建 candidate，`repeat-candidates` 不自动发布 Skill。
 
 ### 7.5 依赖顺序与测试矩阵
 

@@ -9,6 +9,20 @@
 | Harness 共享目录 | `/Users/akechi/.dsh` |
 | Python | `>=3.12` |
 | DuckDB | `1.5.5` |
+
+开源安装使用项目 extras，不需要手动逐个安装依赖：
+
+```bash
+python3 -m pip install "education-business-analyst[full]"
+```
+
+源码工作区使用：
+
+```bash
+sh tools/install_runtime.sh full
+```
+
+可选 profile 为 `core`（数据分析）、`test`（全量测试，脚本组合 `test + ppt`）、`ppt`（Quick PPT）和 `full`（全部 Python 运行时）。脚本会在项目 `.venv` 中安装，并在 `test`/`ppt`/`full` profile 完成 S4 预检。全量测试统一使用 `sh tools/run_tests.sh`，避免误用缺少 PPT 依赖的系统 Python。`tools/s4_ppt_requirements.lock` 保留为上游 PPT Master 依赖审计清单；发布安装的唯一入口是 `pyproject.toml` extras。
 | Git | 本地 `main` 已包含 Bridge 对齐向导 S3.5；当前工作树状态以 `git status` 为准 |
 
 Harness 是全局工具，不安装到项目目录。`/Users/akechi/.dsh` 可能包含机器配置和凭据，不纳入项目版本控制。
@@ -42,10 +56,11 @@ python3 -m interfaces.company_bridge validate \
   --bridge artifacts/company_bridge/bridges/company_bridge.v1_2_0.json \
   --pack business_pack/packs/education_training_operations_cn/pack.json
 python3 -m interfaces.bridge_alignment_wizard --help
-python3 -m unittest discover -s tests -p 'test_*.py' -v
+python3 -m interfaces.onboarding --help
+sh tools/run_tests.sh -v
 ```
 
-当前回归包括 Quick 与查询来源凭据测试。Pack 与主线 Bridge 校验状态均为 `passed`。完整测试会额外暴露 vendored PPT Master 文件树摘要与 pinned metadata 的既有不一致；这不是 Quick 代码失败，不能修改上游目录或摘要来掩盖。向导测试中的 fake adapter 只验证候选合同，不代表或替代宿主；真实 Harness 教务案例是 S3.5 历史验证。`finalize` 必须在 `propose` 产生至少一个候选后才能执行；空候选返回 `CANDIDATES_MISSING`。测试失败时先区分：Python/DuckDB 版本、外部 Golden Case 是否可读、源 SHA-256 是否变化、Pack/Bridge 交叉引用错误，还是代码回归。不要通过修改 Golden 值掩盖源文件变化。
+当前回归包括 Quick 与查询来源凭据测试。Pack 与主线 Bridge 校验状态均为 `passed`；当前 `.agents/skills/ppt-master` 文件树摘要与 pinned metadata 已复核一致，完整测试通过。向导测试中的 fake adapter 只验证候选合同，不代表或替代宿主；真实 Harness 教务案例是 S3.5 历史验证。`finalize` 必须在 `propose` 产生至少一个候选后才能执行；空候选返回 `CANDIDATES_MISSING`。测试失败时先区分：Python/DuckDB 版本、外部 Golden Case 是否可读、源 SHA-256 是否变化、Pack/Bridge 交叉引用错误，还是代码回归。不要通过修改 Golden 值掩盖源文件变化。
 
 ## 4. 模型和密钥
 

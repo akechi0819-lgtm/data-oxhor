@@ -1,6 +1,6 @@
 # 项目交接状态
 
-## 截止 2026-08-18 已完成
+## 截止 2026-08-19 已完成
 
 - DeepSeek Harness `0.1.0-rc.6` 已完成 Web、Provider、真实模型、Workspace 和受控 Shell 基础验证；业务核心保持宿主无关。
 - Data Foundation v2 已实现 XLSX 全 Sheet 探查、通用 `landing.column_N`、不可变 DuckDB/Parquet Snapshot、质量查询、受控只读 SQL 和保存查询。
@@ -19,8 +19,23 @@
 - Data Foundation 的受控查询结果现记录实际引用的 landing 关系与 `referenced_source_ids`。Quick 冻结清单以这些来源凭据、同一 Snapshot 和证据哈希限制交付，旧冻结格式一律阻断。
 - Codex 与 DeepSeek Harness 均已完成主线 Bridge 的分析和 PPTX 生成；Codex 产物保存在 `runs/codex_mainbridge_acceptance_20260817/ppt/exports/`，Harness 的最终 PPTX 位于 `runs/deepseek_main_bridge_test_20260817/new_revenue_gap_20260818/projects/tanggu_cash_gap_ppt169_ppt169_20260818/exports/`。这两项宿主能力不再是施工阻塞。
 - 2026-08-18 已决定在 S4 后增加 S5「Casebook、内测回收与引导路由」：`runs/` 只作为客户本地原始证据，已确认案例复制最小可回查证据；内测用户主动导出默认脱敏反馈包，开发侧回收后再转为回归测试、Bridge、Skill/模板或 Pack 改进。
+- 2026-08-19 发布前功能对齐复核通过：项目 `.venv` 全量测试 102/102 通过，S4 PPT 预检通过，Pack 与 Company Bridge 校验通过，所有公开 CLI 帮助可调用，首次部署 `init → status` 烟测通过；PPT Master attribution guard 与 pinned tree digest 已复核一致。
 
 ## 当前合同
+
+首次部署引导层 v1 已加入公开入口 `python3 -m interfaces.onboarding`（安装 wheel 后也可使用 `onboarding`）：
+
+```text
+doctor -> init -> import-data -> sync -> handoff -> 宿主 Agent 对齐 Bridge
+```
+
+它负责运行时/Pack 检查、客户 `Input/Work/Output` 初始化、基础 XLSX/XLSM 来源槽位复制、不可变 Snapshot 发布、当前状态检查和 Bridge 会话交接。所有输出为 `onboarding_result.v1` JSON；来源槽位默认不可覆盖，刷新使用新的 `snapshot_id`。`handoff` 可重复读取同一会话。
+
+它不负责模型候选生成、自然语言确认、Bridge 问题回答或正式 Bridge finalize；这些仍由宿主原生 Agent 与 `bridge-alignment-wizard` 完成。
+
+完整输入、输出和错误语义见 [首次部署引导层合同](./onboarding-contract.md)。
+
+Codex 的自然语言入口见 [首次部署自然语言 Skill](../.agents/skills/first-deployment-onboarding/SKILL.md)。用户可以直接说“帮我首次部署”“导入这批数据”或“建立 Bridge”，由 Skill 调用确定性引导 CLI 并在需要时逐步询问。
 
 - 运行使用显式 `run_id`；查询和恢复使用显式 `snapshot_id`。
 - Data Foundation 只负责原始 landing、身份、质量和只读查询，不理解教育业务。
@@ -51,8 +66,7 @@ S4 Quick 性能回归不删除，保持挂起；恢复时继续执行新版冻�
 - DeepSeek Harness 仍是 Developer Preview，升级可能破坏插件接口；
 - 当前 landing 关系名由 `source_id + sheet_name` 确定，源 Sheet 改名后必须重新做 Bridge 兼容性校验；
 - fake adapter 只用于候选合同测试；正式推理由 Codex 或 DeepSeek Harness 的原生 Agent 承担，不建设宿主 Adapter；
-- PPT Master attribution guard 可通过；当前工作树摘要与 pinned metadata 不一致，不能将其写作“完整性已通过”。该风险不影响已完成的 Codex/Harness 主线生成验证，但在升级或重新装配前必须按发布包复核。
-- 当前工作树中的上游 PPT Master 实际文件树为 13,002 个文件，而 pinned metadata 记录 12,907 个；本次未修改上游目录或摘要，完整性测试失败时需先按发布包重新核对装配来源。
+- PPT Master attribution guard、文件树数量和 pinned tree digest 已通过离线复核；后续升级或重新装配仍需重新执行同一组检查。
 - S5 不能以自动上传、自动打包 `runs/`、跨客户检索、宿主 Session 复制、向量库或自动发布 Skill 作为捷径；反馈证据只在用户明确授权时导出。
 
 ## 技术依据
