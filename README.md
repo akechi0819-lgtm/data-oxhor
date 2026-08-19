@@ -1,10 +1,10 @@
 # Data OXHor
 
-面向教育机构的对话式业务分析系统。它把脏 Excel 转成可追溯的数据快照，再用教育行业知识和企业语义映射支撑持续追问、自由下钻、图表和交付物生成。
+Data OXHor 是面向教育机构的日常数据分析智能体。它在客户工作区中读取当前数据快照，结合教育行业知识和企业业务口径，支持持续追问、自由下钻、图表和交付物生成。
 
 默认客户运行宿主是 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)，Codex 是直接运行与验证宿主。两者都使用自身原生的 Agent、模型、Session、Skills、记忆清理、工具和文件交付系统；本项目不再包装一层 Agent，而是通过 CLI、Pack、Bridge、对齐向导和项目级 Skills 补充教育业务能力。Data Foundation、Business Pack 和 Company Bridge 均通过稳定 Python CLI 暴露，不需要额外 MCP 服务。
 
-如果你是第一次使用，请先阅读 [Agent 使用说明](./docs/user-guide.md)；本 README 主要用于了解项目结构和开发边界。
+日常使用请先阅读 [Agent 使用说明](./docs/user-guide.md)；本 README 主要用于了解产品结构。维护者请阅读 [维护者指南](./docs/maintainer-guide.md)。
 
 ## 架构一览
 
@@ -129,3 +129,4 @@ S4 Quick 的真实性能回归仍待补齐；恢复时继续使用主线 Bridge 
 - [S5 Casebook、内测回收与引导路由合同](./docs/casebook-pilot-contract.md)
 - [交接状态](./docs/handoff.md)
 - [第三方声明](./THIRD_PARTY_NOTICES.md)
+- [维护者指南](./docs/maintainer-guide.md)

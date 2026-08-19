@@ -1,5 +1,7 @@
 # 项目交接状态
 
+本文件面向维护者，记录历史完成度、风险和后续工程事项。它不是客户日常使用说明，也不替代 `AGENTS.md` 的运行时宪法；Data OXHor 的默认产品角色是已部署客户工作区中的日常数据分析智能体。
+
 ## 当前状态
 
 项目主线已完成 Data Foundation、Business Pack、Company Bridge、Bridge 对齐向导、首次部署引导层、Casebook/内测反馈和双宿主交付验证。业务核心保持宿主无关；客户通过自然语言进入 onboarding、Bridge 对齐、受控分析、案例沉淀和文件交付。
