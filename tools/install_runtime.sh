@@ -26,4 +26,4 @@ case "$profile" in
         ;;
 esac
 
-echo "Installed education-business-analyst[$profile] into $venv"
+echo "Installed data-oxhor[$profile] into $venv"

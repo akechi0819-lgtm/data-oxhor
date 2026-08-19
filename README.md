@@ -1,4 +1,4 @@
-# Education Business Analyst
+# Data OXHor
 
 面向教育机构的对话式业务分析系统。它把脏 Excel 转成可追溯的数据快照，再用教育行业知识和企业语义映射支撑持续追问、自由下钻、图表和交付物生成。
 
@@ -90,10 +90,10 @@ tools/run_tests.sh -v
 发布包提供分层 extras，不要求用户逐个寻找依赖：
 
 ```bash
-python3 -m pip install "education-business-analyst[full]"
+python3 -m pip install "data-oxhor[full]"
 ```
 
-`full` 覆盖当前项目的核心分析、Bridge/Casebook 和 PPT Master 运行时。只做数据分析时可安装基础包；只需要 Quick PPT 时使用 `education-business-analyst[ppt]`。从源码运行全量测试时，使用 `tools/install_runtime.sh test`，脚本会组合安装 `test + ppt`，因此包含 `pathops` 和 `uharfbuzz`；测试命令使用 `tools/run_tests.sh`。DeepSeek Harness、Office/字体和宿主 API Key 不属于 Python 包依赖，仍由宿主或操作系统提供。
+`full` 覆盖当前项目的核心分析、Bridge/Casebook 和 PPT Master 运行时。只做数据分析时可安装基础包；只需要 Quick PPT 时使用 `data-oxhor[ppt]`。从源码运行全量测试时，使用 `tools/install_runtime.sh test`，脚本会组合安装 `test + ppt`，因此包含 `pathops` 和 `uharfbuzz`；测试命令使用 `tools/run_tests.sh`。DeepSeek Harness、Office/字体和宿主 API Key 不属于 Python 包依赖，仍由宿主或操作系统提供。
 
 `data-foundation` 的完整命令和输入合同见 [接入指南](./docs/integration-guide.md)，Harness 启动与排障见 [运维手册](./docs/operator-runbook.md)。
 
@@ -128,3 +128,4 @@ S4 Quick 的真实性能回归仍待补齐；恢复时继续使用主线 Bridge 
 - [S4 Quick PPT 宿主提示词](./docs/s4-ppt-quick-prompt.md)
 - [S5 Casebook、内测回收与引导路由合同](./docs/casebook-pilot-contract.md)
 - [交接状态](./docs/handoff.md)
+- [第三方声明](./THIRD_PARTY_NOTICES.md)

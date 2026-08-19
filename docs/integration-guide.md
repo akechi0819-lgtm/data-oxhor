@@ -7,7 +7,7 @@
 发布包按能力提供依赖集合：
 
 ```bash
-python3 -m pip install "education-business-analyst[full]"
+python3 -m pip install "data-oxhor[full]"
 ```
 
 `core` 只安装数据分析运行时，`test` 是最小基础测试依赖；`tools/install_runtime.sh test` 会组合安装 `test + ppt`，因此包含 S4 的 `skia-pathops` 与 `uharfbuzz`；`ppt` 增加 Quick PPT 所需组件，`full` 覆盖当前项目的 Python 能力。源码用户可执行 `sh tools/install_runtime.sh test` 或 `sh tools/install_runtime.sh full`；不建议在系统 Python 中逐项安装。DeepSeek Harness、Office/字体和模型凭据仍属于宿主环境，不由 Python wheel 管理。

@@ -13,7 +13,7 @@
 开源安装使用项目 extras，不需要手动逐个安装依赖：
 
 ```bash
-python3 -m pip install "education-business-analyst[full]"
+python3 -m pip install "data-oxhor[full]"
 ```
 
 源码工作区使用：
