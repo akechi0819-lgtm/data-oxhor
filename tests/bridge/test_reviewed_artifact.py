@@ -26,7 +26,7 @@ class ReviewedCompanyBridgeArtifactTests(unittest.TestCase):
         self.assertEqual("passed", validation["status"])
         self.assertEqual("1.0.0", bridge["bridge_version"])
         self.assertEqual(2, validation["counts"]["source_contracts"])
-        self.assertEqual(4, validation["counts"]["field_mappings"])
+        self.assertEqual(19, validation["counts"]["field_mappings"])
         self.assertEqual(2, validation["counts"]["normalization_rules"])
         self.assertEqual(3, validation["counts"]["overrides"])
         self.assertEqual(1, validation["counts"]["unresolved"])
