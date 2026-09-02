@@ -53,7 +53,7 @@ python3 -m interfaces.data_foundation --help
 python3 -m interfaces.business_pack validate
 python3 -m interfaces.business_pack describe
 python3 -m interfaces.company_bridge validate \
-  --bridge artifacts/company_bridge/bridges/company_bridge.v1_2_0.json \
+  --bridge artifacts/company_bridge/bridges/company_bridge.bi_operations.v1_0_0.json \
   --pack business_pack/packs/education_training_operations_cn/pack.json
 python3 -m interfaces.bridge_alignment_wizard --help
 python3 -m interfaces.onboarding --help

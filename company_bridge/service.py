@@ -65,6 +65,8 @@ PROPOSAL_FIELDS = {
         "relation",
         "field_names",
         "source_kind",
+        "header_labels",
+        "evidence",
     },
     "field_mapping": {
         "source_id",
@@ -73,6 +75,8 @@ PROPOSAL_FIELDS = {
         "target_type",
         "target_id",
         "mapping_role",
+        "header_label",
+        "evidence",
     },
     "enum_mapping": {
         "source_id",
@@ -90,6 +94,8 @@ PROPOSAL_FIELDS = {
         "parameters",
         "target_type",
         "target_id",
+        "header_label",
+        "evidence",
     },
     "override": {
         "target_type",
@@ -682,7 +688,7 @@ def _validate_bridge_items(
                 continue
             _find_pollution(item, path, errors)
             proposal_fields = PROPOSAL_FIELDS[candidate_type]
-            allowed = {"candidate_id", "source_locator", "evidence_summary", "evidence_refs", "status"} | proposal_fields
+            allowed = {"candidate_id", "source_locator", "evidence_summary", "evidence_refs", "status", "header_label", "evidence"} | proposal_fields
             for key in sorted(set(item) - allowed):
                 errors.append(_problem("FIELD_UNKNOWN", f"{path}.{key}", "field is not part of the formal Bridge category"))
             candidate_id = item.get("candidate_id")

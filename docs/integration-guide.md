@@ -126,15 +126,15 @@ Company Bridge 通过同一 Python 环境调用：
 ```bash
 python3 -m interfaces.company_bridge --help
 python3 -m interfaces.company_bridge validate-candidates \
-  --input artifacts/company_bridge/reviewed/super_agent_confirmed_review_20260816_v3.json \
+  --input /path/to/confirmed_candidates.json \
   --pack business_pack/packs/education_training_operations_cn/pack.json \
   --require-role confirmed_review
 python3 -m interfaces.company_bridge validate \
-  --bridge artifacts/company_bridge/bridges/company_bridge.v1_2_0.json \
+  --bridge artifacts/company_bridge/bridges/company_bridge.bi_operations.v1_0_0.json \
   --pack business_pack/packs/education_training_operations_cn/pack.json
 ```
 
-当前正式 Bridge 为 1.2.0。它引用 Data Foundation v2 的 `landing.*` 关系和 `column_N`，不绑定某个 Snapshot；具体运行时可额外传入同一 Snapshot 的 `--snapshot-description` 与 `--snapshot-quality` 做兼容性校验。
+当前 BI 工作区正式 Bridge 为 `bridge_bi_operations` v1.0.0。它引用当前 `landing.*` 关系，使用 `header_label` 作为持久业务定位，并保留 `column_N` 仅作 Snapshot 审计坐标；具体运行时可额外传入同一 Snapshot 的 `--snapshot-description` 与 `--snapshot-quality` 做兼容性校验。
 
 历史扫描使用 `scan-history`，但输出角色是 `historical_scan`，不能直接构建正式 Bridge。只有人工复核后的 `confirmed_review` 可以传给 `build`；未确认项必须保留为 `unresolved` 或拒收，不能静默选择。完整合同见 [Company Bridge v1 合同](./company-bridge-contract.md)。
 
@@ -180,4 +180,4 @@ python3 -m interfaces.casebook_pilot guide --workspace customers/company_custome
 
 S4 不新增业务 CLI 或输出平台。项目已将上游 `hugohe3/ppt-master` v4.7.0（提交 `e8323bfaee249cffe1301ec40fca5875eb544d46`）固定版本装配到 `.agents/skills/ppt-master`，MIT 许可证、发布包 SHA-256 和树摘要见 `.agents/skills/ppt-master.upstream.json`；离线检查会执行其 `scripts/attribution_guard.py`。电子表格和数据可视化先使用宿主原生能力，不增加项目依赖。项目只增加 `tools/s4_ppt_quick.py` 作为宿主无关的 Quick 编排入口，不复制 PPT Master 的 SVG、模板或 Renderer 实现。
 
-宿主通过自然语言需求决定直接回答、表格/查询结果或 PPTX，PPT 不采用固定月报结构或页序。分析已冻结且没有复杂交付要求时，Codex 与 DeepSeek Harness 都使用 [S4 Quick PPT 宿主提示词](./s4-ppt-quick-prompt.md) 和同一 `quick-ppt prepare/finalize` 入口；冻结清单以 Snapshot、SHA-256 与由受控查询真实写入的 `referenced_source_ids` 约束可用查询证据，入口会复核导入副本，不接受 manifest 自报的来源作为唯一凭据。当前主线只允许 `company_bridge.v1_2_0` 的现金明细与工单来源，历史教务验收不属于当前交付输入。模板、人工确认、图片、预览、讲稿、旁白或复杂动画才进入 PPT Master Default。首轮验收只使用本地数据和原生可编辑 PPTX，关闭自动更新、外部研究、生图、TTS、旁白和本地 Web 辅助界面。缺少工作时间、请假和通勤规则时，当前未占用只能称“候选空档”。文件必须可打开、内容非空且关键数字可回查到同一只读查询结果。
+宿主通过自然语言需求决定直接回答、表格/查询结果或 PPTX，PPT 不采用固定月报结构或页序。分析已冻结且没有复杂交付要求时，Codex 与 DeepSeek Harness 都使用 [S4 Quick PPT 宿主提示词](./s4-ppt-quick-prompt.md) 和同一 `quick-ppt prepare/finalize` 入口；冻结清单以 Snapshot、SHA-256 与由受控查询真实写入的 `referenced_source_ids` 约束可用查询证据，入口会复核导入副本，不接受 manifest 自报的来源作为唯一凭据。当前 BI 主线使用 `bridge_bi_operations`，包含现金明细与工单来源；历史 Bridge 和教务验收不属于当前交付输入。模板、人工确认、图片、预览、讲稿、旁白或复杂动画才进入 PPT Master Default。首轮验收只使用本地数据和原生可编辑 PPTX，关闭自动更新、外部研究、生图、TTS、旁白和本地 Web 辅助界面。缺少工作时间、请假和通勤规则时，当前未占用只能称“候选空档”。文件必须可打开、内容非空且关键数字可回查到同一只读查询结果。

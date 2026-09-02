@@ -33,6 +33,7 @@ Codex 的自然语言入口见 [首次部署自然语言 Skill](../.agents/skill
 - 源文件承担长期归档；向导工作区只保留当前 Snapshot，不维护 `snapshot_history`。`sync-data` 先构建并切换新 Snapshot，再删除旧 Run；失败或存在未完成会话时保留旧状态。仅记录已用 ID，防止删除后复用；已完成会话为只读。
 - Data Foundation 的 SHA-256 只负责导入完整性；向导候选、问题、决定和参考资料身份不使用哈希。Quick 冻结分析的证据 SHA-256 是交付身份合同，缺失或变化必须阻断。
 - Snapshot 只用于运行兼容性校验，不写入 Bridge；Bridge 不通过 `latest` 或修改时间选择状态。
+- Bridge 字段定位从 2026-09-02 起采用源表 `header_label` 作为持久业务定位；`column_n` 仅作当前 Snapshot 审计坐标。旧 Bridge 中仅有物理列号的定位不得直接复用，需基于当前表头重新提出并确认。
 - 真实源工作簿、DuckDB、Parquet 和运行目录不进入 Git。
 
 ## 唯一待办
@@ -40,6 +41,13 @@ Codex 的自然语言入口见 [首次部署自然语言 Skill](../.agents/skill
 S4 Quick 真实性能回归仍待补齐。恢复时使用主线 Bridge 的现金明细与工单输入，通过新版冻结分析和共同 Quick 入口完成双宿主回归；不引入教务数据或 fake adapter 绕过门禁。
 
 不要增加 MCP、独立强化插件、完整 Artifact 平台或通用工作流编排；新增治理必须对应可复现失败或明确客户要求。
+
+## 看板模块决策（2026-09-02）
+
+- 决定：看板能力先作为当前项目内的独立 `dashboard/` 模块开发，不新建数据镜像项目，也不引入 MCP。
+- 设计期：由宿主直接调用 Data Foundation 的 `describe`、`quality`、`query`、`run-saved-query` 只读 CLI 探索当前 DuckDB Snapshot，确认公式和筛选后保存看板 SQL/规格。
+- 日常期：只运行已确认的固定刷新脚本，读取明确 `snapshot_id`，生成聚合 JSON/HTML 并推送服务器；不调用模型或 MCP 临时决定口径，不上传 DuckDB、原始工作簿或明细数据。
+- 原因：当前主要使用者为单人，未来主要增加看板复杂度而非接入宿主；CLI 已足够，减少 MCP 维护层。若未来出现多宿主或多人复用，再评估把只读 CLI 包装为 MCP。
 
 ## 已知风险
 

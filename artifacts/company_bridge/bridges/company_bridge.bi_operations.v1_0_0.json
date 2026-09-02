@@ -1,0 +1,486 @@
+{
+  "schema_version": "company_bridge.v1",
+  "bridge_id": "bridge_bi_operations",
+  "bridge_version": "1.0.0",
+  "company_id": "workspace_bi_operations",
+  "pack_ref": {
+    "pack_id": "education_training_operations_cn",
+    "pack_version": "1.0.0"
+  },
+  "generated_from_candidate_ids": [
+    "cand_bi_operations_current_snapshot_20260902",
+    "cand_work_order_id_header_label",
+    "cand_cash_business_date",
+    "cand_work_order_cohort_date",
+    "cand_cash_income",
+    "cand_student_type",
+    "cand_cash_student_id",
+    "cand_cash_grade",
+    "cand_cash_product",
+    "cand_cash_course",
+    "cand_cash_class",
+    "cand_cash_channel",
+    "cand_cash_campaign",
+    "cand_cash_adviser",
+    "cand_cash_campus",
+    "cand_work_order_status",
+    "cand_work_order_campus",
+    "cand_work_order_channel",
+    "cand_work_order_adviser",
+    "cand_work_order_grade",
+    "cand_work_order_student_id",
+    "cand_cash_work_order_id_integer",
+    "cand_work_order_id_integer",
+    "cand_override_new_student_enrollment_filter",
+    "cand_override_cash_detail_grain",
+    "cand_override_work_order_cash_join",
+    "cand_negative_cash_cause"
+  ],
+  "source_contracts": [
+    {
+      "candidate_id": "cand_bi_operations_current_snapshot_20260902",
+      "source_locator": "customers/bi_operations/Work/workspace.json",
+      "evidence_summary": "Current Snapshot contains two independent source relations in one warehouse.",
+      "evidence_refs": [
+        "customers/bi_operations/Work/workspace.json"
+      ],
+      "status": "confirmed",
+      "source_id": "br_cash",
+      "filename": "现金表_20260902_142521.xlsx",
+      "sheet_name": "现金明细表",
+      "relation": "landing.br_cash__sheet_39b8dee2e4b3",
+      "field_names": [
+        "column_6",
+        "column_14",
+        "column_29",
+        "column_53",
+        "column_54"
+      ],
+      "source_kind": "data_foundation_landing",
+      "evidence": {
+        "snapshot_id": "snapshot_bi_full_20260902_r2",
+        "physical_fields": {
+          "业务日期": "column_6",
+          "新老生类型": "column_14",
+          "工单ID": "column_29",
+          "业务类型": "column_53",
+          "现金收入": "column_54"
+        }
+      }
+    },
+    {
+      "candidate_id": "cand_work_order_id_header_label",
+      "source_locator": "customers/bi_operations/Work/workspace.json",
+      "evidence_summary": "Current work-order export has a unique ID header used as work-order primary key.",
+      "evidence_refs": [
+        "customers/bi_operations/Work/Runs/run_bi_bridge_alignment_20260902_r1/proposed_alignment.md"
+      ],
+      "status": "confirmed",
+      "source_id": "br_work_orders",
+      "filename": "工单表_20260902_142503.xlsx",
+      "sheet_name": "工单明细导出用表",
+      "relation": "landing.br_work_orders__sheet_1f0596db9f25",
+      "field_names": [
+        "column_101",
+        "column_2",
+        "column_6"
+      ],
+      "source_kind": "data_foundation_landing",
+      "evidence": {
+        "snapshot_id": "snapshot_bi_full_20260902_r2",
+        "physical_fields": {
+          "ID": "column_101",
+          "分配时间": "column_2",
+          "工单状态": "column_6"
+        }
+      }
+    }
+  ],
+  "field_mappings": [
+    {
+      "candidate_id": "cand_cash_business_date",
+      "source_locator": "current_snapshot_header:业务日期",
+      "evidence_summary": "Cash fact date.",
+      "status": "confirmed",
+      "evidence_refs": [
+        "customers/bi_operations/Work/Runs/run_bi_bridge_alignment_20260902_r1/proposed_alignment.md"
+      ],
+      "source_id": "br_cash",
+      "relation": "landing.br_cash__sheet_39b8dee2e4b3",
+      "field_name": "column_6",
+      "header_label": "业务日期",
+      "target_type": "dimension",
+      "target_id": "time.cash_transaction_date"
+    },
+    {
+      "candidate_id": "cand_work_order_cohort_date",
+      "source_locator": "current_snapshot_header:分配时间",
+      "evidence_summary": "Work-order cohort date.",
+      "status": "confirmed",
+      "evidence_refs": [
+        "customers/bi_operations/Work/Runs/run_bi_bridge_alignment_20260902_r1/proposed_alignment.md"
+      ],
+      "source_id": "br_work_orders",
+      "relation": "landing.br_work_orders__sheet_1f0596db9f25",
+      "field_name": "column_2",
+      "header_label": "分配时间",
+      "target_type": "dimension",
+      "target_id": "time.stage_occurrence_date"
+    },
+    {
+      "candidate_id": "cand_cash_income",
+      "source_locator": "current_snapshot_header:现金收入",
+      "evidence_summary": "Signed cash amount; negative values remain negative cash.",
+      "status": "confirmed",
+      "evidence_refs": [
+        "customers/bi_operations/Work/Runs/run_bi_bridge_alignment_20260902_r1/new_student_cash_sign_check.sql"
+      ],
+      "source_id": "br_cash",
+      "relation": "landing.br_cash__sheet_39b8dee2e4b3",
+      "field_name": "column_54",
+      "header_label": "现金收入",
+      "target_type": "concept",
+      "target_id": "cash.net_cash"
+    },
+    {
+      "candidate_id": "cand_student_type",
+      "source_locator": "current_snapshot_header:新老生类型",
+      "evidence_summary": "New-student metrics filter this field to 新生.",
+      "status": "confirmed",
+      "evidence_refs": [
+        "customers/bi_operations/Work/Runs/run_bi_bridge_alignment_20260902_r1/proposed_alignment.md"
+      ],
+      "source_id": "br_cash",
+      "relation": "landing.br_cash__sheet_39b8dee2e4b3",
+      "field_name": "column_14",
+      "header_label": "新老生类型",
+      "target_type": "dimension",
+      "target_id": "customer.student_type"
+    },
+    {
+      "candidate_id": "cand_cash_student_id",
+      "source_locator": "current_snapshot_header:学员编号",
+      "evidence_summary": "Cash student identifier retained for headcount analysis.",
+      "evidence_refs": [
+        "customers/bi_operations/Work/Runs/run_bi_bridge_completion_20260902/outputs"
+      ],
+      "status": "confirmed",
+      "source_id": "br_cash",
+      "relation": "landing.br_cash__sheet_39b8dee2e4b3",
+      "field_name": "column_1",
+      "header_label": "学员编号",
+      "target_type": "concept",
+      "target_id": "customer.student"
+    },
+    {
+      "candidate_id": "cand_cash_grade",
+      "source_locator": "current_snapshot_header:学员年级",
+      "evidence_summary": "Cash student grade field.",
+      "evidence_refs": [
+        "customers/bi_operations/Work/Runs/run_bi_bridge_completion_20260902/outputs"
+      ],
+      "status": "confirmed",
+      "source_id": "br_cash",
+      "relation": "landing.br_cash__sheet_39b8dee2e4b3",
+      "field_name": "column_3",
+      "header_label": "学员年级",
+      "target_type": "dimension",
+      "target_id": "customer.grade_or_age"
+    },
+    {
+      "candidate_id": "cand_cash_product",
+      "source_locator": "current_snapshot_header:产品",
+      "evidence_summary": "Cash product field.",
+      "evidence_refs": [
+        "customers/bi_operations/Work/Runs/run_bi_bridge_completion_20260902/outputs"
+      ],
+      "status": "confirmed",
+      "source_id": "br_cash",
+      "relation": "landing.br_cash__sheet_39b8dee2e4b3",
+      "field_name": "column_15",
+      "header_label": "产品",
+      "target_type": "dimension",
+      "target_id": "offering.product"
+    },
+    {
+      "candidate_id": "cand_cash_course",
+      "source_locator": "current_snapshot_header:课程产品名称",
+      "evidence_summary": "Cash course product name.",
+      "evidence_refs": [
+        "customers/bi_operations/Work/Runs/run_bi_bridge_completion_20260902/outputs"
+      ],
+      "status": "confirmed",
+      "source_id": "br_cash",
+      "relation": "landing.br_cash__sheet_39b8dee2e4b3",
+      "field_name": "column_45",
+      "header_label": "课程产品名称",
+      "target_type": "dimension",
+      "target_id": "offering.course"
+    },
+    {
+      "candidate_id": "cand_cash_class",
+      "source_locator": "current_snapshot_header:班型",
+      "evidence_summary": "Cash class or class-type field.",
+      "evidence_refs": [
+        "customers/bi_operations/Work/Runs/run_bi_bridge_completion_20260902/outputs"
+      ],
+      "status": "confirmed",
+      "source_id": "br_cash",
+      "relation": "landing.br_cash__sheet_39b8dee2e4b3",
+      "field_name": "column_16",
+      "header_label": "班型",
+      "target_type": "dimension",
+      "target_id": "offering.class"
+    },
+    {
+      "candidate_id": "cand_cash_channel",
+      "source_locator": "current_snapshot_header:渠道",
+      "evidence_summary": "Cash acquisition channel field.",
+      "evidence_refs": [
+        "customers/bi_operations/Work/Runs/run_bi_bridge_completion_20260902/outputs"
+      ],
+      "status": "confirmed",
+      "source_id": "br_cash",
+      "relation": "landing.br_cash__sheet_39b8dee2e4b3",
+      "field_name": "column_20",
+      "header_label": "渠道",
+      "target_type": "dimension",
+      "target_id": "acquisition.channel"
+    },
+    {
+      "candidate_id": "cand_cash_campaign",
+      "source_locator": "current_snapshot_header:市场活动名称",
+      "evidence_summary": "Cash campaign name field.",
+      "evidence_refs": [
+        "customers/bi_operations/Work/Runs/run_bi_bridge_completion_20260902/outputs"
+      ],
+      "status": "confirmed",
+      "source_id": "br_cash",
+      "relation": "landing.br_cash__sheet_39b8dee2e4b3",
+      "field_name": "column_33",
+      "header_label": "市场活动名称",
+      "target_type": "dimension",
+      "target_id": "acquisition.campaign"
+    },
+    {
+      "candidate_id": "cand_cash_adviser",
+      "source_locator": "current_snapshot_header:顾问",
+      "evidence_summary": "Cash adviser field.",
+      "evidence_refs": [
+        "customers/bi_operations/Work/Runs/run_bi_bridge_completion_20260902/outputs"
+      ],
+      "status": "confirmed",
+      "source_id": "br_cash",
+      "relation": "landing.br_cash__sheet_39b8dee2e4b3",
+      "field_name": "column_22",
+      "header_label": "顾问",
+      "target_type": "dimension",
+      "target_id": "acquisition.adviser"
+    },
+    {
+      "candidate_id": "cand_cash_campus",
+      "source_locator": "current_snapshot_header:校区名称",
+      "evidence_summary": "Cash campus name field.",
+      "evidence_refs": [
+        "customers/bi_operations/Work/Runs/run_bi_bridge_completion_20260902/outputs"
+      ],
+      "status": "confirmed",
+      "source_id": "br_cash",
+      "relation": "landing.br_cash__sheet_39b8dee2e4b3",
+      "field_name": "column_36",
+      "header_label": "校区名称",
+      "target_type": "dimension",
+      "target_id": "organization.campus"
+    },
+    {
+      "candidate_id": "cand_work_order_status",
+      "source_locator": "current_snapshot_header:工单状态",
+      "evidence_summary": "Work-order status retained for funnel stage analysis.",
+      "evidence_refs": [
+        "customers/bi_operations/Work/Runs/run_bi_bridge_completion_20260902/outputs"
+      ],
+      "status": "confirmed",
+      "source_id": "br_work_orders",
+      "relation": "landing.br_work_orders__sheet_1f0596db9f25",
+      "field_name": "column_6",
+      "header_label": "工单状态",
+      "target_type": "dimension",
+      "target_id": "delivery.fulfillment_status"
+    },
+    {
+      "candidate_id": "cand_work_order_campus",
+      "source_locator": "current_snapshot_header:校区",
+      "evidence_summary": "Work-order intended campus field.",
+      "evidence_refs": [
+        "customers/bi_operations/Work/Runs/run_bi_bridge_completion_20260902/outputs"
+      ],
+      "status": "confirmed",
+      "source_id": "br_work_orders",
+      "relation": "landing.br_work_orders__sheet_1f0596db9f25",
+      "field_name": "column_58",
+      "header_label": "校区",
+      "target_type": "dimension",
+      "target_id": "organization.campus"
+    },
+    {
+      "candidate_id": "cand_work_order_channel",
+      "source_locator": "current_snapshot_header:渠道",
+      "evidence_summary": "Work-order acquisition channel field.",
+      "evidence_refs": [
+        "customers/bi_operations/Work/Runs/run_bi_bridge_completion_20260902/outputs"
+      ],
+      "status": "confirmed",
+      "source_id": "br_work_orders",
+      "relation": "landing.br_work_orders__sheet_1f0596db9f25",
+      "field_name": "column_68",
+      "header_label": "渠道",
+      "target_type": "dimension",
+      "target_id": "acquisition.channel"
+    },
+    {
+      "candidate_id": "cand_work_order_adviser",
+      "source_locator": "current_snapshot_header:跟进顾问",
+      "evidence_summary": "Work-order follow-up adviser field.",
+      "evidence_refs": [
+        "customers/bi_operations/Work/Runs/run_bi_bridge_completion_20260902/outputs"
+      ],
+      "status": "confirmed",
+      "source_id": "br_work_orders",
+      "relation": "landing.br_work_orders__sheet_1f0596db9f25",
+      "field_name": "column_9",
+      "header_label": "跟进顾问",
+      "target_type": "dimension",
+      "target_id": "acquisition.adviser"
+    },
+    {
+      "candidate_id": "cand_work_order_grade",
+      "source_locator": "current_snapshot_header:年级名称",
+      "evidence_summary": "Work-order grade field.",
+      "evidence_refs": [
+        "customers/bi_operations/Work/Runs/run_bi_bridge_completion_20260902/outputs"
+      ],
+      "status": "confirmed",
+      "source_id": "br_work_orders",
+      "relation": "landing.br_work_orders__sheet_1f0596db9f25",
+      "field_name": "column_59",
+      "header_label": "年级名称",
+      "target_type": "dimension",
+      "target_id": "customer.grade_or_age"
+    },
+    {
+      "candidate_id": "cand_work_order_student_id",
+      "source_locator": "current_snapshot_header:学员号",
+      "evidence_summary": "Work-order student identifier retained for headcount linkage.",
+      "evidence_refs": [
+        "customers/bi_operations/Work/Runs/run_bi_bridge_completion_20260902/outputs"
+      ],
+      "status": "confirmed",
+      "source_id": "br_work_orders",
+      "relation": "landing.br_work_orders__sheet_1f0596db9f25",
+      "field_name": "column_13",
+      "header_label": "学员号",
+      "target_type": "concept",
+      "target_id": "customer.student"
+    }
+  ],
+  "enum_mappings": [],
+  "normalization_rules": [
+    {
+      "candidate_id": "cand_cash_work_order_id_integer",
+      "source_locator": "current_snapshot_header:工单ID",
+      "evidence_summary": "Normalize positive integer cash work-order IDs; preserve zero and non-numeric values outside joins.",
+      "evidence_refs": [
+        "customers/bi_operations/Work/Runs/run_bi_bridge_alignment_20260902_r1/proposed_alignment.md"
+      ],
+      "status": "confirmed",
+      "source_id": "br_cash",
+      "relation": "landing.br_cash__sheet_39b8dee2e4b3",
+      "field_name": "column_29",
+      "header_label": "工单ID",
+      "operation": "parse_amount",
+      "parameters": {
+        "integer": true,
+        "zero_is_missing": true,
+        "non_numeric": "preserve_but_exclude_from_join"
+      }
+    },
+    {
+      "candidate_id": "cand_work_order_id_integer",
+      "source_locator": "current_snapshot_header:ID",
+      "evidence_summary": "Normalize work-order primary key as integer.",
+      "evidence_refs": [
+        "customers/bi_operations/Work/Runs/run_bi_bridge_alignment_20260902_r1/proposed_alignment.md"
+      ],
+      "status": "confirmed",
+      "source_id": "br_work_orders",
+      "relation": "landing.br_work_orders__sheet_1f0596db9f25",
+      "field_name": "column_101",
+      "header_label": "ID",
+      "operation": "parse_amount",
+      "parameters": {
+        "integer": true
+      }
+    }
+  ],
+  "overrides": [
+    {
+      "target_type": "concept",
+      "target_id": "cash.net_cash",
+      "key": "new_student_enrollment_filter",
+      "value": "新老生类型 = 新生",
+      "reason": "User-confirmed new-student enrollment definition; 老生/不参考 excluded.",
+      "candidate_id": "cand_override_new_student_enrollment_filter",
+      "source_locator": "current_snapshot_confirmed",
+      "evidence_summary": "User-confirmed new-student enrollment definition; 老生/不参考 excluded.",
+      "evidence_refs": [
+        "customers/bi_operations/Work/Runs/run_bi_bridge_alignment_20260902_r1/proposed_alignment.md"
+      ],
+      "status": "confirmed"
+    },
+    {
+      "target_type": "concept",
+      "target_id": "cash.net_cash",
+      "key": "cash_detail_grain",
+      "value": "one_work_order_to_many_cash_rows",
+      "reason": "User-confirmed course-period cash detail grain; no deduplication.",
+      "candidate_id": "cand_override_cash_detail_grain",
+      "source_locator": "current_snapshot_confirmed",
+      "evidence_summary": "User-confirmed course-period cash detail grain; no deduplication.",
+      "evidence_refs": [
+        "customers/bi_operations/Work/Runs/run_bi_bridge_alignment_20260902_r1/proposed_alignment.md"
+      ],
+      "status": "confirmed"
+    },
+    {
+      "target_type": "concept",
+      "target_id": "cash.net_cash",
+      "key": "work_order_cash_join",
+      "value": "normalize cash.工单ID as integer; exclude 0 and non-numeric values; join to work_orders.ID; one work order to many cash rows",
+      "reason": "User-confirmed cross-source relationship and detail grain.",
+      "candidate_id": "cand_override_work_order_cash_join",
+      "source_locator": "current_snapshot_confirmed",
+      "evidence_summary": "User-confirmed cross-source relationship and detail grain.",
+      "evidence_refs": [
+        "customers/bi_operations/Work/Runs/run_bi_bridge_alignment_20260902_r1/confirmed_workorder_mapping_check.sql"
+      ],
+      "status": "confirmed"
+    }
+  ],
+  "unresolved": [
+    {
+      "reason": "Negative cash remains negative cash; business cause is not inferred as refund.",
+      "blocked_target_type": "concept",
+      "blocked_target_id": "cash.net_cash",
+      "source_id": "br_cash",
+      "relation": "landing.br_cash__sheet_39b8dee2e4b3",
+      "field_name": "column_54",
+      "candidate_id": "cand_negative_cash_cause",
+      "source_locator": "current_snapshot_confirmed",
+      "evidence_summary": "Negative cash remains negative cash; business cause is not inferred as refund.",
+      "evidence_refs": [
+        "customers/bi_operations/Work/Runs/run_bi_bridge_alignment_20260902_r1/proposed_alignment.md"
+      ],
+      "status": "unresolved"
+    }
+  ]
+}

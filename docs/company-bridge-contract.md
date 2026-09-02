@@ -44,9 +44,9 @@ python3 -m interfaces.company_bridge validate-candidates \
 python3 -m interfaces.company_bridge build \
   --candidates /path/to/candidates/confirmed.json \
   --pack business_pack/packs/education_training_operations_cn/pack.json \
-  --bridge-id bridge_company_super_agent \
+  --bridge-id bridge_bi_operations \
   --bridge-version 1.1.0 \
-  --company-id company_super_agent \
+  --company-id workspace_bi_operations \
   --output /path/to/bridge/company_bridge.v1_1_0.json
 
 # 可选：用某一批当前 Snapshot 检查字段是否存在、质量是否通过
@@ -88,6 +88,7 @@ python3 -m interfaces.company_bridge validate \
     "source_id": "br_cash",
     "relation": "landing.br_cash__sheet_39b8dee2e4b3",
     "field_name": "column_6",
+    "header_label": "业务日期",
     "target_type": "dimension",
     "target_id": "time.cash_transaction_date"
   },
@@ -95,6 +96,12 @@ python3 -m interfaces.company_bridge validate \
   "evidence_refs": ["data_layer/docs/数据接口对齐清单.md"]
 }
 ```
+
+### 字段定位规则（2026-09-02 起）
+
+`header_label` 是企业 Bridge 的持久业务定位，应填写源工作表实际表头（例如 `工单ID`、`ID`、`业务日期`、`分配时间`）。`field_name` 若存在，只作为当前 Data Foundation landing 的物理审计坐标（例如 `column_6`），不得作为跨 Snapshot 的稳定业务定位，也不得依赖列序推断语义。表头顺序变化但 `header_label` 不变时，Bridge 不需要重建；表头名称变化时，校验必须产生新的 proposed 对齐问题。
+
+当前 generic landing 的 `describe` 仍以 `column_n` 暴露物理列，因此正式构建前必须同时保存 `header_label` 与本次 Snapshot 的物理证据；旧 Bridge 只有 `column_n` 定位的条目不得直接迁移为当前事实。
 
 状态语义如下：
 
@@ -114,9 +121,9 @@ Bridge 对齐向导把这条人工门禁产品化：宿主原生 Agent 的模型
 ```json
 {
   "schema_version": "company_bridge.v1",
-  "bridge_id": "bridge_company_super_agent",
-  "bridge_version": "1.2.0",
-  "company_id": "company_super_agent",
+  "bridge_id": "bridge_bi_operations",
+  "bridge_version": "1.0.0",
+  "company_id": "workspace_bi_operations",
   "pack_ref": {
     "pack_id": "education_training_operations_cn",
     "pack_version": "1.0.0"
@@ -125,9 +132,9 @@ Bridge 对齐向导把这条人工门禁产品化：宿主原生 Agent 的模型
   "source_contracts": [
     {
       "candidate_id": "cand_landing_br_cash_20260816",
-      "source_locator": "artifacts/company_bridge/reviewed/super_agent_review_decisions_20260815.md#landing-contract",
+      "source_locator": "customers/bi_operations/Work/workspace.json",
       "evidence_summary": "现金明细表通过 Data Foundation v2 全量 landing。",
-      "evidence_refs": ["artifacts/company_bridge/reviewed/super_agent_review_decisions_20260815.md"],
+      "evidence_refs": ["customers/bi_operations/Work/workspace.json"],
       "status": "confirmed",
       "source_id": "br_cash",
       "sheet_name": "现金明细表",
@@ -192,4 +199,4 @@ Bridge 对齐向导把这条人工门禁产品化：宿主原生 Agent 的模型
 
 日报明细候选把三件事拆开：`现金收入/报入现金收入/实缴金额` 的正负值用于净现金有符号求和；只有 `退班退费`、`储值账户退费`、`返款退费` 等明确业务形式，或排除“放储值/转班/重报”后的明确原因，才归为退款；`转出`、`转入`、`退班放储值`、转班/退班重报归为 `adjustment`。用户已确认退款规则，且付款人统计沿用学员身份；1500 人头资格门槛仍不进入 Bridge。
 
-当前 `confirmed_review` v3 位于 `artifacts/company_bridge/reviewed/super_agent_confirmed_review_20260816_v3.json`，包含 119 个 confirmed 候选。它生成正式 Bridge 1.2.0 `artifacts/company_bridge/bridges/company_bridge.v1_2_0.json`，并通过真实三表 Data Foundation v2 Snapshot 兼容性校验。现金明细中的 `产品=剑五` 仍通过 `班型` 二次筛出 KET/PET；付款人、净现金、退款与调整口径均未因定位迁移而改变。
+当前工作区使用 `artifacts/company_bridge/bridges/company_bridge.bi_operations.v1_0_0.json`，仅基于 Snapshot `snapshot_bi_full_20260902_r2` 的现金明细和工单来源；历史候选和旧列序不得作为当前事实。

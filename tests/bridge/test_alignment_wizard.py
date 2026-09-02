@@ -188,9 +188,9 @@ class BridgeAlignmentWizardTests(unittest.TestCase):
             self.assertEqual([], session["profile"]["enterprise_decisions"])
 
     def test_same_company_new_snapshot_reuses_decisions_not_old_fields(self) -> None:
-        existing = Path("artifacts/company_bridge/bridges/company_bridge.v1_2_0.json").resolve()
+        existing = Path("artifacts/company_bridge/bridges/company_bridge.bi_operations.v1_0_0.json").resolve()
         with tempfile.TemporaryDirectory() as directory:
-            root = self._workspace(Path(directory), company_id="company_super_agent", existing_bridge=existing)
+            root = self._workspace(Path(directory), company_id="workspace_bi_operations", existing_bridge=existing)
             _put_current_inputs(root, 8)
             sync_data(root=root, snapshot_id="snapshot_2026_08")
             result = start_session(root=root, session_id="session_new_port")

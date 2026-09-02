@@ -57,7 +57,7 @@ Data Foundation  业务语义组          宿主原生交付
 - `run_id`、Snapshot 身份、源 SHA-256 绑定和最小 Artifact manifest；受控查询结果会记录实际引用的 landing 关系和 `referenced_source_ids`，供冻结分析交付校验；
 - Education Business Pack v1：行业概念、指标、维度、客户旅程、漏斗和诊断 Playbook；
 - Pack 的 `validate` / `describe` CLI 与确定性交叉引用校验；
-- Company Bridge 1.2.0：当前源合同、企业字段映射、归一规则和 Override；
+- Company Bridge v1：当前源合同、企业字段映射、归一规则和 Override；
 - Bridge 对齐向导 v1：提供自包含 `Input/Work/Output` 客户工作区、稳定数据源槽位和月度替换同步；工作区只保留当前 Snapshot，刷新成功后清理旧 Snapshot，宿主原生模型提出候选并收集关键确认，确定性服务自动生成 confirmed_review、build 和 Snapshot validate；
 - 首次部署引导层 v1：`onboarding doctor/init/import-data/sync/status/handoff` 统一检查运行时、初始化客户工作区、复制基础工作簿、发布 Snapshot，并向宿主 Agent 交接 Bridge 对齐会话；不自动替用户确认或 finalize Bridge；
 - Codex 自然语言引导 Skill：`.agents/skills/first-deployment-onboarding`，用户可直接说“帮我首次部署/导入数据/建立 Bridge”，由 Codex 调用引导层并逐步询问缺失信息；
@@ -66,7 +66,7 @@ Data Foundation  业务语义组          宿主原生交付
 - 短数据 PPT 通过 `tools/run_s4_local.sh quick-ppt prepare|finalize` 走共同 Quick 路线：冻结分析身份校验、官方最终 checker 与 Quick exporter；不建设第二套 Renderer、确认或 Spec 流程；
 - DeepSeek Harness 可作为默认宿主运行；宿主健康检查、模型回合和受控 Shell 能力不属于本项目 Python 核心。
 
-主线 Bridge 1.2.0 对应现金明细与工单数据；项目不建设正式宿主模型 Adapter、Customer Profile、项目侧 Session 管理或独立输出平台。MCP 不在当前开发计划内。
+当前 BI 主线使用 Company Bridge v1，对应现金明细与工单数据；项目不建设正式宿主模型 Adapter、Customer Profile、项目侧 Session 管理或独立输出平台。MCP 不在当前开发计划内。
 
 Data Foundation 不再保存企业 Sheet 白名单、业务列名或 `semantic.registration_cash`。企业表头与 `column_N` 的对应关系、枚举和清洗口径只进入 Company Bridge。
 
@@ -77,7 +77,7 @@ python3 -m interfaces.data_foundation --help
 python3 -m interfaces.business_pack validate
 python3 -m interfaces.business_pack describe
 python3 -m interfaces.company_bridge validate \
-  --bridge artifacts/company_bridge/bridges/company_bridge.v1_2_0.json \
+  --bridge artifacts/company_bridge/bridges/company_bridge.bi_operations.v1_0_0.json \
   --pack business_pack/packs/education_training_operations_cn/pack.json
 python3 -m interfaces.bridge_alignment_wizard --help
 python3 -m interfaces.onboarding --help
