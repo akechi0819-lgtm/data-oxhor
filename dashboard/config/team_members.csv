@@ -1,0 +1,4 @@
+member_id,member_name,project,team,level1_channel,level2_channel,active,notes
+member_yangxu,杨旭,青少,线下团队,,,true,从语培看板框架提取
+member_emma,Emma,青少,线上虚拟人,,虚拟人,true,二级渠道=虚拟人
+member_sunyue_group,孙悦/杨玉琳/高柏然,青少,线上平台,,,true,线上非虚拟人渠道归平台

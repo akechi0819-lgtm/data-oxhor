@@ -1,0 +1,11 @@
+-- 工单：ID 去重、分配时间窗口；原团队“无法判断”标准化为前途出国并隔离出语培看板。
+-- 现金：渠道属性=被动且报入现金收入>0；青少归留学预备，其余已确认的初中/国际学科归高中。
+WITH params AS (SELECT CAST(? AS DATE) AS start_date, CAST(? AS DATE) AS end_date),
+orders AS (SELECT NULLIF(TRIM("{{工单表_ID}}"),'') AS work_order_id, CASE WHEN TRIM("{{工单表_团队}}")='无法判断' THEN '前途出国' WHEN NULLIF(TRIM("{{工单表_团队}}"),'') IS NULL OR TRIM("{{工单表_团队}}") IN ('需要判定','校区资源无法归属') THEN CASE WHEN TRIM("{{工单表_年级属性}}") LIKE '%留学预备%' THEN '留学预备' WHEN TRIM("{{工单表_年级属性}}") LIKE '%高中%' THEN '高中' WHEN TRIM("{{工单表_年级属性}}") LIKE '%大学%' OR TRIM("{{工单表_年级属性}}") LIKE '%研究生%' THEN '大学' ELSE '无法判断' END ELSE NULLIF(TRIM("{{工单表_团队}}"),'') END AS team, DATE '1899-12-30'+CAST(TRY_CAST("{{工单表_分配时间}}" AS DOUBLE) AS INTEGER) AS assigned_date FROM landing.br_work_orders__sheet_1f0596db9f25),
+filtered_orders AS (SELECT * FROM orders,params WHERE assigned_date>=start_date AND assigned_date<end_date AND team IS NOT NULL AND team <> '前途出国'),
+cash AS (SELECT CASE WHEN TRIM("{{团队}}")='青少' THEN '留学预备' WHEN TRIM("{{团队}}") IN ('初中国际学科','ICC','国际学科','初中') THEN '高中' ELSE NULLIF(TRIM("{{团队}}"),'') END AS team, DATE '1899-12-30'+CAST(TRY_CAST("{{业务日期}}" AS DOUBLE) AS INTEGER) AS business_date, NULLIF(TRIM("{{渠道属性}}"),'') AS channel_attribute, TRY_CAST("{{财年}}" AS INTEGER) AS fiscal_year, TRY_CAST("{{报入现金收入}}" AS DOUBLE) AS reported_cash FROM landing.br_cash__sheet_39b8dee2e4b3),
+filtered_cash AS (SELECT * FROM cash,params WHERE business_date>=start_date AND business_date<end_date AND fiscal_year IS NOT NULL),
+teams AS (SELECT team FROM filtered_orders UNION SELECT team FROM filtered_cash)
+SELECT COALESCE(t.team,'未归属') AS team, COALESCE(o.work_order_count,0) AS work_order_count, COALESCE(c.passive_positive_cash,0) AS passive_positive_cash, COALESCE(c.passive_cash_rows,0) AS passive_cash_rows FROM teams t
+LEFT JOIN (SELECT team,COUNT(DISTINCT work_order_id) FILTER(WHERE work_order_id IS NOT NULL) AS work_order_count FROM filtered_orders GROUP BY team) o ON o.team IS NOT DISTINCT FROM t.team
+LEFT JOIN (SELECT team,SUM(reported_cash) FILTER(WHERE channel_attribute='被动' AND reported_cash>0) AS passive_positive_cash,COUNT(*) FILTER(WHERE channel_attribute='被动' AND reported_cash>0) AS passive_cash_rows FROM filtered_cash GROUP BY team) c ON c.team IS NOT DISTINCT FROM t.team ORDER BY work_order_count DESC;
