@@ -8,7 +8,7 @@ from io import StringIO
 from pathlib import Path
 from unittest.mock import patch
 
-from interfaces.casebook_pilot import main
+from interfaces.casebook import main
 
 
 class CasebookPilotCliTests(unittest.TestCase):
@@ -50,14 +50,14 @@ class CasebookPilotCliTests(unittest.TestCase):
             config["bridge_reference_path"] = "Work/Bridge/reference.json"
             (root / "Work" / "Bridge").mkdir()
             (root / "Work" / "Pack").mkdir()
-            (root / "Work" / "Pack" / "pack.json").write_bytes(Path("business_pack/packs/education_training_operations_cn/pack.json").read_bytes())
-            bridge = json.loads(Path("artifacts/company_bridge/bridges/company_bridge.bi_operations.v1_0_0.json").read_text(encoding="utf-8"))
+            (root / "Work" / "Pack" / "pack.json").write_bytes(Path("workspace_modeling/business_pack/packs/education_training_operations_cn/pack.json").read_bytes())
+            bridge = json.loads(Path("artifacts/company_bridge/bridges/company_bridge.bi_operations.v1_1_0.json").read_text(encoding="utf-8"))
             bridge["company_id"] = "company_fixture"
             (root / "Work" / "Bridge" / "reference.json").write_text(json.dumps(bridge), encoding="utf-8")
             (root / "Work" / "workspace.json").write_text(json.dumps(config), encoding="utf-8")
             source = root / "Work" / "evidence.txt"
             source.write_text("synthetic", encoding="utf-8")
-            with patch("casebook.router.guide", return_value={"next_step": "analyze"}):
+            with patch("workspace_modeling.casebook.router.guide", return_value={"next_step": "analyze"}):
                 code, result = self._run([
                     "case-create", "--workspace", str(root), "--case-id", "case_cli", "--primary-role", "operator",
                     "--question-category", "cash", "--question", "q", "--normalized-question", "q",
@@ -80,8 +80,8 @@ class CasebookPilotCliTests(unittest.TestCase):
             config["bridge_reference_path"] = "Work/Bridge/reference.json"
             (root / "Work" / "Bridge").mkdir()
             (root / "Work" / "Pack").mkdir()
-            (root / "Work" / "Pack" / "pack.json").write_bytes(Path("business_pack/packs/education_training_operations_cn/pack.json").read_bytes())
-            bridge = json.loads(Path("artifacts/company_bridge/bridges/company_bridge.bi_operations.v1_0_0.json").read_text(encoding="utf-8"))
+            (root / "Work" / "Pack" / "pack.json").write_bytes(Path("workspace_modeling/business_pack/packs/education_training_operations_cn/pack.json").read_bytes())
+            bridge = json.loads(Path("artifacts/company_bridge/bridges/company_bridge.bi_operations.v1_1_0.json").read_text(encoding="utf-8"))
             bridge["company_id"] = "company_fixture"
             (root / "Work" / "Bridge" / "reference.json").write_text(json.dumps(bridge), encoding="utf-8")
             (root / "Work" / "workspace.json").write_text(json.dumps(config), encoding="utf-8")
@@ -92,7 +92,7 @@ class CasebookPilotCliTests(unittest.TestCase):
                 "evidence_sources": [{"path": "Work/evidence.txt", "kind": "log", "referenced_source_ids": ["cash"]}],
                 "summary": "synthetic", "created_by": "tester",
             }), encoding="utf-8")
-            with patch("casebook.router.guide", return_value={"next_step": "analyze"}):
+            with patch("workspace_modeling.casebook.router.guide", return_value={"next_step": "analyze"}):
                 code, result = self._run(["case-capture", "--workspace", str(root), "--manifest", "Work/capture.json"])
             self.assertEqual(0, code)
             self.assertEqual("candidate_created", result["status"])

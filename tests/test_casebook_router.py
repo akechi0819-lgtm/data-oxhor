@@ -7,8 +7,8 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from unittest.mock import patch
 
-from casebook.router import guide, repeat_candidates
-from casebook.service import confirm_case, create_case
+from workspace_modeling.casebook.router import guide, repeat_candidates
+from workspace_modeling.casebook.service import confirm_case, create_case
 
 
 class RouterTests(unittest.TestCase):
@@ -40,7 +40,7 @@ class RouterTests(unittest.TestCase):
             warehouse.parent.mkdir(parents=True, exist_ok=True)
             warehouse.write_bytes(b"placeholder")
             self._config(root, current_snapshot_id="snapshot_current", current_warehouse_path="Work/Runs/warehouse.duckdb")
-            with patch("casebook.router.load_pack", return_value={"pack_id": "pack", "pack_version": "1.0.0"}):
+            with patch("workspace_modeling.casebook.router.load_pack", return_value={"pack_id": "pack", "pack_version": "1.0.0"}):
                 self.assertEqual("align_bridge", guide(root=root)["next_step"])
 
     def test_guide_analyze_requires_validated_explicit_bridge(self) -> None:
@@ -61,9 +61,9 @@ class RouterTests(unittest.TestCase):
             )
             valid_pack = {"pack_id": "pack", "pack_version": "1.0.0"}
             valid_bridge = {"bridge_id": "bridge", "bridge_version": "1.0.0", "company_id": "company_fixture"}
-            with patch("casebook.router.load_pack", return_value=valid_pack), patch("casebook.router.load_bridge", return_value=valid_bridge), patch(
-                "casebook.router.profile_snapshot", return_value=({}, {"snapshot_id": "snapshot_current"}, {})
-            ), patch("casebook.router.validate_bridge", return_value={"status": "passed", "errors": []}):
+            with patch("workspace_modeling.casebook.router.load_pack", return_value=valid_pack), patch("workspace_modeling.casebook.router.load_bridge", return_value=valid_bridge), patch(
+                "workspace_modeling.casebook.router.profile_snapshot", return_value=({}, {"snapshot_id": "snapshot_current"}, {})
+            ), patch("workspace_modeling.casebook.router.validate_bridge", return_value={"status": "passed", "errors": []}):
                 self.assertEqual("analyze", guide(root=root)["next_step"])
 
     def test_repeat_candidates_need_three_recent_confirmed_cases_and_evaluation(self) -> None:
@@ -73,16 +73,16 @@ class RouterTests(unittest.TestCase):
             (root / "Work" / "Bridge").mkdir(parents=True)
             (root / "Work" / "Pack").mkdir(parents=True)
             (root / "Work" / "Runs" / "evidence").mkdir(parents=True)
-            bridge = json.loads(Path("artifacts/company_bridge/bridges/company_bridge.bi_operations.v1_0_0.json").read_text(encoding="utf-8"))
+            bridge = json.loads(Path("artifacts/company_bridge/bridges/company_bridge.bi_operations.v1_1_0.json").read_text(encoding="utf-8"))
             bridge["company_id"] = "company_fixture"
             (root / "Work" / "Bridge" / "reference.json").write_text(json.dumps(bridge), encoding="utf-8")
-            (root / "Work" / "Pack" / "pack.json").write_bytes(Path("business_pack/packs/education_training_operations_cn/pack.json").read_bytes())
+            (root / "Work" / "Pack" / "pack.json").write_bytes(Path("workspace_modeling/business_pack/packs/education_training_operations_cn/pack.json").read_bytes())
             self._config(root, current_snapshot_id="snapshot_current", bridge_reference_path="Work/Bridge/reference.json")
             for source in ("query-result.json", "query.sql"):
                 target = root / "Work" / "Runs" / "evidence" / source
                 target.write_bytes((fixture / source).read_bytes())
             case_ids = []
-            with patch("casebook.router.guide", return_value={"next_step": "analyze"}):
+            with patch("workspace_modeling.casebook.router.guide", return_value={"next_step": "analyze"}):
                 for index in range(3):
                     case_id = f"case_repeat_{index}"
                     case_ids.append(case_id)

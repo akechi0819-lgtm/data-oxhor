@@ -7,8 +7,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from tools import s4_ppt_quick
-from tools.s4_ppt_preflight import validate_frozen_analysis
+from analysis_product import s4_ppt_quick
+from analysis_product.s4_ppt_preflight import validate_frozen_analysis
 
 
 def write_json(path: Path, value: dict) -> str:

@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[3]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from data_foundation.connectors.xlsx import (  # noqa: E402
+from data_platform.connectors.xlsx import (  # noqa: E402
     XlsxReadError,
     declared_dimension,
     iter_sheet_rows,

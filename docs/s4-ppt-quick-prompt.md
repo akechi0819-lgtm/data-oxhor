@@ -12,7 +12,7 @@
 
 Quick 项目必须先由宿主运行。命令 JSON 输出的 `project` 是上游实际创建的项目路径；后续只使用该路径，不要猜测或手工创建目录：
 
-tools/run_s4_local.sh quick-ppt prepare <project_path> --analysis <analysis_frozen.json> --markdown <analysis_frozen.md> --evidence-root <evidence_dir>
+analysis_product/run_s4_local.sh quick-ppt prepare <project_path> --analysis <analysis_frozen.json> --markdown <analysis_frozen.md> --evidence-root <evidence_dir>
 
 硬约束：
 - 只使用冻结分析及其 evidence 清单中的证据。
@@ -24,7 +24,7 @@ tools/run_s4_local.sh quick-ppt prepare <project_path> --analysis <analysis_froz
 
 请在 svg_output/ 中按页面顺序直接写完所有 SVG。完成后调用项目入口：
 
-tools/run_s4_local.sh quick-ppt finalize <prepare 返回的 project 路径>
+analysis_product/run_s4_local.sh quick-ppt finalize <prepare 返回的 project 路径>
 
 入口会运行最终 SVG checker 和 Quick PPTX exporter。只在 checker 报 blocking error 时集中修复后再调用一次；advisory warning 不触发重复检查。不要自行重复运行 checker，也不要混入 Default 产物或确认状态。
 ```

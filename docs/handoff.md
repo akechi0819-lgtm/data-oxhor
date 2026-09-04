@@ -4,13 +4,13 @@
 
 ## 当前状态
 
-项目主线已完成 Data Foundation、Business Pack、Company Bridge、Bridge 对齐向导、首次部署引导层、Casebook/内测反馈和双宿主交付验证。业务核心保持宿主无关；客户通过自然语言进入 onboarding、Bridge 对齐、受控分析、案例沉淀和文件交付。
+项目主线已完成 Data Platform、Business Pack、Company Bridge、Bridge 对齐向导、工作区建模、Casebook/内测反馈和双宿主交付验证。业务核心保持宿主无关；客户通过自然语言进入工作区建模、Bridge 对齐、受控分析、案例沉淀和文件交付。
 
 PPT Master v4.7.0 保持为固定上游完整树，Quick 入口仍由项目代码编排；正式 Bridge 和 reviewed 证据继续作为当前产品基线。
 
 ## 当前合同
 
-首次部署引导层 v1 已加入公开入口 `python3 -m interfaces.onboarding`（安装 wheel 后也可使用 `onboarding`）：
+首次部署引导层 v1 已归入公开入口 `python3 -m interfaces.workspace_modeling`（安装 wheel 后可使用 `workspace-modeling`）：
 
 ```text
 doctor -> init -> import-data -> sync -> handoff -> 宿主 Agent 对齐 Bridge
@@ -18,22 +18,23 @@ doctor -> init -> import-data -> sync -> handoff -> 宿主 Agent 对齐 Bridge
 
 它负责运行时/Pack 检查、客户 `Input/Work/Output` 初始化、基础 XLSX/XLSM 来源槽位复制、不可变 Snapshot 发布、当前状态检查和 Bridge 会话交接。所有输出为 `onboarding_result.v1` JSON；来源槽位默认不可覆盖，刷新使用新的 `snapshot_id`。`handoff` 可重复读取同一会话。
 
-它不负责模型候选生成、自然语言确认、Bridge 问题回答或正式 Bridge finalize；这些仍由宿主原生 Agent 与 `bridge-alignment-wizard` 完成。
+它不负责模型候选生成、自然语言确认、Bridge 问题回答或正式 Bridge finalize；这些仍由宿主原生 Agent 与 `interfaces.bridge_alignment` 完成。
 
 完整输入、输出和错误语义见 [首次部署引导层合同](./onboarding-contract.md)。
 
 Codex 的自然语言入口见 [首次部署自然语言 Skill](../.agents/skills/first-deployment-onboarding/SKILL.md)。用户可以直接说“帮我首次部署”“导入这批数据”或“建立 Bridge”，由 Skill 调用确定性引导 CLI 并在需要时逐步询问。
 
 - 运行使用显式 `run_id`；查询和恢复使用显式 `snapshot_id`。
-- Data Foundation 只负责原始 landing、身份、质量和只读查询，不理解教育业务。
-- Pack 保存行业通用知识；Bridge 保存企业表头、列位、枚举、归一规则和 Override。
+- Data Platform 只负责原始 landing、身份、质量和只读查询，不理解教育业务。
+- Pack 保存行业通用知识；Bridge 保存企业表头名、枚举和 Override，不保存列位或列序兼容规则。
 - 历史扫描只能生成候选；正式 Bridge 只接受人工复核的 `confirmed_review`。
 - 向导模型候选始终是 proposed；只有客户决定或显式 optional unresolved 能进入 reviewed，关键歧义必须阻断。
 - 客户工作区使用固定 `Input/Work/Output` 并保存相对路径，可整体复制；追加资料持久化到 `Input/Reference`，源码 checkout 的 `customers/` 默认忽略。
 - 源文件承担长期归档；向导工作区只保留当前 Snapshot，不维护 `snapshot_history`。`sync-data` 先构建并切换新 Snapshot，再删除旧 Run；失败或存在未完成会话时保留旧状态。仅记录已用 ID，防止删除后复用；已完成会话为只读。
-- Data Foundation 的 SHA-256 只负责导入完整性；向导候选、问题、决定和参考资料身份不使用哈希。Quick 冻结分析的证据 SHA-256 是交付身份合同，缺失或变化必须阻断。
+- Data Platform 的 SHA-256 只负责导入完整性；向导候选、问题、决定和参考资料身份不使用哈希。Quick 冻结分析的证据 SHA-256 是交付身份合同，缺失或变化必须阻断。
 - Snapshot 只用于运行兼容性校验，不写入 Bridge；Bridge 不通过 `latest` 或修改时间选择状态。
-- Bridge 字段定位从 2026-09-02 起采用源表 `header_label` 作为持久业务定位；`column_n` 仅作当前 Snapshot 审计坐标。旧 Bridge 中仅有物理列号的定位不得直接复用，需基于当前表头重新提出并确认。
+- Bridge 字段定位直接使用源表实际表头名；禁止使用列序或 `column_n`。重复表头在 landing 中使用 `__2` 等后缀。
+- 工单主键 `ID` 与现金 `工单ID` 仅以非空、修剪后的普通十进制文本精确连接；XLSX 数值单元格若以科学计数法存储，落地时无损展开；严禁经 `DOUBLE`/浮点转换。Bridge 不声明未执行的 ID 归一化规则。2026-09-04 已用 `snapshot_bi_work_order_id_20260904` 验证工单 `ID` 不再含科学计数法，现金-工单精确 ID 连接恢复。
 - 真实源工作簿、DuckDB、Parquet 和运行目录不进入 Git。
 
 ## 唯一待办
@@ -42,17 +43,24 @@ S4 Quick 真实性能回归仍待补齐。恢复时使用主线 Bridge 的现金
 
 不要增加 MCP、独立强化插件、完整 Artifact 平台或通用工作流编排；新增治理必须对应可复现失败或明确客户要求。
 
+## Bridge 与数仓口径收口（2026-09-04）
+
+- 决定：当前正式 Bridge 升级为 `bridge_bi_operations` v1.1.0；字段只按实际表头名定位，删除全部列序、`column_N`、ID 数值化和未执行的 ID 归一化声明。
+- 原因：历史 SQL 使用列序及 `DOUBLE`/`BIGINT` 处理工单 ID，造成科学计数法与错行风险，并会误导后续工程。
+- 影响：工单表 `ID` 与现金表首个 `工单ID` 只以修剪后的普通十进制文本精确关联；现金金额以 `DECIMAL(38,2)` 汇总。旧对齐和旧被动现金 Run、临时渠道 SQL 已删除，不提供兼容入口。
+- 验证：Bridge 在 `snapshot_bi_work_order_id_20260904` 兼容校验通过；`dashboard_actuals/v6` 受控运行成功并只引用现金、工单两张 landing 表；桥接回归测试覆盖 ID 文本和 SQL 清单哈希。
+
 ## 看板模块决策（2026-09-02）
 
-- 决定：看板能力先作为当前项目内的独立 `dashboard/` 模块开发，不新建数据镜像项目，也不引入 MCP。
-- 设计期：由宿主直接调用 Data Foundation 的 `describe`、`quality`、`query`、`run-saved-query` 只读 CLI 探索当前 DuckDB Snapshot，确认公式和筛选后保存看板 SQL/规格。
+- 决定：看板能力先作为当前项目内的独立 `dashboard_product/` 模块开发，不新建数据镜像项目，也不引入 MCP。
+- 设计期：由宿主直接调用 Data Platform 的 `describe`、`quality`、`query`、`run-saved-query` 只读 CLI 探索当前 DuckDB Snapshot，确认公式和筛选后保存看板 SQL/规格。
 - 日常期：只运行已确认的固定刷新脚本，读取明确 `snapshot_id`，生成聚合 JSON/HTML 并推送服务器；不调用模型或 MCP 临时决定口径，不上传 DuckDB、原始工作簿或明细数据。
 - 原因：当前主要使用者为单人，未来主要增加看板复杂度而非接入宿主；CLI 已足够，减少 MCP 维护层。若未来出现多宿主或多人复用，再评估把只读 CLI 包装为 MCP。
 
 ## 语培完成进度看板施工状态（2026-09-03）
 
-- 模块：`dashboard/` 已实现本地 Web UI、季度筛选与页面刷新按钮；本地服务仅绑定 `127.0.0.1:8787`。生产服务器、域名、认证和定时任务尚未施工。
-- 当前 Snapshot：`snapshot_bi_full_20260902_r2`，使用现金明细 `landing.br_cash__sheet_39b8dee2e4b3` 与工单 `landing.br_work_orders__sheet_1f0596db9f25`。查询仍经 Data Foundation 受控只读入口；原始工作簿、DuckDB 与运行结果不进 Git。
+- 模块：`dashboard_product/` 已实现本地 Web UI、季度筛选与页面刷新按钮；本地服务仅绑定 `127.0.0.1:8787`。生产服务器、域名、认证和定时任务尚未施工。
+- 当前 Snapshot：`snapshot_bi_work_order_id_20260904`，使用现金明细 `landing.br_cash__sheet_39b8dee2e4b3` 与工单 `landing.br_work_orders__sheet_1f0596db9f25`。查询仍经 Data Platform 受控只读入口；原始工作簿、DuckDB 与运行结果不进 Git。
 - 工单口径：按工单表 `ID` 去重、分配时间落在筛选窗口；“无法判断”归为前途出国并从语培看板隔离，待判定/校区资源无法归属时按年级属性兜底。
 - 被动现金口径：现金底稿 `渠道属性=被动` 且 `报入现金收入>0`；负向不纳入。现金团队映射为青少→留学预备，初中/初中国际学科/ICC/国际学科→高中。
 - 新生报名校区口径：团队为初中、初中国际学科、青少且新老生类型为新生；同一学员编号+班级编码在窗口内的报入现金净额绝对值 `>=1500`、报名人次大于零时，按学员编号去重计人头。新生报入现金仅汇总正向报入现金收入，单笔为该金额除以合格去重人头。

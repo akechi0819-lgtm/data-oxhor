@@ -8,8 +8,8 @@ import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
 
-from business_pack import load_pack
-from company_bridge.service import (
+from workspace_modeling.business_pack import load_pack
+from workspace_modeling.company_bridge.service import (
     BRIDGE_CATEGORIES,
     BridgeError,
     build_bridge,
@@ -226,6 +226,13 @@ class CompanyBridgeContractTests(unittest.TestCase):
         )
         self.assertNotIn("snapshot_ref", bridge)
         self.assertEqual("passed", validate_bridge(bridge, pack=self.pack)["status"])
+
+    def test_ordinal_field_names_are_rejected(self) -> None:
+        candidates = complete_candidates()
+        candidates["candidates"][1]["proposed_mapping_or_rule"]["field_name"] = "column_6"
+        result = validate_candidate_set(candidates, pack=self.pack)
+        self.assertEqual("failed", result["status"])
+        self.assertIn("ORDINAL_FIELD_FORBIDDEN", {error["code"] for error in result["errors"]})
 
     def test_formal_entry_requires_a_reviewed_candidate_set(self) -> None:
         proposed = complete_candidates()

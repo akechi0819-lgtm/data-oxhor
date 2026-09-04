@@ -7,7 +7,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from casebook.service import (
+from workspace_modeling.casebook.service import (
     CasebookError,
     capture_case,
     confirm_case,
@@ -28,10 +28,10 @@ class CasebookTests(unittest.TestCase):
         (root / "Work" / "Bridge").mkdir(parents=True)
         (root / "Work" / "Pack").mkdir(parents=True)
         (root / "Work" / "Runs" / "evidence").mkdir(parents=True)
-        bridge = json.loads(Path("artifacts/company_bridge/bridges/company_bridge.bi_operations.v1_0_0.json").read_text(encoding="utf-8"))
+        bridge = json.loads(Path("artifacts/company_bridge/bridges/company_bridge.bi_operations.v1_1_0.json").read_text(encoding="utf-8"))
         bridge["company_id"] = company_id
         (root / "Work" / "Bridge" / "reference.json").write_text(json.dumps(bridge), encoding="utf-8")
-        shutil.copyfile("business_pack/packs/education_training_operations_cn/pack.json", root / "Work" / "Pack" / "pack.json")
+        shutil.copyfile("workspace_modeling/business_pack/packs/education_training_operations_cn/pack.json", root / "Work" / "Pack" / "pack.json")
         (root / "Work" / "workspace.json").write_text(json.dumps({
             "schema_version": "bridge_alignment_workspace.v1",
             "company_id": company_id,
@@ -47,7 +47,7 @@ class CasebookTests(unittest.TestCase):
         return root
 
     def _create(self, root: Path, case_id: str, *, role: str = "operator", category: str = "cash_diagnosis", supersedes: str | None = None) -> None:
-        with patch("casebook.router.guide", return_value={"next_step": "analyze"}):
+        with patch("workspace_modeling.casebook.router.guide", return_value={"next_step": "analyze"}):
             create_case(
                 root=root, case_id=case_id, primary_role=role, question_category=category,
                 question="Why did net cash decline?", normalized_question="net cash decline diagnosis",
@@ -84,7 +84,7 @@ class CasebookTests(unittest.TestCase):
                 }], "summary": "Re-run the current Snapshot query before stating a conclusion.",
                 "created_by": "reviewer",
             }), encoding="utf-8")
-            with patch("casebook.router.guide", return_value={"next_step": "analyze"}):
+            with patch("workspace_modeling.casebook.router.guide", return_value={"next_step": "analyze"}):
                 result = capture_case(root=root, manifest_path="Work/capture.json")
             self.assertEqual("candidate_created", result["status"])
 
@@ -151,7 +151,7 @@ class CasebookTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = self._workspace(Path(directory))
             with self.assertRaises(CasebookError) as captured:
-                with patch("casebook.router.guide", return_value={"next_step": "analyze"}):
+                with patch("workspace_modeling.casebook.router.guide", return_value={"next_step": "analyze"}):
                     create_case(
                         root=root, case_id="case_unsafe", primary_role="operator", question_category="cash", question="q",
                         normalized_question="q", key_queries=[], summary="s", created_by="reviewer",
@@ -165,7 +165,7 @@ class CasebookTests(unittest.TestCase):
             config["pack_path"] = "../outside-pack.json"
             config_path.write_text(json.dumps(config), encoding="utf-8")
             with self.assertRaises(CasebookError) as captured:
-                with patch("casebook.router.guide", return_value={"next_step": "analyze"}):
+                with patch("workspace_modeling.casebook.router.guide", return_value={"next_step": "analyze"}):
                     create_case(
                         root=root, case_id="case_external_pack", primary_role="operator", question_category="cash", question="q",
                         normalized_question="q", key_queries=[], summary="s", created_by="reviewer",
@@ -176,7 +176,7 @@ class CasebookTests(unittest.TestCase):
     def test_create_requires_the_current_snapshot_bridge_gate(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = self._workspace(Path(directory))
-            with patch("casebook.router.guide", return_value={"next_step": "align_bridge"}):
+            with patch("workspace_modeling.casebook.router.guide", return_value={"next_step": "align_bridge"}):
                 with self.assertRaises(CasebookError) as captured:
                     create_case(
                         root=root, case_id="case_blocked", primary_role="operator", question_category="cash",

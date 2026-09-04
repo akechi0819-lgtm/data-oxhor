@@ -13,10 +13,10 @@
 
 按以下顺序处理自然语言请求：
 
-1. 用 `casebook-pilot guide --workspace <workspace>` 检查工作区状态。
+1. 用 `python3 -m interfaces.casebook guide --workspace <workspace>` 检查工作区状态。
 2. 若未初始化、没有当前 Snapshot 或没有兼容 Bridge，停止分析并引导到对应的首次部署、数据同步或 Bridge 对齐流程。
 3. 状态为 `analyze` 时，读取显式 `snapshot_id`、当前 Pack 和 Bridge；按角色和问题类别可选检索同公司已确认 Casebook。
-4. 使用 Data Foundation 的 `describe`、`quality`、`query` 或已确认的 `run-saved-query` 取得当前事实。每次查询携带显式 `run_id`、`snapshot_id` 和输出目录。
+4. 使用 Data Platform 的 `describe`、`quality`、`query` 或已确认的 `run-saved-query` 取得当前事实。每次查询携带显式 `run_id`、`snapshot_id` 和输出目录。
 5. 回答时说明时间范围、指标口径、来源和限制。用户明确要求文件时，再生成表格、图表或 PPT，并确保数字可回查本次查询。
 6. 用户明确验收且希望复用时，才创建 Casebook candidate；不得自动确认案例、修改 Pack/Bridge/Skill 或发布模板。
 
@@ -30,14 +30,14 @@
 ## 数据与证据红线
 
 - 原始输入只读；不得上传客户文件、整个 `runs/`、DuckDB、Parquet 或工作区到外部服务。
-- Agent 只能通过 Data Foundation 受控入口执行只读 SQL，不直接连接客户 DuckDB，不使用 `latest`、修改时间或模糊文件名选状态。
+- Agent 只能通过 Data Platform 受控入口执行只读 SQL，不直接连接客户 DuckDB，不使用 `latest`、修改时间或模糊文件名选状态。
 - 未确认 Bridge 映射不能作为正式事实；日期重叠只是风险信号，不能直接当作重复或退款。
 - 负向现金必须按数据事实表述为负向现金，原因需业务确认，不得自动称为退款。
 - 正式文件必须可打开、内容非空，关键数字必须回查同一受控查询；Quick PPT 还必须满足冻结证据和来源凭据门禁。
 
 ## 模块边界
 
-- Data Foundation：原始 landing、Snapshot 身份、质量检查和受控只读查询，不解释教育业务。
+- Data Platform：原始 landing、Snapshot 身份、质量检查和受控只读查询，不解释教育业务。
 - Business Pack：跨企业的行业概念、指标和方法，不保存客户事实。
 - Company Bridge：单一公司的术语、字段、枚举和 Override，不替代 Pack，不保存物理去重 SQL。
 - Skills：分析方法和操作路由，不是第二个 Agent、Session、模型路由器或 SQL 编译器。

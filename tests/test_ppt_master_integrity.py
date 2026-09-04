@@ -90,7 +90,7 @@ class PptMasterIntegrityTests(unittest.TestCase):
         self.assertNotIn(">=", lock)
 
     def test_local_preflight_blocks_image_search_credentials(self) -> None:
-        source = (ROOT / "tools" / "s4_ppt_preflight.py").read_text(encoding="utf-8")
+        source = (ROOT / "analysis_product" / "s4_ppt_preflight.py").read_text(encoding="utf-8")
         for prefix in ("PEXELS_", "PIXABAY_", "GOOGLE_API_KEY"):
             self.assertIn(prefix, source)
 

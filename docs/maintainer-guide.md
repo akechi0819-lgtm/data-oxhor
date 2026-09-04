@@ -7,7 +7,7 @@
 - Python 要求 `>=3.12`；运行时核心依赖 DuckDB `1.5.5`。
 - 安装开发测试环境：`sh tools/install_runtime.sh test`。
 - 运行完整回归：`sh tools/run_tests.sh -v`。
-- CLI 冒烟：`python3 -m interfaces.data_foundation --help`、`python3 -m interfaces.business_pack validate`、`python3 -m interfaces.onboarding --help`。
+- CLI 冒烟：`python3 -m interfaces.data_platform --help`、`python3 -m interfaces.business_pack validate`、`python3 -m interfaces.workspace_modeling --help`。
 - PPT Master 固定树变更后，运行 `.venv/bin/python .agents/skills/ppt-master/scripts/attribution_guard.py` 和相关完整性测试。
 
 ## 维护原则

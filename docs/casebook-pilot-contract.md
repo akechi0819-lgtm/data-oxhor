@@ -81,7 +81,7 @@ S5 的合同测试使用 `tests/fixtures/casebook/` 和 `tests/fixtures/pilot_fe
 
 ### 7.1 共同入口与边界
 
-新增唯一公开 CLI：`python3 -m interfaces.casebook_pilot <command> ...`。stdout 为 `casebook_pilot_result.v1` JSON；成功退出 `0`，需人工确认/没有可执行下一步退出 `2`，合同或校验失败退出 `1`。所有客户工作区命令只接收显式 `--workspace`；独立 `feedback-verify` 只校验用户交回 ZIP，因此只接收显式 `--feedback`。CLI 复用既有 `Work/workspace.json` 的 `company_id`、Pack、当前 Snapshot 与 Bridge 参考，不新建项目侧 Session。
+新增唯一公开 CLI：`python3 -m interfaces.casebook <command> ...`。stdout 为 `casebook_pilot_result.v1` JSON；成功退出 `0`，需人工确认/没有可执行下一步退出 `2`，合同或校验失败退出 `1`。所有客户工作区命令只接收显式 `--workspace`；独立 `feedback-verify` 只校验用户交回 ZIP，因此只接收显式 `--feedback`。CLI 复用既有 `Work/workspace.json` 的 `company_id`、Pack、当前 Snapshot 与 Bridge 参考，不新建项目侧 Session。
 
 所有持久化路径必须为工作区相对路径。`Work/Runs/` 只能由调用者逐个指定证据文件，S5 不递归扫描、复制或导出整个目录。解析后路径必须位于工作区内，拒绝符号链接逃逸；反馈一律拒绝 `Input/Data`、工作簿、DuckDB 与 Parquet。
 
@@ -131,7 +131,7 @@ Work/Evaluation/
 
 `guide` 顺序：工作区缺失/无效（`initialize_workspace`）→ 无当前 Snapshot（`sync_data`）→ 当前 Snapshot 无可验证 Bridge（`align_bridge`）→ 可分析（`analyze`）。Bridge 仅从明确 `current_bridge_path` 或 `bridge_reference_path` 读取，并用当前 Snapshot 的 describe/quality 走现有 Bridge 校验；不按目录排序或修改时间选择。`repeat-candidates` 统计同客户、同角色、同类别、90 天内至少 3 个 confirmed 案例，且每例关联已完成并以 `reviewed_by`/ `reviewed_at` 明确记录人工评价的 evaluation ID。达到门槛只返回 `skill_or_template_candidate` 和内联 `skill_candidate_draft.v1` 审阅草案，绝不创建、修改或发布 Skill/模板资产。
 
-命令：`guide`、`repeat-candidates`。分析建议必须写明 Casebook 命中只是线索，当前数字仍需在当前 Snapshot 执行受控查询。宿主 Agent 的日常分析调用顺序和保存边界见项目级 [业务分析路由 Skill](../.agents/skills/business-analysis-routing/SKILL.md)：`guide` →（可选）`case-search`/`case-verify` → 当前 Snapshot 的 Data Foundation 受控查询 →（可选）交付；用户明确验收后才创建 candidate，`repeat-candidates` 不自动发布 Skill。
+命令：`guide`、`repeat-candidates`。分析建议必须写明 Casebook 命中只是线索，当前数字仍需在当前 Snapshot 执行受控查询。宿主 Agent 的日常分析调用顺序和保存边界见项目级 [业务分析路由 Skill](../.agents/skills/business-analysis-routing/SKILL.md)：`guide` →（可选）`case-search`/`case-verify` → 当前 Snapshot 的 Data Platform 受控查询 →（可选）交付；用户明确验收后才创建 candidate，`repeat-candidates` 不自动发布 Skill。
 
 ### 7.5 依赖顺序与测试矩阵
 

@@ -10,9 +10,9 @@ from unittest.mock import patch
 
 from openpyxl import Workbook
 
-from bridge_alignment.service import add_evidence, answer_question, finalize_session, propose_candidates, start_session
-from bridge_alignment.workspace import AlignmentError, init_workspace, load_workspace, sync_data
-from interfaces.bridge_alignment_wizard import main
+from workspace_modeling.bridge_alignment.service import add_evidence, answer_question, finalize_session, propose_candidates, start_session
+from workspace_modeling.bridge_alignment.workspace import AlignmentError, init_workspace, load_workspace, sync_data
+from interfaces.bridge_alignment import main
 from tests.fixtures.bridge_alignment.fake_adapter import FakeAdapter
 
 
@@ -57,7 +57,7 @@ def _put_current_inputs(workspace: Path, month: int) -> None:
 
 class BridgeAlignmentWizardTests(unittest.TestCase):
     def setUp(self) -> None:
-        self.pack = Path("business_pack/packs/education_training_operations_cn/pack.json").resolve()
+        self.pack = Path("workspace_modeling/business_pack/packs/education_training_operations_cn/pack.json").resolve()
 
     def _workspace(self, parent: Path, *, company_id: str = "company_fixture", existing_bridge: Path | None = None) -> Path:
         root = parent / "customers" / company_id
@@ -101,7 +101,7 @@ class BridgeAlignmentWizardTests(unittest.TestCase):
                 "errors": [{"code": "SOURCE_INVALID", "message": "source failed validation"}],
             }
 
-            with patch("bridge_alignment.workspace.ingest_sources", return_value=failure):
+            with patch("workspace_modeling.bridge_alignment.workspace.ingest_sources", return_value=failure):
                 with self.assertRaises(AlignmentError) as captured:
                     sync_data(root=root, snapshot_id="snapshot_2026_08")
 
@@ -132,7 +132,7 @@ class BridgeAlignmentWizardTests(unittest.TestCase):
                     raise OSError("locked")
                 return remove_tree(path, *args, **kwargs)
 
-            with patch("bridge_alignment.workspace.shutil.rmtree", side_effect=fail_only_old_run):
+            with patch("workspace_modeling.bridge_alignment.workspace.shutil.rmtree", side_effect=fail_only_old_run):
                 result = sync_data(root=root, snapshot_id="snapshot_2026_08")
 
             _, config = load_workspace(root)
@@ -188,7 +188,7 @@ class BridgeAlignmentWizardTests(unittest.TestCase):
             self.assertEqual([], session["profile"]["enterprise_decisions"])
 
     def test_same_company_new_snapshot_reuses_decisions_not_old_fields(self) -> None:
-        existing = Path("artifacts/company_bridge/bridges/company_bridge.bi_operations.v1_0_0.json").resolve()
+        existing = Path("artifacts/company_bridge/bridges/company_bridge.bi_operations.v1_1_0.json").resolve()
         with tempfile.TemporaryDirectory() as directory:
             root = self._workspace(Path(directory), company_id="workspace_bi_operations", existing_bridge=existing)
             _put_current_inputs(root, 8)

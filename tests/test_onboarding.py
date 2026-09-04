@@ -9,14 +9,14 @@ from pathlib import Path
 
 from openpyxl import Workbook
 
-from onboarding.service import OnboardingError, doctor, handoff, import_data, status, sync
-from bridge_alignment.workspace import init_workspace
-from interfaces.onboarding import main
+from workspace_modeling.onboarding.service import OnboardingError, doctor, handoff, import_data, status, sync
+from workspace_modeling.bridge_alignment.workspace import init_workspace
+from interfaces.workspace_modeling import main
 
 
 class OnboardingTests(unittest.TestCase):
     def setUp(self) -> None:
-        self.pack = Path("business_pack/packs/education_training_operations_cn/pack.json").resolve()
+        self.pack = Path("workspace_modeling/business_pack/packs/education_training_operations_cn/pack.json").resolve()
 
     def _workbook(self, path: Path) -> None:
         workbook = Workbook()

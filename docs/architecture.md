@@ -16,11 +16,11 @@
 │ Input / Work / Output + 分析与交付方法        │
 └───────┬────────────┬──────────────┬───────────┘
         │            │              │
-┌───────▼────────┐ ┌─▼──────────┐ ┌─▼────────────┐
-│ Data Foundation│ │ Business   │ │ 宿主原生交付 │
-│ ingest/snapshot│ │ Pack+Bridge│ │ files / UI   │
-│ DuckDB/query   │ │ 行业+企业  │ │ 项目 Skills  │
-└───────┬────────┘ └─┬──────────┘ └─┬────────────┘
+┌────────▼─────────┐ ┌───────────────┐ ┌─────────────────┐
+│ Data Platform    │ │ Workspace     │ │ Analysis /      │
+│ Snapshot/query   │ │ Modeling      │ │ Dashboard       │
+│ landing/quality   │ │ Pack/Bridge   │ │ artifacts       │
+└────────┬─────────┘ └──────┬────────┘ └────────┬────────┘
         └────────────┴───────────────┘
                          │
                ┌─────────▼──────────┐
@@ -36,7 +36,7 @@
 
 可移植资产：
 
-- `data_foundation/` Python 代码与数据合同；
+- `data_platform/` Python 代码与数据合同；
 - Business Pack 与 Company Bridge manifest；
 - 经真实需求验证的项目 Skills、模板和业务资产；
 
@@ -63,16 +63,16 @@
   → 宿主生成并交付文件
 ```
 
-运行以显式 `run_id` 区分，查询和恢复以显式 `snapshot_id` 定位仓库。源 SHA-256 用于 inspect/ingest 的源绑定以及 Snapshot/Artifact manifest。每个受控查询结果同时记录由 `ingest.sheets` 反查的 `referenced_relations` 与 `referenced_source_ids`；这只服务于冻结分析的来源校验，不扩张为统一血缘平台。SQL 是直接查询输入或保存查询内容。Education Pack 1.0.0 与 Company Bridge 按企业工作区独立版本化；Data Foundation 不伪造 Pack/Bridge 选择。
+运行以显式 `run_id` 区分，查询和恢复以显式 `snapshot_id` 定位仓库。源 SHA-256 用于 inspect/ingest 的源绑定以及 Snapshot/Artifact manifest。每个受控查询结果同时记录由 `ingest.sheets` 反查的 `referenced_relations` 与 `referenced_source_ids`；这只服务于冻结分析的来源校验，不扩张为统一血缘平台。SQL 是直接查询输入或保存查询内容。Education Pack 1.0.0 与 Company Bridge 按企业工作区独立版本化；Data Platform 不伪造 Pack/Bridge 选择。
 
 ## 4. 确定性边界
 
 项目不建设独立 Harness Reinforcement 插件。确定性约束由拥有数据或文件的模块直接实现：
 
-- Data Foundation 保证源文件只读、Snapshot 不原地覆盖、查询入口只读并限制结果规模；
+- Data Platform 保证源文件只读、Snapshot 不原地覆盖、查询入口只读并限制结果规模；
 - Pack 校验器检查稳定 ID 和交叉引用；Bridge 建成后由语义模块阻断未确认映射成为正式事实；
 - Bridge 对齐向导把模型候选限制为 proposed，以不可覆盖决定生成 confirmed_review；关键问题未答时阻断，非关键未答项显式 unresolved 并禁用能力；
-- 多来源重叠和清洗由项目 Skill 提示模型使用 Data Foundation 只读查询举证；客户确认业务键、来源优先级和 SQL 后，以 saved query 固化。Bridge 只保存企业语义映射，不保存物理去重或合并 SQL；
+- 多来源重叠和清洗由项目 Skill 提示模型使用 Data Platform 只读查询举证；客户确认业务键、来源优先级和 SQL 后，以 saved query 固化。Bridge 只保存企业语义映射，不保存物理去重或合并 SQL；
 - 已冻结的短数据 PPT 使用项目 Quick 入口：冻结清单绑定证据哈希、Snapshot、关键查询和受控查询生成的来源凭据；项目只调用 PPT Master 官方 Quick checker/exporter，拒绝 Default 混用和本地静态 Quick 不允许的媒体/动画；
 - 交付文件由宿主打开检查，数字必须可回查到同一查询结果；只有真实失败才增加最小确定性工具；
 - 状态恢复使用显式 `run_id`、`snapshot_id` 和后续 Pack/Bridge 版本，不通过 `latest`、修改时间或模糊文件名猜测。
@@ -83,7 +83,7 @@ Session 存储、沙箱、用户审批、模型路由、工具选择和计划管
 
 | 模块 | 回答的问题 | 禁止内容 |
 |---|---|---|
-| Data Foundation | 文件有什么结构、能否稳定查询 | 教育口径推断 |
+| Data Platform | 文件有什么结构、能否稳定查询 | 教育口径推断 |
 | Education Pack | 教育行业通常如何定义 | 某客户当前事实 |
 | Company Bridge | 这家客户如何命名和映射 | 修改行业标准概念身份 |
 | Bridge 对齐向导 | 哪些新结构映射需要客户确认 | 让模型候选直接成为正式事实 |
@@ -91,15 +91,17 @@ Session 存储、沙箱、用户审批、模型路由、工具选择和计划管
 
 第一家企业可能让 Pack 和 Bridge 看起来近似，但物理分离能保证第二家企业只新增 Bridge，跨行业时新增 Pack 与 Bridge。
 
-Data Foundation v2 将每个 Sheet 原样落入 `landing.column_N`，并在 `ingest.sheets` 登记目标表。表头行、企业业务列名、枚举和清洗规则由 Company Bridge 保存；Data Foundation 不再包含特定源表映射或企业语义视图。
+Data Platform v2 将每个 Sheet 按实际表头名原样落入 landing，并在 `ingest.sheets` 登记目标表和表头元数据。表头行、企业业务列名、枚举和清洗规则由 Company Bridge 保存；Data Platform 不再包含特定源表映射或企业语义视图。
 
-首次部署先由宿主 Skill 询问业务端口（例如高中、初中、市场、运营、教学），再通过 onboarding CLI 初始化工作区、导入来源并发布 Snapshot。工作区配置中的 `business_port` 是用户选择的业务范围；`company_id` 只作为由工作区路径生成的内部隔离身份，不要求用户提供公司名称。Snapshot 发布后，Skill 自动调用 `handoff` 进入 Bridge 对齐；候选生成和关键口径确认仍由宿主原生 Agent 与用户完成。
+首次部署先由宿主 Skill 询问业务端口（例如高中、初中、市场、运营、教学），再通过 workspace-modeling CLI 初始化工作区、导入来源并发布 Snapshot。工作区配置中的 `business_port` 是用户选择的业务范围；`company_id` 只作为由工作区路径生成的内部隔离身份，不要求用户提供公司名称。Snapshot 发布后，Skill 自动调用 `handoff` 进入 Bridge 对齐；候选生成和关键口径确认仍由宿主原生 Agent 与用户完成。
 
 向导工作区是可整体复制的客户产品目录：`Input` 保存当前数据与参考资料，`Work` 保存 Pack、当前指针、当前不可变 Snapshot 和对齐会话文件，`Output` 保存正式 Bridge。源文件承担历史归档，工作区不保存 Snapshot 历史；刷新先成功发布并切换新 Snapshot，再清理旧 Run，失败或存在未完成会话时不动当前 Snapshot。仅保存已用 Snapshot ID，防止同名指向不同输入。路径相对工作区，不要求目录位于源码外；源码 checkout 仅通过 `.gitignore` 排除 `customers/`。宿主原生模型负责提出候选和理解客户回答，核心只校验候选、保存决定并确定性 build/validate，不依赖 Harness SDK 或 Codex SDK。旧 Bridge 只在 `company_id` 与 Pack 身份都相同时提供企业口径摘要，旧字段定位不会复用到新 Snapshot，也不在刷新后被标记为当前可运行 Bridge。
 
 一套正常客户工作区默认对应一家公司和一个主要角色。Codex 或 DeepSeek Harness 直接在该工作区使用 Data、Pack、Bridge 和项目 Skills；换公司或换角色时由宿主创建新会话或清理记忆，再进入另一工作区。不建设 Customer Profile、公司/角色路由器或项目清理按钮。
 
 ## 6. 输出和交互
+
+开放式分析的调用说明保留在宿主 Skill `.agents/skills/business-analysis-routing`；`analysis_product/` 只承载确定性分析交付代码（当前为 PPT Quick）。Skill 负责宿主侧的自然语言理解、追问和编排，不是项目内第二个 Agent。这样既保留宿主可替换性，也避免把提示词、Session 或模型路由复制到业务代码层。
 
 Codex、DeepSeek Harness 等宿主已具备 HTML、图表和文件生成/交付能力。项目已装配固定版本的 `ppt-master` Skill，Skill 负责方法和模板，宿主负责执行与交付；表格和可视化先复用宿主能力。两个宿主已完成主线分析和可打开 PPTX 的交付验证。PPT 交付是通用会话合同，按需求选择直接回答、表格/查询结果或 PPTX，不固化教育业务页序。首轮验收关闭自动更新、外部研究、生图、TTS、旁白和本地 Web 辅助界面；只有出现宿主无法满足的可复现文件正确性问题时，才增加最小确定性工具。当前不建设独立 Renderer 或 Deliverables 平台。
 

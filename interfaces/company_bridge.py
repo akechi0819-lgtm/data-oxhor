@@ -5,8 +5,8 @@ import json
 from pathlib import Path
 from typing import Any
 
-from business_pack.service import PackError, default_pack_path, load_pack
-from company_bridge.service import (
+from workspace_modeling.business_pack.service import PackError, default_pack_path, load_pack
+from workspace_modeling.company_bridge.service import (
     BRIDGE_SCHEMA_VERSION,
     BridgeError,
     build_bridge,
@@ -38,13 +38,13 @@ def build_parser() -> argparse.ArgumentParser:
     validate = commands.add_parser("validate", help="validate a formal company_bridge.v1 manifest")
     validate.add_argument("--bridge", type=Path, required=True)
     validate.add_argument("--pack", type=Path, required=True)
-    validate.add_argument("--snapshot-description", type=Path, help="optional Data Foundation schema compatibility input")
+    validate.add_argument("--snapshot-description", type=Path, help="optional Data Platform schema compatibility input")
     validate.add_argument("--snapshot-quality", type=Path, help="optional quality result paired with the Snapshot description")
 
     build = commands.add_parser("build", help="build a formal Bridge from a reviewed candidate set")
     build.add_argument("--candidates", type=Path, required=True)
     build.add_argument("--pack", type=Path, required=True)
-    build.add_argument("--snapshot-description", type=Path, help="optional Data Foundation schema compatibility input")
+    build.add_argument("--snapshot-description", type=Path, help="optional Data Platform schema compatibility input")
     build.add_argument("--snapshot-quality", type=Path, help="optional quality result paired with the Snapshot description")
     build.add_argument("--bridge-id", required=True)
     build.add_argument("--bridge-version", required=True)
@@ -69,7 +69,7 @@ def _write_new_json(path: Path, document: dict[str, Any]) -> None:
 
 
 def _scan_history(args: argparse.Namespace) -> dict[str, Any]:
-    from company_bridge.history import scan_history
+    from workspace_modeling.company_bridge.history import scan_history
 
     pack = load_pack(args.pack)
     candidate_set = scan_history(

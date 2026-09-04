@@ -6,7 +6,7 @@ import unittest
 import zipfile
 from pathlib import Path
 
-from pilot_feedback.service import (
+from workspace_modeling.pilot_feedback.service import (
     PilotFeedbackError,
     attach_evidence,
     complete_evaluation,

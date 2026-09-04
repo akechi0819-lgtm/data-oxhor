@@ -6,9 +6,9 @@ from pathlib import Path
 
 import openpyxl
 
-from business_pack import load_pack
-from company_bridge.history import scan_history
-from company_bridge.service import validate_candidate_set
+from workspace_modeling.business_pack import load_pack
+from workspace_modeling.company_bridge.history import scan_history
+from workspace_modeling.company_bridge.service import validate_candidate_set
 
 
 class HistoryScanTests(unittest.TestCase):

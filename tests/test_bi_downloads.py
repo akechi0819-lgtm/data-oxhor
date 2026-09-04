@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from data_layer.auth_sessions import AuthSessionPaths, write_auth_session
-from tools.connectors.bi_downloads import BIExportConfig, build_cash_export_request, build_order_export_request
+from data_acquisition.auth.auth_sessions import AuthSessionPaths, write_auth_session
+from data_acquisition.connectors.bi.bi_downloads import BIExportConfig, build_cash_export_request, build_order_export_request
 
 
 def test_bi_exports_have_only_confirmed_date_filters() -> None:

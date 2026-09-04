@@ -2,17 +2,17 @@
 
 ## 目标
 
-`onboarding` 是宿主无关的确定性首次部署编排层。它负责环境、工作区、文件、Snapshot 和状态交接；宿主原生 Agent 负责对话、模型候选和用户确认。
+`workspace-modeling` 是宿主无关的确定性工作区建模入口；其中首次部署负责环境、工作区、文件、Snapshot 和状态交接，宿主原生 Agent 负责对话、模型候选和用户确认。
 
 ## 入口
 
 ```bash
-python3 -m interfaces.onboarding doctor --profile core|full
-python3 -m interfaces.onboarding init --workspace PATH --business-port PORT [--pack PATH]
-python3 -m interfaces.onboarding import-data --workspace PATH --source-id ID --file FILE [--replace]
-python3 -m interfaces.onboarding sync --workspace PATH --snapshot-id ID
-python3 -m interfaces.onboarding status --workspace PATH
-python3 -m interfaces.onboarding handoff --workspace PATH [--session-id ID]
+python3 -m interfaces.workspace_modeling doctor --profile core|full
+python3 -m interfaces.workspace_modeling init --workspace PATH --business-port PORT [--pack PATH]
+python3 -m interfaces.workspace_modeling import-data --workspace PATH --source-id ID --file FILE [--replace]
+python3 -m interfaces.workspace_modeling sync --workspace PATH --snapshot-id ID
+python3 -m interfaces.workspace_modeling status --workspace PATH
+python3 -m interfaces.workspace_modeling handoff --workspace PATH [--session-id ID]
 ```
 
 ## 输出
@@ -36,4 +36,4 @@ Codex 用户不需要直接输入这些命令。项目提供 `.agents/skills/fir
 - `import-data` 只复制本地 XLSX/XLSM 到 `Input/Data/<source_id>/`，默认拒绝覆盖已有槽位；不联网、不上传。
 - `sync` 复用 Bridge 对齐向导的不可变 Snapshot 发布；必须使用新 `snapshot_id`，不会覆盖或复用已使用身份。
 - `handoff` 建立或重复读取当前 Snapshot 的对齐会话，并返回会话路径和宿主动作。首次部署 Skill 在 Snapshot 发布后自动调用它，随后进入 Bridge 对齐对话；它不会生成 proposed 候选、回答问题或 finalize Bridge。
-- 正式 Bridge 仍必须通过 `bridge-alignment-wizard answer` 和 `finalize`，关键问题未确认时阻断。
+- 正式 Bridge 仍必须通过 `interfaces.bridge_alignment answer` 和 `finalize`，关键问题未确认时阻断。

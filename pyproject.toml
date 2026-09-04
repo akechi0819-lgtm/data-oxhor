@@ -41,15 +41,14 @@ full = [
 ]
 
 [project.scripts]
-data-foundation = "interfaces.data_foundation:main"
+data-platform = "interfaces.data_platform:main"
 business-pack = "interfaces.business_pack:main"
 company-bridge = "interfaces.company_bridge:main"
-bridge-alignment-wizard = "interfaces.bridge_alignment_wizard:main"
-casebook-pilot = "interfaces.casebook_pilot:main"
-onboarding = "interfaces.onboarding:main"
+workspace-modeling = "interfaces.workspace_modeling:main"
+casebook = "interfaces.casebook:main"
 
 [tool.setuptools.packages.find]
-include = ["bridge_alignment*", "business_pack*", "casebook*", "company_bridge*", "data_foundation*", "interfaces*", "onboarding*", "pilot_feedback*"]
+include = ["workspace_modeling*", "data_platform*", "data_acquisition*", "analysis_product*", "dashboard_product*", "interfaces*"]
 
 [tool.setuptools.package-data]
-business_pack = ["packs/**/*.json"]
+workspace_modeling.business_pack = ["packs/**/*.json"]

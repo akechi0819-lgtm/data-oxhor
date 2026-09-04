@@ -4,7 +4,7 @@ import argparse
 import json
 from pathlib import Path
 
-from business_pack.service import PackError, default_pack_path, describe_pack, validate_pack
+from workspace_modeling.business_pack.service import PackError, default_pack_path, describe_pack, validate_pack
 
 
 def build_parser() -> argparse.ArgumentParser:

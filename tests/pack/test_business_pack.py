@@ -8,7 +8,7 @@ import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
 
-from business_pack import describe_pack, load_pack, validate_pack
+from workspace_modeling.business_pack import describe_pack, load_pack, validate_pack
 from interfaces.business_pack import main
 
 
