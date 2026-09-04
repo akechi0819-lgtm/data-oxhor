@@ -1,0 +1,23 @@
+{
+  "schema_version": "dashboard_saved_queries.v1",
+  "workspace": "customers/bi_operations",
+  "snapshot_binding": "runtime_current_snapshot",
+  "queries": [
+    {
+      "query_id": "dashboard_passive_work_orders",
+      "version": "v6",
+      "purpose": "被动工单实际：按 ID 去重，按三大业务团队及线下/线上私域/线上平台归属输出",
+      "parameters": ["start_date", "end_date", "performance_start", "performance_end"],
+      "output": "team_group_person_work_orders",
+      "sql_owner": "customer_workspace_saved_query_registry"
+    },
+    {
+      "query_id": "dashboard_passive_reported_cash",
+      "version": "v6",
+      "purpose": "被动报入现金实际：渠道属性=被动且报入现金收入>0，按三大业务团队及个人活动名称归属输出",
+      "parameters": ["start_date", "end_date", "performance_start", "performance_end"],
+      "output": "team_group_person_cash",
+      "sql_owner": "customer_workspace_saved_query_registry"
+    }
+  ]
+}

@@ -1,0 +1,95 @@
+{
+  "schema_version": "dashboard_people.v1",
+  "scope": "current_roster",
+  "teams": [
+    {
+      "team_id": "offline_market",
+      "display_name": "线下市场",
+      "groups": [
+        {
+          "group_id": "youth",
+          "display_name": "青少组",
+          "members": [
+            {"person_id": "wang_hao", "display_name": "王昊", "status": "active", "note": "市内全域"},
+            {"person_id": "ma_ao", "display_name": "马澳", "status": "active", "note": "市内全域"},
+            {"person_id": "zhang_qinli", "display_name": "张钦莉", "status": "active", "note": "市内全域"},
+            {"person_id": "wang_xinqing", "display_name": "王欣庆", "status": "probation_pending", "note": "试用期待定"}
+          ]
+        },
+        {
+          "group_id": "middle_school",
+          "display_name": "初中组",
+          "members": [
+            {"slot_id": "offline-middle-school-vacancy-1", "status": "vacant", "display_name": "空白占位 1"},
+            {"slot_id": "offline-middle-school-vacancy-2", "status": "vacant", "display_name": "空白占位 2"}
+          ]
+        },
+        {
+          "group_id": "high_school",
+          "display_name": "高中组",
+          "members": [
+            {"person_id": "gu_zhiven", "display_name": "谷志文", "status": "pending", "note": "待定"},
+            {"person_id": "yu_yang", "display_name": "于洋", "status": "pending_replacement", "note": "待替换"},
+            {"person_id": "yang_xinyu", "display_name": "杨新宇", "status": "pending_replacement", "note": "待替换"},
+            {"slot_id": "offline-high-school-vacancy-1", "status": "vacant", "display_name": "空白占位 1"}
+          ]
+        },
+        {
+          "group_id": "university",
+          "display_name": "大学组",
+          "leadership": [
+            {"person_id": "qin_zhenxu", "display_name": "秦振旭", "role": "脱产主管", "status": "active"}
+          ],
+          "members": [
+            {"person_id": "li_jin", "display_name": "李进", "status": "active", "note": "天大"},
+            {"person_id": "shi_shunying", "display_name": "师顺盈", "status": "active", "note": "南大"},
+            {"person_id": "shi_renda", "display_name": "石仁达", "status": "active", "note": "大学城"},
+            {"person_id": "zhai_xinyu", "display_name": "翟昕羽", "status": "active", "note": "南大仁爱"},
+            {"person_id": "cao_hengwei", "display_name": "曹恒玮", "status": "probation", "note": "财科大；试用期"},
+            {"slot_id": "offline-university-vacancy-1", "status": "vacant", "display_name": "空白占位 1", "note": "河工大"}
+          ]
+        }
+      ]
+    },
+    {
+      "team_id": "online_private",
+      "display_name": "线上私域（虚拟人团队）",
+      "groups": [
+        {
+          "group_id": "primary_middle_enablement",
+          "display_name": "小初提能组",
+          "members": [
+            {"person_id": "yang_yulin", "display_name": "杨玉林", "status": "active"}
+          ]
+        },
+        {
+          "group_id": "high_school_multi_path",
+          "display_name": "高中多途径组",
+          "members": [
+            {"person_id": "wang_yue", "display_name": "王玥", "status": "active"},
+            {"person_id": "xu_meng", "display_name": "许萌", "status": "returning_q3", "note": "Q3 回归"}
+          ]
+        },
+        {
+          "group_id": "international_school_selection",
+          "display_name": "国际学校择校组",
+          "members": [
+            {"person_id": "wang_yue", "display_name": "王玥", "status": "active"}
+          ]
+        },
+        {
+          "group_id": "university",
+          "display_name": "大学组",
+          "members": [
+            {"person_id": "gao_boran", "display_name": "高勃然", "status": "active"}
+          ]
+        }
+      ]
+    },
+    {
+      "team_id": "online_platform",
+      "display_name": "线上平台",
+      "groups": []
+    }
+  ]
+}

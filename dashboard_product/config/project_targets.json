@@ -1,0 +1,29 @@
+{
+  "schema_version": "dashboard_project_targets.v1",
+  "target_scope": "project",
+  "fiscal_year": "FY27",
+  "period_type": "quarter",
+  "source": {"workbook": "Q2收入预算-滚动版(1).xlsx", "worksheet": "语培", "metrics": ["被动现金(净)", "总被动工单"]},
+  "allocation": {"online_platform": 0.55, "offline_market": 0.45, "online_private": 0.06, "online_private_note": "线上私域（虚拟人）为独立加挂目标"},
+  "rounding": {"cash": "round_to_nearest_yuan_after_each_team_allocation", "work_orders": "round_to_nearest_integer_after_each_team_allocation"},
+  "business_groups": {
+    "study_abroad_preparation": {"display_name": "留学预备", "quarters": {
+      "Q1": {"online_platform": {"passive_cash_target": 1770001, "work_order_target": 1273}, "offline_market": {"passive_cash_target": 1448183, "work_order_target": 1041}, "online_private": {"passive_cash_target": 193091, "work_order_target": 139}},
+      "Q2": {"online_platform": {"passive_cash_target": 1300750, "work_order_target": 985}, "offline_market": {"passive_cash_target": 1064250, "work_order_target": 806}, "online_private": {"passive_cash_target": 141900, "work_order_target": 108}},
+      "Q3": {"online_platform": {"passive_cash_target": 1073270, "work_order_target": 813}, "offline_market": {"passive_cash_target": 878130, "work_order_target": 665}, "online_private": {"passive_cash_target": 117084, "work_order_target": 89}},
+      "Q4": {"online_platform": {"passive_cash_target": 1206810, "work_order_target": 914}, "offline_market": {"passive_cash_target": 987390, "work_order_target": 748}, "online_private": {"passive_cash_target": 131652, "work_order_target": 100}}
+    }},
+    "high_school": {"display_name": "高中", "quarters": {
+      "Q1": {"online_platform": {"passive_cash_target": 2788112, "work_order_target": 707}, "offline_market": {"passive_cash_target": 2281182, "work_order_target": 578}, "online_private": {"passive_cash_target": 304158, "work_order_target": 77}},
+      "Q2": {"online_platform": {"passive_cash_target": 1718750, "work_order_target": 645}, "offline_market": {"passive_cash_target": 1406250, "work_order_target": 528}, "online_private": {"passive_cash_target": 187500, "work_order_target": 70}},
+      "Q3": {"online_platform": {"passive_cash_target": 1522125, "work_order_target": 571}, "offline_market": {"passive_cash_target": 1245375, "work_order_target": 467}, "online_private": {"passive_cash_target": 166050, "work_order_target": 62}},
+      "Q4": {"online_platform": {"passive_cash_target": 1178375, "work_order_target": 442}, "offline_market": {"passive_cash_target": 964125, "work_order_target": 362}, "online_private": {"passive_cash_target": 128550, "work_order_target": 48}}
+    }},
+    "university": {"display_name": "大学", "quarters": {
+      "Q1": {"online_platform": {"passive_cash_target": 2703215, "work_order_target": 1314}, "offline_market": {"passive_cash_target": 2211721, "work_order_target": 1076}, "online_private": {"passive_cash_target": 294896, "work_order_target": 143}},
+      "Q2": {"online_platform": {"passive_cash_target": 1903176, "work_order_target": 1084}, "offline_market": {"passive_cash_target": 1557144, "work_order_target": 887}, "online_private": {"passive_cash_target": 207619, "work_order_target": 118}},
+      "Q3": {"online_platform": {"passive_cash_target": 1501394, "work_order_target": 855}, "offline_market": {"passive_cash_target": 1228414, "work_order_target": 700}, "online_private": {"passive_cash_target": 163788, "work_order_target": 93}},
+      "Q4": {"online_platform": {"passive_cash_target": 1773654, "work_order_target": 1011}, "offline_market": {"passive_cash_target": 1451172, "work_order_target": 827}, "online_private": {"passive_cash_target": 193490, "work_order_target": 110}}
+    }}
+  }
+}
