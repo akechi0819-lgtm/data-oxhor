@@ -2,9 +2,58 @@
 
 看板是独立产品，消费已确认的工作区状态与 Data Platform 的受控查询结果；它不直接连接 DuckDB、不解释企业字段、不修改 Bridge，也不读取 `latest` 指针。
 
+## 快速开始
+
+当前版本使用简化的直接运行方式：
+
+```bash
+cd /Users/akechi/Desktop/manager\ -CowH/dashboard_product
+python refresh.py
+```
+
+生成的看板输出到：
+```
+/Users/akechi/Desktop/manager -CowH/customers/bi_operations/Output/Dashboard/run_dashboard_product_YYYYMMDD_*/
+├── artifact.json
+└── index.html
+```
+
+## 核心概念
+
+### 绩效月 vs 自然月
+
+- **绩效月**: 每月26日至次月25日，**仅用于个人业绩统计**
+- **自然月**: 日历月份（1月1日至31日），**用于业务组和团队层级**
+
+这是看板的核心设计原则。个人考核按绩效月周期，业务汇报按自然月周期。
+
+### 数据聚合层级
+
+- **业务组 (Business Group)**: 按自然月聚合
+- **团队 (Team)**: 按自然月聚合  
+- **个人 (Person)**: 按绩效月聚合
+
 ## 当前状态
 
-目前只实现显式身份的 artifact 生命周期：
+**版本**: v0.1.0  
+**日期**: 2026-09-04  
+**状态**: 功能开发完成，待数据验证
+
+已完成：
+- ✅ 绩效月计算逻辑
+- ✅ 分离业务组和个人聚合逻辑
+- ✅ HTML 看板渲染
+- ✅ 日级数据灵活聚合
+- ✅ 同比计算逻辑
+
+待验证：
+- ⚠️ 历史同比数据准确性（去年Q1数据需验证）
+
+详细开发状态见 [CURRENT_STATUS.md](docs/CURRENT_STATUS.md)，交接说明见 [HANDOFF.md](docs/HANDOFF.md)。
+
+## 未来架构（未实现）
+
+目标架构将实现显式身份的 artifact 生命周期：
 
 ```bash
 python3 -m dashboard_product.refresh refresh --workspace customers/<workspace> --run-id run_<id>
