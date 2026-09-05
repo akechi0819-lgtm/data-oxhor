@@ -72,7 +72,7 @@ Bridge 不保存 SQL。Saved Query 不保存旧 Snapshot 的结论或历史金�
 | --- | --- |
 | `cash_date` | 业务日期 |
 | `reported_cash_amount` | 正向报入现金收入 |
-| `business_group` | 留学预备、高中、大学或 `暂无法匹配` |
+| `business_group` | 留学预备、高中、大学；未映射记录不进入正式看板汇总 |
 | `team_id` | `offline_market`、`online_private`、`online_platform` |
 | `is_work_order_matched` | 是否按工单 ID 精确关联成功 |
 | `attribution_rule` | `work_order_match`、`campaign_virtual_human`、`campaign_online`、`channel_tmk`、`campaign_campus_agent`、`default_online_platform` 之一 |
@@ -90,7 +90,7 @@ Bridge 不保存 SQL。Saved Query 不保存旧 Snapshot 的结论或历史金�
 2. 已升级 Bridge v1.2.0：新增 `报入现金收入 -> cash.payment`，并登记被动新生正向报入现金范围、现金业务组映射、工单文本精确关联和团队兜底归属政策。
 3. Saved Query 回归运行：`run_attributed_passive_reported_cash_v1_20260905`，Snapshot 为 `snapshot_bi_work_order_id_20260904`，返回 5,030 条现金源明细；团队归属为空为 0，查询输出保留 `is_work_order_matched=false` 与 `attribution_rule`。
 4. Q1（2026-06-01 至 2026-09-01）汇总为 `12,748,539.70` 元，与现有 `dashboard_actuals/v6` 同窗口的现金汇总一致。
-5. 注意：Q1 有 304 条源记录的现金表 `团队` 不在已确认三组映射内，输出为 `business_group=暂无法匹配`；这不是工单关联失败。另有 436 条工单未关联记录，均按确认的团队兜底规则归属并保留未关联标记。
+5. 当前看板不纳入未映射业务组记录；工单未关联记录仍按确认的团队兜底规则归属，渠道统一显示为 `暂无归属`。
 6. 看板尚未改为消费新 Saved Query，且本次明确不改动看板刷新链路。新查询供后续异常分析、自由探索和未来看板重构时直接复用。
 
 ## 后续使用
