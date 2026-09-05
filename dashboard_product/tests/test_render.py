@@ -30,6 +30,7 @@ class RenderTest(unittest.TestCase):
         self.assertIn("展开渠道", page)
         self.assertIn("prior_channels", page)
         self.assertIn("二级渠道", page)
+        self.assertIn("people-panel", page)
         self.assertIn("当期", page)
         self.assertIn("同期", page)
         self.assertNotIn("工单渠道结构", page)

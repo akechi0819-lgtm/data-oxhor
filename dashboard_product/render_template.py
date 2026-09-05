@@ -150,6 +150,10 @@ button {{
   padding: 20px;
   overflow: auto;
 }}
+.people-panel #peopleDetail {{
+  max-height: 360px;
+  overflow: auto;
+}}
 h2 {{
   font: 600 22px Georgia;
   margin: 0 0 16px;
@@ -516,7 +520,7 @@ function render() {{
         '</tr>'
       ).join('') +
       '</tbody></table></section>' +
-      '<section class="panel">' +
+      '<section class="panel people-panel">' +
         '<h2>人员月度贡献</h2>' +
         '<p class="muted">进度条表示团队内相对贡献，不代表个人目标完成率。</p>' +
         '<div style="margin-bottom: 12px;"><label style="display: inline-flex; gap: 8px; align-items: center;">绩效月筛选：<select id="perfMonth">' +
