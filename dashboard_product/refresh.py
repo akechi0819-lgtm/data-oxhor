@@ -4,7 +4,7 @@ from pathlib import Path
 from datetime import datetime,timezone
 from uuid import uuid4
 ROOT=Path(__file__).parent
-TEAMS=[('offline_market','线下市场'),('online_private','线上私域（虚拟人团队）'),('online_platform','线上平台'),('暂无法匹配','暂无法匹配')]
+TEAMS=[('offline_market','线下市场'),('online_private','线上私域（虚拟人团队）'),('online_platform','线上平台')]
 MONTHS=[f'2026-{m:02d}' for m in range(6,13)]+[f'2027-{m:02d}' for m in range(1,6)]
 PRIOR_MONTHS=[f'2025-{m:02d}' for m in range(6,13)]+[f'2026-{m:02d}' for m in range(1,6)]
 
