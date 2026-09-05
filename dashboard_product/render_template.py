@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
-"""Dashboard HTML 渲染模板"""
+"""Render the dashboard artifact as a self-contained HTML report."""
+
 
 def render_html(artifact_data):
-    """从 artifact 数据生成完整的看板 HTML"""
-
     dashboard = artifact_data['dashboard']
     snapshot_id = artifact_data['snapshot_id']
     run_id = artifact_data['run_id']
@@ -12,7 +11,6 @@ def render_html(artifact_data):
     as_of_date = artifact_data['as_of_date']
     data_through_date = artifact_data['data_through_date']
 
-    # 注入到 dashboard 数据
     dashboard['period'] = {
         'project_label': 'FY27（2026-06-01 至 2027-05-31）',
         'performance_label': '每月 26 日至次月 25 日',
@@ -21,612 +19,217 @@ def render_html(artifact_data):
     }
 
     import json
-    dashboard_json = json.dumps(dashboard, ensure_ascii=False)
 
-    html = f'''<!doctype html>
+    dashboard_json = json.dumps(dashboard, ensure_ascii=False).replace('</', '<\\/')
+    template = '''<!doctype html>
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Cyber Shackles - 语培完成进度看板</title>
 <style>
-body {{
+:root {
+  --ink: #182230;
+  --muted: #687587;
+  --line: #dfe5ec;
+  --surface: #ffffff;
+  --canvas: #f5f7fa;
+  --blue: #2d6cdf;
+  --blue-soft: #eaf1ff;
+  --orange: #e87842;
+  --green: #2b9a70;
+}
+* { box-sizing: border-box; }
+body {
   margin: 0;
-  background: #f4f6f8;
-  color: #17212b;
-  font: 14px "Noto Sans SC", "PingFang SC", sans-serif;
-}}
-main {{
-  max-width: 1500px;
-  margin: auto;
-  padding: 30px;
-}}
-header {{
-  display: flex;
-  justify-content: space-between;
-  border-bottom: 1px solid #d9e0e7;
-  padding-bottom: 22px;
-}}
-h1 {{
-  font: 600 38px Georgia, serif;
-  margin: 8px 0;
-}}
-p, small, header .meta, .controls span, .muted {{
-  color: #6f7c88;
-}}
-.meta {{
-  text-align: right;
-  line-height: 1.8;
-}}
-.meta b {{
-  color: #17212b;
-}}
-.controls {{
-  display: flex;
-  gap: 18px;
-  align-items: end;
-  flex-wrap: wrap;
-  padding: 18px 0;
-}}
-.controls label {{
-  display: grid;
-  gap: 6px;
-  color: #96a49a;
-}}
-select, button {{
-  background: #ffffff;
-  color: #17212b;
-  border: 1px solid #cbd5df;
-  padding: 9px 12px;
-  border-radius: 3px;
-}}
-button {{
-  cursor: pointer;
-}}
-.active {{
-  background: #1f6feb !important;
-  color: #ffffff !important;
-}}
-.timeline {{
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 10px;
-  margin-bottom: 16px;
-}}
-.timeline div {{
-  background: #ffffff;
-  border: 1px solid #d9e0e7;
-  padding: 14px 16px;
-}}
-.timeline-label {{
-  display: flex;
-  justify-content: space-between;
-  margin-bottom: 9px;
-  color: #3b4854;
-  font-weight: 600;
-}}
-.timeline-label strong {{ color: #1f6feb; font-size: 16px; }}
-.progress-track {{
-  height: 10px;
-  overflow: hidden;
-  background: #e5ebf1;
-  border-radius: 99px;
-}}
-.progress-fill {{
-  height: 100%;
-  width: var(--w);
-  background: #1f6feb;
-  border-radius: inherit;
-}}
-.cards {{
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-}}
-.cards article {{
-  background: #ffffff;
-  color: #17212b;
-  border: 1px solid #d9e0e7;
-  padding: 18px;
-  border-top: 4px solid #1f6feb;
-}}
-.cards article:nth-child(2) {{
-  border-color: #f08c46;
-}}
-.cards strong {{
-  display: block;
-  font: 600 30px Georgia;
-  margin: 12px 0 5px;
-}}
-.grid {{
-  display: grid;
-  grid-template-columns: 1.3fr 0.9fr;
-  gap: 14px;
-  margin-top: 14px;
-}}
-.panel {{
-  background: #ffffff;
-  border: 1px solid #d9e0e7;
-  padding: 20px;
-  overflow: auto;
-}}
-.people-panel #peopleDetail {{
-  max-height: 360px;
-  overflow: auto;
-}}
-h2 {{
-  font: 600 22px Georgia;
-  margin: 0 0 16px;
-}}
-table {{
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 12px;
-  white-space: nowrap;
-}}
-th, td {{
-  text-align: left;
-  padding: 11px 8px;
-  border-bottom: 1px solid #e6ebf0;
-}}
-th {{
-  color: #6f7c88;
-}}
-tbody th {{
-  color: #17212b;
-}}
-.bar {{
-  display: inline-block;
-  width: 70px;
-  height: 6px;
-  background: #e5ebf1;
-  margin-right: 7px;
-  vertical-align: middle;
-}}
-.bar i {{
-  display: block;
-  height: 100%;
-  background: #1f6feb;
-}}
-.period-progress {{
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 16px;
-  padding: 12px;
-  color: #3b4854;
-  background: #f7f9fb;
-  border: 1px solid #e1e7ed;
-}}
-.period-progress .bar {{
-  flex: 1;
-  width: auto;
-  margin: 0;
-  height: 9px;
-}}
-.period-progress strong {{ color: #1f6feb; min-width: 48px; text-align: right; }}
-.drill-toggle {{
-  padding: 3px 7px;
-  color: #1f6feb;
-  border-color: #b9d1f5;
-  font-size: 12px;
-}}
-.drill-row td {{
-  padding: 0 10px 14px 28px;
-  background: #f7f9fb;
-}}
-.drill-table {{ margin-top: 10px; font-size: 12px; }}
-.drill-table th, .drill-table td {{ padding: 7px 8px; }}
-.drill-table th {{ color: #3b4854; }}
-.empty-drill {{ color: #6f7c88; padding: 10px 0; }}
-.tabs {{ display: flex; gap: 8px; flex-wrap: wrap; margin: 0 0 14px; }}
-.tabs button {{ border-radius: 5px; }}
-@media (max-width: 620px) {{
-  .timeline-label {{ align-items: flex-start; gap: 8px; flex-direction: column; }}
-  .period-progress {{ align-items: stretch; flex-direction: column; }}
-  .period-progress strong {{ text-align: left; }}
-}}
-footer {{
-  border-top: 1px solid #35443c;
-  margin-top: 20px;
-  padding-top: 14px;
-  color: #819087;
-  font-size: 11px;
-}}
-@media (max-width: 900px) {{
-  main {{
-    padding: 18px;
-  }}
-  .grid, .cards, .timeline {{
-    grid-template-columns: 1fr;
-  }}
-  header {{
-    display: block;
-  }}
-  .meta {{
-    text-align: left;
-    margin-top: 10px;
-  }}
-}}
+  background: var(--canvas);
+  color: var(--ink);
+  font: 14px/1.5 "Noto Sans SC", "PingFang SC", -apple-system, BlinkMacSystemFont, sans-serif;
+}
+main { max-width: 1540px; margin: auto; padding: 28px 34px 36px; }
+header { display: flex; justify-content: space-between; gap: 30px; align-items: flex-end; padding: 8px 0 24px; border-bottom: 1px solid var(--line); }
+header small, .eyebrow { color: var(--blue); font-size: 11px; font-weight: 800; letter-spacing: .14em; }
+h1 { margin: 8px 0 6px; font: 600 38px/1.1 Georgia, "Songti SC", serif; letter-spacing: 0; }
+p { margin: 0; color: var(--muted); }
+.meta { min-width: 300px; color: var(--muted); font-size: 12px; line-height: 1.8; text-align: right; }
+.meta b { color: var(--ink); font-weight: 700; }
+.controls { display: flex; align-items: flex-end; gap: 16px; flex-wrap: wrap; padding: 18px 0 12px; }
+.controls label { display: grid; gap: 5px; color: var(--muted); font-size: 12px; font-weight: 700; }
+select, button { font: inherit; }
+select { min-width: 142px; padding: 9px 32px 9px 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--ink); }
+.controls .hint { padding-bottom: 10px; color: var(--muted); font-size: 12px; }
+.timeline { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 0 0 15px; }
+.timeline-card { padding: 15px 17px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+.timeline-label { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 9px; color: var(--muted); font-weight: 700; }
+.timeline-label strong { color: var(--blue); font-size: 16px; }
+.progress-track, .bar { overflow: hidden; background: #e8edf3; }
+.progress-track { height: 10px; border-radius: 99px; }
+.progress-fill, .bar i { display: block; height: 100%; background: var(--blue); border-radius: inherit; }
+.tabs { display: flex; gap: 8px; flex-wrap: wrap; margin: 0 0 18px; }
+.tabs button { padding: 10px 16px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--muted); cursor: pointer; font-weight: 700; }
+.tabs button:hover { border-color: #aabbd4; color: var(--blue); }
+.tabs button.active { border-color: var(--blue); background: var(--blue); color: #fff; }
+.cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-bottom: 14px; }
+.metric-card { min-height: 122px; padding: 18px 20px; border: 1px solid var(--line); border-top: 4px solid var(--blue); background: var(--surface); }
+.metric-card:nth-child(2) { border-top-color: var(--orange); }
+.metric-card small { color: var(--muted); font-weight: 700; }
+.metric-card strong { display: block; margin-top: 14px; font: 600 30px/1 Georgia, "Songti SC", serif; }
+.dashboard-grid { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(350px, .8fr); gap: 14px; }
+.panel { min-width: 0; padding: 20px; border: 1px solid var(--line); background: var(--surface); }
+.panel-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; margin-bottom: 15px; }
+h2 { margin: 0; font: 600 21px/1.2 Georgia, "Songti SC", serif; }
+.section-kicker { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
+.table-wrap { width: 100%; overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 12px; white-space: nowrap; }
+th, td { padding: 11px 9px; border-bottom: 1px solid #edf0f4; text-align: left; }
+thead th { color: var(--muted); font-size: 11px; font-weight: 800; letter-spacing: .04em; }
+tbody th { color: var(--ink); font-weight: 800; }
+.completion { display: flex; align-items: center; gap: 7px; }
+.bar { display: inline-block; width: 68px; height: 7px; flex: 0 0 auto; border-radius: 99px; vertical-align: middle; }
+.bar i { background: var(--green); }
+.people-panel { display: flex; min-height: 0; flex-direction: column; }
+.people-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.people-toolbar label { color: var(--muted); font-size: 12px; font-weight: 700; }
+.people-toolbar select { min-width: 110px; padding-top: 7px; padding-bottom: 7px; }
+#peopleDetail { max-height: 350px; overflow: auto; border-top: 1px solid var(--line); }
+#peopleDetail table { min-width: 630px; }
+.period-progress { display: grid; grid-template-columns: auto minmax(80px, 1fr) auto; align-items: center; gap: 10px; padding: 12px 0; color: var(--muted); font-size: 12px; font-weight: 700; }
+.period-progress .bar { width: auto; height: 9px; }
+.period-progress strong { color: var(--blue); }
+.comparison { margin-top: 14px; }
+.comparison + .comparison { margin-top: 14px; }
+.comparison table { min-width: 760px; }
+.comparison .metric { color: var(--muted); font-weight: 700; }
+.drill-toggle { padding: 5px 9px; border: 1px solid #b9ccef; border-radius: 5px; background: var(--blue-soft); color: var(--blue); cursor: pointer; font-size: 11px; font-weight: 700; }
+.drill-toggle:hover { background: #dce8ff; }
+.drill-row td { padding: 0 12px 14px 28px; background: #fafbfd; }
+.drill-table { margin-top: 10px; font-size: 12px; }
+.drill-table th, .drill-table td { padding: 8px; }
+.drill-table thead th { color: var(--muted); }
+.drill-table .negative { color: #c34b3d; font-weight: 800; }
+.empty-drill { padding: 12px 0 3px; color: var(--muted); }
+footer { margin-top: 20px; padding-top: 14px; border-top: 1px solid var(--line); color: var(--muted); font-size: 11px; }
+@media (max-width: 980px) { main { padding: 22px 18px 28px; } .dashboard-grid { grid-template-columns: 1fr; } }
+@media (max-width: 650px) { header { display: block; } .meta { min-width: 0; margin-top: 12px; text-align: left; } h1 { font-size: 32px; } .timeline, .cards { grid-template-columns: 1fr; } .timeline-label { align-items: flex-start; flex-direction: column; gap: 3px; } .panel { padding: 16px; } }
 </style>
 </head>
 <body>
 <main>
 <header>
-  <div>
-    <small>DATA OXHOR / OPERATIONS</small>
-    <h1>Cyber Shackles</h1>
-    <p>FY27 财年：2026-06-01 至 2027-05-31</p>
-  </div>
-  <div class="meta">
-    Snapshot<br>
-    <b>{snapshot_id}</b><br>
-    数据截至 {data_through_date} · 刷新 {created_at[:19].replace('T', ' ')}
-  </div>
+  <div><small>DATA OXHOR / OPERATIONS</small><h1>Cyber Shackles</h1><p>FY27 财年：2026-06-01 至 2027-05-31</p></div>
+  <div class="meta">Snapshot<br><b>%(snapshot_id)s</b><br>数据截至 %(data_through_date)s · 刷新 %(created_at)s</div>
 </header>
-
-<section class="controls">
-  <label>
-    范围
-    <select id="scope">
-      <option value="year">全年 FY27</option>
-      <option value="Q1">Q1</option>
-      <option value="Q2" selected>Q2</option>
-      <option value="Q3">Q3</option>
-      <option value="Q4">Q4</option>
-    </select>
-  </label>
-  <span>筛选仅本地计算，不重复查询数仓</span>
-</section>
-
-<div id="timeline"></div>
-<nav id="tabs"></nav>
+<section class="controls"><label>范围<select id="scope"><option value="year">全年 FY27</option><option value="Q1">Q1</option><option value="Q2" selected>Q2</option><option value="Q3">Q3</option><option value="Q4">Q4</option></select></label><span class="hint">范围切换只影响本地汇总与下钻窗口</span></section>
+<div id="timeline" class="timeline"></div>
+<nav id="tabs" class="tabs"></nav>
 <div id="view"></div>
-
-<section class="panel" style="margin-top: 14px;">
-  <h2>业务组同期对比</h2>
-  <p>当前年度与上一财年同期对比（按业务组）</p>
-  <div id="yoy-comparison"></div>
-</section>
-
-<footer>
-  Artifact {artifact_id} · Run {run_id}
-</footer>
+<section class="panel comparison"><div class="panel-head"><div><h2>业务组同期对比</h2><p class="section-kicker">现金与工单按团队口径分别下钻到一级、二级渠道</p></div></div><div id="yoy-comparison" class="table-wrap"></div></section>
+<section class="panel comparison"><div class="panel-head"><div><h2>业务组同期对比 · 年级</h2><p class="section-kicker">现金使用学员年级，工单使用年级名称；大学支持学校 → 年级下钻</p></div></div><div id="grade-comparison" class="table-wrap"></div></section>
+<footer>Artifact %(artifact_id)s · Run %(run_id)s</footer>
 </main>
-
 <script>
-const D = {dashboard_json};
-
-// 解析日期信息
+const D = %(dashboard_json)s;
 const TODAY = new Date(D.period.current_date);
-const FY_START = new Date(D.period.fiscal_year_start);
-
 const S = document.querySelector('#scope');
 const T = document.querySelector('#tabs');
 const V = document.querySelector('#view');
 const YOY = document.querySelector('#yoy-comparison');
-
-function money(v) {{
-  return v == null ? '未配置' : Math.round(v).toLocaleString() + ' 元';
-}}
-
-function count(v) {{
-  return v == null ? '未配置' : Math.round(v).toLocaleString();
-}}
-
-function pct(v) {{
-  return v == null ? '未配置' : (v * 100).toFixed(1) + '%';
-}}
-
-function target(g, k) {{
-  if (S.value === 'year') return g.annual_targets[k];
-  if (S.value[0] === 'Q') return (g.quarter_targets[S.value] || {{}})[k] ?? null;
-  return null;
-}}
-
-function range() {{
-  // MONTHS = ['2026-06', '2026-07', '2026-08', '2026-09', '2026-10', '2026-11', '2026-12', '2027-01', '2027-02', '2027-03', '2027-04', '2027-05']
-  // 索引: Q1=0-2, Q2=3-5, Q3=6-8, Q4=9-11
-
-  if (S.value === 'year') {{
-    return [0, 12]; // 全年
-  }}
-
-  if (S.value === 'Q1') {{
-    // Q1: 2026-06 到 2026-08 (索引 0-2)
-    return [0, 3];
-  }}
-
-  if (S.value === 'Q2') {{
-    // Q2: 2026-09 到 2026-11 (索引 3-5)
-    return [3, 3];
-  }}
-
-  if (S.value === 'Q3') {{
-    // Q3: 2026-12 到 2027-02 (索引 6-8)
-    return [6, 3];
-  }}
-
-  if (S.value === 'Q4') {{
-    // Q4: 2027-03 到 2027-05 (索引 9-11)
-    return [9, 3];
-  }}
-
-  return [0, 12];
-}}
-
-function bar(v) {{
-  if (v == null) return '未配置';
-  return '<span class="bar"><i style="width:' +
-    Math.min(100, Math.max(0, v * 100)) + '%"></i></span>' + pct(v);
-}}
-
-function renderYoY() {{
-  const team = D.teams.find(t => t.team_id === T.querySelector('.active')?.dataset.id) || D.teams[0];
-  const [st, len] = range();
-
-  // 计算当前年度各业务组数据
-  const currentData = {{}};
-  team.groups.forEach(g => {{
-    const cash = g.monthly_actuals.cash.slice(st, st + len).reduce((a, b) => a + b, 0);
-    const orders = g.monthly_actuals.orders.slice(st, st + len).reduce((a, b) => a + b, 0);
-    currentData[g.display_name] = {{ cash, orders }};
-  }});
-
-  // 上一财年使用与当前财年相同的自然月段，确保季度同比窗口一致。
-  const priorData = {{}};
-  team.groups.forEach(g => {{
-    const cash = g.prior_monthly_actuals.cash.slice(st, st + len).reduce((a, b) => a + b, 0);
-    const orders = g.prior_monthly_actuals.orders.slice(st, st + len).reduce((a, b) => a + b, 0);
-    priorData[g.display_name] = {{ cash, orders }};
-  }});
-
-  let html = '<table><thead><tr><th>业务组</th><th>指标</th><th>去年同期</th><th>今年实际</th><th>同比增长</th><th>下钻</th></tr></thead><tbody>';
-
-  team.groups.forEach((g, groupIndex) => {{
-    const cur = currentData[g.display_name] || {{ cash: 0, orders: 0 }};
-    const prior = priorData[g.display_name] || {{ cash: 0, orders: 0 }};
-
-    // 现金对比
-    const cashYoY = prior.cash > 0 ? (cur.cash - prior.cash) / prior.cash : null;
-    const cashYoYStyle = cashYoY !== null && cashYoY < 0 ? ' style="color: #ff6b6b;"' : '';
-
-    const drillId = 'drill-' + groupIndex;
-    html += '<tr>';
-    html += '<th rowspan="2">' + g.display_name + '</th>';
-    html += '<td>现金</td>';
-    html += '<td>' + money(prior.cash) + '</td>';
-    html += '<td>' + money(cur.cash) + '</td>';
-    html += '<td' + cashYoYStyle + '>' + (cashYoY !== null ? pct(cashYoY) : 'N/A') + '</td>';
-    html += '<td rowspan="2"><span class="muted">工单下钻</span></td>';
-    html += '</tr>';
-
-    // 工单对比
-    const ordersYoY = prior.orders > 0 ? (cur.orders - prior.orders) / prior.orders : null;
-    const ordersYoYStyle = ordersYoY !== null && ordersYoY < 0 ? ' style="color: #ff6b6b;"' : '';
-
-    html += '<tr>';
-    html += '<td>工单</td>';
-    html += '<td>' + count(prior.orders) + '</td>';
-    html += '<td>' + count(cur.orders) + '</td>';
-    html += '<td' + ordersYoYStyle + '>' + (ordersYoY !== null ? pct(ordersYoY) : 'N/A') + ' <button class="drill-toggle" data-drill="' + drillId + '">展开渠道</button></td>';
-    html += '</tr>';
-    html += '<tr id="' + drillId + '" class="drill-row" hidden><td colspan="6">' + channelDrill(g.display_name, team.team_id, st, len) + '</td></tr>';
-  }});
-
-  html += '</tbody></table>';
-  YOY.innerHTML = html;
-  YOY.querySelectorAll('.drill-toggle').forEach(button => {{
-    button.onclick = () => {{
-      const row = document.querySelector('#' + button.dataset.drill);
-      row.hidden = !row.hidden;
-      button.textContent = row.hidden ? '展开渠道' : '收起渠道';
-    }};
-  }});
-}}
-
-function channelDrill(groupName, teamId, start, length) {{
-  const totals = {{current: {{}}, prior: {{}}}};
-  const add = (source, months, target) => Object.entries(source || {{}}).forEach(([key, value]) => {{
-    const parts = key.split('|');
-    if (parts.length < 4 || parts[1] !== teamId || parts[2] !== groupName) return;
-    const monthIndex = months.indexOf(parts[0]);
-    if (monthIndex < start || monthIndex >= start + length) return;
-    const channelKey = (parts[3] || '未归类') + '||' + (parts[4] || '未细分');
-    target[channelKey] = (target[channelKey] || 0) + value;
-  }});
-  add(D.channels, D.months, totals.current);
-  add(D.prior_channels, D.prior_months, totals.prior);
-  const keys = [...new Set([...Object.keys(totals.current), ...Object.keys(totals.prior)])];
-  if (!keys.length) return '<div class="empty-drill">当前范围暂无渠道明细</div>';
-  const firstNames = [...new Set(keys.map(key => key.split('||')[0]))];
-  let html = '<table class="drill-table"><thead><tr><th>一级渠道</th><th>二级渠道</th><th>当期</th><th>同期</th><th>同比</th></tr></thead><tbody>';
-  firstNames.forEach(first => {{
-    const firstKeys = keys.filter(key => key.startsWith(first + '||')).sort((a, b) => (totals.current[b] || 0) - (totals.current[a] || 0));
-    firstKeys.forEach((key, index) => {{
-      const second = key.split('||')[1];
-      const current = totals.current[key] || 0;
-      const prior = totals.prior[key] || 0;
-      const yoy = prior > 0 ? (current - prior) / prior : null;
-      html += '<tr><th>' + (index === 0 ? first : '') + '</th><td>' + second + '</td><td>' + count(current) + '</td><td>' + count(prior) + '</td><td>' + (yoy === null ? 'N/A' : pct(yoy)) + '</td></tr>';
-    }});
-  }});
+const GRADE = document.querySelector('#grade-comparison');
+const EMPTY_DRILLS = { current: { cash: { channel: {}, school_grade: {} }, orders: { channel: {}, school_grade: {} } }, prior: { cash: { channel: {}, school_grade: {} }, orders: { channel: {}, school_grade: {} } } };
+const DRILLS = D.drilldowns;
+function escapeHtml(value) { return String(value == null ? '' : value).replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[character])); }
+function money(value) { return value == null ? '未配置' : Math.round(value).toLocaleString() + ' 元'; }
+function count(value) { return value == null ? '未配置' : Math.round(value).toLocaleString(); }
+function pct(value) { return value == null ? 'N/A' : (value * 100).toFixed(1) + '%'; }
+function target(group, key) { if (S.value === 'year') return group.annual_targets[key]; return (group.quarter_targets[S.value] || {})[key] ?? null; }
+function range() { if (S.value === 'year') return [0, 12]; return ({ Q1: [0, 3], Q2: [3, 3], Q3: [6, 3], Q4: [9, 3] })[S.value] || [0, 12]; }
+function progressBar(value) { if (value == null) return '未配置'; const width = Math.min(100, Math.max(0, value * 100)); return '<span class="completion"><span class="bar"><i style="width:' + width + '%"></i></span>' + pct(value) + '</span>'; }
+function selectedTeam() { return D.teams.find(team => team.team_id === T.querySelector('.active')?.dataset.id) || D.teams[0]; }
+function addDrill(source, months, teamId, groupName, start, length, targetMap) {
+  Object.entries(source || {}).forEach(([key, value]) => { const parts = key.split('|'); if (parts.length < 5 || parts[1] !== teamId || parts[2] !== groupName) return; const monthIndex = months.indexOf(parts[0]); if (monthIndex < start || monthIndex >= start + length) return; const drillKey = parts.slice(3).join('||'); targetMap[drillKey] = (targetMap[drillKey] || 0) + value; });
+}
+function compareDrill(current, prior, metric, labels) {
+  const keys = [...new Set([...Object.keys(current), ...Object.keys(prior)])];
+  if (!keys.length) return '<div class="empty-drill">当前范围暂无明细</div>';
+  const formatter = metric === 'cash' ? money : count;
+  let html = '<table class="drill-table"><thead><tr>' + labels.map(label => '<th>' + label + '</th>').join('') + '<th>当期</th><th>同期</th><th>同比</th></tr></thead><tbody>';
+  keys.sort((a, b) => (current[b] || 0) - (current[a] || 0)).forEach(key => { const parts = key.split('||'); const currentValue = current[key] || 0; const priorValue = prior[key] || 0; const yoy = priorValue > 0 ? (currentValue - priorValue) / priorValue : null; html += '<tr>' + parts.map(part => '<td>' + escapeHtml(part) + '</td>').join('') + '<td>' + formatter(currentValue) + '</td><td>' + formatter(priorValue) + '</td><td class="' + (yoy !== null && yoy < 0 ? 'negative' : '') + '">' + pct(yoy) + '</td></tr>'; });
   return html + '</tbody></table>';
-}}
-
-function render() {{
-  const [st, len] = range();
-  const team = D.teams.find(t => t.team_id === T.querySelector('.active')?.dataset.id) || D.teams[0];
-
-  const sum = (g, k) => g.monthly_actuals[k].slice(st, st + len).reduce((a, b) => a + b, 0);
-
-  const tot = ['cash', 'orders'].map(k => [
-    k,
-    team.groups.reduce((s, g) => s + sum(g, k), 0),
-    team.groups.reduce((s, g) => s + (target(g, k) || 0), 0)
-  ]);
-
-  const today = TODAY;
-  const fy0 = new Date('2026-06-01');
-  const fy1 = new Date('2027-06-01');
-  const fy = Math.max(0, Math.min(100, (today - fy0) / (fy1 - fy0) * 100));
-
-  let periodProgress = 0;
-  if (S.value === 'year') {{
-    periodProgress = fy;
-  }} else if (S.value === 'Q1') {{
-    const q1Start = new Date('2026-06-01');
-    const q1End = new Date('2026-09-01');
-    periodProgress = Math.max(0, Math.min(100, (today - q1Start) / (q1End - q1Start) * 100));
-  }} else if (S.value === 'Q2') {{
-    const q2Start = new Date('2026-09-01');
-    const q2End = new Date('2026-12-01');
-    periodProgress = Math.max(0, Math.min(100, (today - q2Start) / (q2End - q2Start) * 100));
-  }} else if (S.value === 'Q3') {{
-    const q3Start = new Date('2026-12-01');
-    const q3End = new Date('2027-03-01');
-    periodProgress = Math.max(0, Math.min(100, (today - q3Start) / (q3End - q3Start) * 100));
-  }} else if (S.value === 'Q4') {{
-    const q4Start = new Date('2027-03-01');
-    const q4End = new Date('2027-06-01');
-    periodProgress = Math.max(0, Math.min(100, (today - q4Start) / (q4End - q4Start) * 100));
-  }}
-
-  T.querySelectorAll('button').forEach(b =>
-    b.classList.toggle('active', b.dataset.id === team.team_id)
-  );
-
-  document.querySelector('#timeline').innerHTML =
-    '<div><div class="timeline-label"><span>FY27 年度时间进度</span><strong>' + fy.toFixed(1) + '%</strong></div><div class="progress-track"><div class="progress-fill" style="--w:' + fy + '%"></div></div></div>' +
-    '<div><div class="timeline-label"><span>' + S.value + ' 季度时间进度</span><strong>' + periodProgress.toFixed(1) + '%</strong></div><div class="progress-track"><div class="progress-fill" style="--w:' + periodProgress + '%"></div></div></div>';
-
-  V.innerHTML =
-    '<section class="cards">' +
-      '<article><small>被动报入现金</small><strong>' + money(tot[0][1]) + '</strong></article>' +
-      '<article><small>被动工单</small><strong>' + count(tot[1][1]) + '</strong></article>' +
-    '</section>' +
-    '<div class="grid">' +
-      '<section class="panel"><h2>三大业务组 · 现金与工单</h2><table><thead><tr>' +
-      '<th>业务组</th><th>现金目标</th><th>现金实际</th><th>现金完成</th><th>工单目标</th><th>工单实际</th><th>工单完成</th>' +
-      '</tr></thead><tbody>' +
-      team.groups.map(g =>
-        '<tr><th>' + g.display_name + '</th>' +
-        '<td>' + money(target(g, 'cash')) + '</td>' +
-        '<td>' + money(sum(g, 'cash')) + '</td>' +
-        '<td>' + bar(target(g, 'cash') ? sum(g, 'cash') / target(g, 'cash') : null) + '</td>' +
-        '<td>' + count(target(g, 'orders')) + '</td>' +
-        '<td>' + count(sum(g, 'orders')) + '</td>' +
-        '<td>' + bar(target(g, 'orders') ? sum(g, 'orders') / target(g, 'orders') : null) + '</td>' +
-        '</tr>'
-      ).join('') +
-      '</tbody></table></section>' +
-      '<section class="panel people-panel">' +
-        '<h2>人员月度贡献</h2>' +
-        '<p class="muted">进度条表示团队内相对贡献，不代表个人目标完成率。</p>' +
-        '<div style="margin-bottom: 12px;"><label style="display: inline-flex; gap: 8px; align-items: center;">绩效月筛选：<select id="perfMonth">' +
-          D.months.map(m => '<option value="' + m + '">' + m + '</option>').join('') +
-        '</select></label></div>' +
-        '<div id="peopleDetail"></div>' +
-      '</section>' +
-    '</div>';
-
-  // 初始化人员明细
-  renderPeopleDetail(team, D.months[D.months.length - 1]);
-
-  // 绑定绩效月筛选器
-  document.querySelector('#perfMonth').onchange = (e) => {{
-    renderPeopleDetail(team, e.target.value);
-  }};
-
-  renderYoY();
-}}
-
-function renderPeopleDetail(team, month) {{
-  const monthIdx = D.months.indexOf(month);
-  if (monthIdx < 0) return;
-
-  const today = TODAY;
-  const monthStart = new Date(month + '-01');
-  const monthEnd = new Date(monthStart);
-  monthEnd.setMonth(monthEnd.getMonth() + 1);
-  const monthProgress = Math.max(0, Math.min(100, (today - monthStart) / (monthEnd - monthStart) * 100));
-
-  // 在表格上方显示时间进度
-  let html = '<div class="period-progress"><span>绩效月时间进度</span>';
-  html += '<span class="bar"><i style="width:' + monthProgress.toFixed(1) + '%"></i></span>';
-  html += '<strong>' + monthProgress.toFixed(1) + '%</strong></div>';
-
-  html += '<table><thead><tr>' +
-    '<th>人员</th><th>所属组</th><th>状态</th><th>现金完成</th><th>工单完成</th><th>综合进度</th>' +
-    '</tr></thead><tbody>';
-
-  // 获取该月每个人的数据
-  const peopleData = team.people.map(person => {{
-    const cashActual = person.monthly_actuals?.cash?.[monthIdx] || 0;
-    const ordersActual = person.monthly_actuals?.orders?.[monthIdx] || 0;
-    return {{ ...person, cashActual, ordersActual }};
-  }});
-
-  // 计算团队在该月的最大值（用于展示相对贡献）
-  const maxCash = Math.max(...peopleData.map(p => p.cashActual), 1);
-  const maxOrders = Math.max(...peopleData.map(p => p.ordersActual), 1);
-
-  peopleData.forEach(person => {{
-    const cashActual = person.cashActual;
-    const ordersActual = person.ordersActual;
-
-    // 计算相对贡献百分比，不与时间进度比较
-    const cashPct = maxCash > 0 ? (cashActual / maxCash * 100) : 0;
-    const ordersPct = maxOrders > 0 ? (ordersActual / maxOrders * 100) : 0;
-
-    // 综合贡献 = (现金权重50% + 工单权重50%)
-    const combinedPct = (cashPct * 0.5 + ordersPct * 0.5);
-
-    const behindClass = '';
-
-    // 现金进度条
-    const cashBar = '<span class="bar"><i style="width:' + cashPct.toFixed(1) + '%"></i></span>' + money(cashActual);
-
-    // 工单进度条
-    const ordersBar = '<span class="bar"><i style="width:' + ordersPct.toFixed(1) + '%"></i></span>' + count(ordersActual);
-
-    // 综合进度条
-    const combinedBar = '<span class="bar"><i style="width:' + combinedPct.toFixed(1) + '%"></i></span>' + combinedPct.toFixed(1) + '%';
-
-    html += '<tr' + behindClass + '><th>' + person.display_name + '</th>' +
-      '<td>' + person.group_name + '</td>' +
-      '<td>' + person.status + '</td>' +
-      '<td>' + cashBar + '</td>' +
-      '<td>' + ordersBar + '</td>' +
-      '<td>' + combinedBar + '</td>' +
-      '</tr>';
-  }});
-
-  html += '</tbody></table>';
-  document.querySelector('#peopleDetail').innerHTML = html;
-}}
-
-function init() {{
-  T.innerHTML = D.teams.map(t =>
-    '<button data-id="' + t.team_id + '">' + t.display_name + '</button>'
-  ).join('');
-
-  T.querySelectorAll('button').forEach(b => {{
-    b.onclick = () => {{
-      T.querySelectorAll('button').forEach(x => x.classList.remove('active'));
-      b.classList.add('active');
-      render();
-    }};
-  }});
-
-  T.querySelector('button').classList.add('active');
-  S.onchange = render;
-  render();
-}}
-
+}
+function compareUniversityDrill(current, prior, metric, drillId) {
+  const grouped = (values, result) => Object.entries(values).forEach(([key, value]) => { const parts = key.split('||'); const school = parts[0]; const grade = parts[1]; result[school] ??= {}; result[school][grade] = (result[school][grade] || 0) + value; });
+  const currentSchools = {}; const priorSchools = {}; grouped(current, currentSchools); grouped(prior, priorSchools);
+  const schools = [...new Set([...Object.keys(currentSchools), ...Object.keys(priorSchools)])];
+  if (!schools.length) return '<div class="empty-drill">当前范围暂无明细</div>';
+  let html = '<table class="drill-table"><thead><tr><th>学校</th><th>当期</th><th>同期</th><th>同比</th><th>下钻</th></tr></thead><tbody>';
+  schools.sort((a, b) => Object.values(currentSchools[b] || {}).reduce((sum, value) => sum + value, 0) - Object.values(currentSchools[a] || {}).reduce((sum, value) => sum + value, 0)).forEach((school, index) => {
+    const currentValue = Object.values(currentSchools[school] || {}).reduce((sum, value) => sum + value, 0); const priorValue = Object.values(priorSchools[school] || {}).reduce((sum, value) => sum + value, 0); const yoy = priorValue > 0 ? (currentValue - priorValue) / priorValue : null; const childId = drillId + '-school-' + index;
+    html += '<tr><td>' + escapeHtml(school) + '</td><td>' + (metric === 'cash' ? money(currentValue) : count(currentValue)) + '</td><td>' + (metric === 'cash' ? money(priorValue) : count(priorValue)) + '</td><td class="' + (yoy !== null && yoy < 0 ? 'negative' : '') + '">' + pct(yoy) + '</td><td><button class="drill-toggle" data-drill="' + childId + '">展开年级</button></td></tr>';
+    const grades = [...new Set([...Object.keys(currentSchools[school] || {}), ...Object.keys(priorSchools[school] || {})])]; let child = '<table class="drill-table"><thead><tr><th>年级</th><th>当期</th><th>同期</th><th>同比</th></tr></thead><tbody>';
+    grades.sort((a, b) => (currentSchools[school]?.[b] || 0) - (currentSchools[school]?.[a] || 0)).forEach(grade => { const gradeCurrent = currentSchools[school]?.[grade] || 0; const gradePrior = priorSchools[school]?.[grade] || 0; const gradeYoy = gradePrior > 0 ? (gradeCurrent - gradePrior) / gradePrior : null; child += '<tr><td>' + escapeHtml(grade) + '</td><td>' + (metric === 'cash' ? money(gradeCurrent) : count(gradeCurrent)) + '</td><td>' + (metric === 'cash' ? money(gradePrior) : count(gradePrior)) + '</td><td class="' + (gradeYoy !== null && gradeYoy < 0 ? 'negative' : '') + '">' + pct(gradeYoy) + '</td></tr>'; });
+    html += '<tr id="' + childId + '" class="drill-row" hidden><td colspan="5">' + child + '</tbody></table></td></tr>';
+  });
+  return html + '</tbody></table>';
+}
+function channelDrill(groupName, teamId, start, length, metric) { const current = {}; const prior = {}; addDrill(DRILLS.current[metric].channel, D.months, teamId, groupName, start, length, current); addDrill(DRILLS.prior[metric].channel, D.prior_months, teamId, groupName, start, length, prior); return compareDrill(current, prior, metric, ['一级渠道', '二级渠道']); }
+function gradeDrill(groupName, teamId, start, length, metric, university, drillId) {
+  const current = {}; const prior = {};
+  addDrill(DRILLS.current[metric].school_grade, D.months, teamId, groupName, start, length, current);
+  addDrill(DRILLS.prior[metric].school_grade, D.prior_months, teamId, groupName, start, length, prior);
+  if (university) return compareUniversityDrill(current, prior, metric, drillId);
+  const flatten = values => Object.entries(values).reduce((result, [key, value]) => { const grade = key.split('||')[1]; result[grade] = (result[grade] || 0) + value; return result; }, {});
+  return compareDrill(flatten(current), flatten(prior), metric, ['年级']);
+}
+function wireDrills(container) { container.querySelectorAll('.drill-toggle').forEach(button => { button.onclick = () => { const row = document.querySelector('#' + button.dataset.drill); row.hidden = !row.hidden; button.textContent = row.hidden ? '展开下钻' : '收起下钻'; }; }); }
+function renderComparison(container, mode) {
+  const team = selectedTeam(); const [start, length] = range(); const isGrade = mode === 'grade';
+  let html = '<table><thead><tr><th>业务组</th><th>指标</th><th>去年同期</th><th>今年实际</th><th>同比</th><th>下钻</th></tr></thead><tbody>';
+  team.groups.forEach((group, index) => ['cash', 'orders'].forEach((metric, metricIndex) => {
+    const currentValue = group.monthly_actuals[metric].slice(start, start + length).reduce((sum, value) => sum + value, 0);
+    const priorValue = group.prior_monthly_actuals[metric].slice(start, start + length).reduce((sum, value) => sum + value, 0);
+    const yoy = priorValue > 0 ? (currentValue - priorValue) / priorValue : null;
+    const drillId = mode + '-drill-' + index + '-' + metric;
+    const detail = isGrade ? gradeDrill(group.display_name, team.team_id, start, length, metric, group.display_name === '大学', drillId) : channelDrill(group.display_name, team.team_id, start, length, metric);
+    html += '<tr>' + (metricIndex === 0 ? '<th rowspan="2">' + escapeHtml(group.display_name) + '</th>' : '') + '<td class="metric">' + (metric === 'cash' ? '现金' : '工单') + '</td><td>' + (metric === 'cash' ? money(priorValue) : count(priorValue)) + '</td><td>' + (metric === 'cash' ? money(currentValue) : count(currentValue)) + '</td><td class="' + (yoy !== null && yoy < 0 ? 'negative' : '') + '">' + pct(yoy) + '</td><td><button class="drill-toggle" data-drill="' + drillId + '">展开下钻</button></td></tr>';
+    html += '<tr id="' + drillId + '" class="drill-row" hidden><td colspan="5">' + detail + '</td></tr>';
+  }));
+  container.innerHTML = html + '</tbody></table>'; wireDrills(container);
+}
+function performanceMonthProgress(month) { const [year, monthNumber] = month.split('-').map(Number); const end = new Date(year, monthNumber - 1, 25, 23, 59, 59); const start = new Date(year, monthNumber - 2, 26); return Math.max(0, Math.min(100, (TODAY - start) / (end - start) * 100)); }
+function renderPeople(team, month) {
+  const container = document.querySelector('#peopleDetail'); const index = D.months.indexOf(month); const progress = performanceMonthProgress(month);
+  let html = '<div class="period-progress"><span>绩效月时间进度</span><span class="bar"><i style="width:' + progress.toFixed(1) + '%"></i></span><strong>' + progress.toFixed(1) + '%</strong></div><table><thead><tr><th>人员</th><th>所属组</th><th>状态</th><th>现金</th><th>工单</th><th>综合贡献</th></tr></thead><tbody>';
+  const rows = (team.people || []).map(person => ({ person, cash: person.monthly_actuals?.cash?.[index] || 0, orders: person.monthly_actuals?.orders?.[index] || 0 })); const maxCash = Math.max(...rows.map(row => row.cash), 1); const maxOrders = Math.max(...rows.map(row => row.orders), 1);
+  rows.forEach(row => { const cashPercent = row.cash / maxCash * 100; const ordersPercent = row.orders / maxOrders * 100; const combined = (cashPercent + ordersPercent) / 2; const bar = (width, label) => '<span class="completion"><span class="bar"><i style="width:' + width.toFixed(1) + '%"></i></span>' + label + '</span>'; html += '<tr><th>' + escapeHtml(row.person.display_name) + '</th><td>' + escapeHtml(row.person.group_name) + '</td><td>' + escapeHtml(row.person.status) + '</td><td>' + bar(cashPercent, money(row.cash)) + '</td><td>' + bar(ordersPercent, count(row.orders)) + '</td><td>' + bar(combined, combined.toFixed(1) + '%') + '</td></tr>'; });
+  container.innerHTML = html + '</tbody></table>';
+}
+function renderTimeline() {
+  const fyStart = new Date('2026-06-01'); const fyEnd = new Date('2027-06-01'); const fyProgress = Math.max(0, Math.min(100, (TODAY - fyStart) / (fyEnd - fyStart) * 100)); const quarterRanges = { Q1: ['2026-06-01', '2026-09-01'], Q2: ['2026-09-01', '2026-12-01'], Q3: ['2026-12-01', '2027-03-01'], Q4: ['2027-03-01', '2027-06-01'] }; const quarter = quarterRanges[S.value]; const quarterProgress = S.value === 'year' ? fyProgress : Math.max(0, Math.min(100, (TODAY - new Date(quarter[0])) / (new Date(quarter[1]) - new Date(quarter[0])) * 100));
+  document.querySelector('#timeline').innerHTML = '<div class="timeline-card"><div class="timeline-label"><span>FY27 年度时间进度</span><strong>' + fyProgress.toFixed(1) + '%</strong></div><div class="progress-track"><div class="progress-fill" style="width:' + fyProgress + '%"></div></div></div><div class="timeline-card"><div class="timeline-label"><span>' + (S.value === 'year' ? '全年' : S.value) + ' 时间进度</span><strong>' + quarterProgress.toFixed(1) + '%</strong></div><div class="progress-track"><div class="progress-fill" style="width:' + quarterProgress + '%"></div></div></div>';
+}
+function renderView() {
+  const team = selectedTeam(); const [start, length] = range(); const sum = (group, key) => group.monthly_actuals[key].slice(start, start + length).reduce((total, value) => total + value, 0); const cash = team.groups.reduce((total, group) => total + sum(group, 'cash'), 0); const orders = team.groups.reduce((total, group) => total + sum(group, 'orders'), 0); const isTotal = team.team_id === 'market_total';
+  let html = '<section class="cards"><article class="metric-card"><small>被动报入现金</small><strong>' + money(cash) + '</strong></article><article class="metric-card"><small>被动工单</small><strong>' + count(orders) + '</strong></article></section><div class="dashboard-grid"><section class="panel"><div class="panel-head"><div><h2>' + (isTotal ? '市场总计 · 现金与工单' : '三大业务组 · 现金与工单') + '</h2><p class="section-kicker">目标、实际与完成率</p></div></div><div class="table-wrap"><table><thead><tr><th>业务组</th><th>现金目标</th><th>现金实际</th><th>现金完成</th><th>工单目标</th><th>工单实际</th><th>工单完成</th></tr></thead><tbody>';
+  html += team.groups.map(group => '<tr><th>' + escapeHtml(group.display_name) + '</th><td>' + money(target(group, 'cash')) + '</td><td>' + money(sum(group, 'cash')) + '</td><td>' + progressBar(target(group, 'cash') ? sum(group, 'cash') / target(group, 'cash') : null) + '</td><td>' + count(target(group, 'orders')) + '</td><td>' + count(sum(group, 'orders')) + '</td><td>' + progressBar(target(group, 'orders') ? sum(group, 'orders') / target(group, 'orders') : null) + '</td></tr>').join('');
+  html += '</tbody></table></div></section>';
+  if (!isTotal) html += '<section class="panel people-panel"><div class="panel-head"><div><h2>人员月度贡献</h2><p class="section-kicker">按绩效月查看团队内相对贡献</p></div></div><div class="people-toolbar"><label for="perfMonth">绩效月</label><select id="perfMonth">' + D.months.map(month => '<option value="' + month + '">' + month + '</option>').join('') + '</select></div><div id="peopleDetail"></div></section>';
+  V.innerHTML = html + '</div>';
+  if (!isTotal) { const monthSelect = document.querySelector('#perfMonth'); monthSelect.value = D.months[D.months.length - 1]; renderPeople(team, monthSelect.value); monthSelect.onchange = event => renderPeople(team, event.target.value); }
+  renderComparison(YOY, 'channel'); renderComparison(GRADE, 'grade');
+}
+function init() { T.innerHTML = D.teams.map(team => '<button data-id="' + escapeHtml(team.team_id) + '">' + escapeHtml(team.display_name) + '</button>').join(''); T.querySelectorAll('button').forEach(button => button.onclick = () => { T.querySelectorAll('button').forEach(item => item.classList.remove('active')); button.classList.add('active'); renderView(); renderTimeline(); }); T.querySelector('button').classList.add('active'); S.onchange = () => { renderView(); renderTimeline(); }; renderView(); renderTimeline(); }
 init();
 </script>
 </body>
 </html>'''
-
-    return html
+    values = {
+        '%(snapshot_id)s': snapshot_id,
+        '%(data_through_date)s': data_through_date,
+        '%(created_at)s': created_at[:19].replace('T', ' '),
+        '%(artifact_id)s': artifact_id,
+        '%(run_id)s': run_id,
+        '%(dashboard_json)s': dashboard_json,
+    }
+    for placeholder, value in values.items():
+        template = template.replace(placeholder, value)
+    return template

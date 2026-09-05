@@ -46,48 +46,34 @@ def run(ws,rid,snap,out,a,b):
  if not r.get('result'): raise ValueError(f"Query returned no result: {r}")
  return r
 def project(q,p,tg,people):
- act={}; per={}; ch={}; prior_act={}; prior_ch={}; per_monthly={}
+ act={}; per={}; prior_act={}; per_monthly={}
+ drill={"current":{"cash":{"channel":{},"school_grade":{}},"orders":{"channel":{},"school_grade":{}}},"prior":{"cash":{"channel":{},"school_grade":{}},"orders":{"channel":{},"school_grade":{}}}}
+ def add_row(row, period, months, actuals, is_current):
+  if len(row)!=10: raise ValueError(f'Unexpected dashboard query row: expected 10 columns, got {len(row)}')
+  dt,team,group,first_ch,second_ch,campaign,school,grade,metric,val = row[:10]
+  if not team or group not in {'留学预备', '高中', '大学'} or not metric or val in (None, ''): return
+  month=str(dt)[:7]; value=float(val); actuals[(month,team,group,metric)]=actuals.get((month,team,group,metric),0)+value
+  metric_key='cash' if metric=='passive_reported_cash' else 'orders'
+  channel_key='|'.join((month,team,group,str(first_ch or '未归类'),str(second_ch or '未细分')))
+  grade_key='|'.join((month,team,group,str(school or '暂无归属'),str(grade or '暂无归属')))
+  drill[period][metric_key]['channel'][channel_key]=drill[period][metric_key]['channel'].get(channel_key,0)+value
+  drill[period][metric_key]['school_grade'][grade_key]=drill[period][metric_key]['school_grade'].get(grade_key,0)+value
+  if is_current and campaign and str(campaign) not in ['是','否','None','','NULL']:
+   for team_config in people.get('teams',[]):
+    if team_config['team_id']!=team: continue
+    for group_config in team_config.get('groups',[]):
+     for person in group_config.get('members',[]):
+      person_name=person.get('display_name')
+      if person_name and person_name in str(campaign):
+       per[(team,person_name,metric)]=per.get((team,person_name,metric),0)+value
+       perf_month=date_to_perf_month(dt)
+       if perf_month: per_monthly[(team,person_name,perf_month,metric)]=per_monthly.get((team,person_name,perf_month,metric),0)+value
  # 处理当前年度数据
- # 查询列顺序: event_date, team_id, business_group, first_channel, second_channel, campaign_name, metric, actual_value
  for row in q['result']['rows']:
-  if len(row)<8: continue
-  dt,team,group,first_ch,second_ch,campaign,metric,val = row[0],row[1],row[2],row[3],row[4],row[5],row[6],row[7]
-  if not team or not group or not metric or not val: continue
-  # 业务组按自然月聚合
-  natural_month = str(dt)[:7]
-  k=(natural_month,team,group,metric); val=float(val); act[k]=act.get(k,0)+val
-  # 渠道分组：同时保存一级渠道和二级渠道数据
-  if metric=='work_orders':
-   ch['|'.join((natural_month,team,group,str(first_ch or '未归类')))]=ch.get('|'.join((natural_month,team,group,str(first_ch or '未归类'))),0)+val
-   # 保存二级渠道数据（用于下钻）
-   if second_ch:
-    ch['|'.join((natural_month,team,group,str(first_ch or '未归类'),str(second_ch)))]=ch.get('|'.join((natural_month,team,group,str(first_ch or '未归类'),str(second_ch))),0)+val
-  # 人员匹配：从 campaign_name 中提取人名
-  if campaign and str(campaign) not in ['是', '否', 'None', '', 'NULL']:
-   campaign_str = str(campaign)
-   for t in people.get('teams',[]):
-    if t['team_id']==team:
-     for g in t.get('groups',[]):
-      for person in g.get('members',[]):
-       person_name = person.get('display_name')
-       if person_name and person_name in campaign_str:
-        per[(team,person_name,metric)]=per.get((team,person_name,metric),0)+val
-        # 个人数据按绩效月聚合
-        perf_month = date_to_perf_month(dt)
-        if perf_month:
-         per_monthly[(team,person_name,perf_month,metric)]=per_monthly.get((team,person_name,perf_month,metric),0)+val
+  add_row(row,'current',MONTHS,act,True)
  # 去年同期按自然月聚合。前端按所选季度切片，必须与当前年度使用相同月段。
  for row in p['result']['rows']:
-  if len(row)<8: continue
-  mo,team,group,first_ch,second_ch,campaign,metric,val = row[0],row[1],row[2],row[3],row[4],row[5],row[6],row[7]
-  if not team or not group or not metric or not val: continue
-  natural_month = str(mo)[:7]
-  key = (natural_month, team, group, metric)
-  prior_act[key] = prior_act.get(key, 0) + float(val)
-  if metric=='work_orders':
-   prior_ch['|'.join((natural_month,team,group,str(first_ch or '未归类')))]=prior_ch.get('|'.join((natural_month,team,group,str(first_ch or '未归类'))),0)+float(val)
-   if second_ch:
-    prior_ch['|'.join((natural_month,team,group,str(first_ch or '未归类'),str(second_ch)))]=prior_ch.get('|'.join((natural_month,team,group,str(first_ch or '未归类'),str(second_ch))),0)+float(val)
+  add_row(row,'prior',PRIOR_MONTHS,prior_act,False)
  teams=[]
  for tid,label in TEAMS:
   gs=[]
@@ -118,7 +104,21 @@ def project(q,p,tg,people):
   team_cash_target=sum(g['annual_targets']['cash'] or 0 for g in gs)
   team_orders_target=sum(g['annual_targets']['orders'] or 0 for g in gs)
   teams.append({'team_id':tid,'display_name':label,'cash_target':team_cash_target or None,'orders_target':team_orders_target or None,'groups':gs,'people':roster})
- return {'months':MONTHS,'prior_months':PRIOR_MONTHS,'teams':teams,'channels':ch,'prior_channels':prior_ch}
+ total_groups=[]
+ for group_name in [item['display_name'] for item in tg['business_groups'].values()]:
+  sources=[team['groups'] for team in teams]
+  group_items=[next(group for group in source if group['display_name']==group_name) for source in sources]
+  total_groups.append({'display_name':group_name,'quarter_targets':{quarter:{metric:sum((item['quarter_targets'].get(quarter,{}).get(metric) or 0) for item in group_items) or None for metric in ('cash','orders')} for quarter in ('Q1','Q2','Q3','Q4')},'annual_targets':{'cash':sum((item['annual_targets']['cash'] or 0) for item in group_items) or None,'orders':sum((item['annual_targets']['orders'] or 0) for item in group_items) or None},'monthly_actuals':{'cash':[sum(item['monthly_actuals']['cash'][i] for item in group_items) for i in range(12)],'orders':[sum(item['monthly_actuals']['orders'][i] for item in group_items) for i in range(12)]},'prior_monthly_actuals':{'cash':[sum(item['prior_monthly_actuals']['cash'][i] for item in group_items) for i in range(12)],'orders':[sum(item['prior_monthly_actuals']['orders'][i] for item in group_items) for i in range(12)]},'cash_actual':sum(item['cash_actual'] for item in group_items),'orders_actual':sum(item['orders_actual'] for item in group_items)})
+ teams.append({'team_id':'market_total','display_name':'市场总计','cash_target':sum((team['cash_target'] or 0) for team in teams) or None,'orders_target':sum((team['orders_target'] or 0) for team in teams) or None,'groups':total_groups,'people':[]})
+ for period in ('current','prior'):
+  for metric in ('cash','orders'):
+   for kind in ('channel','school_grade'):
+    total={}
+    for key,value in list(drill[period][metric][kind].items()):
+     parts=key.split('|'); total_key='|'.join((parts[0],'market_total',*parts[2:]))
+     total[total_key]=total.get(total_key,0)+value
+    drill[period][metric][kind].update(total)
+ return {'months':MONTHS,'prior_months':PRIOR_MONTHS,'teams':teams,'drilldowns':drill}
 def refresh(workspace,run_id):
  from datetime import date
  ws=workspace.resolve(); c=read(ws/'Work/workspace.json'); snap=c['current_snapshot_id']; out=ws/'Output/Dashboard'/run_id; out.mkdir(parents=True,exist_ok=False)

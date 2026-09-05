@@ -7,13 +7,14 @@
     "pack_id": "education_training_operations_cn",
     "pack_version": "1.0.0"
   },
-  "bridge_reference_path": "../../../artifacts/company_bridge/bridges/company_bridge.bi_operations.v1_2_0.json",
-  "current_snapshot_id": "snapshot_bi_work_order_id_20260904",
-  "current_warehouse_path": "Work/Runs/run_bi_work_order_id_20260904/data/snapshots/snapshot_bi_work_order_id_20260904/warehouse.duckdb",
+  "bridge_reference_path": "Work/Bridge/reference.json",
+  "current_snapshot_id": "snapshot_bi_operations_20260905",
+  "current_warehouse_path": "Work/Runs/run_bi_operations_20260905/data/snapshots/snapshot_bi_operations_20260905/warehouse.duckdb",
   "used_snapshot_ids": [
     "snapshot_bi_full_20260902_r2",
     "snapshot_bi_headers_20260904",
     "snapshot_bi_headers2_20260904",
-    "snapshot_bi_work_order_id_20260904"
+    "snapshot_bi_work_order_id_20260904",
+    "snapshot_bi_operations_20260905"
   ]
 }
