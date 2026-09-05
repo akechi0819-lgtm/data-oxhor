@@ -25,13 +25,13 @@ python3 -m dashboard_product.refresh push
 
 `dashboard_artifact.v1` 顶层字段为 `schema_version`、`artifact_id`、`run_id`、`snapshot_id`、`created_at`、`query_results`、`errors`、`dashboard`。
 
-`dashboard` 输出 FY27 的 `months`、FY26 的 `prior_months`、团队/业务组/人员聚合和目标。业务组同时包含 `monthly_actuals` 与 `prior_monthly_actuals` 两组 12 个月数组；渲染器以相同索引切季度同比。缺少目标写 `null` 并显示“未配置”。
+`dashboard` 输出 FY27 的 `months`、FY26 的 `prior_months`、团队/业务组/人员聚合和目标，并包含 `drilldowns`（现金/工单的渠道、年级、大学学校→年级）。`market_total` 是三个团队的合计对象，`people` 固定为空。业务组同时包含 `monthly_actuals` 与 `prior_monthly_actuals` 两组 12 个月数组；渲染器以相同索引切季度同比。顶部现金和工单汇总显示当期、同期、同比、目标和完成率。缺少目标写 `null` 并显示“未配置”。
 
 ## Saved Query 与业务口径
 
 查询合同登记在 `config/saved_queries.json`。刷新使用 `dashboard_actuals/v6`，参数 `[start_date, end_date]`；逐笔对账使用 `attributed_passive_reported_cash/v1`，同样按业务日期使用半开区间。
 
-现金范围为被动、新生、正向报入现金，先按现金表团队映射业务组，再用同组工单 ID 拆团队渠道。未匹配时按虚拟人、线上、TMK、校代、默认线上平台顺序归属；团队兜底和工单关联状态必须分开报告。
+现金范围为被动、新生、正向报入现金。现金通过 `工单ID` 左连接工单表获取渠道和关联业务组；未关联时业务组回退现金团队，渠道固定为 `暂无归属`，团队再按虚拟人、线上、TMK、校代、默认线上平台顺序归属。团队兜底和工单关联状态必须分开报告。
 
 ## 验收
 

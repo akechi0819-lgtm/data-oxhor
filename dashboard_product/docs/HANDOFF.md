@@ -29,14 +29,16 @@ python3 -m dashboard_product.refresh render --artifact customers/bi_operations/O
 - `teams[].groups[].prior_monthly_actuals`: FY26 对应现金/工单数组
 - `teams[].groups[].quarter_targets`、`annual_targets`
 - `teams[].people[].monthly_actuals`: 绩效月数组
+- `teams[]` 包含 `market_total` 合计团队，`market_total.people` 为空；`dashboard.drilldowns` 提供现金/工单的渠道、年级和学校→年级聚合。
+- 顶部现金、工单汇总卡片显示当期、同期、同比、目标和完成率。
 
 渲染器只接受当前结构；旧 `metrics`、`prior_totals`、`bus_monthly` 结构不再兼容。Q1 是 FY27 的 2026-06 至 2026-08，FY26 同比取 2025-06 至 2025-08。
 
 ## 业务口径
 
-现金和工单独立计算。现金筛选 `渠道属性=被动`、`新老生类型=新生`、`报入现金收入>0`，按现金表 `团队` 映射业务组；现金通过 `工单ID` 左连接工单表获取一级、二级渠道，无法关联时渠道固定为 `暂无归属`。团队归属仍按“工单匹配→虚拟人→线上→TMK→校代→默认线上平台”顺序处理。
+现金和工单独立计算。现金筛选 `渠道属性=被动`、`新老生类型=新生`、`报入现金收入>0`；现金通过 `工单ID` 左连接工单表，关联时采用工单业务组，未关联时回退现金表团队，并获取一级、二级渠道，无法关联时渠道固定为 `暂无归属`。团队归属仍按“工单匹配→虚拟人→线上→TMK→校代→默认线上平台”顺序处理。
 
-Bridge v1.2 与 Saved Query 已对齐：正式 Bridge 为 `artifacts/company_bridge/bridges/company_bridge.bi_operations.v1_2_0.json`；可复用逐笔底稿为 `attributed_passive_reported_cash/v1`。
+看板当前以 `dashboard_actuals/v6` 的实际 SQL 行为为准；正式 Bridge 仍为 `artifacts/company_bridge/bridges/company_bridge.bi_operations.v1_2_0.json`，其现金业务组 Override 需单独完成业务确认后再修改。可复用逐笔底稿为 `attributed_passive_reported_cash/v1`。
 
 ## 验收与限制
 
