@@ -17,7 +17,7 @@ class RenderTest(unittest.TestCase):
             "cash_actual": 42,
             "orders_actual": 12,
         }
-        artifact = {"schema_version":"dashboard_artifact.v1","artifact_id":"dashboard_test","run_id":"run_dashboard_test","snapshot_id":"snapshot_bi_full_20260902_r2","as_of_date":"2026-09-05","data_through_date":"2026-09-04","created_at":"2026-09-04T08:00:00+00:00","query_results":[],"errors":[],"dashboard":{"months":["2026-06"] * 12,"prior_months":["2025-06"] * 12,"channels":{},"teams":[{"team_id":"offline_market","display_name":"线下市场","cash_target":100,"orders_target":None,"groups":[group],"people":[]}]}}
+        artifact = {"schema_version":"dashboard_artifact.v1","artifact_id":"dashboard_test","run_id":"run_dashboard_test","snapshot_id":"snapshot_bi_full_20260902_r2","as_of_date":"2026-09-05","data_through_date":"2026-09-04","created_at":"2026-09-04T08:00:00+00:00","query_results":[],"errors":[],"dashboard":{"months":["2026-06"] * 12,"prior_months":["2025-06"] * 12,"channels":{"2026-06|offline_market|留学预备|转介绍|老客转介绍":3},"prior_channels":{"2025-06|offline_market|留学预备|转介绍|老客转介绍":4},"teams":[{"team_id":"offline_market","display_name":"线下市场","cash_target":100,"orders_target":None,"groups":[group],"people":[]}]}}
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "artifact.json"
             path.write_text(json.dumps(artifact, ensure_ascii=False), encoding="utf-8")
@@ -28,6 +28,10 @@ class RenderTest(unittest.TestCase):
         self.assertIn("不代表个人目标完成率", page)
         self.assertIn("数据截至 2026-09-04", page)
         self.assertIn("展开渠道", page)
+        self.assertIn("prior_channels", page)
+        self.assertIn("二级渠道", page)
+        self.assertIn("当期", page)
+        self.assertIn("同期", page)
         self.assertNotIn("工单渠道结构", page)
         self.assertIn("未配置", page)
         self.assertIn("snapshot_bi_full_20260902_r2", page)

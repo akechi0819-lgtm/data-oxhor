@@ -46,7 +46,7 @@ def run(ws,rid,snap,out,a,b):
  if not r.get('result'): raise ValueError(f"Query returned no result: {r}")
  return r
 def project(q,p,tg,people):
- act={}; per={}; ch={}; prior_act={}; per_monthly={}
+ act={}; per={}; ch={}; prior_act={}; prior_ch={}; per_monthly={}
  # 处理当前年度数据
  # 查询列顺序: event_date, team_id, business_group, first_channel, second_channel, campaign_name, metric, actual_value
  for row in q['result']['rows']:
@@ -84,6 +84,10 @@ def project(q,p,tg,people):
   natural_month = str(mo)[:7]
   key = (natural_month, team, group, metric)
   prior_act[key] = prior_act.get(key, 0) + float(val)
+  if metric=='work_orders':
+   prior_ch['|'.join((natural_month,team,group,str(first_ch or '未归类')))]=prior_ch.get('|'.join((natural_month,team,group,str(first_ch or '未归类'))),0)+float(val)
+   if second_ch:
+    prior_ch['|'.join((natural_month,team,group,str(first_ch or '未归类'),str(second_ch)))]=prior_ch.get('|'.join((natural_month,team,group,str(first_ch or '未归类'),str(second_ch))),0)+float(val)
  teams=[]
  for tid,label in TEAMS:
   gs=[]
@@ -114,7 +118,7 @@ def project(q,p,tg,people):
   team_cash_target=sum(g['annual_targets']['cash'] or 0 for g in gs)
   team_orders_target=sum(g['annual_targets']['orders'] or 0 for g in gs)
   teams.append({'team_id':tid,'display_name':label,'cash_target':team_cash_target or None,'orders_target':team_orders_target or None,'groups':gs,'people':roster})
- return {'months':MONTHS,'prior_months':PRIOR_MONTHS,'teams':teams,'channels':ch}
+ return {'months':MONTHS,'prior_months':PRIOR_MONTHS,'teams':teams,'channels':ch,'prior_channels':prior_ch}
 def refresh(workspace,run_id):
  from datetime import date
  ws=workspace.resolve(); c=read(ws/'Work/workspace.json'); snap=c['current_snapshot_id']; out=ws/'Output/Dashboard'/run_id; out.mkdir(parents=True,exist_ok=False)

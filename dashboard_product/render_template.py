@@ -393,8 +393,8 @@ function renderYoY() {{
     html += '<td>现金</td>';
     html += '<td>' + money(prior.cash) + '</td>';
     html += '<td>' + money(cur.cash) + '</td>';
-    html += '<td rowspan="2"><button class="drill-toggle" data-drill="' + drillId + '">展开渠道</button></td>';
     html += '<td' + cashYoYStyle + '>' + (cashYoY !== null ? pct(cashYoY) : 'N/A') + '</td>';
+    html += '<td rowspan="2"><span class="muted">工单下钻</span></td>';
     html += '</tr>';
 
     // 工单对比
@@ -405,7 +405,7 @@ function renderYoY() {{
     html += '<td>工单</td>';
     html += '<td>' + count(prior.orders) + '</td>';
     html += '<td>' + count(cur.orders) + '</td>';
-    html += '<td' + ordersYoYStyle + '>' + (ordersYoY !== null ? pct(ordersYoY) : 'N/A') + '</td>';
+    html += '<td' + ordersYoYStyle + '>' + (ordersYoY !== null ? pct(ordersYoY) : 'N/A') + ' <button class="drill-toggle" data-drill="' + drillId + '">展开渠道</button></td>';
     html += '</tr>';
     html += '<tr id="' + drillId + '" class="drill-row" hidden><td colspan="6">' + channelDrill(g.display_name, team.team_id, st, len) + '</td></tr>';
   }});
@@ -422,27 +422,29 @@ function renderYoY() {{
 }}
 
 function channelDrill(groupName, teamId, start, length) {{
-  const totals = {{}};
-  Object.entries(D.channels || {{}}).forEach(([key, value]) => {{
+  const totals = {{current: {{}}, prior: {{}}}};
+  const add = (source, months, target) => Object.entries(source || {{}}).forEach(([key, value]) => {{
     const parts = key.split('|');
     if (parts.length < 4 || parts[1] !== teamId || parts[2] !== groupName) return;
-    const monthIndex = D.months.indexOf(parts[0]);
+    const monthIndex = months.indexOf(parts[0]);
     if (monthIndex < start || monthIndex >= start + length) return;
-    const first = parts[3] || '未归类';
-    const second = parts[4] || '未细分';
-    const firstKey = first + '||';
-    const secondKey = first + '||' + second;
-    totals[firstKey] = (totals[firstKey] || 0) + value;
-    totals[secondKey] = (totals[secondKey] || 0) + value;
+    const channelKey = (parts[3] || '未归类') + '||' + (parts[4] || '未细分');
+    target[channelKey] = (target[channelKey] || 0) + value;
   }});
-  const firstRows = Object.entries(totals).filter(([key]) => key.endsWith('||')).sort((a, b) => b[1] - a[1]);
-  if (!firstRows.length) return '<div class="empty-drill">当前范围暂无渠道明细</div>';
-  let html = '<table class="drill-table"><thead><tr><th>一级渠道</th><th>二级渠道</th><th>工单数</th></tr></thead><tbody>';
-  firstRows.forEach(([firstKey, firstValue]) => {{
-    const first = firstKey.slice(0, -2);
-    html += '<tr><th>' + first + '</th><td>合计</td><td>' + count(firstValue) + '</td></tr>';
-    Object.entries(totals).filter(([key]) => key.startsWith(first + '||') && !key.endsWith('||')).sort((a, b) => b[1] - a[1]).forEach(([key, value]) => {{
-      html += '<tr><td></td><td>' + key.split('||')[1] + '</td><td>' + count(value) + '</td></tr>';
+  add(D.channels, D.months, totals.current);
+  add(D.prior_channels, D.prior_months, totals.prior);
+  const keys = [...new Set([...Object.keys(totals.current), ...Object.keys(totals.prior)])];
+  if (!keys.length) return '<div class="empty-drill">当前范围暂无渠道明细</div>';
+  const firstNames = [...new Set(keys.map(key => key.split('||')[0]))];
+  let html = '<table class="drill-table"><thead><tr><th>一级渠道</th><th>二级渠道</th><th>当期</th><th>同期</th><th>同比</th></tr></thead><tbody>';
+  firstNames.forEach(first => {{
+    const firstKeys = keys.filter(key => key.startsWith(first + '||')).sort((a, b) => (totals.current[b] || 0) - (totals.current[a] || 0));
+    firstKeys.forEach((key, index) => {{
+      const second = key.split('||')[1];
+      const current = totals.current[key] || 0;
+      const prior = totals.prior[key] || 0;
+      const yoy = prior > 0 ? (current - prior) / prior : null;
+      html += '<tr><th>' + (index === 0 ? first : '') + '</th><td>' + second + '</td><td>' + count(current) + '</td><td>' + count(prior) + '</td><td>' + (yoy === null ? 'N/A' : pct(yoy)) + '</td></tr>';
     }});
   }});
   return html + '</tbody></table>';
