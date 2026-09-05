@@ -28,12 +28,12 @@ def render_html(artifact_data):
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Data OXHor · 运营增长看板</title>
+<title>Cyber Shackles - 语培完成进度看板</title>
 <style>
 body {{
   margin: 0;
-  background: #111916;
-  color: #edf0e7;
+  background: #f4f6f8;
+  color: #17212b;
   font: 14px "Noto Sans SC", "PingFang SC", sans-serif;
 }}
 main {{
@@ -44,22 +44,22 @@ main {{
 header {{
   display: flex;
   justify-content: space-between;
-  border-bottom: 1px solid #35443c;
-  padding-bottom: 20px;
+  border-bottom: 1px solid #d9e0e7;
+  padding-bottom: 22px;
 }}
 h1 {{
-  font: 600 40px Georgia;
+  font: 600 38px Georgia, serif;
   margin: 8px 0;
 }}
 p, small, header .meta, .controls span, .muted {{
-  color: #96a49a;
+  color: #6f7c88;
 }}
 .meta {{
   text-align: right;
   line-height: 1.8;
 }}
 .meta b {{
-  color: #edf0e7;
+  color: #17212b;
 }}
 .controls {{
   display: flex;
@@ -74,9 +74,9 @@ p, small, header .meta, .controls span, .muted {{
   color: #96a49a;
 }}
 select, button {{
-  background: #223028;
-  color: #edf0e7;
-  border: 1px solid #46544b;
+  background: #ffffff;
+  color: #17212b;
+  border: 1px solid #cbd5df;
   padding: 9px 12px;
   border-radius: 3px;
 }}
@@ -84,8 +84,8 @@ button {{
   cursor: pointer;
 }}
 .active {{
-  background: #e7a83d !important;
-  color: #18201c !important;
+  background: #1f6feb !important;
+  color: #ffffff !important;
 }}
 .timeline {{
   display: grid;
@@ -94,35 +94,29 @@ button {{
   margin-bottom: 16px;
 }}
 .timeline div {{
-  background: #1c2621;
-  border: 1px solid #35443c;
-  padding: 12px;
-  position: relative;
-  overflow: hidden;
+  background: #ffffff;
+  border: 1px solid #d9e0e7;
+  padding: 14px 16px;
 }}
-.timeline b {{
-  display: block;
-  margin-bottom: 4px;
-  position: relative;
-  z-index: 2;
-}}
-.timeline .progress-bg {{
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  background: linear-gradient(90deg, rgba(97, 201, 156, 0.15) 0%, rgba(97, 201, 156, 0.25) 100%);
-  width: var(--w);
-  z-index: 1;
-}}
-.timeline .progress-value {{
-  position: relative;
-  z-index: 2;
-  display: block;
-  margin-top: 4px;
-  color: #61c99c;
-  font-size: 28px;
+.timeline-label {{
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 9px;
+  color: #3b4854;
   font-weight: 600;
+}}
+.timeline-label strong {{ color: #1f6feb; font-size: 16px; }}
+.progress-track {{
+  height: 10px;
+  overflow: hidden;
+  background: #e5ebf1;
+  border-radius: 99px;
+}}
+.progress-fill {{
+  height: 100%;
+  width: var(--w);
+  background: #1f6feb;
+  border-radius: inherit;
 }}
 .cards {{
   display: grid;
@@ -130,13 +124,14 @@ button {{
   gap: 12px;
 }}
 .cards article {{
-  background: #e6e8df;
-  color: #1b2721;
+  background: #ffffff;
+  color: #17212b;
+  border: 1px solid #d9e0e7;
   padding: 18px;
-  border-top: 4px solid #61c99c;
+  border-top: 4px solid #1f6feb;
 }}
 .cards article:nth-child(2) {{
-  border-color: #e7a83d;
+  border-color: #f08c46;
 }}
 .cards strong {{
   display: block;
@@ -150,15 +145,11 @@ button {{
   margin-top: 14px;
 }}
 .panel {{
-  background: #1c2621;
-  border: 1px solid #35443c;
+  background: #ffffff;
+  border: 1px solid #d9e0e7;
   padding: 20px;
   overflow: auto;
 }}
-.channel-list {{ display: grid; gap: 10px; }}
-.channel-row {{ display: grid; grid-template-columns: minmax(140px, 1fr) 2fr auto; gap: 12px; align-items: center; }}
-.channel-row .bar {{ width: 100%; margin: 0; }}
-.channel-row strong {{ color: #61c99c; font-size: 13px; }}
 h2 {{
   font: 600 22px Georgia;
   margin: 0 0 16px;
@@ -172,32 +163,64 @@ table {{
 th, td {{
   text-align: left;
   padding: 11px 8px;
-  border-bottom: 1px solid #2e3c34;
+  border-bottom: 1px solid #e6ebf0;
 }}
 th {{
-  color: #96a49a;
+  color: #6f7c88;
 }}
 tbody th {{
-  color: #edf0e7;
+  color: #17212b;
 }}
 .bar {{
   display: inline-block;
   width: 70px;
   height: 6px;
-  background: #304038;
+  background: #e5ebf1;
   margin-right: 7px;
   vertical-align: middle;
 }}
 .bar i {{
   display: block;
   height: 100%;
-  background: #61c99c;
+  background: #1f6feb;
 }}
-.behind {{
-  color: #ff6b6b !important;
+.period-progress {{
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+  padding: 12px;
+  color: #3b4854;
+  background: #f7f9fb;
+  border: 1px solid #e1e7ed;
 }}
-.behind .bar i {{
-  background: #ff6b6b !important;
+.period-progress .bar {{
+  flex: 1;
+  width: auto;
+  margin: 0;
+  height: 9px;
+}}
+.period-progress strong {{ color: #1f6feb; min-width: 48px; text-align: right; }}
+.drill-toggle {{
+  padding: 3px 7px;
+  color: #1f6feb;
+  border-color: #b9d1f5;
+  font-size: 12px;
+}}
+.drill-row td {{
+  padding: 0 10px 14px 28px;
+  background: #f7f9fb;
+}}
+.drill-table {{ margin-top: 10px; font-size: 12px; }}
+.drill-table th, .drill-table td {{ padding: 7px 8px; }}
+.drill-table th {{ color: #3b4854; }}
+.empty-drill {{ color: #6f7c88; padding: 10px 0; }}
+.tabs {{ display: flex; gap: 8px; flex-wrap: wrap; margin: 0 0 14px; }}
+.tabs button {{ border-radius: 5px; }}
+@media (max-width: 620px) {{
+  .timeline-label {{ align-items: flex-start; gap: 8px; flex-direction: column; }}
+  .period-progress {{ align-items: stretch; flex-direction: column; }}
+  .period-progress strong {{ text-align: left; }}
 }}
 footer {{
   border-top: 1px solid #35443c;
@@ -228,7 +251,7 @@ footer {{
 <header>
   <div>
     <small>DATA OXHOR / OPERATIONS</small>
-    <h1>运营增长看板</h1>
+    <h1>Cyber Shackles</h1>
     <p>FY27 财年：2026-06-01 至 2027-05-31</p>
   </div>
   <div class="meta">
@@ -354,9 +377,9 @@ function renderYoY() {{
     priorData[g.display_name] = {{ cash, orders }};
   }});
 
-  let html = '<table><thead><tr><th>业务组</th><th>指标</th><th>去年同期</th><th>今年实际</th><th>同比增长</th></tr></thead><tbody>';
+  let html = '<table><thead><tr><th>业务组</th><th>指标</th><th>去年同期</th><th>今年实际</th><th>同比增长</th><th>下钻</th></tr></thead><tbody>';
 
-  team.groups.forEach(g => {{
+  team.groups.forEach((g, groupIndex) => {{
     const cur = currentData[g.display_name] || {{ cash: 0, orders: 0 }};
     const prior = priorData[g.display_name] || {{ cash: 0, orders: 0 }};
 
@@ -364,11 +387,13 @@ function renderYoY() {{
     const cashYoY = prior.cash > 0 ? (cur.cash - prior.cash) / prior.cash : null;
     const cashYoYStyle = cashYoY !== null && cashYoY < 0 ? ' style="color: #ff6b6b;"' : '';
 
+    const drillId = 'drill-' + groupIndex;
     html += '<tr>';
     html += '<th rowspan="2">' + g.display_name + '</th>';
     html += '<td>现金</td>';
     html += '<td>' + money(prior.cash) + '</td>';
     html += '<td>' + money(cur.cash) + '</td>';
+    html += '<td rowspan="2"><button class="drill-toggle" data-drill="' + drillId + '">展开渠道</button></td>';
     html += '<td' + cashYoYStyle + '>' + (cashYoY !== null ? pct(cashYoY) : 'N/A') + '</td>';
     html += '</tr>';
 
@@ -382,10 +407,45 @@ function renderYoY() {{
     html += '<td>' + count(cur.orders) + '</td>';
     html += '<td' + ordersYoYStyle + '>' + (ordersYoY !== null ? pct(ordersYoY) : 'N/A') + '</td>';
     html += '</tr>';
+    html += '<tr id="' + drillId + '" class="drill-row" hidden><td colspan="6">' + channelDrill(g.display_name, team.team_id, st, len) + '</td></tr>';
   }});
 
   html += '</tbody></table>';
   YOY.innerHTML = html;
+  YOY.querySelectorAll('.drill-toggle').forEach(button => {{
+    button.onclick = () => {{
+      const row = document.querySelector('#' + button.dataset.drill);
+      row.hidden = !row.hidden;
+      button.textContent = row.hidden ? '展开渠道' : '收起渠道';
+    }};
+  }});
+}}
+
+function channelDrill(groupName, teamId, start, length) {{
+  const totals = {{}};
+  Object.entries(D.channels || {{}}).forEach(([key, value]) => {{
+    const parts = key.split('|');
+    if (parts.length < 4 || parts[1] !== teamId || parts[2] !== groupName) return;
+    const monthIndex = D.months.indexOf(parts[0]);
+    if (monthIndex < start || monthIndex >= start + length) return;
+    const first = parts[3] || '未归类';
+    const second = parts[4] || '未细分';
+    const firstKey = first + '||';
+    const secondKey = first + '||' + second;
+    totals[firstKey] = (totals[firstKey] || 0) + value;
+    totals[secondKey] = (totals[secondKey] || 0) + value;
+  }});
+  const firstRows = Object.entries(totals).filter(([key]) => key.endsWith('||')).sort((a, b) => b[1] - a[1]);
+  if (!firstRows.length) return '<div class="empty-drill">当前范围暂无渠道明细</div>';
+  let html = '<table class="drill-table"><thead><tr><th>一级渠道</th><th>二级渠道</th><th>工单数</th></tr></thead><tbody>';
+  firstRows.forEach(([firstKey, firstValue]) => {{
+    const first = firstKey.slice(0, -2);
+    html += '<tr><th>' + first + '</th><td>合计</td><td>' + count(firstValue) + '</td></tr>';
+    Object.entries(totals).filter(([key]) => key.startsWith(first + '||') && !key.endsWith('||')).sort((a, b) => b[1] - a[1]).forEach(([key, value]) => {{
+      html += '<tr><td></td><td>' + key.split('||')[1] + '</td><td>' + count(value) + '</td></tr>';
+    }});
+  }});
+  return html + '</tbody></table>';
 }}
 
 function render() {{
@@ -400,7 +460,7 @@ function render() {{
     team.groups.reduce((s, g) => s + (target(g, k) || 0), 0)
   ]);
 
-  const today = new Date();
+  const today = TODAY;
   const fy0 = new Date('2026-06-01');
   const fy1 = new Date('2027-06-01');
   const fy = Math.max(0, Math.min(100, (today - fy0) / (fy1 - fy0) * 100));
@@ -431,8 +491,8 @@ function render() {{
   );
 
   document.querySelector('#timeline').innerHTML =
-    '<div><b>FY27</b><span class="progress-bg" style="--w:' + fy + '%"></span><span class="progress-value">' + fy.toFixed(1) + '%</span></div>' +
-    '<div><b>' + S.value + '</b><span class="progress-bg" style="--w:' + periodProgress + '%"></span><span class="progress-value">' + periodProgress.toFixed(1) + '%</span></div>';
+    '<div><div class="timeline-label"><span>FY27 年度时间进度</span><strong>' + fy.toFixed(1) + '%</strong></div><div class="progress-track"><div class="progress-fill" style="--w:' + fy + '%"></div></div></div>' +
+    '<div><div class="timeline-label"><span>' + S.value + ' 季度时间进度</span><strong>' + periodProgress.toFixed(1) + '%</strong></div><div class="progress-track"><div class="progress-fill" style="--w:' + periodProgress + '%"></div></div></div>';
 
   V.innerHTML =
     '<section class="cards">' +
@@ -462,16 +522,10 @@ function render() {{
         '</select></label></div>' +
         '<div id="peopleDetail"></div>' +
       '</section>' +
-      '<section class="panel" style="grid-column: 1 / -1;">' +
-        '<h2>工单渠道结构</h2>' +
-        '<p class="muted">按当前范围汇总一级渠道；渠道归属不等同于现金工单匹配成功。</p>' +
-        '<div id="channelDetail" class="channel-list"></div>' +
-      '</section>' +
     '</div>';
 
   // 初始化人员明细
   renderPeopleDetail(team, D.months[D.months.length - 1]);
-  renderChannels(team);
 
   // 绑定绩效月筛选器
   document.querySelector('#perfMonth').onchange = (e) => {{
@@ -479,25 +533,22 @@ function render() {{
   }};
 
   renderYoY();
-  renderChannels(team);
 }}
 
 function renderPeopleDetail(team, month) {{
   const monthIdx = D.months.indexOf(month);
   if (monthIdx < 0) return;
 
-  const today = new Date();
+  const today = TODAY;
   const monthStart = new Date(month + '-01');
   const monthEnd = new Date(monthStart);
   monthEnd.setMonth(monthEnd.getMonth() + 1);
   const monthProgress = Math.max(0, Math.min(100, (today - monthStart) / (monthEnd - monthStart) * 100));
 
   // 在表格上方显示时间进度
-  let html = '<div style="margin-bottom: 16px; padding: 12px; background: #f8f9fa; border-radius: 4px;">';
-  html += '<strong>绩效月时间进度：</strong> ';
-  html += '<span class="bar" style="width: 200px; display: inline-block; margin: 0 8px;"><i style="width:' + monthProgress.toFixed(1) + '%"></i></span>';
-  html += monthProgress.toFixed(1) + '%';
-  html += '</div>';
+  let html = '<div class="period-progress"><span>绩效月时间进度</span>';
+  html += '<span class="bar"><i style="width:' + monthProgress.toFixed(1) + '%"></i></span>';
+  html += '<strong>' + monthProgress.toFixed(1) + '%</strong></div>';
 
   html += '<table><thead><tr>' +
     '<th>人员</th><th>所属组</th><th>状态</th><th>现金完成</th><th>工单完成</th><th>综合进度</th>' +
@@ -547,24 +598,6 @@ function renderPeopleDetail(team, month) {{
 
   html += '</tbody></table>';
   document.querySelector('#peopleDetail').innerHTML = html;
-}}
-
-function renderChannels(team) {{
-  const [st, len] = range();
-  const totals = {{}};
-  Object.entries(D.channels || {{}}).forEach(([key, value]) => {{
-    const parts = key.split('|');
-    if (parts.length !== 4 || parts[1] !== team.team_id) return;
-    const monthIndex = D.months.indexOf(parts[0]);
-    if (monthIndex < st || monthIndex >= st + len) return;
-    const channel = parts[3] || '未归类';
-    totals[channel] = (totals[channel] || 0) + value;
-  }});
-  const rows = Object.entries(totals).sort((a, b) => b[1] - a[1]);
-  const max = Math.max(...rows.map(x => x[1]), 1);
-  document.querySelector('#channelDetail').innerHTML = rows.length ? rows.map(([name, value]) =>
-    '<div class="channel-row"><span>' + name + '</span><span class="bar"><i style="width:' + (value / max * 100).toFixed(1) + '%"></i></span><strong>' + count(value) + ' 单</strong></div>'
-  ).join('') : '<span class="muted">当前范围暂无渠道数据</span>';
 }}
 
 function init() {{
