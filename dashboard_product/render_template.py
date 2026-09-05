@@ -10,8 +10,6 @@ def render_html(artifact_data):
     artifact_id = artifact_data['artifact_id']
     created_at = artifact_data['created_at']
 
-    # prior_actuals 数据已在 project() 函数中处理完成，直接使用
-
     # 注入到 dashboard 数据
     from datetime import date
     today = date.today()
@@ -345,11 +343,11 @@ function renderYoY() {{
     currentData[g.display_name] = {{ cash, orders }};
   }});
 
-  // 去年同期数据已经是按实际天数累加的总数
+  // 上一财年使用与当前财年相同的自然月段，确保季度同比窗口一致。
   const priorData = {{}};
   team.groups.forEach(g => {{
-    const cash = g.prior_totals?.cash || 0;
-    const orders = g.prior_totals?.orders || 0;
+    const cash = g.prior_monthly_actuals.cash.slice(st, st + len).reduce((a, b) => a + b, 0);
+    const orders = g.prior_monthly_actuals.orders.slice(st, st + len).reduce((a, b) => a + b, 0);
     priorData[g.display_name] = {{ cash, orders }};
   }});
 

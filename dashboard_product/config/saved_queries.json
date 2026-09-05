@@ -4,20 +4,22 @@
   "snapshot_binding": "runtime_current_snapshot",
   "queries": [
     {
-      "query_id": "dashboard_passive_work_orders",
+      "query_id": "dashboard_actuals",
       "version": "v6",
-      "purpose": "被动工单实际：按 ID 去重，按三大业务团队及线下/线上私域/线上平台归属输出",
-      "parameters": ["start_date", "end_date", "performance_start", "performance_end"],
-      "output": "team_group_person_work_orders",
-      "sql_owner": "customer_workspace_saved_query_registry"
+      "purpose": "看板当前与上一财年实际：被动新生正向报入现金和被动工单，按业务组、市场团队、渠道和人员输出",
+      "parameters": ["start_date", "end_date"],
+      "output": "event_date,team_id,business_group,first_channel,second_channel,campaign_name,metric,actual_value",
+      "sql_owner": "customer_workspace_saved_query_registry",
+      "consumed_by": "refresh.py"
     },
     {
-      "query_id": "dashboard_passive_reported_cash",
-      "version": "v6",
-      "purpose": "被动报入现金实际：渠道属性=被动且报入现金收入>0，按三大业务团队及个人活动名称归属输出",
-      "parameters": ["start_date", "end_date", "performance_start", "performance_end"],
-      "output": "team_group_person_cash",
-      "sql_owner": "customer_workspace_saved_query_registry"
+      "query_id": "attributed_passive_reported_cash",
+      "version": "v1",
+      "purpose": "可复用的逐笔被动新生正向报入现金底稿，保留工单关联状态和归属规则",
+      "parameters": ["start_date", "end_date"],
+      "output": "cash detail attribution rows",
+      "sql_owner": "customer_workspace_saved_query_registry",
+      "consumed_by": "manual analysis; not used by refresh.py"
     }
   ]
 }

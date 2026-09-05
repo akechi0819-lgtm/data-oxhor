@@ -130,11 +130,11 @@ python3 -m interfaces.company_bridge validate-candidates \
   --pack workspace_modeling/business_pack/packs/education_training_operations_cn/pack.json \
   --require-role confirmed_review
 python3 -m interfaces.company_bridge validate \
-  --bridge artifacts/company_bridge/bridges/company_bridge.bi_operations.v1_1_0.json \
+  --bridge artifacts/company_bridge/bridges/company_bridge.bi_operations.v1_2_0.json \
   --pack workspace_modeling/business_pack/packs/education_training_operations_cn/pack.json
 ```
 
-当前 BI 工作区正式 Bridge 为 `bridge_bi_operations` v1.0.0。它引用当前 `landing.*` 关系，直接使用源表头名定位字段；具体运行时可额外传入同一 Snapshot 的 `--snapshot-description` 与 `--snapshot-quality` 做兼容性校验。
+当前 BI 工作区正式 Bridge 为 `bridge_bi_operations` v1.2.0。它引用当前 `landing.*` 关系，直接使用源表头名定位字段；具体运行时可额外传入同一 Snapshot 的 `--snapshot-description` 与 `--snapshot-quality` 做兼容性校验。
 
 历史扫描使用 `scan-history`，但输出角色是 `historical_scan`，不能直接构建正式 Bridge。只有人工复核后的 `confirmed_review` 可以传给 `build`；未确认项必须保留为 `unresolved` 或拒收，不能静默选择。完整合同见 [Company Bridge v1 合同](./company-bridge-contract.md)。
 

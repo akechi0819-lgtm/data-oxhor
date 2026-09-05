@@ -12,7 +12,7 @@
 | `data_acquisition/` | BI、企业微信、文件同步脚本和 manifest；不是 LLM Agent | 部分完成 |
 | `workspace_modeling/` | 工作区初始化、数据验证、Bridge 对齐、Pack、Casebook | 迁移中 |
 | `analysis_product/` | 探索分析、异常下钻、结论和 PPT/表格交付编排 | 部分完成 |
-| `dashboard_product/` | 固定查询、探针、渲染、推送；只消费受控结果 | 部分完成 |
+| `dashboard_product/` | 固定查询、artifact、渲染、推送；只消费受控结果 | 核心完成 |
 
 ## 能力盘点
 
@@ -28,7 +28,7 @@
 | 企业微信连接器 | 无 | `data_acquisition/connectors/wecom` | 未开始 | 认证、分页、限流和原始响应接口明确；未伪造完成 |
 | 分析路由 Skill | `.agents/skills/business-analysis-routing` | 宿主 Skill；确定性交付代码归 `analysis_product` | 基础路由已完成，边界已明确 | 查询绑定 run/snapshot 和来源凭据；新增确定性分析代码再补 CLI 合同 |
 | PPT Master Quick | `tools/s4_ppt_*` | `analysis_product` | 基础能力已完成，真实性能回归待补 | preflight、文件回查和数字回查通过 |
-| 当前 Dashboard 原型 | 旧 `dashboard` 原型已移除 | `dashboard_product` | 部分完成：仅 artifact 生命周期 | 显式 workspace、Bridge/Pack 校验、saved query 执行、无 latest、无硬编码事实 |
+| 当前 Dashboard | 旧 `dashboard` 原型已移除 | `dashboard_product` | 核心完成：受控查询、artifact、HTML 渲染和季度筛选 | `dashboard_actuals/v6` 刷新、artifact 合同、同比切片和渲染测试通过 |
 | Dashboard 生产发布 | 无 | `dashboard_product` | 未开始 | 认证、定时、服务器推送合同通过 |
 | Daily Monitor | 无 | `dashboard_product` 或独立任务 | 未开始 | 明确触发和证据合同 |
 | 项目级总路由器 | 不建设 | 不建设 | 已否决 | 由宿主或明确 CLI 选择产品能力 |
@@ -48,8 +48,8 @@
 
 - 决策：移除旧 Dashboard 原型的硬编码 Snapshot、landing SQL、`/api/latest` 页面接口、维护 CSV 和源码目录运行产物；它们不满足独立产品的受控查询边界。
 - 决策：Bridge 历史扫描保留 `data_layer/...` source locator，仅作为被审计的旧 Super Agent 资料坐标，明确不代表当前运行路径。
-- 影响：当前 `dashboard_product` 仅保留显式 workspace/run 的 artifact 生命周期；恢复查询或页面前必须先实现 saved-query 合同和对应测试。
-- 验证命令：`rg -n 'latest|duckdb|warehouse|landing' dashboard_product` 应无匹配；`sh tools/run_tests.sh -v`。
+- 影响：当前 `dashboard_product` 使用显式 workspace/run，通过 `dashboard_actuals/v6` 受控查询生成 artifact 和静态 HTML；旧原型不保留兼容入口。
+- 验证命令：`python3 -m unittest discover -s dashboard_product/tests -v`；刷新链路不得直接连接 DuckDB 或读取 landing 表。
 
 ## 禁止越界
 
@@ -62,7 +62,7 @@
 ## 开放阻塞项
 
 - 企业微信 API 权限、字段和业务口径尚未确认。
-- Dashboard 当前客户专属 SQL/CSV 映射尚未转换为 confirmed saved queries。
+- Dashboard 生产认证、推送和定时运行尚未实现；当前已使用 confirmed `dashboard_actuals/v6` 和 `attributed_passive_reported_cash/v1`。
 - PPT Quick 真实性能回归和 Dashboard 生产认证/推送尚未实现。
 
 ## 迁移门禁

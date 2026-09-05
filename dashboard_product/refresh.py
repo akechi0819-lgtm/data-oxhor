@@ -76,16 +76,14 @@ def project(q,p,tg,people):
         perf_month = date_to_perf_month(dt)
         if perf_month:
          per_monthly[(team,person_name,perf_month,metric)]=per_monthly.get((team,person_name,perf_month,metric),0)+val
- # 处理去年同期数据 - 直接累加总数，不按月存储
- prior_totals = {}
+ # 去年同期按自然月聚合。前端按所选季度切片，必须与当前年度使用相同月段。
  for row in p['result']['rows']:
   if len(row)<8: continue
   mo,team,group,first_ch,second_ch,campaign,metric,val = row[0],row[1],row[2],row[3],row[4],row[5],row[6],row[7]
   if not team or not group or not metric or not val: continue
-  # 只需要 (team_id, business_group, metric) -> 累加总数
-  key = (team, group, metric)
-  val = float(val)
-  prior_totals[key] = prior_totals.get(key, 0) + val
+  natural_month = str(mo)[:7]
+  key = (natural_month, team, group, metric)
+  prior_act[key] = prior_act.get(key, 0) + float(val)
  teams=[]
  for tid,label in TEAMS:
   gs=[]
@@ -93,9 +91,9 @@ def project(q,p,tg,people):
    n=item['display_name']; qt={q:{'cash':v.get(tid,{}).get('passive_cash_target'),'orders':v.get(tid,{}).get('work_order_target')} for q,v in item['quarters'].items()}
    monthly_cash = [act.get((m,tid,n,'passive_reported_cash'),0) for m in MONTHS]
    monthly_orders = [act.get((m,tid,n,'work_orders'),0) for m in MONTHS]
-   prior_cash = prior_totals.get((tid,n,'passive_reported_cash'),0)
-   prior_orders = prior_totals.get((tid,n,'work_orders'),0)
-   gs.append({'display_name':n,'quarter_targets':qt,'annual_targets':{'cash':sum((x['cash'] or 0) for x in qt.values()) or None,'orders':sum((x['orders'] or 0) for x in qt.values()) or None},'monthly_actuals':{'cash':monthly_cash,'orders':monthly_orders},'prior_totals':{'cash':prior_cash,'orders':prior_orders},'cash_actual':sum(monthly_cash),'orders_actual':sum(monthly_orders)})
+   prior_monthly_cash = [prior_act.get((m,tid,n,'passive_reported_cash'),0) for m in PRIOR_MONTHS]
+   prior_monthly_orders = [prior_act.get((m,tid,n,'work_orders'),0) for m in PRIOR_MONTHS]
+   gs.append({'display_name':n,'quarter_targets':qt,'annual_targets':{'cash':sum((x['cash'] or 0) for x in qt.values()) or None,'orders':sum((x['orders'] or 0) for x in qt.values()) or None},'monthly_actuals':{'cash':monthly_cash,'orders':monthly_orders},'prior_monthly_actuals':{'cash':prior_monthly_cash,'orders':prior_monthly_orders},'cash_actual':sum(monthly_cash),'orders_actual':sum(monthly_orders)})
   roster=[]
   for t in people.get('teams',[]):
    if t['team_id']==tid:
@@ -116,7 +114,7 @@ def project(q,p,tg,people):
   team_cash_target=sum(g['annual_targets']['cash'] or 0 for g in gs)
   team_orders_target=sum(g['annual_targets']['orders'] or 0 for g in gs)
   teams.append({'team_id':tid,'display_name':label,'cash_target':team_cash_target or None,'orders_target':team_orders_target or None,'groups':gs,'people':roster})
- return {'months':MONTHS,'teams':teams,'channels':ch,'prior_actuals':prior_act}
+ return {'months':MONTHS,'prior_months':PRIOR_MONTHS,'teams':teams,'channels':ch}
 def refresh(workspace,run_id):
  from datetime import date
  ws=workspace.resolve(); c=read(ws/'Work/workspace.json'); snap=c['current_snapshot_id']; out=ws/'Output/Dashboard'/run_id; out.mkdir(parents=True,exist_ok=False)

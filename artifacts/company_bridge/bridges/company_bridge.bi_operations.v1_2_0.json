@@ -1,0 +1,77 @@
+{
+  "schema_version": "company_bridge.v1",
+  "bridge_id": "bridge_bi_operations",
+  "bridge_version": "1.2.0",
+  "company_id": "workspace_bi_operations",
+  "pack_ref": {"pack_id": "education_training_operations_cn", "pack_version": "1.0.0"},
+  "generated_from_candidate_ids": [
+    "cand_bi_operations_current_snapshot_20260902", "cand_work_order_id_header_label",
+    "cand_cash_business_date", "cand_work_order_cohort_date", "cand_cash_income", "cand_cash_reported_income", "cand_student_type", "cand_cash_student_id", "cand_cash_grade", "cand_cash_product", "cand_cash_course", "cand_cash_class", "cand_cash_channel", "cand_cash_campaign", "cand_cash_adviser", "cand_cash_campus", "cand_work_order_status", "cand_work_order_campus", "cand_work_order_channel", "cand_work_order_adviser", "cand_work_order_grade", "cand_work_order_student_id",
+    "cand_override_new_student_enrollment_filter", "cand_override_cash_detail_grain", "cand_override_work_order_cash_join", "cand_override_passive_reported_cash_scope", "cand_override_cash_business_group_mapping", "cand_override_market_team_attribution", "cand_negative_cash_cause"
+  ],
+  "source_contracts": [
+    {
+      "candidate_id": "cand_bi_operations_current_snapshot_20260902",
+      "source_locator": "customers/bi_operations/Work/workspace.json",
+      "evidence_summary": "Current Snapshot contains the cash source used for passive reported-cash attribution.",
+      "evidence_refs": ["customers/bi_operations/Work/workspace.json"],
+      "status": "confirmed",
+      "source_id": "br_cash",
+      "filename": "现金表_20260902_142521.xlsx",
+      "sheet_name": "现金明细表",
+      "relation": "landing.br_cash__sheet_39b8dee2e4b3",
+      "field_names": ["业务日期", "新老生类型", "工单ID", "业务类型", "现金收入", "报入现金收入", "团队", "渠道", "市场活动名称", "渠道属性"],
+      "source_kind": "data_foundation_landing",
+      "evidence": {"physical_fields": {"业务日期": "业务日期", "新老生类型": "新老生类型", "工单ID": "工单ID", "业务类型": "业务类型", "现金收入": "现金收入", "报入现金收入": "报入现金收入", "团队": "团队", "渠道": "渠道", "市场活动名称": "市场活动名称", "渠道属性": "渠道属性"}}
+    },
+    {
+      "candidate_id": "cand_work_order_id_header_label",
+      "source_locator": "customers/bi_operations/Work/workspace.json",
+      "evidence_summary": "Current work-order export has a unique ID header used as work-order primary key.",
+      "evidence_refs": ["customers/bi_operations/Work/workspace.json"],
+      "status": "confirmed",
+      "source_id": "br_work_orders",
+      "filename": "工单表_20260902_142503.xlsx",
+      "sheet_name": "工单明细导出用表",
+      "relation": "landing.br_work_orders__sheet_1f0596db9f25",
+      "field_names": ["ID", "分配时间", "工单状态"],
+      "source_kind": "data_foundation_landing",
+      "evidence": {"physical_fields": {"ID": "ID", "分配时间": "分配时间", "工单状态": "工单状态"}}
+    }
+  ],
+  "field_mappings": [
+    {"candidate_id":"cand_cash_business_date","source_locator":"current_snapshot_header:业务日期","evidence_summary":"Cash fact date.","evidence_refs":["customers/bi_operations/Work/workspace.json"],"status":"confirmed","source_id":"br_cash","relation":"landing.br_cash__sheet_39b8dee2e4b3","field_name":"业务日期","header_label":"业务日期","target_type":"dimension","target_id":"time.cash_transaction_date"},
+    {"candidate_id":"cand_work_order_cohort_date","source_locator":"current_snapshot_header:分配时间","evidence_summary":"Work-order cohort date.","evidence_refs":["customers/bi_operations/Work/workspace.json"],"status":"confirmed","source_id":"br_work_orders","relation":"landing.br_work_orders__sheet_1f0596db9f25","field_name":"分配时间","header_label":"分配时间","target_type":"dimension","target_id":"time.stage_occurrence_date"},
+    {"candidate_id":"cand_cash_income","source_locator":"current_snapshot_header:现金收入","evidence_summary":"Signed cash amount; negative values remain negative cash.","evidence_refs":["customers/bi_operations/Work/workspace.json"],"status":"confirmed","source_id":"br_cash","relation":"landing.br_cash__sheet_39b8dee2e4b3","field_name":"现金收入","header_label":"现金收入","target_type":"concept","target_id":"cash.net_cash"},
+    {"candidate_id":"cand_cash_reported_income","source_locator":"current_snapshot_header:报入现金收入","evidence_summary":"Reported cash income used by the confirmed passive market contribution scope; only positive values are included in that scope.","evidence_refs":["customers/bi_operations/Work/workspace.json","dashboard_product/docs/BRIDGE_SAVED_QUERY_UPGRADE_PLAN.md"],"status":"confirmed","source_id":"br_cash","relation":"landing.br_cash__sheet_39b8dee2e4b3","field_name":"报入现金收入","header_label":"报入现金收入","target_type":"concept","target_id":"cash.payment"},
+    {"candidate_id":"cand_student_type","source_locator":"current_snapshot_header:新老生类型","evidence_summary":"New-student metrics filter this field to 新生.","evidence_refs":["customers/bi_operations/Work/workspace.json"],"status":"confirmed","source_id":"br_cash","relation":"landing.br_cash__sheet_39b8dee2e4b3","field_name":"新老生类型","header_label":"新老生类型","target_type":"dimension","target_id":"customer.student_type"},
+    {"candidate_id":"cand_cash_student_id","source_locator":"current_snapshot_header:学员编号","evidence_summary":"Cash student identifier retained for headcount analysis.","evidence_refs":["customers/bi_operations/Work/workspace.json"],"status":"confirmed","source_id":"br_cash","relation":"landing.br_cash__sheet_39b8dee2e4b3","field_name":"学员编号","header_label":"学员编号","target_type":"concept","target_id":"customer.student"},
+    {"candidate_id":"cand_cash_grade","source_locator":"current_snapshot_header:学员年级","evidence_summary":"Cash student grade field.","evidence_refs":["customers/bi_operations/Work/workspace.json"],"status":"confirmed","source_id":"br_cash","relation":"landing.br_cash__sheet_39b8dee2e4b3","field_name":"学员年级","header_label":"学员年级","target_type":"dimension","target_id":"customer.grade_or_age"},
+    {"candidate_id":"cand_cash_product","source_locator":"current_snapshot_header:产品","evidence_summary":"Cash product field.","evidence_refs":["customers/bi_operations/Work/workspace.json"],"status":"confirmed","source_id":"br_cash","relation":"landing.br_cash__sheet_39b8dee2e4b3","field_name":"产品","header_label":"产品","target_type":"dimension","target_id":"offering.product"},
+    {"candidate_id":"cand_cash_course","source_locator":"current_snapshot_header:课程产品名称","evidence_summary":"Cash course product name.","evidence_refs":["customers/bi_operations/Work/workspace.json"],"status":"confirmed","source_id":"br_cash","relation":"landing.br_cash__sheet_39b8dee2e4b3","field_name":"课程产品名称","header_label":"课程产品名称","target_type":"dimension","target_id":"offering.course"},
+    {"candidate_id":"cand_cash_class","source_locator":"current_snapshot_header:班型","evidence_summary":"Cash class or class-type field.","evidence_refs":["customers/bi_operations/Work/workspace.json"],"status":"confirmed","source_id":"br_cash","relation":"landing.br_cash__sheet_39b8dee2e4b3","field_name":"班型","header_label":"班型","target_type":"dimension","target_id":"offering.class"},
+    {"candidate_id":"cand_cash_channel","source_locator":"current_snapshot_header:渠道","evidence_summary":"Cash acquisition channel field.","evidence_refs":["customers/bi_operations/Work/workspace.json"],"status":"confirmed","source_id":"br_cash","relation":"landing.br_cash__sheet_39b8dee2e4b3","field_name":"渠道","header_label":"渠道","target_type":"dimension","target_id":"acquisition.channel"},
+    {"candidate_id":"cand_cash_campaign","source_locator":"current_snapshot_header:市场活动名称","evidence_summary":"Cash campaign name field.","evidence_refs":["customers/bi_operations/Work/workspace.json"],"status":"confirmed","source_id":"br_cash","relation":"landing.br_cash__sheet_39b8dee2e4b3","field_name":"市场活动名称","header_label":"市场活动名称","target_type":"dimension","target_id":"acquisition.campaign"},
+    {"candidate_id":"cand_cash_adviser","source_locator":"current_snapshot_header:顾问","evidence_summary":"Cash adviser field.","evidence_refs":["customers/bi_operations/Work/workspace.json"],"status":"confirmed","source_id":"br_cash","relation":"landing.br_cash__sheet_39b8dee2e4b3","field_name":"顾问","header_label":"顾问","target_type":"dimension","target_id":"acquisition.adviser"},
+    {"candidate_id":"cand_cash_campus","source_locator":"current_snapshot_header:校区名称","evidence_summary":"Cash campus name field.","evidence_refs":["customers/bi_operations/Work/workspace.json"],"status":"confirmed","source_id":"br_cash","relation":"landing.br_cash__sheet_39b8dee2e4b3","field_name":"校区名称","header_label":"校区名称","target_type":"dimension","target_id":"organization.campus"},
+    {"candidate_id":"cand_work_order_status","source_locator":"current_snapshot_header:工单状态","evidence_summary":"Work-order status retained for funnel stage analysis.","evidence_refs":["customers/bi_operations/Work/workspace.json"],"status":"confirmed","source_id":"br_work_orders","relation":"landing.br_work_orders__sheet_1f0596db9f25","field_name":"工单状态","header_label":"工单状态","target_type":"dimension","target_id":"delivery.fulfillment_status"},
+    {"candidate_id":"cand_work_order_campus","source_locator":"current_snapshot_header:校区","evidence_summary":"Work-order intended campus field.","evidence_refs":["customers/bi_operations/Work/workspace.json"],"status":"confirmed","source_id":"br_work_orders","relation":"landing.br_work_orders__sheet_1f0596db9f25","field_name":"校区","header_label":"校区","target_type":"dimension","target_id":"organization.campus"},
+    {"candidate_id":"cand_work_order_channel","source_locator":"current_snapshot_header:渠道","evidence_summary":"Work-order acquisition channel field.","evidence_refs":["customers/bi_operations/Work/workspace.json"],"status":"confirmed","source_id":"br_work_orders","relation":"landing.br_work_orders__sheet_1f0596db9f25","field_name":"渠道","header_label":"渠道","target_type":"dimension","target_id":"acquisition.channel"},
+    {"candidate_id":"cand_work_order_adviser","source_locator":"current_snapshot_header:跟进顾问","evidence_summary":"Work-order follow-up adviser field.","evidence_refs":["customers/bi_operations/Work/workspace.json"],"status":"confirmed","source_id":"br_work_orders","relation":"landing.br_work_orders__sheet_1f0596db9f25","field_name":"跟进顾问","header_label":"跟进顾问","target_type":"dimension","target_id":"acquisition.adviser"},
+    {"candidate_id":"cand_work_order_grade","source_locator":"current_snapshot_header:年级名称","evidence_summary":"Work-order grade field.","evidence_refs":["customers/bi_operations/Work/workspace.json"],"status":"confirmed","source_id":"br_work_orders","relation":"landing.br_work_orders__sheet_1f0596db9f25","field_name":"年级名称","header_label":"年级名称","target_type":"dimension","target_id":"customer.grade_or_age"},
+    {"candidate_id":"cand_work_order_student_id","source_locator":"current_snapshot_header:学员号","evidence_summary":"Work-order student identifier retained for headcount linkage.","evidence_refs":["customers/bi_operations/Work/workspace.json"],"status":"confirmed","source_id":"br_work_orders","relation":"landing.br_work_orders__sheet_1f0596db9f25","field_name":"学员号","header_label":"学员号","target_type":"concept","target_id":"customer.student"}
+  ],
+  "enum_mappings": [],
+  "normalization_rules": [],
+  "overrides": [
+    {"candidate_id":"cand_override_new_student_enrollment_filter","source_locator":"current_snapshot_confirmed","evidence_summary":"User-confirmed new-student enrollment definition; 老生/不参考 excluded.","evidence_refs":["customers/bi_operations/Work/workspace.json"],"status":"confirmed","target_type":"concept","target_id":"cash.net_cash","key":"new_student_enrollment_filter","value":"新老生类型 = 新生","reason":"User-confirmed new-student enrollment definition; 老生/不参考 excluded."},
+    {"candidate_id":"cand_override_cash_detail_grain","source_locator":"current_snapshot_confirmed","evidence_summary":"User-confirmed course-period cash detail grain; no deduplication.","evidence_refs":["customers/bi_operations/Work/workspace.json"],"status":"confirmed","target_type":"concept","target_id":"cash.net_cash","key":"cash_detail_grain","value":"one_work_order_to_many_cash_rows","reason":"User-confirmed course-period cash detail grain; no deduplication."},
+    {"candidate_id":"cand_override_work_order_cash_join","source_locator":"current_snapshot_confirmed","evidence_summary":"User-confirmed cross-source relationship and detail grain.","evidence_refs":["customers/bi_operations/Work/workspace.json"],"status":"confirmed","target_type":"concept","target_id":"cash.net_cash","key":"work_order_cash_join","value":"source ingestion stores cash.工单ID and work_orders.ID as text; join only non-empty trimmed text exactly; one work order to many cash rows","reason":"User-confirmed cross-source relationship and detail grain."},
+    {"candidate_id":"cand_override_passive_reported_cash_scope","source_locator":"current_snapshot_confirmed","evidence_summary":"Confirmed scope for passive market contribution cash.","evidence_refs":["dashboard_product/docs/BRIDGE_SAVED_QUERY_UPGRADE_PLAN.md"],"status":"confirmed","target_type":"concept","target_id":"cash.payment","key":"passive_reported_cash_scope","value":"渠道属性 = 被动; 新老生类型 = 新生; 报入现金收入 > 0","reason":"This is the confirmed scope for the reusable passive reported-cash fact, not a net-cash or refund definition."},
+    {"candidate_id":"cand_override_cash_business_group_mapping","source_locator":"current_snapshot_confirmed","evidence_summary":"Confirmed cash-side business-group mapping remains independent of work-order matching.","evidence_refs":["dashboard_product/docs/BRIDGE_SAVED_QUERY_UPGRADE_PLAN.md"],"status":"confirmed","target_type":"concept","target_id":"cash.payment","key":"cash_business_group_mapping","value":{"青少":"留学预备","初中":"高中","初中国际学科":"高中","ICC":"高中","国际学科":"高中","大学":"大学","other":"暂无法匹配"},"reason":"Cash business-group totals are determined only by the cash-side 团队 field; an unmatched work order does not change the group."},
+    {"candidate_id":"cand_override_market_team_attribution","source_locator":"current_snapshot_confirmed","evidence_summary":"Confirmed market-team attribution policy for the passive reported-cash fact.","evidence_refs":["dashboard_product/docs/BRIDGE_SAVED_QUERY_UPGRADE_PLAN.md"],"status":"confirmed","target_type":"concept","target_id":"cash.payment","key":"market_team_attribution","value":"matching passive work order in same business group first; otherwise 虚拟人 -> online_private, 线上 -> online_platform, TMK -> offline_market, 校代 -> offline_market, default -> online_platform; preserve work-order match status","reason":"Fallback team allocation is a business assignment only and must not be reported as a successful work-order reconciliation."}
+  ],
+  "unresolved": [
+    {"candidate_id":"cand_negative_cash_cause","source_locator":"current_snapshot_confirmed","evidence_summary":"Negative cash remains negative cash; business cause is not inferred as refund.","evidence_refs":["customers/bi_operations/Work/workspace.json"],"status":"unresolved","source_id":"br_cash","relation":"landing.br_cash__sheet_39b8dee2e4b3","field_name":"现金收入","blocked_target_type":"concept","blocked_target_id":"cash.net_cash","reason":"Negative cash remains negative cash; business cause is not inferred as refund."}
+  ]
+}
