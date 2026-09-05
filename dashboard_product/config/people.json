@@ -10,10 +10,10 @@
           "group_id": "youth",
           "display_name": "青少组",
           "members": [
-            {"person_id": "wang_hao", "display_name": "王昊", "status": "active", "note": "市内全域"},
-            {"person_id": "ma_ao", "display_name": "马澳", "status": "active", "note": "市内全域"},
-            {"person_id": "zhang_qinli", "display_name": "张钦莉", "status": "active", "note": "市内全域"},
-            {"person_id": "wang_xinqing", "display_name": "王欣庆", "status": "probation_pending", "note": "试用期待定"}
+            {"person_id": "wang_hao", "display_name": "王昊", "status": "active", "business_group": "留学预备", "monthly_targets": {"2026-09": {"orders": 105, "cash": 120000}}, "note": "市内全域"},
+            {"person_id": "ma_ao", "display_name": "马澳", "status": "active", "business_group": "留学预备", "monthly_targets": {"2026-09": {"orders": 105, "cash": 120000}}, "note": "市内全域"},
+            {"person_id": "zhang_qinli", "display_name": "张钦莉", "status": "active", "business_group": "留学预备", "monthly_targets": {"2026-09": {"orders": 105, "cash": 120000}}, "note": "市内全域"},
+            {"person_id": "wang_xinqing", "display_name": "王欣庆", "status": "probation_pending", "business_group": "留学预备", "monthly_targets": {"2026-09": {"orders": 20, "cash": 50000}}, "note": "试用期待定"}
           ]
         },
         {
@@ -28,9 +28,9 @@
           "group_id": "high_school",
           "display_name": "高中组",
           "members": [
-            {"person_id": "gu_zhiven", "display_name": "谷志文", "status": "pending", "note": "待定"},
-            {"person_id": "yu_yang", "display_name": "于洋", "status": "pending_replacement", "note": "待替换"},
-            {"person_id": "yang_xinyu", "display_name": "杨新宇", "status": "pending_replacement", "note": "待替换"},
+            {"person_id": "gu_zhiven", "display_name": "谷志文", "status": "pending", "business_group": "高中", "monthly_targets": {"2026-09": {"orders": 60}}, "note": "待定"},
+            {"person_id": "yu_yang", "display_name": "于洋", "status": "pending_replacement", "business_group": "高中", "monthly_targets": {"2026-09": {"orders": 60}}, "note": "待替换"},
+            {"person_id": "yang_xinyu", "display_name": "杨新宇", "status": "pending_replacement", "business_group": "高中", "monthly_targets": {"2026-09": {"orders": 60}}, "note": "待替换"},
             {"slot_id": "offline-high-school-vacancy-1", "status": "vacant", "display_name": "空白占位 1"}
           ]
         },
@@ -41,11 +41,11 @@
             {"person_id": "qin_zhenxu", "display_name": "秦振旭", "role": "脱产主管", "status": "active"}
           ],
           "members": [
-            {"person_id": "li_jin", "display_name": "李进", "status": "active", "note": "天大"},
-            {"person_id": "shi_shunying", "display_name": "师顺盈", "status": "active", "note": "南大"},
-            {"person_id": "shi_renda", "display_name": "石仁达", "status": "active", "note": "大学城"},
-            {"person_id": "zhai_xinyu", "display_name": "翟昕羽", "status": "active", "note": "南大仁爱"},
-            {"person_id": "cao_hengwei", "display_name": "曹恒玮", "status": "probation", "note": "财科大；试用期"},
+            {"person_id": "li_jin", "display_name": "李进", "status": "active", "business_group": "大学", "monthly_targets": {"2026-09": {"orders": 135, "heads": 30, "cash": 390000}}, "note": "天大"},
+            {"person_id": "shi_shunying", "display_name": "师顺盈", "status": "active", "business_group": "大学", "monthly_targets": {"2026-09": {"orders": 125, "heads": 40, "cash": 520000}}, "note": "南大"},
+            {"person_id": "shi_renda", "display_name": "石仁达", "status": "active", "business_group": "大学", "monthly_targets": {"2026-09": {"orders": 80, "heads": 10, "cash": 130000}}, "note": "大学城"},
+            {"person_id": "zhai_xinyu", "display_name": "翟昕羽", "status": "active", "business_group": "大学", "monthly_targets": {"2026-09": {"orders": 100, "heads": 13, "cash": 169000}}, "note": "南大仁爱"},
+            {"person_id": "cao_hengwei", "display_name": "曹恒玮", "status": "probation", "business_group": "大学", "monthly_targets": {"2026-09": {"orders": 64, "heads": 8, "cash": 104000}}, "note": "财科大；试用期"},
             {"slot_id": "offline-university-vacancy-1", "status": "vacant", "display_name": "空白占位 1", "note": "河工大"}
           ]
         }
@@ -59,7 +59,7 @@
           "group_id": "primary_middle_enablement",
           "display_name": "小初提能组",
           "members": [
-            {"person_id": "yang_yulin", "display_name": "杨玉林", "status": "active"}
+            {"person_id": "yang_yulin", "display_name": "杨玉林", "status": "active", "business_group": "留学预备", "monthly_targets": {"2026-09": {"orders": 90, "cash": 150000}}}
           ]
         },
         {

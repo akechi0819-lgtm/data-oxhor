@@ -15,7 +15,15 @@ python3 -m dashboard_product.refresh render \
   --artifact customers/bi_operations/Output/Dashboard/run_dashboard_<yyyymmdd>/artifact.json
 ```
 
-输出目录为 `customers/bi_operations/Output/Dashboard/<run_id>/`，包含 `artifact.json` 和 `artifact.html`。`push` 子命令目前明确返回 `not_started`。
+输出目录为 `customers/bi_operations/Output/Dashboard/<run_id>/`，包含 `artifact.json` 和 `artifact.html`。当前发布不走 `push` 子命令；全量看板通过 [`DEPLOYMENT.md`](DEPLOYMENT.md) 中的本地发布脚本上传。
+
+静态服务器发布、单文件原子替换和 Nginx 配置见 [`DEPLOYMENT.md`](DEPLOYMENT.md)。刷新、计算、Snapshot 更新和发布准备全部在本地完成，服务器只托管最终 HTML。
+
+## 配置进度
+
+当前看板包含三个团队：`offline_market`（线下市场）、`online_private`（线上私域/虚拟人团队）和 `online_platform`（线上平台）。线下市场团队的个性化配置已完成；线上私域和线上平台仍待完成各自的个性化配置。`config/people.json` 中的 `pending`、`probation` 和 `vacant` 只表示人员编制状态，不代表线下市场团队配置缺失。
+
+服务器静态部署已完成。Codex 中唯一的每日自动化在每天 10:00（Asia/Shanghai）本地运行刷新、渲染并发布全量看板；服务器不执行数据刷新或计算。
 
 ## 当前数据口径
 
@@ -24,6 +32,7 @@ python3 -m dashboard_product.refresh render \
 - 工单只统计被动工单并按工单 `ID` 去重。现金通过 `工单ID` 左连接工单表获取一级、二级渠道；无法关联时渠道显示为 `暂无归属`。
 - 未匹配工单的现金按顺序归属：市场活动名含“虚拟人”→线上私域；含“线上”→线上平台；渠道含“TMK”→线下；市场活动名含“校代”→线下；其余→线上平台。兜底归属不等于工单匹配成功。
 - 业务组和团队按自然月聚合；人员按每月 26 日至次月 25 日的绩效月聚合。
+- 个人工单和现金先按工单业务组筛选，再匹配人员；活动名含“校代”且未带人员姓名时，按工单 `资源录入人` 归属同业务组人员，现金通过工单 ID 继承该归属。
 - 同比按月序列切片：FY27 月序列为 2026-06 至 2027-05，FY26 对应为 2025-06 至 2026-05。选择 Q1 时双方都只取 6-8 月。
 - 看板提供市场总计页签；同比支持现金/工单渠道下钻、现金/工单年级下钻和大学学校→年级二级下钻。年级按学龄前、年级序列、高中、大学、研究生顺序展示。
 

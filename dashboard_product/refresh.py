@@ -7,6 +7,7 @@ ROOT=Path(__file__).parent
 TEAMS=[('offline_market','线下市场'),('online_private','线上私域（虚拟人团队）'),('online_platform','线上平台')]
 MONTHS=[f'2026-{m:02d}' for m in range(6,13)]+[f'2027-{m:02d}' for m in range(1,6)]
 PRIOR_MONTHS=[f'2025-{m:02d}' for m in range(6,13)]+[f'2026-{m:02d}' for m in range(1,6)]
+BUSINESS_GROUP_BY_ROSTER_GROUP={'青少组':'留学预备','小初提能组':'留学预备','高中组':'高中','高中多途径组':'高中','国际学校择校组':'高中','大学组':'大学'}
 
 def date_to_perf_month(date_str):
     """将日期转换为绩效月（YYYY-MM格式）
@@ -46,11 +47,32 @@ def run(ws,rid,snap,out,a,b):
  if not r.get('result'): raise ValueError(f"Query returned no result: {r}")
  return r
 def project(q,p,tg,people):
- act={}; per={}; prior_act={}; per_monthly={}
+ act={}; per={}; prior_act={}; per_monthly={}; person_drill={}
  drill={"current":{"cash":{"channel":{},"school_grade":{}},"orders":{"channel":{},"school_grade":{}}},"prior":{"cash":{"channel":{},"school_grade":{}},"orders":{"channel":{},"school_grade":{}}}}
+ configured_people=[]
+ for team_config in people.get('teams',[]):
+  for group_config in team_config.get('groups',[]):
+   group_business_group=BUSINESS_GROUP_BY_ROSTER_GROUP.get(group_config.get('display_name'))
+   for person in group_config.get('members',[]):
+    person_name=person.get('display_name')
+    if not person_name or person.get('status') == 'vacant': continue
+    configured_people.append((team_config['team_id'], person.get('business_group') or group_business_group, person_name))
+
+ def matched_people(team, business_group, campaign, entry_person):
+  candidates=[name for configured_team, configured_group, name in configured_people
+              if configured_team == team and configured_group == business_group]
+  if not candidates: return []
+  campaign_text=str(campaign or '')
+  campaign_matches=[name for name in candidates if name in campaign_text]
+  if campaign_matches: return campaign_matches
+  if '校代' in campaign_text:
+   entry_text=str(entry_person or '')
+   return [name for name in candidates if name in entry_text]
+  return []
+
  def add_row(row, period, months, actuals, is_current):
-  if len(row)!=10: raise ValueError(f'Unexpected dashboard query row: expected 10 columns, got {len(row)}')
-  dt,team,group,first_ch,second_ch,campaign,school,grade,metric,val = row[:10]
+  if len(row)!=11: raise ValueError(f'Unexpected dashboard query row: expected 11 columns, got {len(row)}')
+  dt,team,group,first_ch,second_ch,campaign,entry_person,school,grade,metric,val = row[:11]
   if not team or group not in {'留学预备', '高中', '大学'} or not metric or val in (None, ''): return
   month=str(dt)[:7]; value=float(val); actuals[(month,team,group,metric)]=actuals.get((month,team,group,metric),0)+value
   metric_key='cash' if metric=='passive_reported_cash' else 'orders'
@@ -58,16 +80,15 @@ def project(q,p,tg,people):
   grade_key='|'.join((month,team,group,str(school or '暂无归属'),str(grade or '暂无归属')))
   drill[period][metric_key]['channel'][channel_key]=drill[period][metric_key]['channel'].get(channel_key,0)+value
   drill[period][metric_key]['school_grade'][grade_key]=drill[period][metric_key]['school_grade'].get(grade_key,0)+value
-  if is_current and campaign and str(campaign) not in ['是','否','None','','NULL']:
-   for team_config in people.get('teams',[]):
-    if team_config['team_id']!=team: continue
-    for group_config in team_config.get('groups',[]):
-     for person in group_config.get('members',[]):
-      person_name=person.get('display_name')
-      if person_name and person_name in str(campaign):
-       per[(team,person_name,metric)]=per.get((team,person_name,metric),0)+value
-       perf_month=date_to_perf_month(dt)
-       if perf_month: per_monthly[(team,person_name,perf_month,metric)]=per_monthly.get((team,person_name,perf_month,metric),0)+value
+  if campaign and str(campaign) not in ['是','否','None','','NULL']:
+   for person_name in matched_people(team, group, campaign, entry_person):
+    if is_current:
+     per[(team,person_name,metric)]=per.get((team,person_name,metric),0)+value
+     perf_month=date_to_perf_month(dt)
+     if perf_month: per_monthly[(team,person_name,perf_month,metric)]=per_monthly.get((team,person_name,perf_month,metric),0)+value
+     if perf_month:
+      drill_key=(team,person_name,perf_month,metric,str(first_ch or '未归类'),str(second_ch or '未细分'))
+      person_drill[drill_key]=person_drill.get(drill_key,0)+value
  # 处理当前年度数据
  for row in q['result']['rows']:
   add_row(row,'current',MONTHS,act,True)
@@ -90,16 +111,27 @@ def project(q,p,tg,people):
     for g in t.get('groups',[]):
      for person in g.get('members',[]):
       person_name = person.get('display_name')
+      if person.get('status') == 'vacant':
+       continue
       # 添加月度数据
       monthly_cash = [per_monthly.get((tid,person_name,m,'passive_reported_cash'),0) for m in MONTHS]
       monthly_orders = [per_monthly.get((tid,person_name,m,'work_orders'),0) for m in MONTHS]
+      monthly_targets = person.get('monthly_targets', {})
+      monthly_drilldowns = {}
+      for month in MONTHS:
+       monthly_drilldowns[month] = {'cash': {}, 'orders': {}}
+      for (drill_team, drill_person, drill_month, drill_metric, first_channel, second_channel), value in person_drill.items():
+       if drill_team != tid or drill_person != person_name or drill_month not in monthly_drilldowns: continue
+       monthly_drilldowns[drill_month]['cash' if drill_metric == 'passive_reported_cash' else 'orders'][f'{first_channel}||{second_channel}'] = value
       roster.append({
         'display_name':person_name,
         'group_name':g.get('display_name'),
-        'status':person.get('status'),
+        'business_group':person.get('business_group') or BUSINESS_GROUP_BY_ROSTER_GROUP.get(g.get('display_name')),
+        'monthly_targets':monthly_targets,
         'cash_actual':per.get((tid,person_name,'passive_reported_cash'),0),
         'orders_actual':per.get((tid,person_name,'work_orders'),0),
-        'monthly_actuals':{'cash':monthly_cash,'orders':monthly_orders}
+        'monthly_actuals':{'cash':monthly_cash,'orders':monthly_orders},
+        'monthly_drilldowns':monthly_drilldowns
       })
   team_cash_target=sum(g['annual_targets']['cash'] or 0 for g in gs)
   team_orders_target=sum(g['annual_targets']['orders'] or 0 for g in gs)

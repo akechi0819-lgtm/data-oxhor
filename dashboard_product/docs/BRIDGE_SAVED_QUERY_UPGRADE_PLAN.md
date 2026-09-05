@@ -1,8 +1,8 @@
 # 市场归属现金：Bridge 与 Saved Query 升级计划
 
-**状态：看板已实施；Bridge 差异待业务确认（2026-09-05）。**
+**状态：看板已实施；刷新运行口径以 `dashboard_actuals/v6` 的实际 SQL 为准（2026-09-06）。**
 
-已基于验收后的现金逻辑登记可复用逐笔底稿。看板继续使用 `dashboard_actuals/v6`；其同比 artifact 投影已独立修复为按上一财年逐月切片，不改变该 Saved Query 的 SQL。正式 Bridge 中的现金业务组 Override 与当前看板 SQL 行为存在差异，未在本次文档同步中擅自修改。
+已基于验收后的现金逻辑登记可复用逐笔底稿。看板继续使用 `dashboard_actuals/v6`；其同比 artifact 投影已独立修复为按上一财年逐月切片，不改变该 Saved Query 的 SQL。正式 Bridge 用于字段与业务语义校验，刷新不直接执行 Bridge 的现金业务组 Override。
 
 ## 目标
 

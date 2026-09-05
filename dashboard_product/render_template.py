@@ -95,10 +95,11 @@ tbody th { color: var(--ink); font-weight: 800; }
 .bar i { background: var(--green); }
 .people-panel { display: flex; min-height: 0; flex-direction: column; }
 .people-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.people-filters { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .people-toolbar label { color: var(--muted); font-size: 12px; font-weight: 700; }
 .people-toolbar select { min-width: 110px; padding-top: 7px; padding-bottom: 7px; }
 #peopleDetail { max-height: 350px; overflow: auto; border-top: 1px solid var(--line); }
-#peopleDetail table { min-width: 630px; }
+#peopleDetail table { min-width: 980px; }
 .period-progress { display: grid; grid-template-columns: auto minmax(80px, 1fr) auto; align-items: center; gap: 10px; padding: 12px 0; color: var(--muted); font-size: 12px; font-weight: 700; }
 .period-progress .bar { width: auto; height: 9px; }
 .period-progress strong { color: var(--blue); }
@@ -206,12 +207,27 @@ function renderComparison(container, mode) {
   container.innerHTML = html + '</tbody></table>'; wireDrills(container);
 }
 function performanceMonthProgress(month) { const [year, monthNumber] = month.split('-').map(Number); const end = new Date(year, monthNumber - 1, 25, 23, 59, 59); const start = new Date(year, monthNumber - 2, 26); return Math.max(0, Math.min(100, (TODAY - start) / (end - start) * 100)); }
+function personTarget(person, month, metric) { return person.monthly_targets?.[month]?.[metric] ?? null; }
+function personChannelDetail(person, month, metric) {
+  const values = person.monthly_drilldowns?.[month]?.[metric] || {};
+  const keys = Object.keys(values).sort((a, b) => (values[b] || 0) - (values[a] || 0));
+  if (!keys.length) return '<div class="empty-drill">当前绩效月暂无渠道明细</div>';
+  const formatter = metric === 'cash' ? money : count;
+  return '<table class="drill-table"><thead><tr><th>一级渠道</th><th>二级渠道</th><th>完成</th></tr></thead><tbody>' + keys.map(key => { const parts = key.split('||'); return '<tr><td>' + escapeHtml(parts[0]) + '</td><td>' + escapeHtml(parts[1]) + '</td><td>' + formatter(values[key]) + '</td></tr>'; }).join('') + '</tbody></table>';
+}
 function renderPeople(team, month) {
-  const container = document.querySelector('#peopleDetail'); const index = D.months.indexOf(month); const progress = performanceMonthProgress(month);
-  let html = '<div class="period-progress"><span>绩效月时间进度</span><span class="bar"><i style="width:' + progress.toFixed(1) + '%"></i></span><strong>' + progress.toFixed(1) + '%</strong></div><table><thead><tr><th>人员</th><th>所属组</th><th>状态</th><th>现金</th><th>工单</th><th>综合贡献</th></tr></thead><tbody>';
-  const rows = (team.people || []).map(person => ({ person, cash: person.monthly_actuals?.cash?.[index] || 0, orders: person.monthly_actuals?.orders?.[index] || 0 })); const maxCash = Math.max(...rows.map(row => row.cash), 1); const maxOrders = Math.max(...rows.map(row => row.orders), 1);
-  rows.forEach(row => { const cashPercent = row.cash / maxCash * 100; const ordersPercent = row.orders / maxOrders * 100; const combined = (cashPercent + ordersPercent) / 2; const bar = (width, label) => '<span class="completion"><span class="bar"><i style="width:' + width.toFixed(1) + '%"></i></span>' + label + '</span>'; html += '<tr><th>' + escapeHtml(row.person.display_name) + '</th><td>' + escapeHtml(row.person.group_name) + '</td><td>' + escapeHtml(row.person.status) + '</td><td>' + bar(cashPercent, money(row.cash)) + '</td><td>' + bar(ordersPercent, count(row.orders)) + '</td><td>' + bar(combined, combined.toFixed(1) + '%') + '</td></tr>'; });
-  container.innerHTML = html + '</tbody></table>';
+  const container = document.querySelector('#peopleDetail'); const index = D.months.indexOf(month); const progress = performanceMonthProgress(month); const selectedGroup = document.querySelector('#peopleGroup')?.value || 'all';
+  const allRows = (team.people || []).filter(person => person.business_group && (selectedGroup === 'all' || person.business_group === selectedGroup)).map(person => ({ person, cash: person.monthly_actuals?.cash?.[index] || 0, orders: person.monthly_actuals?.orders?.[index] || 0 }));
+  let html = '<div class="period-progress"><span>绩效月时间进度</span><span class="bar"><i style="width:' + progress.toFixed(1) + '%"></i></span><strong>' + progress.toFixed(1) + '%</strong></div><table><thead><tr><th>人员</th><th>业务团队</th><th>工单目标</th><th>工单完成</th><th>工单完成率</th><th>现金目标</th><th>现金完成</th><th>现金完成率</th><th>工单渠道</th><th>现金渠道</th></tr></thead><tbody>';
+  allRows.forEach((row, rowIndex) => {
+    const orderTarget = personTarget(row.person, month, 'orders'); const cashTarget = personTarget(row.person, month, 'cash'); const orderCompletion = orderTarget > 0 ? row.orders / orderTarget : null; const cashCompletion = cashTarget > 0 ? row.cash / cashTarget : null; const orderDrillId = 'person-orders-' + rowIndex; const cashDrillId = 'person-cash-' + rowIndex;
+    const drillButton = (id, label) => '<button class="drill-toggle" data-drill="' + id + '">' + label + '</button>';
+    html += '<tr><th>' + escapeHtml(row.person.display_name) + '</th><td>' + escapeHtml(row.person.business_group) + '</td><td>' + count(orderTarget) + '</td><td>' + count(row.orders) + '</td><td>' + progressBar(orderCompletion) + '</td><td>' + money(cashTarget) + '</td><td>' + money(row.cash) + '</td><td>' + progressBar(cashCompletion) + '</td><td>' + drillButton(orderDrillId, '展开') + '</td><td>' + drillButton(cashDrillId, '展开') + '</td></tr>';
+    html += '<tr id="' + orderDrillId + '" class="drill-row" hidden><td colspan="10">' + personChannelDetail(row.person, month, 'orders') + '</td></tr>';
+    html += '<tr id="' + cashDrillId + '" class="drill-row" hidden><td colspan="10">' + personChannelDetail(row.person, month, 'cash') + '</td></tr>';
+  });
+  if (!allRows.length) html += '<tr><td colspan="10" class="empty-drill">当前筛选暂无人员</td></tr>';
+  container.innerHTML = html + '</tbody></table>'; wireDrills(container);
 }
 function renderTimeline() {
   const fyStart = new Date('2026-06-01'); const fyEnd = new Date('2027-06-01'); const fyProgress = Math.max(0, Math.min(100, (TODAY - fyStart) / (fyEnd - fyStart) * 100)); const quarterRanges = { Q1: ['2026-06-01', '2026-09-01'], Q2: ['2026-09-01', '2026-12-01'], Q3: ['2026-12-01', '2027-03-01'], Q4: ['2027-03-01', '2027-06-01'] }; const quarter = quarterRanges[S.value]; const quarterProgress = S.value === 'year' ? fyProgress : Math.max(0, Math.min(100, (TODAY - new Date(quarter[0])) / (new Date(quarter[1]) - new Date(quarter[0])) * 100));
@@ -223,9 +239,9 @@ function renderView() {
   let html = '<section class="cards">' + metricCard('被动报入现金', cash, priorCash, cashTarget, money, 'var(--blue)') + metricCard('被动工单', orders, priorOrders, ordersTarget, count, 'var(--orange)') + '</section><div class="dashboard-grid"><section class="panel"><div class="panel-head"><div><h2>' + (isTotal ? '市场总计 · 现金与工单' : '三大业务组 · 现金与工单') + '</h2><p class="section-kicker">目标、实际与完成率</p></div></div><div class="table-wrap"><table><thead><tr><th>业务组</th><th>现金目标</th><th>现金实际</th><th>现金完成</th><th>工单目标</th><th>工单实际</th><th>工单完成</th></tr></thead><tbody>';
   html += team.groups.map(group => '<tr><th>' + escapeHtml(group.display_name) + '</th><td>' + money(target(group, 'cash')) + '</td><td>' + money(sum(group, 'cash')) + '</td><td>' + progressBar(target(group, 'cash') ? sum(group, 'cash') / target(group, 'cash') : null) + '</td><td>' + count(target(group, 'orders')) + '</td><td>' + count(sum(group, 'orders')) + '</td><td>' + progressBar(target(group, 'orders') ? sum(group, 'orders') / target(group, 'orders') : null) + '</td></tr>').join('');
   html += '</tbody></table></div></section>';
-  if (!isTotal) html += '<section class="panel people-panel"><div class="panel-head"><div><h2>人员月度贡献</h2><p class="section-kicker">按绩效月查看团队内相对贡献</p></div></div><div class="people-toolbar"><label for="perfMonth">绩效月</label><select id="perfMonth">' + D.months.map(month => '<option value="' + month + '">' + month + '</option>').join('') + '</select></div><div id="peopleDetail"></div></section>';
+  if (!isTotal) html += '<section class="panel people-panel"><div class="panel-head"><div><h2>人员月度贡献</h2><p class="section-kicker">按业务团队、绩效月查看目标、完成与渠道</p></div></div><div class="people-toolbar"><div class="people-filters"><label for="peopleGroup">业务团队</label><select id="peopleGroup"><option value="all">全部团队</option><option value="留学预备">留学预备</option><option value="高中">高中</option><option value="大学">大学</option></select></div><label for="perfMonth">绩效月</label><select id="perfMonth">' + D.months.map(month => '<option value="' + month + '">' + month + '</option>').join('') + '</select></div><div id="peopleDetail"></div></section>';
   V.innerHTML = html + '</div>';
-  if (!isTotal) { const monthSelect = document.querySelector('#perfMonth'); const currentMonth = TODAY.toISOString().slice(0, 7); monthSelect.value = D.months.includes(currentMonth) ? currentMonth : D.months[D.months.length - 1]; renderPeople(team, monthSelect.value); monthSelect.onchange = event => renderPeople(team, event.target.value); }
+  if (!isTotal) { const monthSelect = document.querySelector('#perfMonth'); const groupSelect = document.querySelector('#peopleGroup'); const currentMonth = TODAY.toISOString().slice(0, 7); monthSelect.value = D.months.includes(currentMonth) ? currentMonth : D.months[D.months.length - 1]; renderPeople(team, monthSelect.value); monthSelect.onchange = event => renderPeople(team, event.target.value); groupSelect.onchange = () => renderPeople(team, monthSelect.value); }
   renderComparison(YOY, 'channel'); renderComparison(GRADE, 'grade');
 }
 function init() { T.innerHTML = D.teams.map(team => '<button data-id="' + escapeHtml(team.team_id) + '">' + escapeHtml(team.display_name) + '</button>').join(''); T.querySelectorAll('button').forEach(button => button.onclick = () => { T.querySelectorAll('button').forEach(item => item.classList.remove('active')); button.classList.add('active'); renderView(); renderTimeline(); }); T.querySelector('button').classList.add('active'); S.onchange = () => { renderView(); renderTimeline(); }; renderView(); renderTimeline(); }

@@ -1,10 +1,12 @@
 # 看板交接
 
-更新时间：2026-09-05
+更新时间：2026-09-06
 
 ## 产品边界
 
 `dashboard_product` 是静态看板生成器。它不直接访问 DuckDB，不修改 Bridge，不依赖 `latest` 指针；所有事实来自当前工作区 Snapshot 的 Data Platform Saved Query 结果。
+
+当前看板包含三个团队。线下市场团队个性化配置已完成；线上私域（虚拟人团队）和线上平台仍待完成个性化配置。人员配置中的 `pending`、`probation` 和 `vacant` 是编制状态，不改变上述团队配置完成度。
 
 ## 运行合同
 
@@ -30,21 +32,26 @@ python3 -m dashboard_product.refresh render --artifact customers/bi_operations/O
 - `teams[].groups[].quarter_targets`、`annual_targets`
 - `teams[].people[].monthly_actuals`: 绩效月数组
 - `teams[]` 包含 `market_total` 合计团队，`market_total.people` 为空；`dashboard.drilldowns` 提供现金/工单的渠道、年级和学校→年级聚合。
+- `teams[].people[]` 可包含 `business_group`、`monthly_targets` 和 `monthly_drilldowns`；人员页面按业务团队筛选，`vacant` 占位不进入 artifact，现金与工单均支持工单维度的一级/二级渠道下钻。现金渠道来自 `工单ID` 左连接工单表，未匹配时为“暂无归属”。
 - 顶部现金、工单汇总卡片显示当期、同期、同比、目标和完成率。
 
 渲染器只接受当前结构；旧 `metrics`、`prior_totals`、`bus_monthly` 结构不再兼容。Q1 是 FY27 的 2026-06 至 2026-08，FY26 同比取 2025-06 至 2025-08。
 
 ## 业务口径
 
-现金和工单独立计算。现金筛选 `渠道属性=被动`、`新老生类型=新生`、`报入现金收入>0`；现金通过 `工单ID` 左连接工单表，关联时采用工单业务组，未关联时回退现金表团队，并获取一级、二级渠道，无法关联时渠道固定为 `暂无归属`。团队归属仍按“工单匹配→虚拟人→线上→TMK→校代→默认线上平台”顺序处理。
+现金和工单独立计算。现金筛选 `渠道属性=被动`、`新老生类型=新生`、`报入现金收入>0`；现金通过 `工单ID` 左连接工单表，关联时采用工单业务组、一级/二级渠道和资源录入人，未关联时回退现金表团队，并在渠道维度显示 `暂无归属`。团队归属仍按“工单匹配→虚拟人→线上→TMK→校代→默认线上平台”顺序处理。
 
-看板当前以 `dashboard_actuals/v6` 的实际 SQL 行为为准；正式 Bridge 仍为 `artifacts/company_bridge/bridges/company_bridge.bi_operations.v1_2_0.json`，其现金业务组 Override 需单独完成业务确认后再修改。可复用逐笔底稿为 `attributed_passive_reported_cash/v1`。
+个人归属口径：先以工单的市场团队和业务组筛选人员，再以活动名称中的人员姓名归属。活动名称含“校代”且未命中人员姓名时，才使用工单 `资源录入人`（允许值携带如 `-校代`、`-渠道` 后缀）匹配同一业务组人员；现金经工单 ID 继承相同归属。未归属个人的记录保留在团队统计，不计入个人。
+
+看板当前以 `dashboard_actuals/v6` 的实际 SQL 行为为准；正式 Bridge 为 `artifacts/company_bridge/bridges/company_bridge.bi_operations.v1_2_0.json`，但刷新不直接执行 Bridge 的现金业务组 Override。可复用逐笔底稿为 `attributed_passive_reported_cash/v1`。
 
 ## 验收与限制
 
 2026-09-05 已完成核心看板和 FY26/FY27 Q1 对账：留学预备 FY27 `2,184,474.60` 元、FY26 `2,145,863.30` 元；高中 FY27 `1,465,735.50` 元；大学 FY27 `4,988,473.20` 元、FY26 数仓 `4,699,695.10` 元。大学差异 `6,979.90` 元，业务方确认可接受。
 
-未关联工单的现金仍保留在总量中，并仅在渠道维度标记为 `暂无归属`；负向现金不自动解释为退款。`push` 尚未实现。
+未关联工单的现金仍保留在总量中，并仅在渠道维度标记为 `暂无归属`；负向现金不自动解释为退款。CLI `push` 不是当前发布入口。
+
+当前生产发布采用静态模式：刷新、计算、Snapshot 更新和发布准备在本地完成；服务器只保存 `/var/www/dashboard/current.html` 并由 Nginx 提供。Codex 唯一自动化每天 10:00（Asia/Shanghai）发布全量看板，上传新 HTML 后原子替换该文件，域名绑定完成前不向公网开放。完整流程见 [`DEPLOYMENT.md`](../DEPLOYMENT.md)。
 
 ## 验证
 
