@@ -9,15 +9,14 @@ def render_html(artifact_data):
     run_id = artifact_data['run_id']
     artifact_id = artifact_data['artifact_id']
     created_at = artifact_data['created_at']
+    as_of_date = artifact_data['as_of_date']
+    data_through_date = artifact_data['data_through_date']
 
     # 注入到 dashboard 数据
-    from datetime import date
-    today = date.today()
-
     dashboard['period'] = {
         'project_label': 'FY27（2026-06-01 至 2027-05-31）',
         'performance_label': '每月 26 日至次月 25 日',
-        'current_date': today.isoformat(),
+        'current_date': as_of_date,
         'fiscal_year_start': '2026-06-01'
     }
 
@@ -29,7 +28,7 @@ def render_html(artifact_data):
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Cyber Shackles - 语培完成进度看板</title>
+<title>Data OXHor · 运营增长看板</title>
 <style>
 body {{
   margin: 0;
@@ -156,6 +155,10 @@ button {{
   padding: 20px;
   overflow: auto;
 }}
+.channel-list {{ display: grid; gap: 10px; }}
+.channel-row {{ display: grid; grid-template-columns: minmax(140px, 1fr) 2fr auto; gap: 12px; align-items: center; }}
+.channel-row .bar {{ width: 100%; margin: 0; }}
+.channel-row strong {{ color: #61c99c; font-size: 13px; }}
 h2 {{
   font: 600 22px Georgia;
   margin: 0 0 16px;
@@ -225,13 +228,13 @@ footer {{
 <header>
   <div>
     <small>DATA OXHOR / OPERATIONS</small>
-    <h1>Cyber Shackles</h1>
+    <h1>运营增长看板</h1>
     <p>FY27 财年：2026-06-01 至 2027-05-31</p>
   </div>
   <div class="meta">
     Snapshot<br>
     <b>{snapshot_id}</b><br>
-    刷新 {created_at[:19].replace('T', ' ')}
+    数据截至 {data_through_date} · 刷新 {created_at[:19].replace('T', ' ')}
   </div>
 </header>
 
@@ -452,16 +455,23 @@ function render() {{
       ).join('') +
       '</tbody></table></section>' +
       '<section class="panel">' +
-        '<h2>人员绩效月明细</h2>' +
+        '<h2>人员月度贡献</h2>' +
+        '<p class="muted">进度条表示团队内相对贡献，不代表个人目标完成率。</p>' +
         '<div style="margin-bottom: 12px;"><label style="display: inline-flex; gap: 8px; align-items: center;">绩效月筛选：<select id="perfMonth">' +
           D.months.map(m => '<option value="' + m + '">' + m + '</option>').join('') +
         '</select></label></div>' +
         '<div id="peopleDetail"></div>' +
       '</section>' +
+      '<section class="panel" style="grid-column: 1 / -1;">' +
+        '<h2>工单渠道结构</h2>' +
+        '<p class="muted">按当前范围汇总一级渠道；渠道归属不等同于现金工单匹配成功。</p>' +
+        '<div id="channelDetail" class="channel-list"></div>' +
+      '</section>' +
     '</div>';
 
   // 初始化人员明细
   renderPeopleDetail(team, D.months[D.months.length - 1]);
+  renderChannels(team);
 
   // 绑定绩效月筛选器
   document.querySelector('#perfMonth').onchange = (e) => {{
@@ -469,6 +479,7 @@ function render() {{
   }};
 
   renderYoY();
+  renderChannels(team);
 }}
 
 function renderPeopleDetail(team, month) {{
@@ -499,7 +510,7 @@ function renderPeopleDetail(team, month) {{
     return {{ ...person, cashActual, ordersActual }};
   }});
 
-  // 计算团队在该月的最大值（用于归一化进度条）
+  // 计算团队在该月的最大值（用于展示相对贡献）
   const maxCash = Math.max(...peopleData.map(p => p.cashActual), 1);
   const maxOrders = Math.max(...peopleData.map(p => p.ordersActual), 1);
 
@@ -507,16 +518,14 @@ function renderPeopleDetail(team, month) {{
     const cashActual = person.cashActual;
     const ordersActual = person.ordersActual;
 
-    // 计算进度百分比（基于团队最大值的相对进度）
+    // 计算相对贡献百分比，不与时间进度比较
     const cashPct = maxCash > 0 ? (cashActual / maxCash * 100) : 0;
     const ordersPct = maxOrders > 0 ? (ordersActual / maxOrders * 100) : 0;
 
-    // 综合进度 = (现金权重50% + 工单权重50%)
+    // 综合贡献 = (现金权重50% + 工单权重50%)
     const combinedPct = (cashPct * 0.5 + ordersPct * 0.5);
 
-    // 判断是否落后：综合进度 < 时间进度
-    const isBehind = combinedPct < monthProgress;
-    const behindClass = isBehind ? ' class="behind"' : '';
+    const behindClass = '';
 
     // 现金进度条
     const cashBar = '<span class="bar"><i style="width:' + cashPct.toFixed(1) + '%"></i></span>' + money(cashActual);
@@ -538,6 +547,24 @@ function renderPeopleDetail(team, month) {{
 
   html += '</tbody></table>';
   document.querySelector('#peopleDetail').innerHTML = html;
+}}
+
+function renderChannels(team) {{
+  const [st, len] = range();
+  const totals = {{}};
+  Object.entries(D.channels || {{}}).forEach(([key, value]) => {{
+    const parts = key.split('|');
+    if (parts.length !== 4 || parts[1] !== team.team_id) return;
+    const monthIndex = D.months.indexOf(parts[0]);
+    if (monthIndex < st || monthIndex >= st + len) return;
+    const channel = parts[3] || '未归类';
+    totals[channel] = (totals[channel] || 0) + value;
+  }});
+  const rows = Object.entries(totals).sort((a, b) => b[1] - a[1]);
+  const max = Math.max(...rows.map(x => x[1]), 1);
+  document.querySelector('#channelDetail').innerHTML = rows.length ? rows.map(([name, value]) =>
+    '<div class="channel-row"><span>' + name + '</span><span class="bar"><i style="width:' + (value / max * 100).toFixed(1) + '%"></i></span><strong>' + count(value) + ' 单</strong></div>'
+  ).join('') : '<span class="muted">当前范围暂无渠道数据</span>';
 }}
 
 function init() {{

@@ -137,7 +137,7 @@ def refresh(workspace,run_id):
  q=run(ws,run_id,snap,out,current_start,current_end)
  p=run(ws,run_id+'_prior',snap,out,prior_start,prior_end_str)
  d=project(q,p,read(ROOT/'config/project_targets.json'),read(ROOT/'config/people.json'))
- a={'schema_version':'dashboard_artifact.v1','artifact_id':'dashboard_'+uuid4().hex[:12],'run_id':run_id,'snapshot_id':snap,'created_at':datetime.now(timezone.utc).isoformat(),'query_results':[q,p],'errors':[],'dashboard':d}
+ a={'schema_version':'dashboard_artifact.v1','artifact_id':'dashboard_'+uuid4().hex[:12],'run_id':run_id,'snapshot_id':snap,'as_of_date':today.isoformat(),'data_through_date':(today.fromordinal(today.toordinal()-1)).isoformat(),'created_at':datetime.now(timezone.utc).isoformat(),'query_results':[q,p],'errors':[],'dashboard':d}
  path=out/'artifact.json'; path.write_text(json.dumps(a,ensure_ascii=False,indent=2),encoding='utf-8')
  return {'status':'artifact_created','artifact':str(path)}
 def render(artifact):
