@@ -8,13 +8,14 @@
     "pack_version": "1.0.0"
   },
   "bridge_reference_path": "Work/Bridge/reference.json",
-  "current_snapshot_id": "snapshot_bi_operations_20260905",
-  "current_warehouse_path": "Work/Runs/run_bi_operations_20260905/data/snapshots/snapshot_bi_operations_20260905/warehouse.duckdb",
+  "current_snapshot_id": "snapshot_bi_operations_20260906",
+  "current_warehouse_path": "Work/Runs/run_bi_operations_20260906/data/snapshots/snapshot_bi_operations_20260906/warehouse.duckdb",
   "used_snapshot_ids": [
     "snapshot_bi_full_20260902_r2",
     "snapshot_bi_headers_20260904",
     "snapshot_bi_headers2_20260904",
     "snapshot_bi_work_order_id_20260904",
-    "snapshot_bi_operations_20260905"
+    "snapshot_bi_operations_20260905",
+    "snapshot_bi_operations_20260906"
   ]
 }

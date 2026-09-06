@@ -5,6 +5,7 @@
 ## 已完成
 
 - FY27 看板展示、团队/业务组/人员筛选和本地季度切换已完成。
+- 当前工作区 Snapshot 为 `snapshot_bi_operations_20260906`；2026-09-05 的 Q1 对账结论是已验收基线，后续发布以当前 Snapshot 新生成的 artifact 为准。
 - 三个团队已纳入看板：线下市场、线上私域（虚拟人团队）、线上平台；线下市场团队的个性化配置已完成。
 - 刷新链路已固定为 `refresh` 生成 artifact、`render` 生成 HTML；输出文件为 `artifact.json` 与 `artifact.html`。
 - 现金关联到工单时采用工单业务组，未关联时回退现金表团队；现金通过工单 ID 左连接工单表获取渠道，口径包含被动、新生、正向报入现金。
@@ -45,5 +46,5 @@ artifact 的业务组字段包括 `monthly_actuals`（FY27 12 个月）和 `prio
 
 - 代码：`refresh.py`、`render_template.py`
 - 配置：`config/project_targets.json`、`config/people.json`、`config/saved_queries.json`
-- 最终看板：`customers/bi_operations/Output/Dashboard/run_dashboard_newstudent_final_20260905/`
+- 已验收看板基线：`customers/bi_operations/Output/Dashboard/run_dashboard_newstudent_final_20260905/`
 - 当前 Bridge：`artifacts/company_bridge/bridges/company_bridge.bi_operations.v1_2_0.json`
