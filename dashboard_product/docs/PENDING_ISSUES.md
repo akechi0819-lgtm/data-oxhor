@@ -17,6 +17,6 @@
 
 - 完成 `online_private`（线上私域/虚拟人团队）的个性化配置。
 - 完成 `online_platform`（线上平台）的个性化配置。
-- CLI `push` 不是当前发布入口；全量看板发布已由 `deploy/publish_static_dashboard.sh` 和 Codex 10:00 自动化覆盖。
+- 全量看板发布已由 `deploy/publish_static_dashboard.sh` 和 Codex 10:00 自动化覆盖。
 - 若后续快照重新出现业务组映射缺口，需由业务方确认 Bridge 映射后再纳入看板。
 - 大学 FY26 Q1 与线上看板差异 `6,979.90` 元、留学预备 FY27 差异约 `24,400` 元，业务方已确认可接受；如需消除差异，应另行取得线上看板的完整过滤/取整规则。

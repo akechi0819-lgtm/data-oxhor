@@ -9,19 +9,17 @@
 1. 本地 `refresh` 读取显式 `current_snapshot_id`，通过 Data Platform `run-saved-query` 查询并生成 artifact。
 2. 本地 `render` 生成 HTML，人工验收后上传到服务器临时文件。
 3. 服务器将临时文件原子替换为 `/var/www/dashboard/current.html`。
-4. Nginx 只公开这个静态文件；域名/DNS/TLS 位于 Nginx 或现有网关层。
+4. Nginx 通过 `dashboard.apinova.cn` 公开这个静态文件。
 
 服务器不接触 DuckDB、`Input/`、`Work/Runs/`、客户凭据或整个 `customers/` 目录，也不需要 Python、Data Platform 或 systemd 刷新任务。
 
 ## 服务器与自动化状态
 
-服务器静态部署已完成：Nginx 已安装，静态文件位于 `/var/www/dashboard/current.html`。域名尚未绑定前，Nginx 仅监听 `127.0.0.1:8080`，不会向公网暴露页面。服务器不执行刷新、计算或 Snapshot 更新。
+服务器静态部署已完成：Nginx 已安装，静态文件位于 `/var/www/dashboard/current.html`，并以 `dashboard.apinova.cn` 的 HTTP 虚拟主机提供。DNSPod 的 A 记录指向 `38.76.161.233`；`/` 与 `/healthz` 已验证为 HTTP 200。服务器不执行刷新、计算或 Snapshot 更新。
 
-## 域名
+## 公开入口
 
-域名配置完成后，将当前本机预览站点改为仅匹配该域名的 HTTPS Nginx server block，root 保持 `/var/www/dashboard`。DNS A/AAAA 记录指向服务器；TLS 在 Nginx 终止。刷新脚本不接触证书或域名配置。
-
-域名尚未就绪时，可先使用 `deploy/nginx-dashboard-local-preview.conf` 仅监听服务器本机 `127.0.0.1:8080` 验证文件，不向公网暴露看板。
+当前访问地址为 `http://dashboard.apinova.cn`。该站点仅供内部使用，按当前决定不配置 TLS；刷新脚本不接触域名或证书配置。服务器只接受并提供最终 HTML。
 
 ## 本地发布
 
@@ -42,7 +40,7 @@ Codex 中已创建唯一自动化“每日刷新并发布全量看板”，每�
 
 ## 失败与回滚行为
 
-刷新或渲染失败不会上传文件，访问者继续看到上一次成功版本；新的本地 run 目录保留用于排查。上传后服务器通过临时文件加 `mv` 原子替换 `current.html`。首次上线后应检查：`/healthz`、首页 HTTP 200、`artifact.json` 的 `snapshot_id` 和 Codex 自动化状态。
+刷新或渲染失败不会上传文件，访问者继续看到上一次成功版本；新的本地 run 目录保留用于排查。上传后服务器通过临时文件加 `mv` 原子替换 `current.html`。每次首次发布或排障后应检查：`http://dashboard.apinova.cn/healthz`、首页 HTTP 200、`artifact.json` 的 `snapshot_id` 和 Codex 自动化状态。
 
 ## 运行前提
 

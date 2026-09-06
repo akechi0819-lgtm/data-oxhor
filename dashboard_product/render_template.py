@@ -93,13 +93,22 @@ tbody th { color: var(--ink); font-weight: 800; }
 .completion { display: flex; align-items: center; gap: 7px; }
 .bar { display: inline-block; width: 68px; height: 7px; flex: 0 0 auto; border-radius: 99px; vertical-align: middle; }
 .bar i { background: var(--green); }
-.people-panel { display: flex; min-height: 0; flex-direction: column; }
+.people-panel { display: flex; min-height: 0; flex-direction: column; grid-column: 1 / -1; }
 .people-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
 .people-filters { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .people-toolbar label { color: var(--muted); font-size: 12px; font-weight: 700; }
 .people-toolbar select { min-width: 110px; padding-top: 7px; padding-bottom: 7px; }
-#peopleDetail { max-height: 350px; overflow: auto; border-top: 1px solid var(--line); }
-#peopleDetail table { min-width: 980px; }
+#peopleDetail { border-top: 1px solid var(--line); }
+#peopleDetail table { min-width: 0; width: 100%; table-layout: fixed; white-space: normal; }
+#peopleDetail th, #peopleDetail td { padding: 8px 6px; vertical-align: middle; }
+#peopleDetail th:nth-child(1) { width: 8%; }
+#peopleDetail th:nth-child(2) { width: 9%; }
+#peopleDetail th:nth-child(3), #peopleDetail th:nth-child(4), #peopleDetail th:nth-child(6), #peopleDetail th:nth-child(7) { width: 8%; }
+#peopleDetail th:nth-child(5), #peopleDetail th:nth-child(8) { width: 12%; }
+#peopleDetail th:nth-child(9), #peopleDetail th:nth-child(10) { width: 7%; }
+#peopleDetail .completion { gap: 4px; }
+#peopleDetail .completion .bar { width: 42px; }
+#peopleDetail .drill-row td { padding-left: 16px; }
 .period-progress { display: grid; grid-template-columns: auto minmax(80px, 1fr) auto; align-items: center; gap: 10px; padding: 12px 0; color: var(--muted); font-size: 12px; font-weight: 700; }
 .period-progress .bar { width: auto; height: 9px; }
 .period-progress strong { color: var(--blue); }
@@ -131,7 +140,7 @@ footer { margin-top: 20px; padding-top: 14px; border-top: 1px solid var(--line);
 <nav id="tabs" class="tabs"></nav>
 <div id="view"></div>
 <section class="panel comparison"><div class="panel-head"><div><h2>业务组同期对比</h2><p class="section-kicker">现金与工单按团队口径分别下钻到一级、二级渠道</p></div></div><div id="yoy-comparison" class="table-wrap"></div></section>
-<section class="panel comparison"><div class="panel-head"><div><h2>业务组同期对比 · 年级</h2><p class="section-kicker">现金使用学员年级，工单使用年级名称；大学支持学校 → 年级下钻</p></div></div><div id="grade-comparison" class="table-wrap"></div></section>
+<section class="panel comparison"><div class="panel-head"><div><h2>业务组同期对比 · 年级</h2><p class="section-kicker">现金使用学员年级，工单使用年级名称；高中、大学支持学校 → 年级下钻</p></div></div><div id="grade-comparison" class="table-wrap"></div></section>
 <footer>Artifact %(artifact_id)s · Run %(run_id)s</footer>
 </main>
 <script>
@@ -200,7 +209,7 @@ function renderComparison(container, mode) {
     const priorValue = group.prior_monthly_actuals[metric].slice(start, start + length).reduce((sum, value) => sum + value, 0);
     const yoy = priorValue > 0 ? (currentValue - priorValue) / priorValue : null;
     const drillId = mode + '-drill-' + index + '-' + metric;
-    const detail = isGrade ? gradeDrill(group.display_name, team.team_id, start, length, metric, group.display_name === '大学', drillId) : channelDrill(group.display_name, team.team_id, start, length, metric);
+    const detail = isGrade ? gradeDrill(group.display_name, team.team_id, start, length, metric, ['高中', '大学'].includes(group.display_name), drillId) : channelDrill(group.display_name, team.team_id, start, length, metric);
     html += '<tr>' + (metricIndex === 0 ? '<th rowspan="2">' + escapeHtml(group.display_name) + '</th>' : '') + '<td class="metric">' + (metric === 'cash' ? '现金' : '工单') + '</td><td>' + (metric === 'cash' ? money(priorValue) : count(priorValue)) + '</td><td>' + (metric === 'cash' ? money(currentValue) : count(currentValue)) + '</td><td class="' + (yoy !== null && yoy < 0 ? 'negative' : '') + '">' + pct(yoy) + '</td><td><button class="drill-toggle" data-drill="' + drillId + '">展开下钻</button></td></tr>';
     html += '<tr id="' + drillId + '" class="drill-row" hidden><td colspan="5">' + detail + '</td></tr>';
   }));

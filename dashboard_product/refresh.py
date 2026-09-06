@@ -181,5 +181,5 @@ def render(artifact):
  from dashboard_product.render_template import render_html
  a=read(artifact); out=Path(artifact).with_suffix('.html'); out.write_text(render_html(a),encoding='utf-8'); return {'status':'rendered','output':str(out)}
 def main():
- p=argparse.ArgumentParser(); s=p.add_subparsers(dest='c',required=True); r=s.add_parser('refresh'); r.add_argument('--workspace',type=Path,required=True); r.add_argument('--run-id',required=True); r=s.add_parser('render'); r.add_argument('--artifact',type=Path,required=True); s.add_parser('push'); x=p.parse_args(); z=refresh(x.workspace,x.run_id) if x.c=='refresh' else render(x.artifact) if x.c=='render' else {'status':'not_started'}; print(json.dumps(z,ensure_ascii=False)); return 0 if z['status']!='not_started' else 2
+ p=argparse.ArgumentParser(); s=p.add_subparsers(dest='c',required=True); r=s.add_parser('refresh'); r.add_argument('--workspace',type=Path,required=True); r.add_argument('--run-id',required=True); r=s.add_parser('render'); r.add_argument('--artifact',type=Path,required=True); x=p.parse_args(); z=refresh(x.workspace,x.run_id) if x.c=='refresh' else render(x.artifact); print(json.dumps(z,ensure_ascii=False)); return 0
 if __name__=='__main__': raise SystemExit(main())

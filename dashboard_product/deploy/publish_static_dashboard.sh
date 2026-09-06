@@ -42,7 +42,7 @@ EOF
 
 /usr/bin/expect <<'EOF'
 set timeout 60
-spawn /usr/bin/ssh -o StrictHostKeyChecking=yes -o PreferredAuthentications=password -o PubkeyAuthentication=no -o GSSAPIAuthentication=no -p $env(SERVER_PORT) $env(SERVER_USER)@$env(SERVER_HOST) {install -m 0644 /tmp/dashboard-current.html /var/www/dashboard/.current.html.tmp; mv -f /var/www/dashboard/.current.html.tmp /var/www/dashboard/current.html; curl -fsS -o /dev/null http://127.0.0.1:8080/}
+spawn /usr/bin/ssh -o StrictHostKeyChecking=yes -o PreferredAuthentications=password -o PubkeyAuthentication=no -o GSSAPIAuthentication=no -p $env(SERVER_PORT) $env(SERVER_USER)@$env(SERVER_HOST) {install -m 0644 /tmp/dashboard-current.html /var/www/dashboard/.current.html.tmp; mv -f /var/www/dashboard/.current.html.tmp /var/www/dashboard/current.html; curl -fsS -o /dev/null -H 'Host: dashboard.apinova.cn' http://127.0.0.1/}
 expect {
   -re {assword:} { send -- "$env(SERVER_PASSWORD)\r"; exp_continue }
   eof { set status [lindex [wait] 3]; exit $status }

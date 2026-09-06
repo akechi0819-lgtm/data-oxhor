@@ -31,7 +31,7 @@ python3 -m dashboard_product.refresh render --artifact customers/bi_operations/O
 - `teams[].groups[].prior_monthly_actuals`: FY26 对应现金/工单数组
 - `teams[].groups[].quarter_targets`、`annual_targets`
 - `teams[].people[].monthly_actuals`: 绩效月数组
-- `teams[]` 包含 `market_total` 合计团队，`market_total.people` 为空；`dashboard.drilldowns` 提供现金/工单的渠道、年级和学校→年级聚合。
+- `teams[]` 包含 `market_total` 合计团队，`market_total.people` 为空；`dashboard.drilldowns` 提供现金/工单的渠道、年级和高中/大学学校→年级聚合。
 - `teams[].people[]` 可包含 `business_group`、`monthly_targets` 和 `monthly_drilldowns`；人员页面按业务团队筛选，`vacant` 占位不进入 artifact，现金与工单均支持工单维度的一级/二级渠道下钻。现金渠道来自 `工单ID` 左连接工单表，未匹配时为“暂无归属”。
 - 顶部现金、工单汇总卡片显示当期、同期、同比、目标和完成率。
 
@@ -49,9 +49,9 @@ python3 -m dashboard_product.refresh render --artifact customers/bi_operations/O
 
 2026-09-05 已完成核心看板和 FY26/FY27 Q1 对账：留学预备 FY27 `2,184,474.60` 元、FY26 `2,145,863.30` 元；高中 FY27 `1,465,735.50` 元；大学 FY27 `4,988,473.20` 元、FY26 数仓 `4,699,695.10` 元。大学差异 `6,979.90` 元，业务方确认可接受。
 
-未关联工单的现金仍保留在总量中，并仅在渠道维度标记为 `暂无归属`；负向现金不自动解释为退款。CLI `push` 不是当前发布入口。
+未关联工单的现金仍保留在总量中，并仅在渠道维度标记为 `暂无归属`；负向现金不自动解释为退款。
 
-当前生产发布采用静态模式：刷新、计算、Snapshot 更新和发布准备在本地完成；服务器只保存 `/var/www/dashboard/current.html` 并由 Nginx 提供。Codex 唯一自动化每天 10:00（Asia/Shanghai）发布全量看板，上传新 HTML 后原子替换该文件，域名绑定完成前不向公网开放。完整流程见 [`DEPLOYMENT.md`](../DEPLOYMENT.md)。
+当前生产发布采用静态模式：刷新、计算、Snapshot 更新和发布准备在本地完成；服务器只保存 `/var/www/dashboard/current.html` 并由 Nginx 提供。Codex 唯一自动化每天 10:00（Asia/Shanghai）发布全量看板，上传新 HTML 后原子替换该文件。公开入口为 `http://dashboard.apinova.cn`，目前按内部使用需求提供 HTTP。完整流程见 [`DEPLOYMENT.md`](../DEPLOYMENT.md)。
 
 ## 验证
 

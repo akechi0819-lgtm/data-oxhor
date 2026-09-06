@@ -71,6 +71,7 @@ class RenderTest(unittest.TestCase):
         self.assertIn("业务团队", page)
         self.assertIn("工单渠道", page)
         self.assertIn("现金渠道", page)
+        self.assertIn("高中、大学支持学校 → 年级下钻", page)
         self.assertNotIn("<th>状态</th>", page)
         self.assertIn("<em>目标</em>", page)
         self.assertIn("<em>完成</em>", page)
