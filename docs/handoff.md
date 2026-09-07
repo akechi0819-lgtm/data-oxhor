@@ -1,10 +1,10 @@
 # 项目交接状态
 
-本文件面向维护者，记录历史完成度、风险和后续工程事项。它不是客户日常使用说明，也不替代 `AGENTS.md` 的运行时宪法；Data OXHor 的默认产品角色是已部署客户工作区中的日常数据分析智能体。
+本文件面向维护者，记录历史完成度、风险和后续工程事项。它不是客户使用说明，也不替代 `AGENTS.md` 的运行时边界。当前项目定位、模块状态和开发决策见根目录 `DEVELOPMENT.md`。
 
 ## 当前状态
 
-项目主线已完成 Data Platform、Business Pack、Company Bridge、Bridge 对齐向导、工作区建模、Casebook/内测反馈和双宿主交付验证。业务核心保持宿主无关；客户通过自然语言进入工作区建模、Bridge 对齐、受控分析、案例沉淀和文件交付。
+项目主线已完成 Data Platform、Business Pack、Company Bridge、Bridge 对齐向导、工作区建模、Casebook/内测反馈和双宿主交付验证。业务核心保持宿主无关；调用者按任务选择模块 Agent，分别进入工作区建模、Bridge 对齐、受控分析、案例沉淀、文件交付或看板发布。
 
 PPT Master v4.7.0 保持为固定上游完整树，Quick 入口仍由项目代码编排；正式 Bridge 和 reviewed 证据继续作为当前产品基线。
 

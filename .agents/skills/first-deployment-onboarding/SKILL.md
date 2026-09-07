@@ -21,7 +21,7 @@ description: 用自然语言引导 Codex 完成这个项目的首次部署：检
 优先使用项目虚拟环境；若存在则命令前缀为 `.venv/bin/python`，否则使用 `python3`：
 
 ```bash
-<python> -m interfaces.onboarding status --workspace <workspace>
+<python> -m interfaces.workspace_modeling status --workspace <workspace>
 ```
 
 如果工作区不存在或状态为 `not_initialized`，向用户说明将开始首次部署，并收集缺失的业务端口、工作区路径和 Pack 选择。默认使用项目内置 Pack，不要要求用户复制 Pack。
@@ -33,7 +33,7 @@ description: 用自然语言引导 Codex 完成这个项目的首次部署：检
 先执行：
 
 ```bash
-<python> -m interfaces.onboarding doctor --profile core
+<python> -m interfaces.workspace_modeling doctor --profile core
 ```
 
 如果用户明确要 PPT、报告或完整交付，再检查 `--profile full`。`doctor` 失败时说明缺少的模块，优先建议项目安装脚本：
@@ -50,7 +50,7 @@ sh tools/install_runtime.sh full
 执行：
 
 ```bash
-<python> -m interfaces.onboarding init \
+<python> -m interfaces.workspace_modeling init \
   --workspace <workspace> \
   --business-port <business_port>
 ```
@@ -62,7 +62,7 @@ sh tools/install_runtime.sh full
 把用户明确指定的每个工作簿导入对应来源槽位：
 
 ```bash
-<python> -m interfaces.onboarding import-data \
+<python> -m interfaces.workspace_modeling import-data \
   --workspace <workspace> \
   --source-id <source_id> \
   --file <local_file>
@@ -75,7 +75,7 @@ sh tools/install_runtime.sh full
 所有必要来源就绪后，提出一个基于业务日期的唯一 ID，请用户确认，然后执行：
 
 ```bash
-<python> -m interfaces.onboarding sync \
+<python> -m interfaces.workspace_modeling sync \
   --workspace <workspace> \
   --snapshot-id <snapshot_id>
 ```
@@ -87,7 +87,7 @@ sh tools/install_runtime.sh full
 执行：
 
 ```bash
-<python> -m interfaces.onboarding handoff \
+<python> -m interfaces.workspace_modeling handoff \
   --workspace <workspace> \
   --session-id <session_id>
 ```

@@ -11,14 +11,14 @@ description: 将已完成首次部署和 Bridge 对齐的自然语言分析请�
 
 每次分析先执行一次确定性状态检查，再由宿主 Agent 负责问题理解和 SQL 编排：
 
-1. 调用 `casebook-pilot guide --workspace <workspace>`。
+1. 调用 `python3 -m interfaces.casebook guide --workspace <workspace>`。
    - `next_step` 不是 `analyze` 时，停止分析并把用户带到返回的初始化、同步或 Bridge 对齐步骤。
    - `next_step` 为 `analyze` 时，只使用返回的显式 `snapshot_id`，并读取工作区中的当前 Pack、Bridge 和 Snapshot 指针。
-2. 根据用户角色和问题类别调用 `casebook-pilot case-search`。没有匹配案例也可以继续；不要为了填充案例而扩大搜索范围或跨公司/角色读取。
+2. 根据用户角色和问题类别调用 `python3 -m interfaces.casebook case-search`。没有匹配案例也可以继续；不要为了填充案例而扩大搜索范围或跨公司/角色读取。
 3. 命中案例时，将其当作方法线索（问题结构、关键查询、限制和交付形式），需要时先执行 `case-verify` 检查证据哈希。案例中的旧数字、旧 Snapshot 或旧文件都不能直接回答当前问题。
-4. 结合当前 Pack 的指标/诊断定义和当前 Bridge 的物理字段映射，由宿主 Agent 生成本次只读 SQL。通过 Data Foundation 的 `describe`/`quality` 和 `query`（或已确认的 `run-saved-query`）执行；每次查询都必须显式携带当前 `snapshot_id`、`run_id` 和输出目录。不得直接用 DuckDB 客户端绕过入口，也不得按 `latest`、修改时间或模糊文件名选数据。
+4. 结合当前 Pack 的指标/诊断定义和当前 Bridge 的物理字段映射，由宿主 Agent 生成本次只读 SQL。通过 Data Platform 的 `describe`/`quality` 和 `query`（或已确认的 `run-saved-query`）执行；每次查询都必须显式携带当前 `snapshot_id`、`run_id` 和输出目录。不得直接用 DuckDB 客户端绕过入口，也不得按 `latest`、修改时间或模糊文件名选数据。
 5. 只基于当前查询结果回答，并说明时间范围、口径、来源和已知限制。Casebook 的命中信息可在运行证据中作为方法引用记录，但不替代当前查询证据。
-6. 用户明确要求文件交付时，再使用宿主原生表格/图表能力或现有 PPT 入口。S4 Quick 需先冻结本次分析证据，再按 [S4 Quick 提示词](../../../docs/s4-ppt-quick-prompt.md) 调用 `tools/s4_ppt_quick.py`；复杂模板或视觉交付才进入 `ppt-master` Default。交付物必须能回查到本次受控查询。
+6. 用户明确要求文件交付时，再使用宿主原生表格/图表能力或现有 PPT 入口。S4 Quick 需先冻结本次分析证据，再按 [S4 Quick 提示词](../../../docs/s4-ppt-quick-prompt.md) 调用 `analysis_product/s4_ppt_quick.py`；复杂模板或视觉交付才进入 `ppt-master` Default。交付物必须能回查到本次受控查询。
 
 ## 保存与沉淀
 

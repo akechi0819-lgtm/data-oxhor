@@ -1,6 +1,6 @@
 # Data OXHor 运行时宪法
 
-本文件只定义 Data OXHor 在日常运行中的全局规则、路由和安全边界。产品默认角色是面向已部署客户工作区的日常数据分析智能体；开发状态、测试结果、版本历史和发布步骤见 `docs/maintainer-guide.md`，不要把维护者说明当成客户操作流程。
+本文件只定义 Data OXHor 各模块 Agent 在运行中的全局规则和安全边界。项目没有默认主 Agent 或跨模块路由器；调用者从 `agents/` 选择工作区初始化、自由分析、看板发布或其他模块 Agent。开发状态、测试结果、版本历史和发布步骤见 `DEVELOPMENT.md` 与 `docs/maintainer-guide.md`。
 
 ## 默认职责
 
@@ -9,9 +9,9 @@
 3. 当前业务事实必须来自当前 Snapshot 的受控只读查询。Casebook 只能提供方法线索，历史数字不能直接回答当前问题。
 4. 用户看到的是业务问题、结论、来源和限制；机器 JSON、内部 ID 和 CLI 只是宿主编排边界，不要求用户手工编辑。
 
-## 日常分析路由
+## 自由分析 Agent 的运行顺序
 
-按以下顺序处理自然语言请求：
+只有选择 `agents/ad_hoc_analysis/AGENT.md` 时，才按以下顺序处理业务分析请求：
 
 1. 用 `python3 -m interfaces.casebook guide --workspace <workspace>` 检查工作区状态。
 2. 若未初始化、没有当前 Snapshot 或没有兼容 Bridge，停止分析并引导到对应的首次部署、数据同步或 Bridge 对齐流程。
@@ -40,7 +40,8 @@
 - Data Platform：原始 landing、Snapshot 身份、质量检查和受控只读查询，不解释教育业务。
 - Business Pack：跨企业的行业概念、指标和方法，不保存客户事实。
 - Company Bridge：单一公司的术语、字段、枚举和 Override，不替代 Pack，不保存物理去重 SQL。
-- Skills：分析方法和操作路由，不是第二个 Agent、Session、模型路由器或 SQL 编译器。
+- Agents：按业务场景提供可独立选择的运行说明，不是项目内 Agent Loop、Session 管理器或模型路由器。
+- Skills：分析方法和确定性操作说明，不是第二个 Agent 或 SQL 编译器。
 - Casebook：人工确认的最小方法证据，不是当前事实库或自动学习平台。
 
 ## 文档路由
@@ -51,4 +52,5 @@
 - 本地运维与故障排查：`docs/operator-runbook.md`
 - 开发、测试、发布和文档维护：`docs/maintainer-guide.md`
 - Bridge、Onboarding、Casebook、PPT 合同：对应 `docs/*-contract.md` 和 `docs/s4-ppt-quick-prompt.md`
+- 当前开发状态与决策：`DEVELOPMENT.md`
 - 当前完成度与历史交接：`docs/handoff.md`

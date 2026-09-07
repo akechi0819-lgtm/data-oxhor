@@ -2,7 +2,7 @@
 
 ## 1. 权威模型
 
-系统由“原生 Agent Host + 稳定 CLI 边界 + 宿主无关 Data/Pack/Bridge + 客户工作区 + 项目级 Skills”构成。产品默认运行角色是客户工作区中的日常数据分析智能体；首次部署和 Bridge 对齐是进入日常分析前的准备流程，不是产品的主要对话角色。
+系统由“原生 Agent Host + 可独立选择的模块 Agent + 稳定 CLI 边界 + 宿主无关 Data/Pack/Bridge + 客户工作区”构成。项目是模块化运营数据中台，不提供默认主 Agent 或跨模块自然语言路由；调用者按任务选择 `agents/` 下的模块 Agent。
 
 ```text
 ┌──────────────────────────────────────────────┐
@@ -32,7 +32,7 @@
 
 ## 2. 为什么宿主可替换
 
-核心模块只暴露 CLI、文件、JSON、SQL 和版本化 manifest，不接收 Harness 的 `ctx`、Session 类、Conversation Node 或 Codex 专属对象。Codex、DeepSeek Harness 或其他具备受控 Shell 的宿主使用自身原生 Agent 直接调用同一 CLI，并通过项目 Skills 学习业务操作方式。项目不在宿主之上或之内再建设一层 Agent、模型路由或对话调度；宿主可替换性不依赖 MCP。
+核心模块只暴露 CLI、文件、JSON、SQL 和版本化 manifest，不接收 Harness 的 `ctx`、Session 类、Conversation Node 或 Codex 专属对象。Codex、DeepSeek Harness 或其他具备受控 Shell 的宿主根据任务选择 `agents/` 下的模块说明，再调用同一 CLI。项目不在宿主之上或之内再建设总 Agent、模型路由或对话调度；宿主可替换性不依赖 MCP。
 
 可移植资产：
 
@@ -101,7 +101,7 @@ Data Platform v2 将每个 Sheet 按实际表头名原样落入 landing，并在
 
 ## 6. 输出和交互
 
-开放式分析的调用说明保留在宿主 Skill `.agents/skills/business-analysis-routing`；`analysis_product/` 只承载确定性分析交付代码（当前为 PPT Quick）。Skill 负责宿主侧的自然语言理解、追问和编排，不是项目内第二个 Agent。这样既保留宿主可替换性，也避免把提示词、Session 或模型路由复制到业务代码层。
+自由分析的调用说明位于 `agents/ad_hoc_analysis/AGENT.md`，宿主 Skill `.agents/skills/business-analysis-routing` 提供更细的调用步骤；`analysis_product/` 只承载确定性分析交付代码（当前为 PPT Quick）。Agent 文件是可选择的运行合同，不实现项目内 Agent Loop、Session 或模型路由。
 
 Codex、DeepSeek Harness 等宿主已具备 HTML、图表和文件生成/交付能力。项目已装配固定版本的 `ppt-master` Skill，Skill 负责方法和模板，宿主负责执行与交付；表格和可视化先复用宿主能力。两个宿主已完成主线分析和可打开 PPTX 的交付验证。PPT 交付是通用会话合同，按需求选择直接回答、表格/查询结果或 PPTX，不固化教育业务页序。首轮验收关闭自动更新、外部研究、生图、TTS、旁白和本地 Web 辅助界面；只有出现宿主无法满足的可复现文件正确性问题时，才增加最小确定性工具。当前不建设独立 Renderer 或 Deliverables 平台。
 

@@ -1,6 +1,6 @@
 # 维护者指南
 
-本文件面向维护 Data OXHor 的开发者和 Agent，不是客户日常使用说明。客户入口请看 [Agent 使用说明](./user-guide.md)。
+本文件面向维护 Data OXHor 的开发者和 Agent，不是客户使用说明。项目定位、模块状态和主模块施工记录请先看根目录 [开发文档](../DEVELOPMENT.md)；客户入口请看 [用户指南](./user-guide.md)。
 
 ## 代码与测试
 
