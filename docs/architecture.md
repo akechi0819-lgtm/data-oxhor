@@ -63,7 +63,20 @@
   → 宿主生成并交付文件
 ```
 
+
 运行以显式 `run_id` 区分，查询和恢复以显式 `snapshot_id` 定位仓库。源 SHA-256 用于 inspect/ingest 的源绑定以及 Snapshot/Artifact manifest。每个受控查询结果同时记录由 `ingest.sheets` 反查的 `referenced_relations` 与 `referenced_source_ids`；这只服务于冻结分析的来源校验，不扩张为统一血缘平台。SQL 是直接查询输入或保存查询内容。Education Pack 1.0.0 与 Company Bridge 按企业工作区独立版本化；Data Platform 不伪造 Pack/Bridge 选择。
+
+固定看板发布走另一条只读链路，不经过分析交付：
+
+```text
+当前 Snapshot
+  → dashboard_actuals/v6（Data Platform run-saved-query）
+  → artifact.json（全量，不进公网）
+  → 四分册 HTML + 可选钉钉人员图/表
+  → 服务器只托管静态文件
+```
+
+钉钉 webhook 和发布 SSH 密码属于 C 层，不进入公开仓库或 MCP。
 
 ## 4. 确定性边界
 

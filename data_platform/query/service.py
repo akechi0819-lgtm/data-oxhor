@@ -262,7 +262,6 @@ def promote_query(
         "query_id": query_id,
         "version": version,
         "confirmed_by": confirmed_by.strip(),
-        "source_snapshot_id": snapshot_id,
         "sql_path": "query.sql",
         "sha256": digest,
     }
@@ -293,8 +292,6 @@ def run_saved_query(
     digest = hashlib.sha256(sql_path.read_bytes()).hexdigest()
     if manifest.get("query_id") != query_id or manifest.get("version") != version or manifest.get("sha256") != digest:
         raise QueryError("SAVED_QUERY_INVALID", "saved query manifest or hash is invalid")
-    if manifest.get("source_snapshot_id") != snapshot_id:
-        raise QueryError("SNAPSHOT_MISMATCH", "saved query was confirmed for a different snapshot")
     return execute_query(
         warehouse=warehouse, snapshot_id=snapshot_id, sql=sql, parameters=parameters,
         run_id=run_id, output_root=output_root, max_rows=max_rows, max_result_bytes=max_result_bytes,

@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 """Render the dashboard artifact as a self-contained HTML report."""
 
+from dashboard_product.booklets import booklet_chrome, filter_dashboard_for_booklet
 
-def render_html(artifact_data):
-    dashboard = artifact_data['dashboard']
+
+def render_html(artifact_data, booklet=None):
+    dashboard = filter_dashboard_for_booklet(artifact_data['dashboard'], booklet)
+    chrome = booklet_chrome(booklet)
     snapshot_id = artifact_data['snapshot_id']
     run_id = artifact_data['run_id']
     artifact_id = artifact_data['artifact_id']
@@ -26,7 +29,7 @@ def render_html(artifact_data):
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Cyber Shackles - 语培完成进度看板</title>
+<title>%(page_title)s</title>
 <style>
 :root {
   --ink: #182230;
@@ -132,7 +135,7 @@ footer { margin-top: 20px; padding-top: 14px; border-top: 1px solid var(--line);
 <body>
 <main>
 <header>
-  <div><small>DATA OXHOR / OPERATIONS</small><h1>Cyber Shackles</h1><p>FY27 财年：2026-06-01 至 2027-05-31</p></div>
+  <div><small>DATA OXHOR / OPERATIONS</small><h1>Cyber Shackles</h1><p>%(period_line)s</p></div>
   <div class="meta">Snapshot<br><b>%(snapshot_id)s</b><br>数据截至 %(data_through_date)s · 刷新 %(created_at)s</div>
 </header>
 <section class="controls"><label>范围<select id="scope"><option value="year">全年 FY27</option><option value="Q1">Q1</option><option value="Q2" selected>Q2</option><option value="Q3">Q3</option><option value="Q4">Q4</option></select></label><span class="hint">范围切换只影响本地汇总与下钻窗口</span></section>
@@ -140,11 +143,12 @@ footer { margin-top: 20px; padding-top: 14px; border-top: 1px solid var(--line);
 <nav id="tabs" class="tabs"></nav>
 <div id="view"></div>
 <section class="panel comparison"><div class="panel-head"><div><h2>业务组同期对比</h2><p class="section-kicker">现金与工单按团队口径分别下钻到一级、二级渠道</p></div></div><div id="yoy-comparison" class="table-wrap"></div></section>
-<section class="panel comparison"><div class="panel-head"><div><h2>业务组同期对比 · 年级</h2><p class="section-kicker">现金使用学员年级，工单使用年级名称；高中、大学支持学校 → 年级下钻</p></div></div><div id="grade-comparison" class="table-wrap"></div></section>
+<section class="panel comparison"><div class="panel-head"><div><h2>业务组同期对比 · 年级</h2><p class="section-kicker">%(grade_kicker)s</p></div></div><div id="grade-comparison" class="table-wrap"></div></section>
 <footer>Artifact %(artifact_id)s · Run %(run_id)s</footer>
 </main>
 <script>
 const D = %(dashboard_json)s;
+const SCHOOL_DRILL_GROUPS = %(school_grade_groups_json)s;
 const TODAY = new Date(D.period.current_date);
 const S = document.querySelector('#scope');
 const T = document.querySelector('#tabs');
@@ -209,7 +213,7 @@ function renderComparison(container, mode) {
     const priorValue = group.prior_monthly_actuals[metric].slice(start, start + length).reduce((sum, value) => sum + value, 0);
     const yoy = priorValue > 0 ? (currentValue - priorValue) / priorValue : null;
     const drillId = mode + '-drill-' + index + '-' + metric;
-    const detail = isGrade ? gradeDrill(group.display_name, team.team_id, start, length, metric, ['高中', '大学'].includes(group.display_name), drillId) : channelDrill(group.display_name, team.team_id, start, length, metric);
+    const detail = isGrade ? gradeDrill(group.display_name, team.team_id, start, length, metric, SCHOOL_DRILL_GROUPS.includes(group.display_name), drillId) : channelDrill(group.display_name, team.team_id, start, length, metric);
     html += '<tr>' + (metricIndex === 0 ? '<th rowspan="2">' + escapeHtml(group.display_name) + '</th>' : '') + '<td class="metric">' + (metric === 'cash' ? '现金' : '工单') + '</td><td>' + (metric === 'cash' ? money(priorValue) : count(priorValue)) + '</td><td>' + (metric === 'cash' ? money(currentValue) : count(currentValue)) + '</td><td class="' + (yoy !== null && yoy < 0 ? 'negative' : '') + '">' + pct(yoy) + '</td><td><button class="drill-toggle" data-drill="' + drillId + '">展开下钻</button></td></tr>';
     html += '<tr id="' + drillId + '" class="drill-row" hidden><td colspan="5">' + detail + '</td></tr>';
   }));
@@ -248,7 +252,7 @@ function renderView() {
   let html = '<section class="cards">' + metricCard('被动报入现金', cash, priorCash, cashTarget, money, 'var(--blue)') + metricCard('被动工单', orders, priorOrders, ordersTarget, count, 'var(--orange)') + '</section><div class="dashboard-grid"><section class="panel"><div class="panel-head"><div><h2>' + (isTotal ? '市场总计 · 现金与工单' : '三大业务组 · 现金与工单') + '</h2><p class="section-kicker">目标、实际与完成率</p></div></div><div class="table-wrap"><table><thead><tr><th>业务组</th><th>现金目标</th><th>现金实际</th><th>现金完成</th><th>工单目标</th><th>工单实际</th><th>工单完成</th></tr></thead><tbody>';
   html += team.groups.map(group => '<tr><th>' + escapeHtml(group.display_name) + '</th><td>' + money(target(group, 'cash')) + '</td><td>' + money(sum(group, 'cash')) + '</td><td>' + progressBar(target(group, 'cash') ? sum(group, 'cash') / target(group, 'cash') : null) + '</td><td>' + count(target(group, 'orders')) + '</td><td>' + count(sum(group, 'orders')) + '</td><td>' + progressBar(target(group, 'orders') ? sum(group, 'orders') / target(group, 'orders') : null) + '</td></tr>').join('');
   html += '</tbody></table></div></section>';
-  if (!isTotal) html += '<section class="panel people-panel"><div class="panel-head"><div><h2>人员月度贡献</h2><p class="section-kicker">按业务团队、绩效月查看目标、完成与渠道</p></div></div><div class="people-toolbar"><div class="people-filters"><label for="peopleGroup">业务团队</label><select id="peopleGroup"><option value="all">全部团队</option><option value="留学预备">留学预备</option><option value="高中">高中</option><option value="大学">大学</option></select></div><label for="perfMonth">绩效月</label><select id="perfMonth">' + D.months.map(month => '<option value="' + month + '">' + month + '</option>').join('') + '</select></div><div id="peopleDetail"></div></section>';
+  if (!isTotal) html += '<section class="panel people-panel"><div class="panel-head"><div><h2>人员月度贡献</h2><p class="section-kicker">按业务团队、绩效月查看目标、完成与渠道</p></div></div><div class="people-toolbar"><div class="people-filters"><label for="peopleGroup">业务团队</label><select id="peopleGroup">%(people_group_options)s</select></div><label for="perfMonth">绩效月</label><select id="perfMonth">' + D.months.map(month => '<option value="' + month + '">' + month + '</option>').join('') + '</select></div><div id="peopleDetail"></div></section>';
   V.innerHTML = html + '</div>';
   if (!isTotal) { const monthSelect = document.querySelector('#perfMonth'); const groupSelect = document.querySelector('#peopleGroup'); const currentMonth = TODAY.toISOString().slice(0, 7); monthSelect.value = D.months.includes(currentMonth) ? currentMonth : D.months[D.months.length - 1]; renderPeople(team, monthSelect.value); monthSelect.onchange = event => renderPeople(team, event.target.value); groupSelect.onchange = () => renderPeople(team, monthSelect.value); }
   renderComparison(YOY, 'channel'); renderComparison(GRADE, 'grade');
@@ -264,6 +268,11 @@ init();
         '%(created_at)s': created_at[:19].replace('T', ' '),
         '%(artifact_id)s': artifact_id,
         '%(run_id)s': run_id,
+        '%(page_title)s': chrome['page_title'],
+        '%(period_line)s': chrome['period_line'],
+        '%(grade_kicker)s': chrome['grade_kicker'],
+        '%(people_group_options)s': chrome['people_group_options'],
+        '%(school_grade_groups_json)s': chrome['school_grade_groups_json'],
         '%(dashboard_json)s': dashboard_json,
     }
     for placeholder, value in values.items():

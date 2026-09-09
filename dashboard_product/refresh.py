@@ -35,6 +35,22 @@ def date_to_perf_month(date_str):
     except:
         return None
 
+SKIP_CAMPAIGN_VALUES=frozenset({'是','否','None','','NULL'})
+
+def campaign_allows_person_match(campaign):
+    return bool(campaign) and str(campaign) not in SKIP_CAMPAIGN_VALUES
+
+def match_person_names(candidates, campaign, entry_person):
+    names=[name for name in candidates if name]
+    if not names: return []
+    campaign_text=str(campaign or '')
+    campaign_matches=[name for name in names if name in campaign_text]
+    if campaign_matches: return campaign_matches
+    if '校代' in campaign_text:
+        entry_text=str(entry_person or '')
+        return [name for name in names if name in entry_text]
+    return []
+
 def read(p): return json.loads(Path(p).read_text(encoding='utf-8'))
 def run(ws,rid,snap,out,a,b):
  c=read(ws/'Work/workspace.json'); z=subprocess.run(['python3','-m','interfaces.data_platform','run-saved-query','--warehouse',str(ws/c['current_warehouse_path']),'--snapshot-id',snap,'--run-id',rid,'--output-root',str(out),'--registry-root',str(ws/'Work/SavedQueries'),'--query-id','dashboard_actuals','--version','v6','--params-json',json.dumps([a,b]),'--max-rows','50000','--max-result-bytes','10000000'],cwd=ROOT.parent,capture_output=True,text=True); r=json.loads(z.stdout or '{}')
@@ -61,14 +77,7 @@ def project(q,p,tg,people):
  def matched_people(team, business_group, campaign, entry_person):
   candidates=[name for configured_team, configured_group, name in configured_people
               if configured_team == team and configured_group == business_group]
-  if not candidates: return []
-  campaign_text=str(campaign or '')
-  campaign_matches=[name for name in candidates if name in campaign_text]
-  if campaign_matches: return campaign_matches
-  if '校代' in campaign_text:
-   entry_text=str(entry_person or '')
-   return [name for name in candidates if name in entry_text]
-  return []
+  return match_person_names(candidates, campaign, entry_person)
 
  def add_row(row, period, months, actuals, is_current):
   if len(row)!=11: raise ValueError(f'Unexpected dashboard query row: expected 11 columns, got {len(row)}')
@@ -80,7 +89,7 @@ def project(q,p,tg,people):
   grade_key='|'.join((month,team,group,str(school or '暂无归属'),str(grade or '暂无归属')))
   drill[period][metric_key]['channel'][channel_key]=drill[period][metric_key]['channel'].get(channel_key,0)+value
   drill[period][metric_key]['school_grade'][grade_key]=drill[period][metric_key]['school_grade'].get(grade_key,0)+value
-  if campaign and str(campaign) not in ['是','否','None','','NULL']:
+  if campaign_allows_person_match(campaign):
    for person_name in matched_people(team, group, campaign, entry_person):
     if is_current:
      per[(team,person_name,metric)]=per.get((team,person_name,metric),0)+value
@@ -176,10 +185,33 @@ def refresh(workspace,run_id):
  a={'schema_version':'dashboard_artifact.v1','artifact_id':'dashboard_'+uuid4().hex[:12],'run_id':run_id,'snapshot_id':snap,'as_of_date':today.isoformat(),'data_through_date':(today.fromordinal(today.toordinal()-1)).isoformat(),'created_at':datetime.now(timezone.utc).isoformat(),'query_results':[q,p],'errors':[],'dashboard':d}
  path=out/'artifact.json'; path.write_text(json.dumps(a,ensure_ascii=False,indent=2),encoding='utf-8')
  return {'status':'artifact_created','artifact':str(path)}
-def render(artifact):
+def render(artifact, booklet=None, output=None):
  import sys; sys.path.insert(0,str(ROOT.parent))
  from dashboard_product.render_template import render_html
- a=read(artifact); out=Path(artifact).with_suffix('.html'); out.write_text(render_html(a),encoding='utf-8'); return {'status':'rendered','output':str(out)}
+ from dashboard_product.booklets import booklet_filename, validate_booklet
+ booklet=validate_booklet(booklet)
+ a=read(artifact); artifact=Path(artifact)
+ if output is not None: out=Path(output)
+ elif booklet: out=artifact.with_name(booklet_filename(booklet))
+ else: out=artifact.with_suffix('.html')
+ out.write_text(render_html(a, booklet=booklet),encoding='utf-8'); return {'status':'rendered','output':str(out),'booklet':booklet or 'full'}
+def render_all_booklets(artifact):
+ from dashboard_product.booklets import BOOKLET_IDS
+ outputs=[render(artifact, booklet=booklet) for booklet in BOOKLET_IDS]
+ return {'status':'rendered','outputs':[item['output'] for item in outputs],'booklets':list(BOOKLET_IDS)}
 def main():
- p=argparse.ArgumentParser(); s=p.add_subparsers(dest='c',required=True); r=s.add_parser('refresh'); r.add_argument('--workspace',type=Path,required=True); r.add_argument('--run-id',required=True); r=s.add_parser('render'); r.add_argument('--artifact',type=Path,required=True); x=p.parse_args(); z=refresh(x.workspace,x.run_id) if x.c=='refresh' else render(x.artifact); print(json.dumps(z,ensure_ascii=False)); return 0
+ p=argparse.ArgumentParser(); s=p.add_subparsers(dest='c',required=True)
+ r=s.add_parser('refresh'); r.add_argument('--workspace',type=Path,required=True); r.add_argument('--run-id',required=True)
+ r=s.add_parser('render'); r.add_argument('--artifact',type=Path,required=True)
+ from dashboard_product.booklets import BOOKLET_IDS
+ r.add_argument('--booklet',choices=list(BOOKLET_IDS))
+ r.add_argument('--all-booklets',action='store_true')
+ r.add_argument('--output',type=Path)
+ x=p.parse_args()
+ if x.c=='refresh': z=refresh(x.workspace,x.run_id)
+ elif x.all_booklets:
+  if x.booklet or x.output: p.error('use --all-booklets without --booklet/--output')
+  z=render_all_booklets(x.artifact)
+ else: z=render(x.artifact, booklet=x.booklet, output=x.output)
+ print(json.dumps(z,ensure_ascii=False)); return 0
 if __name__=='__main__': raise SystemExit(main())

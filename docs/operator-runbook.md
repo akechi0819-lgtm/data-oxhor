@@ -101,6 +101,28 @@ analysis_product/run_s4_local.sh quick-ppt finalize <project> \
 
 项目 Skill `diagnose-source-overlap` 已在 2026-08-16 由 Harness headless 真实调用，能正确区分全量刷新与多来源并存，并把去重处理路由到 Data Platform 只读查询和保存查询。
 
+
+## 4.1 看板发布与钉钉
+
+看板日更在云电脑 `/home/box/oxhor/dashboard`，每天 10:00 Asia/Shanghai 跑 `dashboard_product/deploy/publish_static_dashboard.sh`。本机 Codex 定时已停。
+
+C 层环境变量只写在 `dashboard_product/.env.server`（mode 600），模板见 `dashboard_product/.env.server.example`：
+
+| 变量 | 用途 |
+|---|---|
+| `SERVER_HOST` / `SERVER_PORT` / `SERVER_USER` / `SERVER_PASSWORD` | 静态分册和钉钉素材 SCP |
+| `NOTIFY_PUBLIC_ORIGIN` | 钉钉图片/表格公网前缀 |
+| `DINGTALK_WEBHOOK_<CHANNEL>` / `DINGTALK_SECRET_<CHANNEL>` | 五通道：`ONLINE_PRIVATE`、`ONLINE_PLATFORM`、`OFFLINE_YOUTH`、`OFFLINE_HIGH_SCHOOL`、`OFFLINE_UNIVERSITY` |
+
+云电脑独立运行必须 CopyToBox 该文件，禁止进 Git、禁止贴聊天。缺 webhook 的通道会被跳过。钉钉发送：
+
+```bash
+python3 -m dashboard_product.notify send --artifact <artifact.json> --dry-run
+python3 -m dashboard_product.notify send --artifact <artifact.json>
+```
+
+冒烟：`python3 -m unittest discover -s dashboard_product/tests -v`；公网 `http://dashboard.apinova.cn/healthz` 匿名 200，未登录业务页 401。
+
 ## 5. 升级策略
 
 DeepSeek Harness 处于 Developer Preview。升级前必须：

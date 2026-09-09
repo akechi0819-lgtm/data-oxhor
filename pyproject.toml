@@ -51,4 +51,4 @@ casebook = "interfaces.casebook:main"
 include = ["workspace_modeling*", "data_platform*", "data_acquisition*", "analysis_product*", "dashboard_product*", "interfaces*"]
 
 [tool.setuptools.package-data]
-workspace_modeling.business_pack = ["packs/**/*.json"]
+"workspace_modeling.business_pack" = ["packs/**/*.json"]

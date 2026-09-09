@@ -181,3 +181,15 @@ python3 -m interfaces.casebook guide --workspace customers/company_customer
 S4 不新增业务 CLI 或输出平台。项目已将上游 `hugohe3/ppt-master` v4.7.0（提交 `e8323bfaee249cffe1301ec40fca5875eb544d46`）固定版本装配到 `.agents/skills/ppt-master`，MIT 许可证、发布包 SHA-256 和树摘要见 `.agents/skills/ppt-master.upstream.json`；离线检查会执行其 `scripts/attribution_guard.py`。电子表格和数据可视化先使用宿主原生能力，不增加项目依赖。项目只增加 `analysis_product/s4_ppt_quick.py` 作为宿主无关的 Quick 编排入口，不复制 PPT Master 的 SVG、模板或 Renderer 实现。
 
 宿主通过自然语言需求决定直接回答、表格/查询结果或 PPTX，PPT 不采用固定月报结构或页序。分析已冻结且没有复杂交付要求时，Codex 与 DeepSeek Harness 都使用 [S4 Quick PPT 宿主提示词](./s4-ppt-quick-prompt.md) 和同一 `quick-ppt prepare/finalize` 入口；冻结清单以 Snapshot、SHA-256 与由受控查询真实写入的 `referenced_source_ids` 约束可用查询证据，入口会复核导入副本，不接受 manifest 自报的来源作为唯一凭据。当前 BI 主线使用 `bridge_bi_operations`，包含现金明细与工单来源；历史 Bridge 和教务验收不属于当前交付输入。模板、人工确认、图片、预览、讲稿、旁白或复杂动画才进入 PPT Master Default。首轮验收只使用本地数据和原生可编辑 PPTX，关闭自动更新、外部研究、生图、TTS、旁白和本地 Web 辅助界面。缺少工作时间、请假和通勤规则时，当前未占用只能称“候选空档”。文件必须可打开、内容非空且关键数字可回查到同一只读查询结果。
+
+## 9. 固定看板与钉钉
+
+看板不是 Data Platform 新 CLI，而是模块入口：
+
+```bash
+python3 -m dashboard_product.refresh refresh --workspace customers/bi_operations --run-id run_dashboard_<id>
+python3 -m dashboard_product.refresh render --artifact <artifact.json> --all-booklets
+python3 -m dashboard_product.notify send --artifact <artifact.json> --dry-run
+```
+
+刷新只消费已确认 `dashboard_actuals/v6`。四分册发布和 Nginx 门口见 [`dashboard_product/DEPLOYMENT.md`](../dashboard_product/DEPLOYMENT.md)。Webhook 属于 C 层，不在本接入指南展开。

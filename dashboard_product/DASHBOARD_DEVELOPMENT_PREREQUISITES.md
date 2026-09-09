@@ -1,6 +1,6 @@
 # 看板运行合同
 
-更新时间：2026-09-06
+更新时间：2026-09-09
 
 本文档记录当前可运行边界，不再列未实施的架构计划。
 
@@ -15,18 +15,18 @@
 
 ```bash
 python3 -m dashboard_product.refresh refresh --workspace customers/<workspace> --run-id run_<id>
-python3 -m dashboard_product.refresh render --artifact customers/<workspace>/Output/Dashboard/run_<id>/artifact.json
+python3 -m dashboard_product.refresh render --artifact customers/<workspace>/Output/Dashboard/run_<id>/artifact.json --all-booklets
+python3 -m dashboard_product.notify send --artifact customers/<workspace>/Output/Dashboard/run_<id>/artifact.json --dry-run
 ```
 
-`refresh` 创建不可变 artifact；`render` 只读取显式 artifact。当前发布由 `deploy/publish_static_dashboard.sh` 完成。
+`refresh` 创建不可变 artifact；`render --all-booklets` 只读取显式 artifact 并写出四分册。当前发布由 `deploy/publish_static_dashboard.sh` 完成。钉钉发送是独立命令，不并入日更脚本。
 
 ## 当前进度
 
 - 三个团队已纳入看板：线下市场、线上私域（虚拟人团队）、线上平台。
-- 线下市场团队个性化配置已完成。
-- 线上私域和线上平台仍待完成个性化配置。
-- 服务器静态部署已完成；刷新、计算、Snapshot 更新和 HTML 发布准备均在本地执行。
-- Codex 唯一自动化每天 10:00（Asia/Shanghai）发布全量看板；服务器仅通过 Nginx 托管 `/var/www/dashboard/current.html`，公开入口为 `http://dashboard.apinova.cn`。
+- 线下市场团队个性化配置已完成；线上私域有部分人员；线上平台仍空。
+- 服务器静态部署已完成：四分册 HTML + basic auth；刷新、计算、Snapshot 更新和 HTML 发布准备在本机或云电脑执行。
+- 例行日更每天 10:00（Asia/Shanghai）挂许家印，跑 `deploy/publish_static_dashboard.sh`。公开入口为 `http://dashboard.apinova.cn`。钉钉五通道代码已落地，大学/线上 webhook 仍空。
 
 ## Artifact
 
@@ -34,7 +34,7 @@ python3 -m dashboard_product.refresh render --artifact customers/<workspace>/Out
 
 `dashboard` 输出 FY27 的 `months`、FY26 的 `prior_months`、团队/业务组/人员聚合和目标，并包含 `drilldowns`（现金/工单的渠道、年级，以及高中/大学学校→年级）。`market_total` 是三个团队的合计对象，`people` 固定为空。业务组同时包含 `monthly_actuals` 与 `prior_monthly_actuals` 两组 12 个月数组；渲染器以相同索引切季度同比。顶部现金和工单汇总显示当期、同期、同比、目标和完成率。缺少目标写 `null` 并显示“未配置”。
 
-个人实际归属先按工单团队和业务组筛选，再匹配活动名称中的人员姓名；活动名称含“校代”且未匹配姓名时使用工单 `资源录入人`，现金通过 `工单ID` 继承工单个人归属。
+个人实际归属先按工单团队和业务组筛选，再匹配活动名称中的人员姓名；活动名称含“校代”且未匹配姓名时使用资源描述中「市场人员：」后的姓名，现金通过 `工单ID` 继承工单个人归属。
 
 人员对象可包含 `business_group`、`monthly_targets` 和 `monthly_drilldowns`。人员目标按绩效月保存，现金或工单目标缺失时显示“未配置”；大学人头目标折算后的现金目标由配置直接登记。`monthly_drilldowns` 按绩效月和指标保存一级/二级渠道完成值；现金下钻的渠道必须来自现金按 `工单ID` 左连接后的工单维度，未匹配时为“暂无归属”，不能改用现金表原始渠道。`vacant` 占位人员保留在人员配置中，但不写入展示 artifact。
 

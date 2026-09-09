@@ -1,0 +1,188 @@
+import json
+import unittest
+from datetime import date
+from pathlib import Path
+
+from dashboard_product.digest import (
+    NOTIFY_CHANNEL_IDS,
+    build_all_digests,
+    build_digest,
+    remaining_workdays,
+)
+from dashboard_product.notify_render import render_markdown, render_people_html, write_details_xlsx
+
+
+def _months():
+    return [f'2026-{month:02d}' for month in range(6, 13)] + [f'2027-{month:02d}' for month in range(1, 6)]
+
+
+def _person(name, business_group, group_name, orders=0, cash=0, orders_target=None, cash_target=None):
+    targets = {}
+    if orders_target is not None or cash_target is not None:
+        month = {'orders': orders_target, 'cash': cash_target}
+        targets = {'2026-09': {key: value for key, value in month.items() if value is not None}}
+    actuals = {'orders': [0, 0, 0, orders] + [0] * 8, 'cash': [0, 0, 0, cash] + [0] * 8}
+    return {
+        'display_name': name,
+        'group_name': group_name,
+        'business_group': business_group,
+        'monthly_targets': targets,
+        'monthly_actuals': actuals,
+    }
+
+
+def _artifact():
+    return {
+        'schema_version': 'dashboard_artifact.v1',
+        'artifact_id': 'dashboard_test',
+        'run_id': 'run_notify_test',
+        'snapshot_id': 'snap_notify_test',
+        'as_of_date': '2026-09-07',
+        'data_through_date': '2026-09-06',
+        'query_results': [{
+            'result': {
+                'rows': [
+                    ['2026-09-03', 'online_private', '留学预备', '转介绍', '老客', '杨玉林活动', None, '某初中', '初三', 'work_orders', 10],
+                    ['2026-09-03', 'online_private', '留学预备', '转介绍', '老客', '杨玉林活动', None, '某初中', '初三', 'passive_reported_cash', 18900],
+                    ['2026-09-03', 'online_private', '留学预备', 'TMK', '校园', '校代系统资源活动', '杨玉林', '某初中', '初三', 'work_orders', 1],
+                    ['2026-09-03', 'online_private', '留学预备', 'TMK', '校园', None, '杨玉林', '某初中', '初三', 'work_orders', 2],
+                    ['2026-09-03', 'online_private', '高中', '直播', '视频号', '勾天瑀直播', '勾天瑀', '某高中', '高一', 'work_orders', 18],
+                    ['2026-08-01', 'online_private', '留学预备', '转介绍', '老客', '杨玉林活动', None, '某初中', '初三', 'work_orders', 99],
+                    ['2026-09-03', 'offline_market', '留学预备', 'TMK', '校园', '王昊活动', None, '某初中', '初三', 'work_orders', 5],
+                    ['2026-09-03', 'offline_market', '高中', 'TMK', '校园', '杨新宇活动', None, '某高中', '高一', 'work_orders', 4],
+                    ['2026-09-03', 'offline_market', '大学', 'TMK', '校园', '李进活动', None, '某大学', '大一', 'work_orders', 6],
+                ]
+            }
+        }],
+        'dashboard': {
+            'months': _months(),
+            'teams': [
+                {
+                    'team_id': 'online_private',
+                    'display_name': '线上私域（虚拟人团队）',
+                    'people': [
+                        _person('杨玉林', '留学预备', '小初提能组', orders=11, cash=18900, orders_target=90, cash_target=150000),
+                        _person('王玥', '高中', '高中多途径组'),
+                    ],
+                },
+                {
+                    'team_id': 'offline_market',
+                    'display_name': '线下市场',
+                    'people': [
+                        _person('王昊', '留学预备', '青少组', orders=5, cash=0, orders_target=105, cash_target=120000),
+                        _person('杨新宇', '高中', '高中组', orders=4, cash=0, orders_target=60),
+                        _person('李进', '大学', '大学组', orders=6, cash=0, orders_target=135, cash_target=390000),
+                    ],
+                },
+                {'team_id': 'online_platform', 'display_name': '线上平台', 'people': []},
+            ],
+        },
+    }
+
+
+class DigestTest(unittest.TestCase):
+    def test_remaining_workdays_mid_september(self):
+        self.assertEqual(remaining_workdays(date(2026, 9, 7), date(2026, 9, 25)), 15)
+
+    def test_online_private_attribution_and_behind(self):
+        digest = build_digest(_artifact(), 'online_private')
+        self.assertEqual(digest['perf_month'], '2026-09')
+        self.assertEqual(digest['remaining_workdays'], 15)
+        self.assertTrue(0.3 < digest['time_progress'] < 0.5)
+        self.assertEqual(digest['orders']['attributed'], 11)
+        self.assertEqual(digest['orders']['unattributed'], 20)
+        self.assertEqual(digest['orders']['total'], 31)
+        yang = next(person for person in digest['people'] if person['display_name'] == '杨玉林')
+        self.assertEqual(yang['orders_actual'], 11)
+        self.assertEqual(yang['orders_target'], 90)
+        self.assertTrue(yang['behind'])
+        self.assertGreater(yang['daily_orders'], 0)
+        wang = next(person for person in digest['people'] if person['display_name'] == '王玥')
+        self.assertFalse(wang['behind'])
+        self.assertIsNone(wang['daily_orders'])
+        self.assertEqual([item['display_name'] for item in digest['behind']], ['杨玉林'])
+        attributions = {item['attribution'] for item in digest['order_details']}
+        self.assertIn('杨玉林', attributions)
+        self.assertIn('未归属', attributions)
+        none_campaign = next(item for item in digest['order_details'] if item['campaign_name'] is None)
+        self.assertEqual(none_campaign['attribution'], '未归属')
+        school_agent = next(item for item in digest['order_details'] if item['campaign_name'] == '校代系统资源活动')
+        self.assertEqual(school_agent['attribution'], '杨玉林')
+
+    def test_team_isolation(self):
+        digest = build_digest(_artifact(), 'online_private')
+        blob = json.dumps(digest, ensure_ascii=False)
+        self.assertNotIn('王昊', blob)
+        self.assertNotIn('offline_market', blob)
+        html = render_people_html(digest)
+        markdown = render_markdown(digest, '/tmp/people.png', '/tmp/details.xlsx')
+        self.assertIn('杨玉林', html)
+        self.assertNotIn('王昊', html)
+        self.assertNotIn('online_private.html', markdown)
+        self.assertNotIn('full.html', markdown)
+        self.assertNotIn('未归属', markdown)
+        self.assertNotIn('已归属', markdown)
+        self.assertNotIn('未归属', html)
+        self.assertNotIn('已归属', html)
+
+    def test_all_teams_are_built_from_one_artifact(self):
+        digests = build_all_digests(_artifact())
+        self.assertEqual([item['team_id'] for item in digests], list(NOTIFY_CHANNEL_IDS))
+        platform = next(item for item in digests if item['team_id'] == 'online_platform')
+        self.assertEqual(platform['people'], [])
+        self.assertEqual(platform['orders']['total'], 0)
+
+    def test_offline_market_splits_into_youth_high_school_university(self):
+        youth = build_digest(_artifact(), 'offline_youth')
+        high_school = build_digest(_artifact(), 'offline_high_school')
+        university = build_digest(_artifact(), 'offline_university')
+        self.assertEqual(youth['display_name'], '线下市场·青少')
+        self.assertEqual([person['display_name'] for person in youth['people']], ['王昊'])
+        self.assertEqual([person['display_name'] for person in high_school['people']], ['杨新宇'])
+        self.assertEqual([person['display_name'] for person in university['people']], ['李进'])
+        self.assertEqual(youth['orders']['total'], 5)
+        self.assertEqual(high_school['orders']['total'], 4)
+        self.assertEqual(university['orders']['total'], 6)
+        self.assertNotIn('李进', json.dumps(youth, ensure_ascii=False))
+        self.assertNotIn('王昊', json.dumps(high_school, ensure_ascii=False))
+
+    def test_xlsx_has_attributed_and_unattributed_sheets(self):
+        import tempfile
+        digest = build_digest(_artifact(), 'online_private')
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'details.xlsx'
+            write_details_xlsx(digest, path)
+            from openpyxl import load_workbook
+            workbook = load_workbook(path)
+            self.assertEqual(workbook.sheetnames, ['人员进度', '工单明细', '现金明细'])
+            orders = [row[9] for row in workbook['工单明细'].iter_rows(min_row=2, values_only=True)]
+            self.assertIn('杨玉林', orders)
+            self.assertIn('未归属', orders)
+            people_names = [row[0] for row in workbook['人员进度'].iter_rows(min_row=2, values_only=True)]
+            self.assertEqual(people_names, ['杨玉林', '王玥'])
+            self.assertNotIn('王昊', people_names)
+
+
+REAL_ARTIFACT = (
+    Path(__file__).resolve().parents[2]
+    / 'customers/bi_operations/Output/Dashboard/run_dashboard_20260907_101900/artifact.json'
+)
+
+
+@unittest.skipUnless(REAL_ARTIFACT.exists(), 'no local September 7 artifact')
+class RealArtifactDigestTest(unittest.TestCase):
+    def test_online_private_september_counts(self):
+        artifact = json.loads(REAL_ARTIFACT.read_text(encoding='utf-8'))
+        digest = build_digest(artifact, 'online_private')
+        self.assertEqual(digest['perf_month'], '2026-09')
+        self.assertEqual(digest['remaining_workdays'], 15)
+        self.assertEqual(digest['orders']['total'], 29)
+        self.assertEqual(digest['orders']['attributed'], 11)
+        self.assertEqual(digest['orders']['unattributed'], 18)
+        yang = next(person for person in digest['people'] if person['display_name'] == '杨玉林')
+        self.assertEqual(yang['orders_actual'], 10)
+        self.assertEqual(yang['orders_target'], 90)
+        self.assertTrue(yang['behind'])
+        names = {person['display_name'] for person in digest['people']}
+        self.assertTrue({'杨玉林', '王玥', '许萌', '高勃然'} <= names)
+        self.assertNotIn('王昊', json.dumps(digest, ensure_ascii=False))

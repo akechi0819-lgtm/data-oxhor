@@ -1,0 +1,12 @@
+# Copy to C-layer secrets (see generate_dashboard_auth.py) and to
+# /etc/nginx/dashboard-user-booklets.map on the server.
+# Format: <username> <booklet>;
+# booklet is one of: full | online_private | online_platform | offline_market
+# Demo accounts admin/liuxue/gaozhong/daxue are retired; rebuild from the password book.
+shaoyifan full;
+chenyue online_private;
+sunyue online_platform;
+yangxu full;
+liumingzhi full;
+qinzhenxu full;
+zhangyuqing full;

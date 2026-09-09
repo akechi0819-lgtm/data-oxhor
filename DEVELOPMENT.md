@@ -14,7 +14,7 @@
 | 数据平台 | `data_platform/` | 已落地 | landing、不可变 Snapshot、schema、quality、受控只读 SQL |
 | 工作区建模 | `workspace_modeling/` | 已落地 | Pack、Bridge、对齐向导、首次部署、Casebook、内测反馈 |
 | 自由分析交付 | `analysis_product/` | 已落地/持续增强 | Quick PPT 冻结与导出辅助；分析编排由宿主 Agent 完成 |
-| 固定看板 | `dashboard_product/` | 已落地/持续增强 | 看板刷新、聚合、HTML 渲染和静态发布 |
+| 固定看板 | `dashboard_product/` | 已落地/持续增强 | 四分册静态发布、basic auth、钉钉人员进度 |
 | 日常监控 | `agents/daily_monitor/` | 预留 | 只有 Agent 合同，尚无运行代码 |
 
 ## 当前主线
@@ -41,6 +41,8 @@ python3 -m interfaces.business_pack validate
 python3 -m interfaces.company_bridge validate --help
 python3 -m interfaces.casebook --help
 python3 -m dashboard_product.refresh --help
+python3 -m dashboard_product.notify --help
+python3 -m unittest discover -s dashboard_product/tests -v
 sh tools/run_tests.sh -v
 git diff --check
 ```
@@ -59,3 +61,10 @@ git diff --check
 - 决定：根 `README.md` 只介绍产品定位、模块结构和入口；`DEVELOPMENT.md` 记录开发状态与决策；详细合同继续放在 `docs/`。
 - 原因：产品说明、开发记录和客户操作属于不同受众，不能继续混在旧版数据分析 README 中。
 - 影响：维护状态先更新 `DEVELOPMENT.md`，对外行为变化再同步相应合同和测试。
+
+### 2026-09-09：看板四分册、钉钉人员进度、Saved Query 不再绑历史 Snapshot
+
+- 决定：公网发布按团队板块四分册 + htpasswd；钉钉人员进度作为独立命令，不并入日更脚本。Saved Query 运行时只校验 SQL hash，由 Data Platform 校验当前仓库 Snapshot 身份，不再把确认时的 `source_snapshot_id` 当作运行绑定。
+- 原因：日更宿主已从本机 Codex 改为许家印云电脑；匿名全量 `current.html` 不再符合内部分册权限。钉钉 webhook 是 C 层密钥，不能和 HTML 发布混进同一公开合同。
+- 影响：云电脑独立运行必须单独同步 `.env.server`。缺 webhook 的通道跳过。不建设本机↔Grok 双向 MCP。
+- 验证：`python3 -m unittest discover -s dashboard_product/tests -v`；`tests/platform/test_query_service.py` 覆盖 Saved Query 可在另一合法 Snapshot 上运行。

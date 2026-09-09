@@ -39,7 +39,7 @@ Codex 的自然语言入口见 [首次部署自然语言 Skill](../.agents/skill
 
 ## 唯一待办
 
-S4 Quick 真实性能回归仍待补齐。恢复时使用主线 Bridge 的现金明细与工单输入，通过新版冻结分析和共同 Quick 入口完成双宿主回归；不引入教务数据或 fake adapter 绕过门禁。
+S4 Quick 真实性能回归仍待补齐。看板侧剩余事项是线上平台人员配置，以及线上私域/线上平台/线下大学钉钉 webhook；不在本文件展开，见 `dashboard_product/docs/PENDING_ISSUES.md`。恢复时使用主线 Bridge 的现金明细与工单输入，通过新版冻结分析和共同 Quick 入口完成双宿主回归；不引入教务数据或 fake adapter 绕过门禁。
 
 不要增加 MCP、独立强化插件、完整 Artifact 平台或通用工作流编排；新增治理必须对应可复现失败或明确客户要求。
 
@@ -64,14 +64,14 @@ S4 Quick 真实性能回归仍待补齐。恢复时使用主线 Bridge 的现金
 - 日常期：只运行已确认的固定刷新脚本，读取明确 `snapshot_id`，生成聚合 JSON/HTML 并推送服务器；不调用模型或 MCP 临时决定口径，不上传 DuckDB、原始工作簿或明细数据。
 - 原因：当前主要使用者为单人，未来主要增加看板复杂度而非接入宿主；CLI 已足够，减少 MCP 维护层。若未来出现多宿主或多人复用，再评估把只读 CLI 包装为 MCP。
 
-## 语培完成进度看板施工状态（2026-09-05）
+## 语培完成进度看板施工状态（2026-09-09 更新）
 
-- 模块：`dashboard_product/` 已实现 artifact 刷新、静态 HTML 渲染和季度筛选；生产服务器、域名、认证、推送和定时任务尚未施工。
+- 模块：`dashboard_product/` 已实现 artifact 刷新、四分册静态发布、basic auth 和钉钉人员进度。日更 10:00 挂许家印云电脑；本机 Codex 定时已停。钉钉不并入日更脚本。
 - 当前 Snapshot：`snapshot_bi_work_order_id_20260904`，使用现金明细 `landing.br_cash__sheet_39b8dee2e4b3` 与工单 `landing.br_work_orders__sheet_1f0596db9f25`。查询仍经 Data Platform 受控只读入口；原始工作簿、DuckDB 与运行结果不进 Git。
 - 工单口径：按工单表 `ID` 去重，按 `分配时间` 落在查询窗口；正式 SQL 输出字段为 `event_date, team_id, business_group, first_channel, second_channel, campaign_name, metric, actual_value`。
 - 被动现金口径：现金底稿 `渠道属性=被动`、`新老生类型=新生` 且 `报入现金收入>0`；负向不纳入。现金团队映射为青少→留学预备，初中/初中国际学科/ICC/国际学科→高中，大学→大学。
 - 现金业务组与渠道团队分两层计算：业务组总额只由现金表 `团队` 映射决定；工单 ID 连接只用于在业务组内部拆分线下市场、线上平台和线上私域。未匹配工单按“活动名含虚拟人→活动名含线上→渠道含 TMK→活动名含校代→其余线上”顺序归属渠道团队。
-- 看板运行从项目父目录执行 `python3 -m dashboard_product.refresh refresh --workspace customers/bi_operations --run-id <id>`，再用 `render --artifact .../artifact.json` 生成 `artifact.html`；同比按 FY27/FY26 对应自然月数组切片。
+- 看板运行从项目父目录执行 `python3 -m dashboard_product.refresh refresh --workspace customers/bi_operations --run-id <id>`，再用 `render --artifact .../artifact.json --all-booklets` 生成四分册 HTML；同比按 FY27/FY26 对应自然月数组切片。当前 Snapshot 以工作区 `workspace.json` 为准（2026-09-09 为 `snapshot_bi_operations_20260908`）。
 - 新生报名校区口径：团队为初中、初中国际学科、青少且新老生类型为新生；同一学员编号+班级编码在窗口内的报入现金净额绝对值 `>=1500`、报名人次大于零时，按学员编号去重计人头。新生报入现金仅汇总正向报入现金收入，单笔为该金额除以合格去重人头。
 - 已核验：留学预备新生现金与线上当期报表对齐。人头按同一公式复算时与当时截图相差 1 人，定位为国金来源版本差异，非门槛、去重或单笔公式差异；下次使用同源 Snapshot 时复核。
 

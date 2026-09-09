@@ -54,3 +54,5 @@
 - Bridge、Onboarding、Casebook、PPT 合同：对应 `docs/*-contract.md` 和 `docs/s4-ppt-quick-prompt.md`
 - 当前开发状态与决策：`DEVELOPMENT.md`
 - 当前完成度与历史交接：`docs/handoff.md`
+- 看板发布与钉钉：`dashboard_product/DEPLOYMENT.md`、`agents/dashboard_publisher/AGENT.md`
+- 云电脑分层同步：`SYNC.md`（A 代码 / B 数据 / C 密钥；不建设双向 MCP）

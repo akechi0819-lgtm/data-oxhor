@@ -1,4 +1,10 @@
 .env.server
 .env.*.local
 runtime/publish_logs/
-outputs/*.html
+outputs/
+deploy/secrets/
+*.htpasswd
+initial-passwords
+initial-passwords.txt
+config/*.bak*
+config/*.bak-*

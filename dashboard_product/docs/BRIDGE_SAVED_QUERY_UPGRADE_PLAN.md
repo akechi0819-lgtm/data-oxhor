@@ -19,7 +19,7 @@
 | 看板的展示聚合 | `dashboard_product` |
 | 当前 Snapshot 的金额、对账结果和异常样例 | 受控查询结果；需要复用方法时可另存 Casebook |
 
-Bridge 不保存 SQL。Saved Query 不保存旧 Snapshot 的结论或历史金额。
+Bridge 不保存 SQL。Saved Query 不保存旧 Snapshot 的结论或历史金额；Saved Query manifest 也不绑定某个日期的 Snapshot，日常运行使用调用方显式传入并由仓库元数据验证的当前 Snapshot。
 
 ## 已升级 Bridge
 

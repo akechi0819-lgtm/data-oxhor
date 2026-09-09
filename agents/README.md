@@ -8,5 +8,5 @@
 |---|---|---|
 | `workspace_setup` | 首次部署、导入、Snapshot、Bridge 对齐 | `data_acquisition`、`data_platform`、`workspace_modeling` |
 | `ad_hoc_analysis` | 自由查询、诊断、下钻、按需文件交付 | `data_platform`、`workspace_modeling`、`analysis_product` |
-| `dashboard_publisher` | 固定查询刷新、看板渲染和发布 | `data_platform`、`dashboard_product` |
+| `dashboard_publisher` | 固定查询刷新、四分册发布、可选钉钉人员进度 | `data_platform`、`dashboard_product` |
 | `daily_monitor` | 定期监控和异常推送 | 预留，尚无运行模块 |

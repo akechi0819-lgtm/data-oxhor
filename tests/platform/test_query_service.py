@@ -12,12 +12,12 @@ import duckdb
 from data_platform.query.service import QueryError, describe_warehouse, execute_query, promote_query, run_saved_query
 
 
-def warehouse(path: Path) -> None:
+def warehouse(path: Path, snapshot_id: str = "snapshot_query_test") -> None:
     with duckdb.connect(str(path)) as connection:
         for schema in ("ingest", "landing", "quality", "queries", "private"):
             connection.execute(f"CREATE SCHEMA {schema}")
         connection.execute("CREATE TABLE ingest.sources(source_id VARCHAR, snapshot_id VARCHAR)")
-        connection.execute("INSERT INTO ingest.sources VALUES ('fixture', 'snapshot_query_test')")
+        connection.execute("INSERT INTO ingest.sources VALUES ('fixture', ?)", [snapshot_id])
         connection.execute("CREATE TABLE ingest.sheets(source_id VARCHAR, target_table VARCHAR, header_columns JSON)")
         connection.execute("INSERT INTO ingest.sheets VALUES ('fixture', 'values_table', ?)", [json.dumps([
             {"technical_name": "category", "original_name": "分类"},
@@ -156,16 +156,17 @@ class QueryServiceTests(unittest.TestCase):
             manifest = json.loads((registry / "category_values/v1/manifest.json").read_text(encoding="utf-8"))
             self.assertEqual(manifest["sha256"], hashlib.sha256((registry / "category_values/v1/query.sql").read_bytes()).hexdigest())
 
-    def test_saved_query_rejects_a_different_current_snapshot(self):
+    def test_saved_query_runs_against_another_valid_snapshot(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             db = root / "warehouse.duckdb"
+            other_db = root / "other_warehouse.duckdb"
             registry = root / "registry"
             warehouse(db)
             promote_query(warehouse=db, snapshot_id="snapshot_query_test", sql="SELECT * FROM landing.values_table", registry_root=registry, query_id="snapshot_bound", version="v1", confirmed_by="user@example")
-            with self.assertRaises(QueryError) as mismatch:
-                run_saved_query(warehouse=db, snapshot_id="snapshot_other", registry_root=registry, query_id="snapshot_bound", version="v1", parameters=None, run_id="run_query_test", output_root=root, max_rows=10, max_result_bytes=10000)
-            self.assertEqual(mismatch.exception.code, "SNAPSHOT_MISMATCH")
+            warehouse(other_db, snapshot_id="snapshot_other")
+            result = run_saved_query(warehouse=other_db, snapshot_id="snapshot_other", registry_root=registry, query_id="snapshot_bound", version="v1", parameters=None, run_id="run_query_test", output_root=root, max_rows=10, max_result_bytes=10000)
+            self.assertEqual(result["snapshot_id"], "snapshot_other")
 
     def test_select_string_literal_with_denied_word_is_allowed(self):
         with tempfile.TemporaryDirectory() as directory:

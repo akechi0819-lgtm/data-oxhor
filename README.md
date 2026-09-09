@@ -11,7 +11,7 @@ data_acquisition/    数据来源接入、认证和导入任务
 data_platform/       landing、Snapshot、质量检查和受控只读查询
 workspace_modeling/  Business Pack、Company Bridge、工作区、Casebook 和首次部署
 analysis_product/    分析交付的确定性辅助代码，目前包含 Quick PPT
-dashboard_product/   固定口径看板的刷新、渲染和发布
+dashboard_product/   固定口径看板的刷新、四分册发布和可选钉钉人员进度
 interfaces/          对外 CLI 边界
 customers/           按公司隔离的 Input/Work/Output 工作区
 agents/              可单独选择的模块 Agent 说明，不含总路由 Agent

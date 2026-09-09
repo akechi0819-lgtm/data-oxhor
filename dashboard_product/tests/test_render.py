@@ -28,8 +28,8 @@ class RenderTest(unittest.TestCase):
         root = Path(__file__).resolve().parents[1]
         rows = [
             ["2026-09-03", "offline_market", "高中", "TMK", "校园", "马澳高中活动", None, "学校", "高一", "work_orders", 5],
-            ["2026-09-03", "offline_market", "留学预备", "TMK", "校园", "校代系统资源活动", "马澳-校代", "学校", "初三", "work_orders", 3],
-            ["2026-09-03", "offline_market", "留学预备", "TMK", "校园", "校代系统资源活动", "马澳-校代", "学校", "初三", "passive_reported_cash", 39000],
+            ["2026-09-03", "offline_market", "留学预备", "TMK", "校园", "校代系统资源活动", "马澳", "学校", "初三", "work_orders", 3],
+            ["2026-09-03", "offline_market", "留学预备", "TMK", "校园", "校代系统资源活动", "马澳", "学校", "初三", "passive_reported_cash", 39000],
         ]
         result = project({"result": {"rows": rows}}, {"result": {"rows": []}}, read(root / "config/project_targets.json"), read(root / "config/people.json"))
         team = next(item for item in result["teams"] if item["team_id"] == "offline_market")
@@ -41,6 +41,8 @@ class RenderTest(unittest.TestCase):
     def test_cash_channel_contract_uses_work_order_left_join(self):
         query = (Path(__file__).resolve().parents[2] / "customers/bi_operations/Work/SavedQueries/dashboard_actuals/v6/query.sql").read_text(encoding="utf-8")
         self.assertIn("LEFT JOIN orders_dim o", query)
+        self.assertIn("资源描述", query)
+        self.assertIn("市场人员", query)
         self.assertIn("COALESCE(o.first_channel, '暂无归属') AS first_channel", query)
         self.assertIn("COALESCE(o.second_channel, '暂无归属') AS second_channel", query)
 
