@@ -15,7 +15,7 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 
-from dashboard_product.digest import NOTIFY_CHANNEL_IDS, NOTIFY_CHANNELS, apply_warehouse_actuals, build_all_digests, ledger_attributions, resolve_channels
+from dashboard_product.digest import NOTIFY_CHANNEL_IDS, NOTIFY_CHANNELS, apply_warehouse_actuals, build_all_digests, ensure_roster, ledger_attributions, missing_cash_order_ids, resolve_channels
 from dashboard_product.notify_render import (
     dingtalk_title,
     render_markdown,
@@ -126,8 +126,16 @@ def fetch_channel_ledger(artifact, digest, workspace=None, output_root=None):
         workspace, snapshot_id, f"{artifact['run_id']}_{digest['team_id']}_cash",
         ROOT / 'sql' / 'notify_cash.sql', params, output_root,
     )
+    extra_columns, extra_rows = [], []
+    missing_ids = missing_cash_order_ids(orders_columns, orders_rows, cash_columns, cash_rows)
+    if missing_ids:
+        extra_columns, extra_rows = run_detail_query(
+            workspace, snapshot_id, f"{artifact['run_id']}_{digest['team_id']}_orders_by_id",
+            ROOT / 'sql' / 'notify_work_orders_by_ids.sql', [missing_ids], output_root,
+        )
     order_owners, cash_owners = ledger_attributions(
         orders_columns, orders_rows, cash_columns, cash_rows, digest.get('people') or [],
+        extra_order_columns=extra_columns, extra_order_rows=extra_rows,
     )
     return {
         'orders': _pack_warehouse_table(orders_columns, orders_rows, owners=order_owners),
@@ -199,9 +207,13 @@ def write_team_artifacts(digest, output_dir, artifact=None, workspace=None):
     png_path = team_dir / 'people.png'
     xlsx_path = team_dir / 'details.xlsx'
     md_path = team_dir / 'message.md'
+    digest = dict(digest)
+    people_config_path = ROOT / 'config' / 'people.json'
+    if people_config_path.exists():
+        months = ((artifact or {}).get('dashboard') or {}).get('months') or []
+        digest = ensure_roster(digest, read_json(people_config_path), months=months)
     if artifact is not None:
         try:
-            digest = dict(digest)
             digest['warehouse'] = fetch_channel_ledger(artifact, digest, workspace=workspace, output_root=Path(output_dir) / '_query')
             digest = apply_warehouse_actuals(digest)
         except Exception as error:

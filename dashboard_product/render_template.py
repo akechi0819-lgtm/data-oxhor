@@ -205,10 +205,14 @@ function gradeDrill(groupName, teamId, start, length, metric, university, drillI
   const currentGrades = flatten(current); const priorGrades = flatten(prior); const sortedGrades = sortGrades([...new Set([...Object.keys(currentGrades), ...Object.keys(priorGrades)])], currentGrades, priorGrades); return compareDrill(Object.fromEntries(sortedGrades.map(grade => [grade, currentGrades[grade] || 0])), Object.fromEntries(sortedGrades.map(grade => [grade, priorGrades[grade] || 0])), metric, ['年级']);
 }
 function wireDrills(container) { container.querySelectorAll('.drill-toggle').forEach(button => { button.onclick = () => { const row = document.querySelector('#' + button.dataset.drill); row.hidden = !row.hidden; button.textContent = row.hidden ? '展开下钻' : '收起下钻'; }; }); }
+function yoyGroups(team) {
+  if (team.yoy_groups && team.yoy_groups.length) return team.yoy_groups;
+  return ['青少', '初中', '高中', '大学'].map(name => ({ display_name: name, monthly_actuals: { cash: Array(12).fill(0), orders: Array(12).fill(0) }, prior_monthly_actuals: { cash: Array(12).fill(0), orders: Array(12).fill(0) } }));
+}
 function renderComparison(container, mode) {
   const team = selectedTeam(); const [start, length] = range(); const isGrade = mode === 'grade';
   let html = '<table><thead><tr><th>业务组</th><th>指标</th><th>去年同期</th><th>今年实际</th><th>同比</th><th>下钻</th></tr></thead><tbody>';
-  team.groups.forEach((group, index) => ['cash', 'orders'].forEach((metric, metricIndex) => {
+  yoyGroups(team).forEach((group, index) => ['cash', 'orders'].forEach((metric, metricIndex) => {
     const currentValue = group.monthly_actuals[metric].slice(start, start + length).reduce((sum, value) => sum + value, 0);
     const priorValue = group.prior_monthly_actuals[metric].slice(start, start + length).reduce((sum, value) => sum + value, 0);
     const yoy = priorValue > 0 ? (currentValue - priorValue) / priorValue : null;

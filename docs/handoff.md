@@ -71,7 +71,7 @@ S4 Quick 真实性能回归仍待补齐。看板侧剩余事项是线上平台�
 - 工单口径：按工单表 `ID` 去重，按 `分配时间` 落在查询窗口；正式 SQL 输出字段为 `event_date, team_id, business_group, first_channel, second_channel, campaign_name, metric, actual_value`。
 - 被动现金口径：现金底稿 `渠道属性=被动`、`新老生类型=新生` 且 `报入现金收入>0`；负向不纳入。现金团队映射为青少→留学预备，初中/初中国际学科/ICC/国际学科→高中，大学→大学。
 - 现金业务组与渠道团队分两层计算：业务组总额只由现金表 `团队` 映射决定；工单 ID 连接只用于在业务组内部拆分线下市场、线上平台和线上私域。未匹配工单按“活动名含虚拟人→活动名含线上→渠道含 TMK→活动名含校代→其余线上”顺序归属渠道团队。
-- 看板运行从项目父目录执行 `python3 -m dashboard_product.refresh refresh --workspace customers/bi_operations --run-id <id>`，再用 `render --artifact .../artifact.json --all-booklets` 生成四分册 HTML；同比按 FY27/FY26 对应自然月数组切片。当前 Snapshot 以工作区 `workspace.json` 为准（2026-09-09 为 `snapshot_bi_operations_20260908`）。
+- 看板运行从项目父目录执行 `python3 -m dashboard_product.refresh refresh --workspace customers/bi_operations --run-id <id>`，再用 `render --artifact .../artifact.json --all-booklets` 生成四分册 HTML。刷新消费 `dashboard_actuals/v7`：目标区留学预备/高中/大学，同比区青少/初中/高中/大学。当前 Snapshot 以工作区 `workspace.json` 为准（本机 2026-09-09 仍为 `snapshot_bi_operations_20260908`；云端日更为 `snapshot_bi_operations_20260909`）。
 - 新生报名校区口径：团队为初中、初中国际学科、青少且新老生类型为新生；同一学员编号+班级编码在窗口内的报入现金净额绝对值 `>=1500`、报名人次大于零时，按学员编号去重计人头。新生报入现金仅汇总正向报入现金收入，单笔为该金额除以合格去重人头。
 - 已核验：留学预备新生现金与线上当期报表对齐。人头按同一公式复算时与当时截图相差 1 人，定位为国金来源版本差异，非门槛、去重或单笔公式差异；下次使用同源 Snapshot 时复核。
 

@@ -5,8 +5,8 @@
   "queries": [
     {
       "query_id": "dashboard_actuals",
-      "version": "v6",
-      "purpose": "看板当前与上一财年实际：被动新生正向报入现金和被动工单，按业务组、市场团队、渠道、活动、entry_person（市场人员优先否则资源录入人）、学校和年级输出",
+      "version": "v7",
+      "purpose": "看板当前与上一财年实际：被动新生正向报入现金和被动工单，按四组同比（青少/初中/高中/大学）输出，目标区再滚成留学预备/高中/大学",
       "parameters": ["start_date", "end_date"],
       "output": "event_date,team_id,business_group,first_channel,second_channel,campaign_name,entry_person,school_name,grade_name,metric,actual_value",
       "sql_owner": "customer_workspace_saved_query_registry",

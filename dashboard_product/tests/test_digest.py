@@ -241,7 +241,96 @@ class DigestTest(unittest.TestCase):
         self.assertEqual(order_owners, ['曹恒玮', '曹恒玮', '未归属', '杨新宇', '未归属'])
         self.assertEqual(cash_owners, ['曹恒玮', '未归属'])
 
+    def test_cash_inherits_from_full_warehouse_orders_not_just_this_month(self):
+        from dashboard_product.digest import ledger_attributions, missing_cash_order_ids
+        people = [
+            {'display_name': '师顺盈', 'business_group': '大学'},
+            {'display_name': '翟昕羽', 'business_group': '大学'},
+            {'display_name': '刘彬', 'business_group': '高中'},
+        ]
+        order_columns = ['团队', '年级属性', '年级名称', '活动名称', '资源描述', '资源录入人', 'ID', '姓名']
+        order_rows = [
+            ['大学', None, None, '本月师顺盈活动', None, None, '1', '本月生'],
+        ]
+        extra_columns = order_columns
+        extra_rows = [
+            ['大学', None, None, '2026.08.17-师顺盈-线上雅思行讲座', None, '杜晓蕾', '34587495', '王家昱'],
+            ['大学', None, None, '2027财年第3财月91校代系统资源活动', '市场人员：翟昕羽 备注：渠道推荐', '刘炫麟', '34570085', '李晨曦'],
+            ['高中', None, None, '2027财年第2财月91校代系统资源活动', '市场人员：刘彬 备注：咨询sat', '李鑫', '33619709', '胡维杨'],
+            ['大学', None, None, '无关历史活动', None, None, '34500000', '未匹配生'],
+        ]
+        cash_columns = ['团队', '市场活动名称', '工单ID', '学员姓名']
+        cash_rows = [
+            ['大学', '别的活动', '1', '本月生'],
+            ['大学', '现金活动名里没有人', '34587495', '王家昱'],
+            ['大学', '2027财年第3财月91校代系统资源活动', '34570085', '李晨曦'],
+            ['高中', '校代活动', '33619709', '胡维杨'],
+            ['大学', '师顺盈讲座', '34500000', '未匹配生'],
+            ['大学', '师顺盈讲座', '999', '仓里没有'],
+            ['大学', '无关现金', None, '无工单'],
+        ]
+        self.assertEqual(
+            missing_cash_order_ids(order_columns, order_rows, cash_columns, cash_rows),
+            ['34587495', '34570085', '33619709', '34500000', '999'],
+        )
+        _, cash_owners = ledger_attributions(
+            order_columns, order_rows, cash_columns, cash_rows, people,
+            extra_order_columns=extra_columns, extra_order_rows=extra_rows,
+        )
+        self.assertEqual(cash_owners, [
+            '师顺盈',
+            '师顺盈',
+            '翟昕羽',
+            '刘彬',
+            '未归属',
+            '师顺盈',
+            '未归属',
+        ])
+
+    def test_historical_order_is_judged_again_for_cash(self):
+        from dashboard_product.digest import ensure_roster, ledger_attributions
+        digest = {
+            'team_id': 'offline_high_school',
+            'perf_month': '2026-09',
+            'time_progress': 0.4,
+            'remaining_workdays': 15,
+            'people': [{
+                'display_name': '杨新宇', 'business_group': '高中', 'group_name': '高中组',
+                'orders_target': 60, 'orders_actual': 0, 'behind': True,
+            }],
+            'behind': [],
+        }
+        people_config = {
+            'teams': [{
+                'team_id': 'offline_market',
+                'groups': [{
+                    'display_name': '高中组',
+                    'members': [
+                        {'display_name': '杨新宇', 'status': 'active', 'business_group': '高中'},
+                        {'display_name': '刘彬', 'status': 'active', 'business_group': '高中'},
+                    ],
+                }],
+            }]
+        }
+        digest = ensure_roster(digest, people_config, months=['2026-09'])
+        names = [person['display_name'] for person in digest['people']]
+        self.assertEqual(names, ['杨新宇', '刘彬'])
+        order_columns = ['团队', '年级属性', '年级名称', '活动名称', '资源描述', '资源录入人', 'ID']
+        cash_columns = ['团队', '市场活动名称', '工单ID']
+        _, cash_owners = ledger_attributions(
+            order_columns, [], cash_columns,
+            [['高中', '校代活动没有人名', '33619709']],
+            digest['people'],
+            extra_order_columns=order_columns,
+            extra_order_rows=[[
+                '高中', None, None, '2027财年第2财月91校代系统资源活动',
+                '市场人员：刘彬 备注：咨询sat', '李鑫', '33619709',
+            ]],
+        )
+        self.assertEqual(cash_owners, ['刘彬'])
+
     def test_apply_warehouse_actuals_uses_owner_counts(self):
+
         from dashboard_product.digest import apply_warehouse_actuals
         digest = {
             'time_progress': 0.5,
@@ -288,3 +377,19 @@ class RealArtifactDigestTest(unittest.TestCase):
         names = {person['display_name'] for person in digest['people']}
         self.assertTrue({'杨玉林', '王玥', '许萌', '高勃然'} <= names)
         self.assertNotIn('王昊', json.dumps(digest, ensure_ascii=False))
+
+
+class MappingTest(unittest.TestCase):
+    def test_cash_middle_school_rolls_to_liuxue(self):
+        from dashboard_product.digest import mapped_cash_business_group, mapped_order_business_group, mapped_order_yoy_group
+        self.assertEqual(mapped_cash_business_group('初中'), '留学预备')
+        self.assertEqual(mapped_cash_business_group('初中国际学科'), '留学预备')
+        self.assertEqual(mapped_cash_business_group('ICC'), '高中')
+        self.assertEqual(mapped_cash_business_group('高中'), '高中')
+        self.assertEqual(mapped_order_yoy_group('留学预备', '青少顾问', '六年级'), '青少')
+        self.assertEqual(mapped_order_yoy_group('留学预备', '初中顾问', '一年级'), '初中')
+        self.assertEqual(mapped_order_yoy_group('留学预备', None, '五年级'), '青少')
+        self.assertEqual(mapped_order_yoy_group('留学预备', None, '六年级'), '初中')
+        self.assertEqual(mapped_order_yoy_group('留学预备', '武清顾问', '未知'), '大学')
+        self.assertEqual(mapped_order_yoy_group('留学预备', '塘沽顾问', '7年级（初一）'), '初中')
+        self.assertEqual(mapped_order_business_group('留学预备', None, None, '初中顾问', '一年级'), '留学预备')

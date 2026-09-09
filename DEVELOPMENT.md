@@ -68,3 +68,10 @@ git diff --check
 - 原因：日更宿主已从本机 Codex 改为许家印云电脑；匿名全量 `current.html` 不再符合内部分册权限。钉钉 webhook 是 C 层密钥，不能和 HTML 发布混进同一公开合同。
 - 影响：云电脑独立运行必须单独同步 `.env.server`。缺 webhook 的通道跳过。不建设本机↔Grok 双向 MCP。
 - 验证：`python3 -m unittest discover -s dashboard_product/tests -v`；`tests/platform/test_query_service.py` 覆盖 Saved Query 可在另一合法 Snapshot 上运行。
+
+### 2026-09-09：同比四组与现金跨月个人归属
+
+- 决定：刷新改消费 `dashboard_actuals/v7`。目标区仍按留学预备/高中/大学；渠道同比和年级同比拆成青少、初中、高中、大学。现金业务组只看现金表团队。钉钉现金归属按工单 ID 回查全量工单，不限本绩效月。
+- 原因：签约月和开单月经常错开；留学预备目标不能再混进同比年段。
+- 影响：云端 overlay 必须带 v7 SQL 和 `notify_work_orders_by_ids.sql`。旧 artifact 没有 `yoy_groups` 时，前端补四个空年段，不能把留学预备当同比行。
+- 验证：`python3 -m unittest discover -s dashboard_product/tests -v`。

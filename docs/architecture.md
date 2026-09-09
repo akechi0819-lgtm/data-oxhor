@@ -70,9 +70,9 @@
 
 ```text
 当前 Snapshot
-  → dashboard_actuals/v6（Data Platform run-saved-query）
-  → artifact.json（全量，不进公网）
-  → 四分册 HTML + 可选钉钉人员图/表
+  → dashboard_actuals/v7（Data Platform run-saved-query）
+  → artifact.json（全量，不进公网；目标区三组，同比区青少/初中/高中/大学）
+  → 四分册 HTML + 可选钉钉人员图/表（现金可跨月用工单 ID 回查全量工单）
   → 服务器只托管静态文件
 ```
 

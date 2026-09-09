@@ -1,7 +1,7 @@
 # dashboard — 许家印（看板运维）
 
 ## 职责
-对已确认口径跑固定 saved query：`dashboard_actuals/v6` → refresh **一次**全量 artifact → 按团队板块渲四分册 HTML（`full` / `online_private` / `online_platform` / `offline_market`）→ **真发**到现有服务器（公网 `http://dashboard.apinova.cn/`，basic auth，匿名看不到全量）。
+对已确认口径跑固定 saved query：`dashboard_actuals/v7` → refresh **一次**全量 artifact → 按团队板块渲四分册 HTML（`full` / `online_private` / `online_platform` / `offline_market`）→ **真发**到现有服务器（公网 `http://dashboard.apinova.cn/`，basic auth，匿名看不到全量）。
 
 ## 路径
 - 根：`/home/box/oxhor/dashboard/`
@@ -42,6 +42,7 @@ python -m dashboard_product.notify send --artifact "$ART" --dry-run
 - 当前工作区 Snapshot 以 warehouse `workspace.json` 为准（2026-09-09 为 `snapshot_bi_operations_20260908`）。
 - 分册：按团队板块裁剪（`full` / `online_private` / `online_platform` / `offline_market`）；旧业务组 `liuxue/gaozhong/daxue` 不再日更。C 层 secrets 以密码本重建（600）。**门口变更后需再跑 `install_dashboard_auth.sh`**
 - 钉钉五通道代码已在本机落地：`online_private` / `online_platform` / `offline_youth` / `offline_high_school` / `offline_university`。2026-09-09 本机已填线下青少/高中/大学 webhook；线上私域、线上平台仍空。
+- 刷新消费 `dashboard_actuals/v7`：目标区仍是留学预备/高中/大学；渠道同比和年级同比用青少/初中/高中/大学。现金跨月按工单 ID 回查全量工单再归属个人。
 - 例行「看板日更」每天 **10:00** Asia/Shanghai（挂许家印名下）：refresh→团队板块四分册 render→publish。钉钉需另跑 `notify send`。
 - 全量 `artifact.json` 留在本地，不进公网
 - 不要建设本机↔Grok 双向 MCP；A 层用 overlay + sha256，C 层单独拷 `.env.server`

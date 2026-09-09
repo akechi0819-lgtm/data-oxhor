@@ -46,7 +46,7 @@ SCHOOL_DRILL_GROUPS = ('高中', '大学')
 
 FULL_TITLE = 'Cyber Shackles - 语培完成进度看板'
 FULL_PERIOD_LINE = 'FY27 财年：2026-06-01 至 2027-05-31'
-FULL_GRADE_KICKER = '现金使用学员年级，工单使用年级名称；高中、大学支持学校 → 年级下钻'
+FULL_GRADE_KICKER = '目标区仍按留学预备、高中、大学；渠道同比和年级同比按青少、初中、高中、大学。现金用学员年级，工单用年级名称；高中、大学支持学校 → 年级下钻'
 FULL_PEOPLE_GROUP_OPTIONS = (
     '<option value="all">全部团队</option>'
     '<option value="留学预备">留学预备</option>'
@@ -112,6 +112,7 @@ def _empty_team(team_id):
         'cash_target': None,
         'orders_target': None,
         'groups': [],
+        'yoy_groups': [],
         'people': [],
     }
 

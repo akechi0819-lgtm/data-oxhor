@@ -47,6 +47,56 @@ ORDER_METRIC = 'work_orders'
 CASH_METRIC = 'passive_reported_cash'
 
 
+def configured_people_for_channel(channel_id, people_config):
+    from dashboard_product.refresh import BUSINESS_GROUP_BY_ROSTER_GROUP
+    if channel_id not in NOTIFY_CHANNELS:
+        return []
+    channel = NOTIFY_CHANNELS[channel_id]
+    team_id = channel['team_id']
+    business_group = channel['business_group']
+    rows = []
+    for team in (people_config or {}).get('teams') or []:
+        if team.get('team_id') != team_id:
+            continue
+        for group in team.get('groups') or []:
+            group_business_group = BUSINESS_GROUP_BY_ROSTER_GROUP.get(group.get('display_name'))
+            for person in group.get('members') or []:
+                if person.get('status') == 'vacant':
+                    continue
+                name = person.get('display_name')
+                person_group = person.get('business_group') or group_business_group
+                if not name or not person_group:
+                    continue
+                if business_group and person_group != business_group:
+                    continue
+                rows.append({
+                    'display_name': name,
+                    'business_group': person_group,
+                    'group_name': group.get('display_name'),
+                    'monthly_targets': person.get('monthly_targets') or {},
+                })
+    return rows
+
+
+def ensure_roster(digest, people_config, months=None, time_progress=None, workdays=None):
+    existing = {person.get('display_name') for person in digest.get('people') or []}
+    extras = []
+    for person in configured_people_for_channel(digest['team_id'], people_config):
+        if person['display_name'] in existing:
+            continue
+        extras.append(person)
+    if not extras:
+        return digest
+    months = months or []
+    time_progress = digest['time_progress'] if time_progress is None else time_progress
+    workdays = digest['remaining_workdays'] if workdays is None else workdays
+    extra_rows = build_people_rows(extras, months, digest['perf_month'], time_progress, workdays)
+    digest = dict(digest)
+    digest['people'] = list(digest.get('people') or []) + extra_rows
+    digest['behind'] = [row for row in digest['people'] if row['behind']]
+    return digest
+
+
 def unique_keep_order(items):
     seen = set()
     out = []
@@ -161,26 +211,56 @@ def attributed_names(candidates, campaign, entry_person, resource_desc=None):
     return unique_keep_order(match_person_names(candidates, campaign, entry_person, resource_desc))
 
 
-def mapped_order_business_group(team, grade_attr, grade_name):
-    team_name = str(team or '').strip()
-    if team_name in BUSINESS_GROUPS:
-        return team_name
-    grade_attr = str(grade_attr or '')
-    grade_name = str(grade_name or '')
-    if '留学预备' in grade_attr:
+def rolled_business_group(group):
+    if group in {'青少', '初中'}:
         return '留学预备'
-    if '高中' in grade_attr or '高中' in grade_name:
+    return group
+
+
+def mapped_order_yoy_group(team, adviser_belong=None, grade_correction=None):
+    team_name = str(team or '').strip()
+    belong = str(adviser_belong or '').strip()
+    grade = str(grade_correction or '').strip()
+    if team_name in {'无法判断', '校区资源无法归属', '需要判定'} or not team_name:
+        return None
+    if belong in {'武清顾问', '塘沽顾问', '塘沽学管'} or team_name in {'武清', '塘沽'}:
+        if grade in {'', '未知'}:
+            return '大学'
+        if grade in {'学龄前', '一年级', '二年级', '三年级', '四年级', '五年级', '六年级'} or any(token in grade for token in ('小班', '中班', '大班')):
+            return '青少'
+        if any(token in grade for token in ('初一', '初二', '初三')):
+            return '初中'
+        if any(token in grade for token in ('高一', '高二', '高三')):
+            return '高中'
+        return '大学'
+    if belong == '青少顾问':
+        return '青少'
+    if belong == '初中顾问':
+        return '初中'
+    if belong == '高中顾问':
         return '高中'
-    if '大学' in grade_attr or '研究生' in grade_attr or '大学' in grade_name:
+    if belong in {'大学顾问', '大学学管'}:
+        return '大学'
+    if not belong and team_name == '留学预备':
+        if grade in {'学龄前', '一年级', '二年级', '三年级', '四年级', '五年级'} or any(token in grade for token in ('小班', '中班', '大班')):
+            return '青少'
+        return '初中'
+    if team_name == '高中':
+        return '高中'
+    if team_name == '大学':
         return '大学'
     return None
 
 
+def mapped_order_business_group(team, grade_attr=None, grade_name=None, adviser_belong=None, grade_correction=None):
+    return rolled_business_group(mapped_order_yoy_group(team, adviser_belong, grade_correction))
+
+
 def mapped_cash_business_group(team):
     team_name = str(team or '').strip()
-    if team_name == '青少':
+    if team_name in {'青少', '初中', '初中国际学科'}:
         return '留学预备'
-    if team_name in {'初中', '初中国际学科', 'ICC', '国际学科'}:
+    if team_name in {'高中', 'ICC', '国际学科'}:
         return '高中'
     if team_name == '大学':
         return '大学'
@@ -210,6 +290,8 @@ def order_attribution(row, columns, people):
         cell_value(row, cols, '团队'),
         cell_value(row, cols, '年级属性'),
         cell_value(row, cols, '年级名称'),
+        cell_value(row, cols, '顾问归属'),
+        cell_value(row, cols, '年级校正'),
     )
     return attribution_label(
         people,
@@ -220,18 +302,48 @@ def order_attribution(row, columns, people):
     )
 
 
-def ledger_attributions(order_columns, order_rows, cash_columns, cash_rows, people):
-    order_cols = column_index(order_columns)
-    order_labels = [order_attribution(row, order_cols, people) for row in order_rows]
-    inherited = {}
-    for row, label in zip(order_rows, order_labels):
-        work_order_id = str(cell_value(row, order_cols, 'ID') or '').strip()
-        if work_order_id:
+def cash_work_order_id(row, columns):
+    cols = columns if isinstance(columns, dict) else column_index(columns)
+    return str(cell_value(row, cols, '工单ID') or cell_value(row, cols, '工单ID__2') or '').strip()
+
+
+def collect_order_labels(columns, rows, people, inherited):
+    cols = columns if isinstance(columns, dict) else column_index(columns)
+    labels = [order_attribution(row, cols, people) for row in rows]
+    for row, label in zip(rows, labels):
+        work_order_id = str(cell_value(row, cols, 'ID') or '').strip()
+        if work_order_id and work_order_id not in inherited:
             inherited[work_order_id] = label
+    return labels
+
+
+def missing_cash_order_ids(order_columns, order_rows, cash_columns, cash_rows):
+    order_cols = column_index(order_columns)
+    month_ids = {
+        str(cell_value(row, order_cols, 'ID') or '').strip()
+        for row in order_rows
+    }
+    month_ids.discard('')
+    missing = []
+    seen = set()
+    cash_cols = column_index(cash_columns)
+    for row in cash_rows:
+        work_order_id = cash_work_order_id(row, cash_cols)
+        if work_order_id and work_order_id not in month_ids and work_order_id not in seen:
+            seen.add(work_order_id)
+            missing.append(work_order_id)
+    return missing
+
+
+def ledger_attributions(order_columns, order_rows, cash_columns, cash_rows, people, extra_order_columns=None, extra_order_rows=None):
+    inherited = {}
+    order_labels = collect_order_labels(order_columns, order_rows, people, inherited)
+    if extra_order_rows:
+        collect_order_labels(extra_order_columns or [], extra_order_rows, people, inherited)
     cash_cols = column_index(cash_columns)
     cash_labels = []
     for row in cash_rows:
-        work_order_id = str(cell_value(row, cash_cols, '工单ID') or cell_value(row, cash_cols, '工单ID__2') or '').strip()
+        work_order_id = cash_work_order_id(row, cash_cols)
         if work_order_id and work_order_id in inherited:
             cash_labels.append(inherited[work_order_id])
             continue
@@ -273,11 +385,12 @@ def build_detail_rows(rows, team_id, perf_month, people, business_group=None):
         if not isinstance(row, (list, tuple)) or len(row) < 11:
             continue
         event_date, row_team, row_group, first_channel, second_channel, campaign, entry_person, school, grade, metric, value = row[:11]
-        if row_team != team_id or row_group not in BUSINESS_GROUPS:
+        rolled_group = rolled_business_group(row_group)
+        if row_team != team_id or rolled_group not in BUSINESS_GROUPS:
             continue
-        if business_group and row_group != business_group:
+        if business_group and rolled_group != business_group:
             continue
-        business_group_name = row_group
+        business_group_name = rolled_group
         kind = metric_kind(metric)
         if kind is None or value in (None, ''):
             continue

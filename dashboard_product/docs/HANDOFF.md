@@ -18,7 +18,7 @@ python3 -m dashboard_product.refresh render --artifact customers/bi_operations/O
 python3 -m dashboard_product.notify send --artifact customers/bi_operations/Output/Dashboard/run_dashboard_<id>/artifact.json --dry-run
 ```
 
-刷新读取 `customers/bi_operations/Work/workspace.json` 的 `current_snapshot_id`，调用 `dashboard_actuals/v6` 两次：当前窗口和上一财年对应窗口。输出写入 `customers/bi_operations/Output/Dashboard/<run_id>/`。云电脑等价根目录是 `/home/box/oxhor/dashboard`，customers 软链到 warehouse。
+刷新读取 `customers/bi_operations/Work/workspace.json` 的 `current_snapshot_id`，调用 `dashboard_actuals/v7` 两次：当前窗口和上一财年对应窗口。输出写入 `customers/bi_operations/Output/Dashboard/<run_id>/`。云电脑等价根目录是 `/home/box/oxhor/dashboard`，customers 软链到 warehouse。
 
 ## Artifact 合同
 
@@ -28,11 +28,10 @@ python3 -m dashboard_product.notify send --artifact customers/bi_operations/Outp
 
 - `months`: `2026-06` 至 `2027-05`
 - `prior_months`: `2025-06` 至 `2026-05`
-- `teams[].groups[].monthly_actuals`: FY27 现金/工单数组
-- `teams[].groups[].prior_monthly_actuals`: FY26 对应现金/工单数组
-- `teams[].groups[].quarter_targets`、`annual_targets`
+- `teams[].groups[]`: 目标区留学预备/高中/大学，含 `monthly_actuals`、`prior_monthly_actuals`、`quarter_targets`、`annual_targets`
+- `teams[].yoy_groups[]`: 同比区青少/初中/高中/大学，只含当期和去年同期月数组，不含目标
 - `teams[].people[].monthly_actuals`: 绩效月数组
-- `teams[]` 包含 `market_total` 合计团队，`market_total.people` 为空；`dashboard.drilldowns` 提供现金/工单的渠道、年级和高中/大学学校→年级聚合。
+- `teams[]` 包含 `market_total` 合计团队，`market_total.people` 为空；`teams[].yoy_groups` 是青少/初中/高中/大学四组同比；`dashboard.drilldowns` 的业务组键是这四组，不是留学预备。
 - `teams[].people[]` 可包含 `business_group`、`monthly_targets` 和 `monthly_drilldowns`；人员页面按业务团队筛选，`vacant` 占位不进入 artifact，现金与工单均支持工单维度的一级/二级渠道下钻。现金渠道来自 `工单ID` 左连接工单表，未匹配时为“暂无归属”。
 - 顶部现金、工单汇总卡片显示当期、同期、同比、目标和完成率。
 
@@ -40,11 +39,11 @@ python3 -m dashboard_product.notify send --artifact customers/bi_operations/Outp
 
 ## 业务口径
 
-现金和工单独立计算。现金筛选 `渠道属性=被动`、`新老生类型=新生`、`报入现金收入>0`；现金通过 `工单ID` 左连接工单表，关联时采用工单业务组、一级/二级渠道和资源录入人，未关联时回退现金表团队，并在渠道维度显示 `暂无归属`。团队归属仍按“工单匹配→虚拟人→线上→TMK→校代→默认线上平台”顺序处理。
+现金和工单独立计算。现金筛选 `渠道属性=被动`、`新老生类型=新生`、`报入现金收入>0`。现金业务组只看现金表 `团队`（青少/初中滚留学预备，ICC/国际学科进高中），不跟工单业务组改口。工单 ID 左连接只取渠道和人员；连不上时渠道为 `暂无归属`。团队归属仍按“工单匹配→虚拟人→线上→TMK→校代→默认线上平台”顺序处理。
 
-个人归属口径：先以工单的市场团队和业务组筛选人员。活动名含花名册姓名时用活动名；否则依次用资源描述「市场人员：」、「姓名市场资源」、资源录入人、去掉 `YYYY.MM.DD-` 旧活动串后的资源描述正文。现金经工单 ID 继承相同归属。未归属个人的记录保留在团队统计，不计入个人。
+个人归属口径：先以工单的市场团队和业务组筛选人员。活动名含花名册姓名时用活动名；否则依次用资源描述「市场人员：」、「姓名市场资源」、资源录入人、去掉 `YYYY.MM.DD-` 旧活动串后的资源描述正文。现金用工单 ID 对全量工单数仓连，不限本绩效月；连上则继承该工单归属，连不上再退回现金表市场活动名。未归属个人的记录保留在团队统计，不计入个人。
 
-看板当前以 `dashboard_actuals/v6` 的实际 SQL 行为为准；正式 Bridge 为 `artifacts/company_bridge/bridges/company_bridge.bi_operations.v1_2_0.json`，但刷新不直接执行 Bridge 的现金业务组 Override。可复用逐笔底稿为 `attributed_passive_reported_cash/v1`。Saved Query 不再把确认时的 Snapshot 写成运行时绑定。
+看板当前以 `dashboard_actuals/v7` 的实际 SQL 行为为准；正式 Bridge 为 `artifacts/company_bridge/bridges/company_bridge.bi_operations.v1_2_0.json`，但刷新不直接执行 Bridge 的现金业务组 Override。可复用逐笔底稿为 `attributed_passive_reported_cash/v1`。Saved Query 不再把确认时的 Snapshot 写成运行时绑定。
 
 ## 发布与钉钉
 

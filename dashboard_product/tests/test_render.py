@@ -50,8 +50,8 @@ class RenderTest(unittest.TestCase):
         root = Path(__file__).resolve().parents[1]
         rows = [
             ["2026-09-03", "offline_market", "高中", "TMK", "校园", "马澳高中活动", None, "学校", "高一", "work_orders", 5],
-            ["2026-09-03", "offline_market", "留学预备", "TMK", "校园", "校代系统资源活动", "马澳", "学校", "初三", "work_orders", 3],
-            ["2026-09-03", "offline_market", "留学预备", "TMK", "校园", "校代系统资源活动", "马澳", "学校", "初三", "passive_reported_cash", 39000],
+            ["2026-09-03", "offline_market", "青少", "TMK", "校园", "校代系统资源活动", "马澳", "学校", "初三", "work_orders", 3],
+            ["2026-09-03", "offline_market", "青少", "TMK", "校园", "校代系统资源活动", "马澳", "学校", "初三", "passive_reported_cash", 39000],
         ]
         result = project({"result": {"rows": rows}}, {"result": {"rows": []}}, read(root / "config/project_targets.json"), read(root / "config/people.json"))
         team = next(item for item in result["teams"] if item["team_id"] == "offline_market")
@@ -61,12 +61,17 @@ class RenderTest(unittest.TestCase):
         self.assertEqual(ma_ao["monthly_drilldowns"]["2026-09"]["orders"]["TMK||校园"], 3)
 
     def test_cash_channel_contract_uses_work_order_left_join(self):
-        query = (Path(__file__).resolve().parents[2] / "customers/bi_operations/Work/SavedQueries/dashboard_actuals/v6/query.sql").read_text(encoding="utf-8")
+        query = (Path(__file__).resolve().parents[1] / "sql/dashboard_actuals.sql").read_text(encoding="utf-8")
         self.assertIn("LEFT JOIN orders_dim o", query)
         self.assertIn("资源描述", query)
         self.assertIn("市场人员", query)
         self.assertIn("COALESCE(o.first_channel, '暂无归属') AS first_channel", query)
         self.assertIn("COALESCE(o.second_channel, '暂无归属') AS second_channel", query)
+        self.assertIn("顾问归属", query)
+        self.assertIn("年级校正", query)
+        self.assertIn("c.cash_business_group AS business_group", query)
+        self.assertIn("WHEN TRIM(团队) IN ('初中','初中国际学科') THEN '初中'", query)
+        self.assertNotIn("COALESCE(o.business_group, c.cash_business_group)", query)
 
     def test_renders_projection_and_unconfigured_values(self):
         group = {
@@ -95,7 +100,7 @@ class RenderTest(unittest.TestCase):
         self.assertIn("业务团队", page)
         self.assertIn("工单渠道", page)
         self.assertIn("现金渠道", page)
-        self.assertIn("高中、大学支持学校 → 年级下钻", page)
+        self.assertIn("渠道同比和年级同比按青少、初中、高中、大学", page)
         self.assertNotIn("<th>状态</th>", page)
         self.assertIn("<em>目标</em>", page)
         self.assertIn("<em>完成</em>", page)
@@ -105,6 +110,27 @@ class RenderTest(unittest.TestCase):
         self.assertIn("未配置", page)
         self.assertIn("snapshot_bi_full_20260902_r2", page)
         self.assertNotIn("duckdb.connect", page)
+
+
+    def test_youth_and_middle_school_roll_up_to_liuxue_and_keep_four_yoy_groups(self):
+        from dashboard_product.refresh import read
+        root = Path(__file__).resolve().parents[1]
+        rows = [
+            ["2026-09-03", "offline_market", "青少", "TMK", "校园", "王昊活动", None, "学校", "一年级", "passive_reported_cash", 100],
+            ["2026-09-03", "offline_market", "初中", "TMK", "校园", "初中活动", None, "学校", "七年级", "passive_reported_cash", 40],
+            ["2026-09-03", "offline_market", "高中", "TMK", "校园", "杨新宇活动", None, "学校", "高一", "passive_reported_cash", 20],
+        ]
+        result = project({"result": {"rows": rows}}, {"result": {"rows": []}}, read(root / "config/project_targets.json"), read(root / "config/people.json"))
+        team = next(item for item in result["teams"] if item["team_id"] == "offline_market")
+        groups = {group["display_name"]: group for group in team["groups"]}
+        self.assertEqual(groups["留学预备"]["monthly_actuals"]["cash"][3], 140)
+        self.assertEqual(groups["高中"]["monthly_actuals"]["cash"][3], 20)
+        yoy = {group["display_name"]: group for group in team["yoy_groups"]}
+        self.assertEqual(list(yoy), ["青少", "初中", "高中", "大学"])
+        self.assertEqual(yoy["青少"]["monthly_actuals"]["cash"][3], 100)
+        self.assertEqual(yoy["初中"]["monthly_actuals"]["cash"][3], 40)
+        self.assertIn("2026-09|offline_market|青少|TMK|校园", result["drilldowns"]["current"]["cash"]["channel"])
+        self.assertNotIn("2026-09|offline_market|留学预备|TMK|校园", result["drilldowns"]["current"]["cash"]["channel"])
 
     def test_rejects_missing_identity(self):
         with tempfile.TemporaryDirectory() as directory:

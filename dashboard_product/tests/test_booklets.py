@@ -220,7 +220,7 @@ class BookletFilterTest(unittest.TestCase):
         self.assertEqual(json.loads(chrome['school_grade_groups_json']), ['高中', '大学'])
         full = booklet_chrome('full')
         self.assertEqual(full['page_title'], 'Cyber Shackles - 语培完成进度看板')
-        self.assertIn('高中、大学支持学校 → 年级下钻', full['grade_kicker'])
+        self.assertIn('渠道同比和年级同比按青少、初中、高中、大学', full['grade_kicker'])
 
 
 class BookletRenderTest(unittest.TestCase):
@@ -257,7 +257,7 @@ class BookletRenderTest(unittest.TestCase):
         self.assertIn('王昊', page)
         self.assertIn('杨玉林', page)
         self.assertIn('平台同学', page)
-        self.assertIn('高中、大学支持学校 → 年级下钻', page)
+        self.assertIn('渠道同比和年级同比按青少、初中、高中、大学', page)
 
     def test_render_writes_named_team_booklets_and_default_artifact_html(self):
         artifact = _artifact()
