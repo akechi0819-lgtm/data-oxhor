@@ -34,7 +34,7 @@ python3 -m dashboard_product.notify send --artifact customers/<workspace>/Output
 
 `dashboard` 输出 FY27 的 `months`、FY26 的 `prior_months`、团队/业务组/人员聚合和目标，并包含 `drilldowns`（现金/工单的渠道、年级，以及高中/大学学校→年级）。`market_total` 是三个团队的合计对象，`people` 固定为空。业务组同时包含 `monthly_actuals` 与 `prior_monthly_actuals` 两组 12 个月数组；渲染器以相同索引切季度同比。顶部现金和工单汇总显示当期、同期、同比、目标和完成率。缺少目标写 `null` 并显示“未配置”。
 
-个人实际归属先按工单团队和业务组筛选，再匹配活动名称中的人员姓名；活动名称含“校代”且未匹配姓名时使用资源描述中「市场人员：」后的姓名，现金通过 `工单ID` 继承工单个人归属。
+个人实际归属先按工单团队和业务组筛选，再匹配人员。顺序：活动名含花名册姓名 → SQL 已抽进 `entry_person` 的「市场人员：」或资源录入人 → Python 侧再用「姓名市场资源」和去掉旧活动串后的资源描述正文。现金通过 `工单ID` 继承工单个人归属。高中、大学、留学预备同一套规则。看板 artifact 只有 11 列，不含完整资源描述；「姓名市场资源」和描述正文兜底主要在钉钉明细路径生效。
 
 人员对象可包含 `business_group`、`monthly_targets` 和 `monthly_drilldowns`。人员目标按绩效月保存，现金或工单目标缺失时显示“未配置”；大学人头目标折算后的现金目标由配置直接登记。`monthly_drilldowns` 按绩效月和指标保存一级/二级渠道完成值；现金下钻的渠道必须来自现金按 `工单ID` 左连接后的工单维度，未匹配时为“暂无归属”，不能改用现金表原始渠道。`vacant` 占位人员保留在人员配置中，但不写入展示 artifact。
 

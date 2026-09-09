@@ -23,6 +23,28 @@ class RenderTest(unittest.TestCase):
         self.assertEqual(person["monthly_drilldowns"]["2026-09"]["cash"]["TMK||校园"], 26000)
         self.assertFalse(any(item["display_name"] == "空白占位 1" for item in team["people"]))
 
+    def test_person_attribution_uses_entry_person_when_campaign_name_misses_roster(self):
+        from dashboard_product.refresh import read
+        root = Path(__file__).resolve().parents[1]
+        rows = [
+            ["2026-09-03", "offline_market", "大学", "TMK", "校园", "天财豆蔻学姐号微信推广-曹恒为玮-线上雅思行地推", "曹恒玮", "某大学", "大一", "work_orders", 1],
+        ]
+        result = project({"result": {"rows": rows}}, {"result": {"rows": []}}, read(root / "config/project_targets.json"), read(root / "config/people.json"))
+        team = next(item for item in result["teams"] if item["team_id"] == "offline_market")
+        cao = next(item for item in team["people"] if item["display_name"] == "曹恒玮")
+        self.assertEqual(cao["orders_actual"], 1)
+
+    def test_person_attribution_uses_entry_person_when_campaign_is_empty(self):
+        from dashboard_product.refresh import read
+        root = Path(__file__).resolve().parents[1]
+        rows = [
+            ["2026-09-03", "offline_market", "大学", "TMK", "校园", None, "曹恒玮", "某大学", "大一", "work_orders", 1],
+        ]
+        result = project({"result": {"rows": rows}}, {"result": {"rows": []}}, read(root / "config/project_targets.json"), read(root / "config/people.json"))
+        team = next(item for item in result["teams"] if item["team_id"] == "offline_market")
+        cao = next(item for item in team["people"] if item["display_name"] == "曹恒玮")
+        self.assertEqual(cao["orders_actual"], 1)
+
     def test_person_attribution_filters_business_group_then_uses_entry_person_for_school_agent(self):
         from dashboard_product.refresh import read
         root = Path(__file__).resolve().parents[1]

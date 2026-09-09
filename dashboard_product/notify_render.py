@@ -320,6 +320,7 @@ def write_details_xlsx(digest, path):
     def detail_rows(items):
         return [
             [
+                item['attribution'],
                 item['event_date'],
                 item['business_group'],
                 item['first_channel'],
@@ -329,12 +330,11 @@ def write_details_xlsx(digest, path):
                 item['school_name'],
                 item['grade_name'],
                 item['value'],
-                item['attribution'],
             ]
             for item in items
         ]
 
-    headers = ['日期', '业务组', '一级渠道', '二级渠道', '活动名称', '录入人', '学校', '年级', '数量或金额', '归属人']
+    headers = ['归属人', '日期', '业务组', '一级渠道', '二级渠道', '活动名称', '录入人', '学校', '年级', '数量或金额']
     warehouse = digest.get('warehouse') or {}
     if warehouse.get('orders'):
         _sheet(workbook, '工单明细', warehouse['orders']['columns'], warehouse['orders']['rows'])

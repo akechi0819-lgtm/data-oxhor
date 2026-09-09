@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import argparse,json,subprocess
+import argparse,json,re,subprocess
 from pathlib import Path
 from datetime import datetime,timezone
 from uuid import uuid4
@@ -40,16 +40,33 @@ SKIP_CAMPAIGN_VALUES=frozenset({'是','否','None','','NULL'})
 def campaign_allows_person_match(campaign):
     return bool(campaign) and str(campaign) not in SKIP_CAMPAIGN_VALUES
 
-def match_person_names(candidates, campaign, entry_person):
+MARKET_PERSON_RE=re.compile(r'市场人员\s*[:：]\s*([^\s,，;；]+)')
+MARKET_RESOURCE_RE=re.compile(r'([^\s,，;；/]+)市场资源')
+EMBEDDED_CAMPAIGN_RE=re.compile(r'\d{4}\.\d{2}\.\d{2}-\S+')
+
+def names_in_text(names, text):
+    blob=str(text or '')
+    if not blob: return []
+    return [name for name in names if name in blob]
+
+def match_person_names(candidates, campaign, entry_person, resource_desc=None):
     names=[name for name in candidates if name]
     if not names: return []
-    campaign_text=str(campaign or '')
-    campaign_matches=[name for name in names if name in campaign_text]
-    if campaign_matches: return campaign_matches
-    if '校代' in campaign_text:
-        entry_text=str(entry_person or '')
-        return [name for name in names if name in entry_text]
-    return []
+    if campaign_allows_person_match(campaign):
+        matched=names_in_text(names, campaign)
+        if matched: return matched
+    desc=str(resource_desc or '')
+    labeled=MARKET_PERSON_RE.search(desc)
+    if labeled:
+        matched=names_in_text(names, labeled.group(1))
+        if matched: return matched
+    resource_owner=MARKET_RESOURCE_RE.search(desc)
+    if resource_owner:
+        matched=names_in_text(names, resource_owner.group(1))
+        if matched: return matched
+    matched=names_in_text(names, entry_person)
+    if matched: return matched
+    return names_in_text(names, EMBEDDED_CAMPAIGN_RE.sub(' ', desc))
 
 def read(p): return json.loads(Path(p).read_text(encoding='utf-8'))
 def run(ws,rid,snap,out,a,b):
@@ -89,15 +106,14 @@ def project(q,p,tg,people):
   grade_key='|'.join((month,team,group,str(school or '暂无归属'),str(grade or '暂无归属')))
   drill[period][metric_key]['channel'][channel_key]=drill[period][metric_key]['channel'].get(channel_key,0)+value
   drill[period][metric_key]['school_grade'][grade_key]=drill[period][metric_key]['school_grade'].get(grade_key,0)+value
-  if campaign_allows_person_match(campaign):
-   for person_name in matched_people(team, group, campaign, entry_person):
-    if is_current:
-     per[(team,person_name,metric)]=per.get((team,person_name,metric),0)+value
-     perf_month=date_to_perf_month(dt)
-     if perf_month: per_monthly[(team,person_name,perf_month,metric)]=per_monthly.get((team,person_name,perf_month,metric),0)+value
-     if perf_month:
-      drill_key=(team,person_name,perf_month,metric,str(first_ch or '未归类'),str(second_ch or '未细分'))
-      person_drill[drill_key]=person_drill.get(drill_key,0)+value
+  for person_name in matched_people(team, group, campaign, entry_person):
+   if is_current:
+    per[(team,person_name,metric)]=per.get((team,person_name,metric),0)+value
+    perf_month=date_to_perf_month(dt)
+    if perf_month: per_monthly[(team,person_name,perf_month,metric)]=per_monthly.get((team,person_name,perf_month,metric),0)+value
+    if perf_month:
+     drill_key=(team,person_name,perf_month,metric,str(first_ch or '未归类'),str(second_ch or '未细分'))
+     person_drill[drill_key]=person_drill.get(drill_key,0)+value
  # 处理当前年度数据
  for row in q['result']['rows']:
   add_row(row,'current',MONTHS,act,True)

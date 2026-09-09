@@ -41,7 +41,7 @@ python -m dashboard_product.notify send --artifact "$ART" --dry-run
 - 薄包与 `.env.server`(600) 已落地。钉钉独立运行还依赖该文件里的 `DINGTALK_WEBHOOK_*` / `DINGTALK_SECRET_*`，必须走 C 层 CopyToBox，禁止贴聊天。
 - 当前工作区 Snapshot 以 warehouse `workspace.json` 为准（2026-09-09 为 `snapshot_bi_operations_20260908`）。
 - 分册：按团队板块裁剪（`full` / `online_private` / `online_platform` / `offline_market`）；旧业务组 `liuxue/gaozhong/daxue` 不再日更。C 层 secrets 以密码本重建（600）。**门口变更后需再跑 `install_dashboard_auth.sh`**
-- 钉钉五通道代码已在本机落地：`online_private` / `online_platform` / `offline_youth` / `offline_high_school` / `offline_university`。2026-09-09 本机已填线下青少/高中 webhook；线上私域、线上平台、线下大学仍空。
+- 钉钉五通道代码已在本机落地：`online_private` / `online_platform` / `offline_youth` / `offline_high_school` / `offline_university`。2026-09-09 本机已填线下青少/高中/大学 webhook；线上私域、线上平台仍空。
 - 例行「看板日更」每天 **10:00** Asia/Shanghai（挂许家印名下）：refresh→团队板块四分册 render→publish。钉钉需另跑 `notify send`。
 - 全量 `artifact.json` 留在本地，不进公网
 - 不要建设本机↔Grok 双向 MCP；A 层用 overlay + sha256，C 层单独拷 `.env.server`

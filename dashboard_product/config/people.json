@@ -121,6 +121,12 @@
               "note": "待替换"
             },
             {
+              "person_id": "liu_bin",
+              "display_name": "刘彬",
+              "status": "active",
+              "business_group": "高中"
+            },
+            {
               "slot_id": "offline-high-school-vacancy-1",
               "status": "vacant",
               "display_name": "空白占位 1"

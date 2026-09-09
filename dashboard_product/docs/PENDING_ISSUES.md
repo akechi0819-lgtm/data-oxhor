@@ -6,7 +6,7 @@
 
 旧版本中大量现金因工单 ID 无法匹配而无法分配团队。当前 `dashboard_actuals/v6` 已按确认顺序完成兜底归属：工单匹配→虚拟人→线上→TMK→校代→默认线上平台；未关联时渠道为 `暂无归属`。
 
-公网已从匿名 `current.html` 改为四分册 + htpasswd。看板日更已从本机 Codex 10:00 改挂许家印云电脑 Routine。钉钉人员进度代码已落地，日更不自动群发。
+公网已从匿名 `current.html` 改为四分册 + htpasswd。看板日更已从本机 Codex 10:00 改挂许家印云电脑 Routine。钉钉人员进度代码已落地，日更不自动群发。个人归属兜底已从「仅校代」扩到活动名 → 「市场人员：」→ 「姓名市场资源」→ 资源录入人。
 
 ## 需要区分的两个指标
 
@@ -17,7 +17,7 @@
 
 ## 当前待办
 
-- 把线下大学钉钉 webhook/secret 写入本机和云电脑 `.env.server` 后，五通道才能独立群发；线上私域、线上平台 webhook 同样仍空。
+- 线上私域、线上平台钉钉 webhook 仍空，这两路发送时跳过。线下大学 webhook 已在本机 `.env.server`，云端需再拷一次 C 层。
 - 完成 `online_platform`（线上平台）的个性化人员配置。
 - `online_private`（线上私域/虚拟人团队）已有部分人员，配置完成度需业务确认。
 - 看板日更由许家印 10:00 跑 `deploy/publish_static_dashboard.sh`；钉钉发送需另跑 `python3 -m dashboard_product.notify send`。

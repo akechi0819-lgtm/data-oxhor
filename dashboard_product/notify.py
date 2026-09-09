@@ -15,7 +15,7 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 
-from dashboard_product.digest import NOTIFY_CHANNEL_IDS, NOTIFY_CHANNELS, build_all_digests, resolve_channels
+from dashboard_product.digest import NOTIFY_CHANNEL_IDS, NOTIFY_CHANNELS, apply_warehouse_actuals, build_all_digests, ledger_attributions, resolve_channels
 from dashboard_product.notify_render import (
     dingtalk_title,
     render_markdown,
@@ -55,20 +55,22 @@ def _load_query_table(payload):
     return None, path
 
 
-def _pack_warehouse_table(columns, rows):
+def _pack_warehouse_table(columns, rows, owners=None):
     keep = [column for column in columns if column not in DROP_WAREHOUSE_COLUMNS]
     indexes = [columns.index(column) for column in keep]
     date_cols = {index for index, column in enumerate(keep) if any(hint in column for hint in DATE_HINTS)}
     packed = []
-    for row in rows:
+    for row_index, row in enumerate(rows):
         packed_row = []
+        if owners is not None:
+            packed_row.append(owners[row_index] if row_index < len(owners) else '未归属')
         for position, source in enumerate(indexes):
             value = row[source] if source < len(row) else None
             if position in date_cols:
                 value = _excel_date(value)
             packed_row.append(value)
         packed.append(packed_row)
-    return {'columns': keep, 'rows': packed}
+    return {'columns': (['归属人'] + keep) if owners is not None else keep, 'rows': packed}
 
 
 def find_warehouse(workspace, snapshot_id):
@@ -124,9 +126,12 @@ def fetch_channel_ledger(artifact, digest, workspace=None, output_root=None):
         workspace, snapshot_id, f"{artifact['run_id']}_{digest['team_id']}_cash",
         ROOT / 'sql' / 'notify_cash.sql', params, output_root,
     )
+    order_owners, cash_owners = ledger_attributions(
+        orders_columns, orders_rows, cash_columns, cash_rows, digest.get('people') or [],
+    )
     return {
-        'orders': _pack_warehouse_table(orders_columns, orders_rows),
-        'cash': _pack_warehouse_table(cash_columns, cash_rows),
+        'orders': _pack_warehouse_table(orders_columns, orders_rows, owners=order_owners),
+        'cash': _pack_warehouse_table(cash_columns, cash_rows, owners=cash_owners),
     }
 
 
@@ -194,15 +199,16 @@ def write_team_artifacts(digest, output_dir, artifact=None, workspace=None):
     png_path = team_dir / 'people.png'
     xlsx_path = team_dir / 'details.xlsx'
     md_path = team_dir / 'message.md'
-    html_path.write_text(render_people_html(digest), encoding='utf-8')
-    write_people_image(digest, html_path, png_path)
     if artifact is not None:
         try:
             digest = dict(digest)
             digest['warehouse'] = fetch_channel_ledger(artifact, digest, workspace=workspace, output_root=Path(output_dir) / '_query')
+            digest = apply_warehouse_actuals(digest)
         except Exception as error:
             digest = dict(digest)
             digest['warehouse_error'] = str(error)
+    html_path.write_text(render_people_html(digest), encoding='utf-8')
+    write_people_image(digest, html_path, png_path)
     write_details_xlsx(digest, xlsx_path)
     preview = render_markdown(digest, str(png_path), str(xlsx_path))
     md_path.write_text(preview, encoding='utf-8')

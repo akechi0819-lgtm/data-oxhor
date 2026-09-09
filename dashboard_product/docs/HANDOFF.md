@@ -42,7 +42,7 @@ python3 -m dashboard_product.notify send --artifact customers/bi_operations/Outp
 
 现金和工单独立计算。现金筛选 `渠道属性=被动`、`新老生类型=新生`、`报入现金收入>0`；现金通过 `工单ID` 左连接工单表，关联时采用工单业务组、一级/二级渠道和资源录入人，未关联时回退现金表团队，并在渠道维度显示 `暂无归属`。团队归属仍按“工单匹配→虚拟人→线上→TMK→校代→默认线上平台”顺序处理。
 
-个人归属口径：先以工单的市场团队和业务组筛选人员，再以活动名称中的人员姓名归属。活动名称含“校代”且未命中人员姓名时，才使用资源描述中「市场人员：」（允许值携带如 `-校代`、`-渠道` 后缀）匹配同一业务组人员；现金经工单 ID 继承相同归属。未归属个人的记录保留在团队统计，不计入个人。
+个人归属口径：先以工单的市场团队和业务组筛选人员。活动名含花名册姓名时用活动名；否则依次用资源描述「市场人员：」、「姓名市场资源」、资源录入人、去掉 `YYYY.MM.DD-` 旧活动串后的资源描述正文。现金经工单 ID 继承相同归属。未归属个人的记录保留在团队统计，不计入个人。
 
 看板当前以 `dashboard_actuals/v6` 的实际 SQL 行为为准；正式 Bridge 为 `artifacts/company_bridge/bridges/company_bridge.bi_operations.v1_2_0.json`，但刷新不直接执行 Bridge 的现金业务组 Override。可复用逐笔底稿为 `attributed_passive_reported_cash/v1`。Saved Query 不再把确认时的 Snapshot 写成运行时绑定。
 
@@ -50,7 +50,7 @@ python3 -m dashboard_product.notify send --artifact customers/bi_operations/Outp
 
 生产发布是四分册静态 HTML + Nginx basic auth，不是单文件 `current.html`。刷新、计算、Snapshot 更新和发布准备在云电脑或本机完成；服务器只保存分册 HTML 和钉钉匿名素材。完整流程见 [`DEPLOYMENT.md`](../DEPLOYMENT.md)，分册门口见 [`AUTH_TEAM_BOOKLETS_RUN.md`](AUTH_TEAM_BOOKLETS_RUN.md)。
 
-钉钉五通道：`online_private`、`online_platform`、`offline_youth`、`offline_high_school`、`offline_university`。截图来自本地 HTML，不上看板网址截；不发市场总计，不贴看板页链接。Webhook 只在 `.env.server`。日更不自动群发。2026-09-09 本机已填线下青少/高中 webhook；线上私域、线上平台、线下大学仍空，缺密钥的通道会被跳过。
+钉钉五通道：`online_private`、`online_platform`、`offline_youth`、`offline_high_school`、`offline_university`。截图来自本地 HTML，不上看板网址截；不发市场总计，不贴看板页链接。Webhook 只在 `.env.server`。日更不自动群发。2026-09-09 本机已填线下青少/高中/大学 webhook；线上私域、线上平台仍空，缺密钥的通道会被跳过。
 
 公开入口为 `http://dashboard.apinova.cn`。例行日更 10:00 Asia/Shanghai 挂许家印。本轮未上 TLS。
 

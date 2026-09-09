@@ -6,7 +6,6 @@ from datetime import date, datetime, time, timedelta
 
 from dashboard_product.booklets import TEAM_DISPLAY_NAMES
 from dashboard_product.refresh import (
-    campaign_allows_person_match,
     date_to_perf_month,
     match_person_names,
 )
@@ -158,10 +157,91 @@ def candidates_by_business_group(people):
     return {group: unique_keep_order(names) for group, names in grouped.items()}
 
 
-def attributed_names(candidates, campaign, entry_person):
-    if not campaign_allows_person_match(campaign):
-        return []
-    return unique_keep_order(match_person_names(candidates, campaign, entry_person))
+def attributed_names(candidates, campaign, entry_person, resource_desc=None):
+    return unique_keep_order(match_person_names(candidates, campaign, entry_person, resource_desc))
+
+
+def mapped_order_business_group(team, grade_attr, grade_name):
+    team_name = str(team or '').strip()
+    if team_name in BUSINESS_GROUPS:
+        return team_name
+    grade_attr = str(grade_attr or '')
+    grade_name = str(grade_name or '')
+    if '留学预备' in grade_attr:
+        return '留学预备'
+    if '高中' in grade_attr or '高中' in grade_name:
+        return '高中'
+    if '大学' in grade_attr or '研究生' in grade_attr or '大学' in grade_name:
+        return '大学'
+    return None
+
+
+def mapped_cash_business_group(team):
+    team_name = str(team or '').strip()
+    if team_name == '青少':
+        return '留学预备'
+    if team_name in {'初中', '初中国际学科', 'ICC', '国际学科'}:
+        return '高中'
+    if team_name == '大学':
+        return '大学'
+    return None
+
+
+def column_index(columns):
+    return {name: index for index, name in enumerate(columns)}
+
+
+def cell_value(row, columns, name):
+    index = columns.get(name) if isinstance(columns, dict) else None
+    if index is None or index >= len(row):
+        return None
+    return row[index]
+
+
+def attribution_label(people, business_group, campaign, entry_person, resource_desc=None):
+    grouped = candidates_by_business_group(people)
+    names = attributed_names(grouped.get(business_group) or [], campaign, entry_person, resource_desc)
+    return '、'.join(names) if names else '未归属'
+
+
+def order_attribution(row, columns, people):
+    cols = columns if isinstance(columns, dict) else column_index(columns)
+    business_group = mapped_order_business_group(
+        cell_value(row, cols, '团队'),
+        cell_value(row, cols, '年级属性'),
+        cell_value(row, cols, '年级名称'),
+    )
+    return attribution_label(
+        people,
+        business_group,
+        cell_value(row, cols, '活动名称'),
+        cell_value(row, cols, '资源录入人'),
+        cell_value(row, cols, '资源描述'),
+    )
+
+
+def ledger_attributions(order_columns, order_rows, cash_columns, cash_rows, people):
+    order_cols = column_index(order_columns)
+    order_labels = [order_attribution(row, order_cols, people) for row in order_rows]
+    inherited = {}
+    for row, label in zip(order_rows, order_labels):
+        work_order_id = str(cell_value(row, order_cols, 'ID') or '').strip()
+        if work_order_id:
+            inherited[work_order_id] = label
+    cash_cols = column_index(cash_columns)
+    cash_labels = []
+    for row in cash_rows:
+        work_order_id = str(cell_value(row, cash_cols, '工单ID') or cell_value(row, cash_cols, '工单ID__2') or '').strip()
+        if work_order_id and work_order_id in inherited:
+            cash_labels.append(inherited[work_order_id])
+            continue
+        cash_labels.append(attribution_label(
+            people,
+            mapped_cash_business_group(cell_value(row, cash_cols, '团队')),
+            cell_value(row, cash_cols, '市场活动名称'),
+            None,
+        ))
+    return order_labels, cash_labels
 
 
 def metric_kind(metric):
@@ -334,3 +414,58 @@ def build_all_digests(artifact, team_ids=None):
     selected = resolve_channels(team_ids)
     rows = current_query_rows(artifact)
     return [build_digest(artifact, channel_id, rows=rows) for channel_id in selected]
+
+
+def apply_warehouse_actuals(digest):
+    from collections import Counter
+    warehouse = digest.get('warehouse') or {}
+    order_counts = Counter()
+    for row in (warehouse.get('orders') or {}).get('rows') or []:
+        owner = row[0] if row else None
+        if not owner or owner == '未归属':
+            continue
+        for name in str(owner).split('、'):
+            if name and name != '未归属':
+                order_counts[name] += 1
+    cash = warehouse.get('cash') or {}
+    cash_cols = cash.get('columns') or []
+    amount_index = cash_cols.index('报入现金收入') if '报入现金收入' in cash_cols else None
+    cash_sum = Counter()
+    if amount_index is not None:
+        for row in cash.get('rows') or []:
+            owner = row[0] if row else None
+            if not owner or owner == '未归属':
+                continue
+            try:
+                amount = float(row[amount_index] or 0)
+            except (TypeError, ValueError):
+                amount = 0.0
+            for name in str(owner).split('、'):
+                if name and name != '未归属':
+                    cash_sum[name] += amount
+    time_progress = digest['time_progress']
+    workdays = digest['remaining_workdays']
+    people = []
+    for person in digest.get('people') or []:
+        item = dict(person)
+        item['orders_actual'] = float(order_counts.get(item['display_name'], 0))
+        item['cash_actual'] = float(cash_sum.get(item['display_name'], 0))
+        item['orders_completion'] = completion_rate(item['orders_actual'], item['orders_target'])
+        item['cash_completion'] = completion_rate(item['cash_actual'], item['cash_target'])
+        target = item['orders_target']
+        item['expected_orders'] = target * time_progress if target and target > 0 else None
+        item['orders_gap'] = None if item['expected_orders'] is None else item['expected_orders'] - item['orders_actual']
+        item['remaining_orders'] = max(0.0, (target or 0) - item['orders_actual']) if target and target > 0 else None
+        item['behind'] = item['orders_completion'] is not None and item['orders_completion'] < time_progress
+        if item['remaining_orders'] is None:
+            item['daily_orders'] = None
+        elif item['remaining_orders'] <= 0:
+            item['daily_orders'] = 0.0
+        elif workdays <= 0:
+            item['daily_orders'] = None
+        else:
+            item['daily_orders'] = item['remaining_orders'] / workdays
+        people.append(item)
+    digest['people'] = people
+    digest['behind'] = [row for row in people if row['behind']]
+    return digest
