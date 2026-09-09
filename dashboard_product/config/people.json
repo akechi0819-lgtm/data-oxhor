@@ -254,7 +254,13 @@
             {
               "person_id": "wang_yue",
               "display_name": "王玥",
-              "status": "active"
+              "status": "active",
+              "monthly_targets": {
+                "2026-09": {
+                  "orders": 15,
+                  "cash": 30000
+                }
+              }
             },
             {
               "person_id": "xu_meng",
