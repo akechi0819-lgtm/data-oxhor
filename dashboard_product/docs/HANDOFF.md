@@ -35,7 +35,7 @@ python3 -m dashboard_product.notify send --artifact customers/bi_operations/Outp
 - `teams[].people[]` 可包含 `business_group`、`monthly_targets` 和 `monthly_drilldowns`；人员页面按业务团队筛选，`vacant` 占位不进入 artifact，现金与工单均支持工单维度的一级/二级渠道下钻。现金渠道来自 `工单ID` 左连接工单表，未匹配时为“暂无归属”。
 - 顶部现金、工单汇总卡片显示当期、同期、同比、目标和完成率。
 
-渲染器只接受当前结构；旧 `metrics`、`prior_totals`、`bus_monthly` 结构不再兼容。Q1 是 FY27 的 2026-06 至 2026-08，FY26 同比取 2025-06 至 2025-08。
+渲染器只接受当前结构；旧 `metrics`、`prior_totals`、`bus_monthly` 结构不再兼容。刷新产物必须带 `teams[].yoy_groups`，渲染器不会给旧 artifact 补四个空年段。Q1 是 FY27 的 2026-06 至 2026-08，FY26 同比取 2025-06 至 2025-08。
 
 ## 业务口径
 

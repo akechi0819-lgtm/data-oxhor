@@ -9,7 +9,7 @@ User correct. Use resource-description market-person token, not entry clerk.
 - roster hit via entry clerk: ~2/72
 
 ## Code
-- dashboard_actuals/v6 query.sql: entry_person = regexp_extract(resource description market-person), else entry clerk; manifest sha updated
+- 当时 dashboard_actuals/v6 query.sql: entry_person = regexp_extract(resource description market-person), else entry clerk; manifest sha updated。现行刷新是 v7，仍保留该抽取。
 - refresh.py comment; tests/docs wording
 
 ## Verify

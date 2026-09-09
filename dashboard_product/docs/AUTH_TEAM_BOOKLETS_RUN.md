@@ -89,5 +89,4 @@ python3 -m dashboard_product.refresh render --artifact "$ART" --all-booklets
 
 ## 回滚
 
-1. 把 `/etc/nginx/sites-available/dashboard.bak.pre-booklets` 拷回并 reload。
-2. 需要匿名全量时，把备份的 `current.html` 放回 `/var/www/dashboard/current.html`（不推荐）。
+把 `/etc/nginx/sites-available/dashboard.bak.pre-booklets` 拷回并 reload。不要把 `current.html` 或旧业务组分册重新放回 web 根。

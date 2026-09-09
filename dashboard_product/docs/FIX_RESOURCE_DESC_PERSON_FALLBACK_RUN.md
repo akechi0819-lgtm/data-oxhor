@@ -11,10 +11,10 @@
 ## Impact
 钉钉明细 `ledger_attributions` 立刻生效，人员图在 `apply_warehouse_actuals` 后按明细归属重计。
 
-`dashboard_actuals/v6` 已把「市场人员：」抽进 `entry_person`，不另输出资源描述列。看板 `refresh` 下一轮 artifact 能用录入人/市场人员兜住丁槟槟；姚志诚依赖「姓名市场资源」或描述正文，只在钉钉明细路径生效。
+当时 `dashboard_actuals/v6` 已把「市场人员：」抽进 `entry_person`，不另输出资源描述列。现行 `dashboard_actuals/v7` 仍保留该抽取。看板 `refresh` 下一轮 artifact 能用录入人/市场人员兜住丁槟槟；姚志诚依赖「姓名市场资源」或描述正文，只在钉钉明细路径生效。
 
 ## Verification
 - 单测 `test_resource_desc_fallback_covers_typo_campaign_and_embedded_name`
 - 大学明细曹恒玮 = 19（含 34722714、34858734）
-- `dashboard_actuals/v6` sha256 `569576ff9437c1c41603c8e00d2795d6382f1170e7a1e53ab3db1c5eb5a41513`（2026-09-07 20:51）已含 `市场人员` 抽取；`run_dashboard_20260907_101900` 早于该 SQL
+- 当时 `dashboard_actuals/v6` sha256 `569576ff9437c1c41603c8e00d2795d6382f1170e7a1e53ab3db1c5eb5a41513`（2026-09-07 20:51）已含 `市场人员` 抽取；`run_dashboard_20260907_101900` 早于该 SQL。现行刷新是 v7。
 - snapshot 20260907 大学被动线下 311；当前 20260908 为 340，本地仓不少于 07

@@ -83,7 +83,12 @@ class RenderTest(unittest.TestCase):
             "cash_actual": 42,
             "orders_actual": 12,
         }
-        artifact = {"schema_version":"dashboard_artifact.v1","artifact_id":"dashboard_test","run_id":"run_dashboard_test","snapshot_id":"snapshot_bi_full_20260902_r2","as_of_date":"2026-09-05","data_through_date":"2026-09-04","created_at":"2026-09-04T08:00:00+00:00","query_results":[],"errors":[],"dashboard":{"months":["2026-06"] * 12,"prior_months":["2025-06"] * 12,"drilldowns":{"current":{"cash":{"channel":{"2026-06|offline_market|留学预备|转介绍|老客转介绍":3},"school_grade":{}},"orders":{"channel":{},"school_grade":{}}},"prior":{"cash":{"channel":{"2025-06|offline_market|留学预备|转介绍|老客转介绍":4},"school_grade":{}},"orders":{"channel":{},"school_grade":{}}}},"teams":[{"team_id":"offline_market","display_name":"线下市场","cash_target":100,"orders_target":None,"groups":[group],"people":[{"display_name":"王昊","group_name":"青少组","business_group":"留学预备","monthly_targets":{"2026-06":{"orders":10,"cash":1000}},"monthly_actuals":{"cash":[42] + [0] * 11,"orders":[12] + [0] * 11},"monthly_drilldowns":{"2026-06":{"cash":{"转介绍||老客转介绍":42},"orders":{"转介绍||老客转介绍":12}}}}]}]}}
+        yoy = {
+            "display_name": "青少",
+            "monthly_actuals": {"cash": [42] + [0] * 11, "orders": [12] + [0] * 11},
+            "prior_monthly_actuals": {"cash": [40] + [0] * 11, "orders": [10] + [0] * 11},
+        }
+        artifact = {"schema_version":"dashboard_artifact.v1","artifact_id":"dashboard_test","run_id":"run_dashboard_test","snapshot_id":"snapshot_bi_full_20260902_r2","as_of_date":"2026-09-05","data_through_date":"2026-09-04","created_at":"2026-09-04T08:00:00+00:00","query_results":[],"errors":[],"dashboard":{"months":["2026-06"] * 12,"prior_months":["2025-06"] * 12,"drilldowns":{"current":{"cash":{"channel":{"2026-06|offline_market|留学预备|转介绍|老客转介绍":3},"school_grade":{}},"orders":{"channel":{},"school_grade":{}}},"prior":{"cash":{"channel":{"2025-06|offline_market|留学预备|转介绍|老客转介绍":4},"school_grade":{}},"orders":{"channel":{},"school_grade":{}}}},"teams":[{"team_id":"offline_market","display_name":"线下市场","cash_target":100,"orders_target":None,"groups":[group],"yoy_groups":[yoy],"people":[{"display_name":"王昊","group_name":"青少组","business_group":"留学预备","monthly_targets":{"2026-06":{"orders":10,"cash":1000}},"monthly_actuals":{"cash":[42] + [0] * 11,"orders":[12] + [0] * 11},"monthly_drilldowns":{"2026-06":{"cash":{"转介绍||老客转介绍":42},"orders":{"转介绍||老客转介绍":12}}}}]}]}}
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "artifact.json"
             path.write_text(json.dumps(artifact, ensure_ascii=False), encoding="utf-8")
@@ -131,6 +136,13 @@ class RenderTest(unittest.TestCase):
         self.assertEqual(yoy["初中"]["monthly_actuals"]["cash"][3], 40)
         self.assertIn("2026-09|offline_market|青少|TMK|校园", result["drilldowns"]["current"]["cash"]["channel"])
         self.assertNotIn("2026-09|offline_market|留学预备|TMK|校园", result["drilldowns"]["current"]["cash"]["channel"])
+
+    def test_render_template_does_not_fill_empty_yoy_groups(self):
+        src = (Path(__file__).resolve().parents[1] / "render_template.py").read_text(encoding="utf-8")
+        self.assertIn("function yoyGroups(team) {", src)
+        self.assertIn("return team.yoy_groups || [];", src)
+        self.assertNotIn("Array(12).fill(0)", src)
+        self.assertNotIn("if (team.yoy_groups && team.yoy_groups.length)", src)
 
     def test_rejects_missing_identity(self):
         with tempfile.TemporaryDirectory() as directory:

@@ -8,7 +8,6 @@ from dashboard_product.booklets import (
     booklet_chrome,
     drill_team_id,
     filter_dashboard_for_booklet,
-    filter_dashboard_for_business_group,
 )
 from dashboard_product.refresh import render, render_all_booklets
 from dashboard_product.render_template import render_html
@@ -24,6 +23,23 @@ def _group(name, cash=100, orders=10, prior_cash=80, prior_orders=8):
         'cash_actual': cash,
         'orders_actual': orders,
     }
+
+
+def _yoy_group(name, cash=100, orders=10, prior_cash=80, prior_orders=8):
+    return {
+        'display_name': name,
+        'monthly_actuals': {'cash': [cash] + [0] * 11, 'orders': [orders] + [0] * 11},
+        'prior_monthly_actuals': {'cash': [prior_cash] + [0] * 11, 'orders': [prior_orders] + [0] * 11},
+    }
+
+
+def _yoy_groups():
+    return [
+        _yoy_group('青少'),
+        _yoy_group('初中'),
+        _yoy_group('高中'),
+        _yoy_group('大学'),
+    ]
 
 
 def _person(name, business_group, roster_group):
@@ -81,6 +97,7 @@ def _four_team_dashboard():
                 'cash_target': 600,
                 'orders_target': 60,
                 'groups': [_group('留学预备', 100, 10), _group('高中', 200, 20), _group('大学', 300, 30)],
+                'yoy_groups': _yoy_groups(),
                 'people': [
                     _person('王昊', '留学预备', '青少组'),
                     _person('杨新宇', '高中', '高中组'),
@@ -93,6 +110,7 @@ def _four_team_dashboard():
                 'cash_target': 150,
                 'orders_target': 15,
                 'groups': [_group('留学预备', 150, 15)],
+                'yoy_groups': _yoy_groups(),
                 'people': [_person('杨玉林', '留学预备', '小初提能组')],
             },
             {
@@ -101,6 +119,7 @@ def _four_team_dashboard():
                 'cash_target': 80,
                 'orders_target': 8,
                 'groups': [_group('大学', 80, 8)],
+                'yoy_groups': _yoy_groups(),
                 'people': [_person('平台同学', '大学', '大学组')],
             },
             {
@@ -109,6 +128,7 @@ def _four_team_dashboard():
                 'cash_target': 830,
                 'orders_target': 83,
                 'groups': [_group('留学预备', 250, 25), _group('高中', 200, 20), _group('大学', 380, 38)],
+                'yoy_groups': _yoy_groups(),
                 'people': [],
             },
         ],
@@ -202,13 +222,6 @@ class BookletFilterTest(unittest.TestCase):
             self.assertNotIn(legacy, BOOKLET_IDS)
             with self.assertRaisesRegex(ValueError, 'unknown booklet'):
                 filter_dashboard_for_booklet(_four_team_dashboard(), legacy)
-
-    def test_compat_business_group_filter_still_available(self):
-        original = _four_team_dashboard()
-        filtered = filter_dashboard_for_business_group(original, '高中')
-        for team in filtered['teams']:
-            self.assertTrue(all(group['display_name'] == '高中' for group in team['groups']))
-            self.assertTrue(all(person.get('business_group') == '高中' for person in team['people']))
 
     def test_team_chrome_keeps_business_groups_and_names_the_board(self):
         chrome = booklet_chrome('online_private')

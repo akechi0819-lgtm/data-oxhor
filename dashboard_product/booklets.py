@@ -35,13 +35,6 @@ PERMISSION_TO_BOOKLET = {
     '线下': 'offline_market',
 }
 
-# Compatibility: old business-group booklets. Not in BOOKLET_IDS / publish / nginx.
-BOOKLET_GROUP = {
-    'liuxue': '留学预备',
-    'gaozhong': '高中',
-    'daxue': '大学',
-}
-BUSINESS_GROUPS = ('留学预备', '高中', '大学')
 SCHOOL_DRILL_GROUPS = ('高中', '大学')
 
 FULL_TITLE = 'Cyber Shackles - 语培完成进度看板'
@@ -75,28 +68,6 @@ def drill_team_id(key):
     return parts[1]
 
 
-def drill_business_group(key):
-    parts = str(key).split('|')
-    if len(parts) < 3:
-        return None
-    return parts[2]
-
-
-def _sum_annual_target(groups, metric):
-    values = [(group.get('annual_targets') or {}).get(metric) for group in groups]
-    if any(value is not None for value in values):
-        return sum(value or 0 for value in values) or None
-    return None
-
-
-def _filter_drill_map(source, group_name):
-    return {
-        key: value
-        for key, value in (source or {}).items()
-        if drill_business_group(key) == group_name
-    }
-
-
 def _filter_drill_map_by_team(source, team_id):
     return {
         key: value
@@ -125,27 +96,6 @@ def _rewrite_drilldowns(data, keep):
             metric_block = period_block.get(metric) or {}
             for kind in ('channel', 'school_grade'):
                 metric_block[kind] = keep(metric_block.get(kind))
-
-
-def filter_dashboard_for_business_group(dashboard, group_name, booklet=None):
-    """Compatibility helper: trim to one business group. Daily publish does not use this."""
-    data = copy.deepcopy(dashboard)
-    for team in data.get('teams') or []:
-        team['groups'] = [
-            group for group in team.get('groups') or []
-            if group.get('display_name') == group_name
-        ]
-        team['people'] = [
-            person for person in team.get('people') or []
-            if person.get('business_group') == group_name
-        ]
-        team['cash_target'] = _sum_annual_target(team['groups'], 'cash')
-        team['orders_target'] = _sum_annual_target(team['groups'], 'orders')
-    _rewrite_drilldowns(data, lambda source: _filter_drill_map(source, group_name))
-    if booklet:
-        data['booklet'] = booklet
-        data['booklet_group'] = group_name
-    return data
 
 
 def filter_dashboard_for_booklet(dashboard, booklet=None):

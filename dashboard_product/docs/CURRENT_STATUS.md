@@ -47,7 +47,7 @@ python3 -m dashboard_product.refresh render --artifact customers/bi_operations/O
 python3 -m dashboard_product.notify send --artifact customers/bi_operations/Output/Dashboard/run_dashboard_<id>/artifact.json --dry-run
 ```
 
-`dashboard_actuals/v7` 是刷新唯一消费的 Saved Query，参数为 `[start_date, end_date]`。`attributed_passive_reported_cash/v1` 是逐笔对账底稿，不被刷新自动调用。
+`dashboard_actuals/v7` 是刷新唯一消费的 Saved Query，参数为 `[start_date, end_date]`。本地 Saved Query 目录只保留 v7；v1–v6 已删除，没有兼容入口。`attributed_passive_reported_cash/v1` 是逐笔对账底稿，不被刷新自动调用。
 
 目标区 `groups` 仍是留学预备/高中/大学；同比区 `yoy_groups` 是青少/初中/高中/大学。两边都带 FY27 `monthly_actuals` 和 FY26 `prior_monthly_actuals`，渲染按所选季度切同一索引段。旧的 `prior_totals`、`metrics` 和 `bus_monthly` 结构已废弃。
 

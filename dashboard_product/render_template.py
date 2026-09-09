@@ -206,8 +206,7 @@ function gradeDrill(groupName, teamId, start, length, metric, university, drillI
 }
 function wireDrills(container) { container.querySelectorAll('.drill-toggle').forEach(button => { button.onclick = () => { const row = document.querySelector('#' + button.dataset.drill); row.hidden = !row.hidden; button.textContent = row.hidden ? '展开下钻' : '收起下钻'; }; }); }
 function yoyGroups(team) {
-  if (team.yoy_groups && team.yoy_groups.length) return team.yoy_groups;
-  return ['青少', '初中', '高中', '大学'].map(name => ({ display_name: name, monthly_actuals: { cash: Array(12).fill(0), orders: Array(12).fill(0) }, prior_monthly_actuals: { cash: Array(12).fill(0), orders: Array(12).fill(0) } }));
+  return team.yoy_groups || [];
 }
 function renderComparison(container, mode) {
   const team = selectedTeam(); const [start, length] = range(); const isGrade = mode === 'grade';

@@ -73,5 +73,12 @@ git diff --check
 
 - 决定：刷新改消费 `dashboard_actuals/v7`。目标区仍按留学预备/高中/大学；渠道同比和年级同比拆成青少、初中、高中、大学。现金业务组只看现金表团队。钉钉现金归属按工单 ID 回查全量工单，不限本绩效月。
 - 原因：签约月和开单月经常错开；留学预备目标不能再混进同比年段。
-- 影响：云端 overlay 必须带 v7 SQL 和 `notify_work_orders_by_ids.sql`。旧 artifact 没有 `yoy_groups` 时，前端补四个空年段，不能把留学预备当同比行。
+- 影响：云端 overlay 必须带 v7 SQL 和 `notify_work_orders_by_ids.sql`。刷新产物必须带 `yoy_groups`，渲染器不再给旧 artifact 补空年段，也不能把留学预备当同比行。
 - 验证：`python3 -m unittest discover -s dashboard_product/tests -v`。
+
+### 2026-09-09：删除废弃看板版本与兼容层
+
+- 决定：运行时只保留 `dashboard_actuals/v7`。删除空的 v1–v5 Saved Query 目录、旧业务组分册过滤器和前端空 `yoy_groups` 补丁。`attributed_passive_reported_cash/v1` 仍是现行逐笔底稿。
+- 原因：项目不保留向后兼容；旧目录和兼容层会让下一轮误把 v6 或空年段当成现行合同。
+- 影响：`liuxue` / `gaozhong` / `daxue` 不再有过滤入口。刷新产物缺少 `yoy_groups` 时同比表为空，不会补四个空年段。
+- 验证：`python3 -m unittest discover -s dashboard_product/tests -v`；`python3 -m unittest tests.bridge.test_reviewed_artifact -v`。

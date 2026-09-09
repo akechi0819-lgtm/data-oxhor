@@ -19,7 +19,7 @@ python3 -m dashboard_product.notify send \
   --dry-run
 ```
 
-输出目录为 `customers/bi_operations/Output/Dashboard/<run_id>/`，包含全量 `artifact.json`（**不发布**）和四分册 `full.html` / `online_private.html` / `online_platform.html` / `offline_market.html`。不带 `--booklet` 时仍写 `artifact.html` 以便兼容。发布脚本见 [`DEPLOYMENT.md`](DEPLOYMENT.md)；分册与 htpasswd 见 [`docs/AUTH_TEAM_BOOKLETS_RUN.md`](docs/AUTH_TEAM_BOOKLETS_RUN.md)。
+输出目录为 `customers/bi_operations/Output/Dashboard/<run_id>/`，包含全量 `artifact.json`（**不发布**）和四分册 `full.html` / `online_private.html` / `online_platform.html` / `offline_market.html`。不带 `--booklet` 时默认把全量页写到同目录 `artifact.html`，只给本机查看；公网日更走 `--all-booklets`。发布脚本见 [`DEPLOYMENT.md`](DEPLOYMENT.md)；分册与 htpasswd 见 [`docs/AUTH_TEAM_BOOKLETS_RUN.md`](docs/AUTH_TEAM_BOOKLETS_RUN.md)。
 
 静态服务器发布、四分册原子替换和 Nginx basic auth 见 [`DEPLOYMENT.md`](DEPLOYMENT.md)。刷新、计算、Snapshot 更新和发布准备全部在本地完成，服务器只托管分册 HTML。
 

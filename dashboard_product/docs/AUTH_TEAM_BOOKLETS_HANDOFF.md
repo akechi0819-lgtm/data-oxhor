@@ -28,9 +28,9 @@
 - `qinzhenxu` → 权限 `all` → 分册 `full`
 - `zhangyuqing` → 权限 `all` → 分册 `full`
 
-## 相对现状的变化
-当前线上分册是按业务组：`full/liuxue/gaozhong/daxue` + 旧演示账号。  
-本轮改为按团队板块裁剪 artifact 再渲染；旧业务组分册可下线或保留但不作为发账号口径。  
+## 相对当时现状的变化（2026-09-07 已完成）
+当时线上分册是按业务组：`full/liuxue/gaozhong/daxue` + 旧演示账号。  
+已改为按团队板块裁剪 artifact 再渲染。旧业务组分册已从运行时、发布白名单和 Nginx 删除，不再保留兼容入口。  
 `market_total`：仅 `full`/`all` 可见；板块分册不含市场总计（避免拼出全量）。
 
 ## 施工要点
