@@ -38,7 +38,7 @@
 
 例行回写执行人：牛马力工。首跑或用户另令前**不做全量回写**。
 
-通道注意：本机 ListMachines / CopyToBox 易被 Clash/VPN/系统代理打断；失败记日志并通知用户，不静默重试到损坏。
+通道注意：本机 ListMachines / CopyToBox 易被 Clash/VPN/系统代理打断；失败记日志并通知用户，不静默重试到损坏。Clash Party 覆写已把 `Grok Bot` / Helper / `CUGrokBotService` / `sand-op-launcher` 设为 `PROCESS-NAME,DIRECT`（TUN 模式才生效）。
 
 ---
 
