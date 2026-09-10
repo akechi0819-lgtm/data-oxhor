@@ -47,6 +47,19 @@ def format_daily(value):
     return f'{value:.1f}'
 
 
+def format_heads(value):
+    if value is None:
+        return '未配置'
+    number = float(value)
+    if number.is_integer():
+        return f'{int(number):,}'
+    return f'{number:.1f}'
+
+
+def uses_heads(digest):
+    return digest.get('secondary_metric') == 'heads'
+
+
 def progress_width(value):
     if value is None:
         return 0
@@ -60,9 +73,18 @@ def render_people_html(digest):
         order_cell = (
             f"<td class='completion{behind_class}'><span class='bar'><i style='width:{progress_width(person['orders_completion']):.1f}%'></i></span>{escape(format_pct(person['orders_completion']))}</td>"
         )
-        cash_cell = (
-            f"<td class='completion'><span class='bar'><i style='width:{progress_width(person['cash_completion']):.1f}%'></i></span>{escape(format_pct(person['cash_completion']))}</td>"
-        )
+        if uses_heads(digest):
+            secondary_cell = (
+                f"<td class='completion'><span class='bar'><i style='width:{progress_width(person.get('heads_completion')):.1f}%'></i></span>{escape(format_pct(person.get('heads_completion')))}</td>"
+            )
+            secondary_target = format_heads(person.get('heads_target'))
+            secondary_actual = format_heads(person.get('heads_actual'))
+        else:
+            secondary_cell = (
+                f"<td class='completion'><span class='bar'><i style='width:{progress_width(person['cash_completion']):.1f}%'></i></span>{escape(format_pct(person['cash_completion']))}</td>"
+            )
+            secondary_target = format_money(person['cash_target'])
+            secondary_actual = format_money(person['cash_actual'])
         people_rows.append(
             '<tr>'
             f"<th>{escape(person['display_name'])}</th>"
@@ -72,9 +94,9 @@ def render_people_html(digest):
             f'{order_cell}'
             f"<td>{escape(format_count(person['expected_orders']))}</td>"
             f"<td>{escape(format_daily(person['daily_orders']))}</td>"
-            f"<td>{escape(format_money(person['cash_target']))}</td>"
-            f"<td>{escape(format_money(person['cash_actual']))}</td>"
-            f'{cash_cell}'
+            f"<td>{escape(secondary_target)}</td>"
+            f"<td>{escape(secondary_actual)}</td>"
+            f'{secondary_cell}'
             '</tr>'
         )
     if not people_rows:
@@ -96,6 +118,7 @@ def render_people_html(digest):
     else:
         behind_html = '<p class="empty">无人落后时间进度</p>'
     progress = digest['time_progress'] * 100
+    secondary_headers = ('人头目标', '人头完成', '人头完成率') if uses_heads(digest) else ('现金目标', '现金完成', '现金完成率')
     return f'''<!doctype html>
 <html lang="zh-CN">
 <head>
@@ -135,7 +158,7 @@ h2 {{ margin:18px 0 8px; font:600 16px/1.3 "Songti SC", Georgia, serif; }}
   <p class="meta">数据截止 {escape(digest['data_through_date'])} · 绩效月 {escape(digest['perf_month'])}（{escape(digest['window_start'])} 至 {escape(digest['window_end'])}） · 剩余工作日 {digest['remaining_workdays']}</p>
   <div class="period-progress"><span>绩效月时间进度</span><span class="bar"><i style="width:{progress:.1f}%"></i></span><strong>{progress:.1f}%</strong></div>
   <table>
-    <thead><tr><th>人员</th><th>业务团队</th><th>工单目标</th><th>工单完成</th><th>工单完成率</th><th>应完成</th><th>日均需完成</th><th>现金目标</th><th>现金完成</th><th>现金完成率</th></tr></thead>
+    <thead><tr><th>人员</th><th>业务团队</th><th>工单目标</th><th>工单完成</th><th>工单完成率</th><th>应完成</th><th>日均需完成</th><th>{escape(secondary_headers[0])}</th><th>{escape(secondary_headers[1])}</th><th>{escape(secondary_headers[2])}</th></tr></thead>
     <tbody>
       {''.join(people_rows)}
     </tbody>
@@ -191,11 +214,18 @@ def render_people_png(digest, path):
         draw.rounded_rectangle([bar_x, bar_y, bar_x + fill_w, bar_y + bar_h], radius=6, fill='#2d6cdf')
     draw.text((bar_x + bar_w + 12, 124), f'{progress:.1f}%', font=_font(18, bold=True), fill='#2d6cdf')
 
-    columns = [
-        ('人员', 110), ('业务团队', 90), ('工单目标', 80), ('工单完成', 80),
-        ('工单完成率', 100), ('应完成', 80), ('日均需完成', 90),
-        ('现金目标', 110), ('现金完成', 110), ('现金完成率', 100),
-    ]
+    if uses_heads(digest):
+        columns = [
+            ('人员', 110), ('业务团队', 90), ('工单目标', 80), ('工单完成', 80),
+            ('工单完成率', 100), ('应完成', 80), ('日均需完成', 90),
+            ('人头目标', 90), ('人头完成', 90), ('人头完成率', 100),
+        ]
+    else:
+        columns = [
+            ('人员', 110), ('业务团队', 90), ('工单目标', 80), ('工单完成', 80),
+            ('工单完成率', 100), ('应完成', 80), ('日均需完成', 90),
+            ('现金目标', 110), ('现金完成', 110), ('现金完成率', 100),
+        ]
     x = pad
     y = top
     draw.rectangle([pad - 8, y, width - pad + 8, y + header_h], fill='#f7f9fc')
@@ -207,6 +237,18 @@ def render_people_png(digest, path):
         draw.text((pad, y + 8), '当前团队暂无人员', font=cell_font, fill='#687587')
         y += row_h
     for person in people:
+        if uses_heads(digest):
+            secondary_values = (
+                format_heads(person.get('heads_target')),
+                format_heads(person.get('heads_actual')),
+                format_pct(person.get('heads_completion')),
+            )
+        else:
+            secondary_values = (
+                format_money(person['cash_target']),
+                format_money(person['cash_actual']),
+                format_pct(person['cash_completion']),
+            )
         values = [
             person['display_name'],
             person['business_group'],
@@ -215,9 +257,7 @@ def render_people_png(digest, path):
             format_pct(person['orders_completion']),
             format_count(person['expected_orders']),
             format_daily(person['daily_orders']),
-            format_money(person['cash_target']),
-            format_money(person['cash_actual']),
-            format_pct(person['cash_completion']),
+            *secondary_values,
         ]
         x = pad
         for (label, col_w), value in zip(columns, values):
@@ -296,26 +336,49 @@ def write_details_xlsx(digest, path):
     workbook = Workbook()
     default = workbook.active
     workbook.remove(default)
-    people_rows = [
-        [
-            person['display_name'],
-            person['business_group'],
-            person['orders_target'],
-            person['orders_actual'],
-            None if person['orders_completion'] is None else round(person['orders_completion'] * 100, 1),
-            None if person['expected_orders'] is None else round(person['expected_orders'], 1),
-            None if person['daily_orders'] is None else round(person['daily_orders'], 1),
-            '是' if person['behind'] else '',
-            person['cash_target'],
-            person['cash_actual'],
-            None if person['cash_completion'] is None else round(person['cash_completion'] * 100, 1),
+    if uses_heads(digest):
+        people_rows = [
+            [
+                person['display_name'],
+                person['business_group'],
+                person['orders_target'],
+                person['orders_actual'],
+                None if person['orders_completion'] is None else round(person['orders_completion'] * 100, 1),
+                None if person['expected_orders'] is None else round(person['expected_orders'], 1),
+                None if person['daily_orders'] is None else round(person['daily_orders'], 1),
+                '是' if person['behind'] else '',
+                person.get('heads_target'),
+                person.get('heads_actual'),
+                None if person.get('heads_completion') is None else round(person['heads_completion'] * 100, 1),
+            ]
+            for person in digest['people']
         ]
-        for person in digest['people']
-    ]
-    _sheet(workbook, '人员进度', [
-        '人员', '业务团队', '工单目标', '工单完成', '工单完成率%', '应完成工单', '日均需完成', '落后',
-        '现金目标', '现金完成', '现金完成率%',
-    ], people_rows)
+        people_headers = [
+            '人员', '业务团队', '工单目标', '工单完成', '工单完成率%', '应完成工单', '日均需完成', '落后',
+            '人头目标', '人头完成', '人头完成率%',
+        ]
+    else:
+        people_rows = [
+            [
+                person['display_name'],
+                person['business_group'],
+                person['orders_target'],
+                person['orders_actual'],
+                None if person['orders_completion'] is None else round(person['orders_completion'] * 100, 1),
+                None if person['expected_orders'] is None else round(person['expected_orders'], 1),
+                None if person['daily_orders'] is None else round(person['daily_orders'], 1),
+                '是' if person['behind'] else '',
+                person['cash_target'],
+                person['cash_actual'],
+                None if person['cash_completion'] is None else round(person['cash_completion'] * 100, 1),
+            ]
+            for person in digest['people']
+        ]
+        people_headers = [
+            '人员', '业务团队', '工单目标', '工单完成', '工单完成率%', '应完成工单', '日均需完成', '落后',
+            '现金目标', '现金完成', '现金完成率%',
+        ]
+    _sheet(workbook, '人员进度', people_headers, people_rows)
 
     def detail_rows(items):
         return [

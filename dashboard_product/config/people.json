@@ -234,14 +234,14 @@
           "display_name": "小初提能组",
           "members": [
             {
-              "person_id": "yang_yulin",
-              "display_name": "杨玉林",
+              "person_id": "pan_tixue",
+              "display_name": "潘体学",
               "status": "active",
               "business_group": "留学预备",
               "monthly_targets": {
                 "2026-09": {
-                  "orders": 90,
-                  "cash": 150000
+                  "orders": 25,
+                  "cash": 50000
                 }
               }
             }

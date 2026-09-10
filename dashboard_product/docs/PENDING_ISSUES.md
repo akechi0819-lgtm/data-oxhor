@@ -1,6 +1,6 @@
 # 已知边界与后续事项
 
-更新时间：2026-09-09
+更新时间：2026-09-10
 
 ## 已解决
 
@@ -17,7 +17,8 @@
 
 ## 当前待办
 
-- 线上私域、线上平台钉钉 webhook 仍空，这两路发送时跳过。
+- 线上平台钉钉 webhook 仍空，发送时跳过。线上私域 webhook 已填。
+- 看板 HTML 花名册要等下一次 refresh 才会把杨玉林换成潘体学；钉钉发送已按 `people.json` 使用潘体学。
 - 完成 `online_platform`（线上平台）的个性化人员配置。
 - `online_private`（线上私域/虚拟人团队）已有部分人员，配置完成度需业务确认。
 - 看板日更由许家印 10:00 跑 `deploy/publish_static_dashboard.sh`；钉钉发送需另跑 `python3 -m dashboard_product.notify send`。

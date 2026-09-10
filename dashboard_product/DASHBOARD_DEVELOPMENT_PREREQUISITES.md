@@ -26,7 +26,7 @@ python3 -m dashboard_product.notify send --artifact customers/<workspace>/Output
 - 三个团队已纳入看板：线下市场、线上私域（虚拟人团队）、线上平台。
 - 线下市场团队个性化配置已完成；线上私域有部分人员；线上平台仍空。
 - 服务器静态部署已完成：四分册 HTML + basic auth；刷新、计算、Snapshot 更新和 HTML 发布准备在本机或云电脑执行。
-- 例行日更每天 10:00（Asia/Shanghai）挂许家印，跑 `deploy/publish_static_dashboard.sh`。公开入口为 `http://dashboard.apinova.cn`。钉钉五通道代码已落地，线下青少/高中/大学 webhook 已填；线上私域、线上平台仍空。
+- 例行日更每天 10:00（Asia/Shanghai）挂许家印，跑 `deploy/publish_static_dashboard.sh`。公开入口为 `http://dashboard.apinova.cn`。钉钉五通道代码已落地，线下青少/高中/大学和线上私域 webhook 已填；线上平台仍空。
 
 ## Artifact
 
@@ -36,7 +36,7 @@ python3 -m dashboard_product.notify send --artifact customers/<workspace>/Output
 
 个人实际归属先按工单团队和业务组筛选，再匹配人员。顺序：活动名含花名册姓名 → SQL 已抽进 `entry_person` 的「市场人员：」或资源录入人 → Python 侧再用「姓名市场资源」和去掉旧活动串后的资源描述正文。现金用工单 ID 对全量工单数仓连，不限本绩效月；连上继承该工单归属，连不上再退回现金表市场活动名。看板 artifact 只有 11 列，不含完整资源描述；「姓名市场资源」和描述正文兜底主要在钉钉明细路径生效。
 
-人员对象可包含 `business_group`、`monthly_targets` 和 `monthly_drilldowns`。人员目标按绩效月保存，现金或工单目标缺失时显示“未配置”；大学人头目标折算后的现金目标由配置直接登记。`monthly_drilldowns` 按绩效月和指标保存一级/二级渠道完成值；现金下钻的渠道必须来自现金按 `工单ID` 左连接后的工单维度，未匹配时为“暂无归属”，不能改用现金表原始渠道。`vacant` 占位人员保留在人员配置中，但不写入展示 artifact。
+人员对象可包含 `business_group`、`monthly_targets` 和 `monthly_drilldowns`。人员目标按绩效月保存，现金或工单目标缺失时显示“未配置”；大学人头目标折算后的现金目标由配置直接登记，看板 HTML 仍展示现金。钉钉大学通道改展示人头完成，不把 1500 校区门槛套进来。钉钉花名册以 `config/people.json` 覆盖 artifact；2026-09-10 线上私域小初提能组为潘体学（工单 25、现金 50,000）。`monthly_drilldowns` 按绩效月和指标保存一级/二级渠道完成值；现金下钻的渠道必须来自现金按 `工单ID` 左连接后的工单维度，未匹配时为“暂无归属”，不能改用现金表原始渠道。`vacant` 占位人员保留在人员配置中，但不写入展示 artifact。
 
 ## Saved Query 与业务口径
 

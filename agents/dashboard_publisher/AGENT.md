@@ -16,7 +16,7 @@ python3 -m dashboard_product.notify send \
   --artifact <artifact.json> --dry-run
 ```
 
-发布流程、环境变量和服务器步骤见 [看板部署说明](../../dashboard_product/DEPLOYMENT.md)。团队板块分册与 htpasswd 见 [AUTH_TEAM_BOOKLETS_RUN.md](../../dashboard_product/docs/AUTH_TEAM_BOOKLETS_RUN.md)。钉钉 webhook 只在 C 层 `.env.server`；云电脑独立运行前必须单独 CopyToBox 该文件，禁止贴聊天。当前数据合同和已知问题见 `dashboard_product/docs/`。日更默认只发布四分册，不自动群发钉钉。
+发布流程、环境变量和服务器步骤见 [看板部署说明](../../dashboard_product/DEPLOYMENT.md)。团队板块分册与 htpasswd 见 [AUTH_TEAM_BOOKLETS_RUN.md](../../dashboard_product/docs/AUTH_TEAM_BOOKLETS_RUN.md)。钉钉 webhook 只在 C 层 `.env.server`；云电脑独立运行前必须单独 CopyToBox 该文件，禁止贴聊天。钉钉花名册以 `config/people.json` 为准；大学通道第二列是人头（去重学员编号，不含 1500），落后仍按工单。当前数据合同和已知问题见 `dashboard_product/docs/`。日更默认只发布四分册，不自动群发钉钉。
 
 ## 必须遵守
 

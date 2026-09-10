@@ -93,9 +93,10 @@
 - 模块内小改：用户可直接与模块主对话并派牛马力工，不必经赵高同意。
 - 跨角色 / SYNC / 大迁移 / 例行体系 / 排期冲突：经赵高。
 
-## 8. 2026-09-09 补丁（看板钉钉）
+## 8. 2026-09-10 补丁（看板钉钉与花名册）
 
-- 本机 A 层已含四分册、basic auth 和钉钉人员进度代码。云电脑独立发送钉钉前，必须 C 层同步 `dashboard_product/.env.server`（600）到 `/home/box/oxhor/dashboard/dashboard_product/.env.server`。
+- 本机 A 层已含四分册、basic auth 和钉钉人员进度代码。云电脑独立发送钉钉前，必须 C 层同步 `dashboard_product/.env.server`（600）到 `/home/box/oxhor/dashboard/dashboard_product/.env.server`。2026-09-09 的 C 层包不含大学和线上私域密钥，不能复用。
 - 禁止把 webhook 写入公开 `data-oxhor`、禁止贴聊天、禁止建设本机↔Grok 双向 MCP。
-- 2026-09-09 本机已填 `DINGTALK_WEBHOOK_OFFLINE_YOUTH` / `OFFLINE_HIGH_SCHOOL`；`ONLINE_PRIVATE`、`ONLINE_PLATFORM`、`OFFLINE_UNIVERSITY` 仍空，空通道跳过。
-- A 层上云继续 overlay + sha256；不要让 Grok 读业务代码重写。
+- 2026-09-10 本机已填 `OFFLINE_YOUTH` / `OFFLINE_HIGH_SCHOOL` / `OFFLINE_UNIVERSITY` / `ONLINE_PRIVATE`；`ONLINE_PLATFORM` 仍空，空通道跳过。
+- A 层 overlay 必须带 `digest.py`、`notify_render.py`、`config/people.json` 和对应测试/文档。这次**不要排除 people.json**：小初提能组已由杨玉林换成潘体学（工单 25、现金 50,000）。
+- 钉钉大学通道是工单 + 人头（去重 `学员编号`，不含 1500）；落后仍按工单。不要让 Grok 读业务代码重写。

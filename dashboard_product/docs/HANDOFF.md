@@ -1,6 +1,6 @@
 # 看板交接
 
-更新时间：2026-09-09
+更新时间：2026-09-10
 
 ## 产品边界
 
@@ -49,7 +49,7 @@ python3 -m dashboard_product.notify send --artifact customers/bi_operations/Outp
 
 生产发布是四分册静态 HTML + Nginx basic auth，不是单文件 `current.html`。刷新、计算、Snapshot 更新和发布准备在云电脑或本机完成；服务器只保存分册 HTML 和钉钉匿名素材。完整流程见 [`DEPLOYMENT.md`](../DEPLOYMENT.md)，分册门口见 [`AUTH_TEAM_BOOKLETS_RUN.md`](AUTH_TEAM_BOOKLETS_RUN.md)。
 
-钉钉五通道：`online_private`、`online_platform`、`offline_youth`、`offline_high_school`、`offline_university`。截图来自本地 HTML，不上看板网址截；不发市场总计，不贴看板页链接。Webhook 只在 `.env.server`。日更不自动群发。2026-09-09 本机已填线下青少/高中/大学 webhook；线上私域、线上平台仍空，缺密钥的通道会被跳过。
+钉钉五通道：`online_private`、`online_platform`、`offline_youth`、`offline_high_school`、`offline_university`。截图来自本地 HTML，不上看板网址截；不发市场总计，不贴看板页链接。Webhook 只在 `.env.server`。日更不自动群发。2026-09-10 本机已填线下青少/高中/大学和线上私域 webhook；线上平台仍空，缺密钥的通道会被跳过。线下大学推送第二列是人头不是现金，落后仍按工单。钉钉花名册以 `people.json` 为准：线上私域小初提能组为潘体学（工单 25、现金 50,000），不再保留杨玉林。
 
 公开入口为 `http://dashboard.apinova.cn`。例行日更 10:00 Asia/Shanghai 挂许家印。本轮未上 TLS。
 

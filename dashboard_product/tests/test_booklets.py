@@ -111,7 +111,7 @@ def _four_team_dashboard():
                 'orders_target': 15,
                 'groups': [_group('留学预备', 150, 15)],
                 'yoy_groups': _yoy_groups(),
-                'people': [_person('杨玉林', '留学预备', '小初提能组')],
+                'people': [_person('潘体学', '留学预备', '小初提能组')],
             },
             {
                 'team_id': 'online_platform',
@@ -181,7 +181,7 @@ class BookletFilterTest(unittest.TestCase):
         self.assertEqual(team['cash_target'], 150)
         self.assertEqual(team['orders_target'], 15)
         people_names = [person['display_name'] for person in team['people']]
-        self.assertEqual(people_names, ['杨玉林'])
+        self.assertEqual(people_names, ['潘体学'])
         channel_keys = list(filtered['drilldowns']['current']['cash']['channel'])
         self.assertEqual(channel_keys, ['2026-06|online_private|留学预备|转介绍|老客转介绍'])
         self.assertTrue(all(drill_team_id(key) == 'online_private' for key in channel_keys))
@@ -190,7 +190,7 @@ class BookletFilterTest(unittest.TestCase):
         self.assertNotIn('王昊', blob)
         self.assertNotIn('平台同学', blob)
         self.assertNotIn('杨新宇', blob)
-        self.assertIn('杨玉林', blob)
+        self.assertIn('潘体学', blob)
 
     def test_full_keeps_all_teams_including_market_total(self):
         original = _four_team_dashboard()
@@ -202,7 +202,7 @@ class BookletFilterTest(unittest.TestCase):
         blob = json.dumps(filtered, ensure_ascii=False)
         self.assertIn('"team_id": "market_total"', blob)
         self.assertIn('王昊', blob)
-        self.assertIn('杨玉林', blob)
+        self.assertIn('潘体学', blob)
         self.assertIn('平台同学', blob)
 
     def test_offline_market_reserved_booklet_renders_when_team_missing(self):
@@ -240,7 +240,7 @@ class BookletRenderTest(unittest.TestCase):
     def test_online_private_html_has_no_other_team_data(self):
         page = render_html(_artifact(), booklet='online_private')
         self.assertIn('线上私域（虚拟人团队）分册', page)
-        self.assertIn('杨玉林', page)
+        self.assertIn('潘体学', page)
         self.assertNotIn('王昊', page)
         self.assertNotIn('平台同学', page)
         self.assertNotIn('secret-other-group-row', page)
@@ -251,13 +251,13 @@ class BookletRenderTest(unittest.TestCase):
         platform = render_html(_artifact(), booklet='online_platform')
         offline = render_html(_artifact(), booklet='offline_market')
         self.assertIn('平台同学', platform)
-        self.assertNotIn('杨玉林', platform)
+        self.assertNotIn('潘体学', platform)
         self.assertNotIn('王昊', platform)
         _assert_no_foreign_team_payload(platform, 'online_platform')
         self.assertIn('王昊', offline)
         self.assertIn('杨新宇', offline)
         self.assertIn('李进', offline)
-        self.assertNotIn('杨玉林', offline)
+        self.assertNotIn('潘体学', offline)
         self.assertNotIn('平台同学', offline)
         _assert_no_foreign_team_payload(offline, 'offline_market')
 
@@ -268,7 +268,7 @@ class BookletRenderTest(unittest.TestCase):
         self.assertIn('"team_id": "online_platform"', page)
         self.assertIn('"team_id": "market_total"', page)
         self.assertIn('王昊', page)
-        self.assertIn('杨玉林', page)
+        self.assertIn('潘体学', page)
         self.assertIn('平台同学', page)
         self.assertIn('渠道同比和年级同比按青少、初中、高中、大学', page)
 

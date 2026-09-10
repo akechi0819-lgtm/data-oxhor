@@ -76,6 +76,13 @@ git diff --check
 - 影响：云端 overlay 必须带 v7 SQL 和 `notify_work_orders_by_ids.sql`。刷新产物必须带 `yoy_groups`，渲染器不再给旧 artifact 补空年段，也不能把留学预备当同比行。
 - 验证：`python3 -m unittest discover -s dashboard_product/tests -v`。
 
+### 2026-09-10：大学钉钉人头与线上私域花名册
+
+- 决定：钉钉 `offline_university` 第二列改为人头完成，落后仍按工单。人头按已归属被动新生正向现金的非空 `学员编号` 去重，不含 1500 门槛；同一条现金归属 N 人时每人计 `1/N`。钉钉花名册以 `config/people.json` 覆盖 artifact。线上私域小初提能组由杨玉林替换为潘体学（工单 25、现金 50,000）。线上私域 webhook 已填，仍不进 Git。
+- 原因：大学下的是人头目标；1500 是留学预备校区分析门槛，不进 Bridge，也不能套到大学推送。杨玉林离岗，潘体学按新人入册。
+- 影响：云端 A 层 overlay 必须含 `digest.py`、`notify_render.py`、`people.json`。C 层 `.env.server` 必须重新 CopyToBox，否则云电脑发不出虚拟人/大学群。看板 HTML 要等下一次 refresh 才会换名。
+- 验证：`python3 -m unittest discover -s dashboard_product/tests -v`。
+
 ### 2026-09-09：删除废弃看板版本与兼容层
 
 - 决定：运行时只保留 `dashboard_actuals/v7`。删除空的 v1–v5 Saved Query 目录、旧业务组分册过滤器和前端空 `yoy_groups` 补丁。`attributed_passive_reported_cash/v1` 仍是现行逐笔底稿。

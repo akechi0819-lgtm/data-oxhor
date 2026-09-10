@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import Counter, defaultdict
 from datetime import date, datetime, time, timedelta
 
 from dashboard_product.booklets import TEAM_DISPLAY_NAMES
@@ -79,21 +80,16 @@ def configured_people_for_channel(channel_id, people_config):
 
 
 def ensure_roster(digest, people_config, months=None, time_progress=None, workdays=None):
-    existing = {person.get('display_name') for person in digest.get('people') or []}
-    extras = []
-    for person in configured_people_for_channel(digest['team_id'], people_config):
-        if person['display_name'] in existing:
-            continue
-        extras.append(person)
-    if not extras:
+    configured = configured_people_for_channel(digest['team_id'], people_config)
+    if not configured:
         return digest
     months = months or []
     time_progress = digest['time_progress'] if time_progress is None else time_progress
     workdays = digest['remaining_workdays'] if workdays is None else workdays
-    extra_rows = build_people_rows(extras, months, digest['perf_month'], time_progress, workdays)
+    people_rows = build_people_rows(configured, months, digest['perf_month'], time_progress, workdays)
     digest = dict(digest)
-    digest['people'] = list(digest.get('people') or []) + extra_rows
-    digest['behind'] = [row for row in digest['people'] if row['behind']]
+    digest['people'] = people_rows
+    digest['behind'] = [row for row in people_rows if row['behind']]
     return digest
 
 
@@ -428,6 +424,48 @@ def summarize_details(items):
     }
 
 
+def owner_names(owner):
+    if not owner or owner == '未归属':
+        return []
+    return [name for name in str(owner).split('、') if name and name != '未归属']
+
+
+def student_id_value(row, columns):
+    if '学员编号' not in columns:
+        return None
+    index = columns.index('学员编号')
+    if index >= len(row):
+        return None
+    value = row[index]
+    if value in (None, ''):
+        return None
+    text = str(value).strip()
+    return text or None
+
+
+def count_heads_by_owner(cash):
+    columns = cash.get('columns') or []
+    rows = cash.get('rows') or []
+    credits = defaultdict(dict)
+    if '学员编号' not in columns:
+        return Counter()
+    for row in rows:
+        names = owner_names(row[0] if row else None)
+        if not names:
+            continue
+        student = student_id_value(row, columns)
+        if not student:
+            continue
+        weight = 1.0 / len(names)
+        for name in names:
+            credits[name][student] = max(credits[name].get(student, 0.0), weight)
+    return Counter({name: sum(weights.values()) for name, weights in credits.items()})
+
+
+def channel_secondary_metric(channel_id):
+    return 'heads' if channel_id == 'offline_university' else 'cash'
+
+
 def build_people_rows(people, months, month, time_progress, workdays):
     rows = []
     for person in people:
@@ -437,10 +475,13 @@ def build_people_rows(people, months, month, time_progress, workdays):
             continue
         orders_actual = person_month_value(person, months, month, 'orders')
         cash_actual = person_month_value(person, months, month, 'cash')
+        heads_actual = person_month_value(person, months, month, 'heads')
         orders_target = person_month_target(person, month, 'orders')
         cash_target = person_month_target(person, month, 'cash')
+        heads_target = person_month_target(person, month, 'heads')
         orders_completion = completion_rate(orders_actual, orders_target)
         cash_completion = completion_rate(cash_actual, cash_target)
+        heads_completion = completion_rate(heads_actual, heads_target)
         expected_orders = orders_target * time_progress if orders_target and orders_target > 0 else None
         remaining_orders = max(0.0, (orders_target or 0) - orders_actual) if orders_target and orders_target > 0 else None
         behind = orders_completion is not None and orders_completion < time_progress
@@ -467,6 +508,9 @@ def build_people_rows(people, months, month, time_progress, workdays):
             'cash_target': cash_target,
             'cash_actual': cash_actual,
             'cash_completion': cash_completion,
+            'heads_target': heads_target,
+            'heads_actual': heads_actual,
+            'heads_completion': heads_completion,
         })
     return rows
 
@@ -514,6 +558,7 @@ def build_digest(artifact, channel_id, rows=None):
         'remaining_workdays': workdays,
         'run_id': artifact.get('run_id'),
         'snapshot_id': artifact.get('snapshot_id'),
+        'secondary_metric': channel_secondary_metric(channel_id),
         'people': people_rows,
         'behind': [row for row in people_rows if row['behind']],
         'orders': summarize_details(details['orders']),
@@ -556,6 +601,7 @@ def apply_warehouse_actuals(digest):
             for name in str(owner).split('、'):
                 if name and name != '未归属':
                     cash_sum[name] += amount
+    heads_counts = count_heads_by_owner(cash)
     time_progress = digest['time_progress']
     workdays = digest['remaining_workdays']
     people = []
@@ -563,8 +609,10 @@ def apply_warehouse_actuals(digest):
         item = dict(person)
         item['orders_actual'] = float(order_counts.get(item['display_name'], 0))
         item['cash_actual'] = float(cash_sum.get(item['display_name'], 0))
+        item['heads_actual'] = float(heads_counts.get(item['display_name'], 0))
         item['orders_completion'] = completion_rate(item['orders_actual'], item['orders_target'])
         item['cash_completion'] = completion_rate(item['cash_actual'], item['cash_target'])
+        item['heads_completion'] = completion_rate(item['heads_actual'], item.get('heads_target'))
         target = item['orders_target']
         item['expected_orders'] = target * time_progress if target and target > 0 else None
         item['orders_gap'] = None if item['expected_orders'] is None else item['expected_orders'] - item['orders_actual']

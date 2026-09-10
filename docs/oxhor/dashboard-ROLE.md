@@ -37,15 +37,16 @@ python -m dashboard_product.notify send --artifact "$ART" --dry-run
 
 分册与 htpasswd 操作见 `dashboard_product/docs/AUTH_TEAM_BOOKLETS_RUN.md`。`/healthz` 仍匿名；业务页需登录。**本轮若未上 TLS，HTTP+basic auth 密码在网上裸奔。**
 
-## 状态（2026-09-09）
-- 薄包与 `.env.server`(600) 已落地。钉钉独立运行还依赖该文件里的 `DINGTALK_WEBHOOK_*` / `DINGTALK_SECRET_*`，必须走 C 层 CopyToBox，禁止贴聊天。
-- 当前工作区 Snapshot 以 warehouse `workspace.json` 为准（2026-09-09 为 `snapshot_bi_operations_20260908`）。
+## 状态（2026-09-10）
+- 薄包与 `.env.server`(600) 已落地。钉钉独立运行还依赖该文件里的 `DINGTALK_WEBHOOK_*` / `DINGTALK_SECRET_*`，必须走 C 层 CopyToBox，禁止贴聊天。旧 C 层包不含大学和线上私域密钥，发这两路前必须重拷。
+- 当前工作区 Snapshot 以 warehouse `workspace.json` 为准。
 - 分册：按团队板块裁剪（`full` / `online_private` / `online_platform` / `offline_market`）；旧业务组 `liuxue/gaozhong/daxue` 不再日更。C 层 secrets 以密码本重建（600）。**门口变更后需再跑 `install_dashboard_auth.sh`**
-- 钉钉五通道代码已在本机落地：`online_private` / `online_platform` / `offline_youth` / `offline_high_school` / `offline_university`。2026-09-09 本机已填线下青少/高中/大学 webhook；线上私域、线上平台仍空。
+- 钉钉五通道：`online_private` / `online_platform` / `offline_youth` / `offline_high_school` / `offline_university`。本机已填线下青少/高中/大学和线上私域；线上平台仍空。
+- 大学通道展示工单 + 人头（去重 `学员编号`，不含 1500），落后仍按工单。其余通道工单 + 现金。花名册以 `config/people.json` 覆盖 artifact；小初提能组现员潘体学（工单 25、现金 50,000）。A 层 overlay **必须带 people.json**，不要沿用排除花名册的旧包。
 - 刷新消费 `dashboard_actuals/v7`：目标区仍是留学预备/高中/大学；渠道同比和年级同比用青少/初中/高中/大学。现金跨月按工单 ID 回查全量工单再归属个人。
 - 例行「看板日更」每天 **10:00** Asia/Shanghai（挂许家印名下）：refresh→团队板块四分册 render→publish。钉钉需另跑 `notify send`。
 - 全量 `artifact.json` 留在本地，不进公网
-- 不要建设本机↔Grok 双向 MCP；A 层用 overlay + sha256，C 层单独拷 `.env.server`
+- 不要建设本机↔Grok 双向 MCP；A 层用 overlay + sha256，C 层单独拷 `.env.server`。不要读业务代码重写。
 
 ## 红线
 不推公开 `data-oxhor`；密钥不进聊天；不改数仓 snapshot 语义/入仓代码；跨界经赵高。

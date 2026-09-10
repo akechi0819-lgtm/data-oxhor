@@ -40,10 +40,12 @@ class NotifyCliTest(unittest.TestCase):
                 self.assertNotIn('full.html', markdown)
                 self.assertNotIn('oapi.dingtalk.com', markdown)
             private_html = (output / 'online_private' / 'people.html').read_text(encoding='utf-8')
-            self.assertIn('杨玉林', private_html)
+            self.assertIn('潘体学', private_html)
+            self.assertNotIn('杨玉林', private_html)
             self.assertNotIn('王昊', private_html)
             offline_html = (output / 'offline_youth' / 'people.html').read_text(encoding='utf-8')
             self.assertIn('王昊', offline_html)
+            self.assertNotIn('潘体学', offline_html)
             self.assertNotIn('杨玉林', offline_html)
 
     def test_single_team_filter(self):
@@ -65,6 +67,12 @@ class NotifyCliTest(unittest.TestCase):
                 ['offline_youth', 'offline_high_school', 'offline_university'],
             )
             youth = (Path(directory) / 'notify' / 'offline_youth' / 'people.html').read_text(encoding='utf-8')
+            university = (Path(directory) / 'notify' / 'offline_university' / 'people.html').read_text(encoding='utf-8')
             self.assertIn('王昊', youth)
             self.assertNotIn('李进', youth)
             self.assertNotIn('杨新宇', youth)
+            self.assertIn('现金目标', youth)
+            self.assertNotIn('人头目标', youth)
+            self.assertIn('李进', university)
+            self.assertIn('人头目标', university)
+            self.assertNotIn('现金目标', university)

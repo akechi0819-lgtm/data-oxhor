@@ -15,7 +15,7 @@
 
 钉钉人员进度把 `people.png` 和 `details.xlsx` 放到 `/var/www/dashboard/notify/<token>/<team_id>/`。路径匿名可读（钉钉拉图不会登录），目录不可列出。不要上传 `artifact.json`、HTML 或 webhook。首次启用跑 `./dashboard_product/deploy/install_notify_nginx.sh`（只改 Nginx，不动看板密码）。日更脚本不自动群发。
 
-云电脑要独立发送钉钉，必须把本机 `dashboard_product/.env.server`（C 层，mode 600）CopyToBox 到 `/home/box/oxhor/dashboard/dashboard_product/.env.server`。该文件含服务器 SSH 密码和 `DINGTALK_WEBHOOK_*` / `DINGTALK_SECRET_*`。禁止进公开 Git、禁止贴聊天、禁止写进文档明文。缺某个通道的 webhook 时，`notify send` 会跳过该通道而不是伪造发送。2026-09-09 本机已填线下青少/高中/大学；线上私域、线上平台仍空。
+云电脑要独立发送钉钉，必须把本机 `dashboard_product/.env.server`（C 层，mode 600）CopyToBox 到 `/home/box/oxhor/dashboard/dashboard_product/.env.server`。该文件含服务器 SSH 密码和 `DINGTALK_WEBHOOK_*` / `DINGTALK_SECRET_*`。禁止进公开 Git、禁止贴聊天、禁止写进文档明文。缺某个通道的 webhook 时，`notify send` 会跳过该通道而不是伪造发送。2026-09-10 本机已填线下青少/高中/大学和线上私域；线上平台仍空。云电脑要发虚拟人/大学群，必须重新 CopyToBox 该文件，旧 C 层包不含这两路密钥。
 
 
 
