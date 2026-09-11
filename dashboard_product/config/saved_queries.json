@@ -5,10 +5,10 @@
   "queries": [
     {
       "query_id": "dashboard_actuals",
-      "version": "v7",
+      "version": "v9",
       "purpose": "看板当前与上一财年实际：被动新生正向报入现金和被动工单，按四组同比（青少/初中/高中/大学）输出，目标区再滚成留学预备/高中/大学",
       "parameters": ["start_date", "end_date"],
-      "output": "event_date,team_id,business_group,first_channel,second_channel,campaign_name,entry_person,school_name,grade_name,metric,actual_value",
+      "output": "event_date,team_id,business_group,first_channel,second_channel,campaign_name,entry_person,school_name,grade_name,metric,actual_value,student_id",
       "sql_owner": "customer_workspace_saved_query_registry",
       "consumed_by": "refresh.py"
     },

@@ -192,4 +192,4 @@ python3 -m dashboard_product.refresh render --artifact <artifact.json> --all-boo
 python3 -m dashboard_product.notify send --artifact <artifact.json> --dry-run
 ```
 
-刷新只消费已确认 `dashboard_actuals/v7`。目标区留学预备/高中/大学，同比区青少/初中/高中/大学。四分册发布和 Nginx 门口见 [`dashboard_product/DEPLOYMENT.md`](../dashboard_product/DEPLOYMENT.md)。Webhook 属于 C 层，不在本接入指南展开。
+刷新只消费已确认 `dashboard_actuals/v9`。目标区留学预备/高中/大学，同比区青少/初中/高中/大学。全量页另有「市场人员产能」页签。四分册发布和 Nginx 门口见 [`dashboard_product/DEPLOYMENT.md`](../dashboard_product/DEPLOYMENT.md)。Webhook 属于 C 层，不在本接入指南展开。

@@ -89,3 +89,11 @@ git diff --check
 - 原因：项目不保留向后兼容；旧目录和兼容层会让下一轮误把 v6 或空年段当成现行合同。
 - 影响：`liuxue` / `gaozhong` / `daxue` 不再有过滤入口。刷新产物缺少 `yoy_groups` 时同比表为空，不会补四个空年段。
 - 验证：`python3 -m unittest discover -s dashboard_product/tests -v`；`python3 -m unittest tests.bridge.test_reviewed_artifact -v`。
+
+### 2026-09-11：看板 v9、产能页、渠道合计与张艺彤回落
+
+- 决定：刷新改消费 `dashboard_actuals/v9`。查询增加第 12 列现金 `student_id`；运行时只保留 v9，删除 v8。全量页并列第五页签「市场人员产能」：全年现金对照统一 80 万标准产能，六维雷达为工单数、签约量、转化率、渠道&校代/TMK/活动贡献，均值按团队算。渠道同期对比增加合计列与总计行。无法判断/空团队且跟进顾问为张艺彤时按留学预备回落。大学钉钉明细表人员进度额外输出现金目标/完成。
+- 原因：产能页需要去重人头；张艺彤名下无法判断工单此前被整段丢掉；大学群既看人头也要在明细里对现金。
+- 影响：云端 overlay 必须带 v9 SQL、`capacity.py`、`config/capacity_targets.json`。产能页不进钉钉。平台现金不计入三类贡献轴。
+- 验证：`python3 -m unittest discover -s dashboard_product/tests -v`。
+

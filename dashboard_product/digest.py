@@ -213,11 +213,27 @@ def rolled_business_group(group):
     return group
 
 
-def mapped_order_yoy_group(team, adviser_belong=None, grade_correction=None):
+TEMPORARY_STUDY_ABROAD_ADVISERS = {'张艺彤'}
+
+
+def empty_order_team(team_name):
+    return team_name in {'无法判断', '校区资源无法归属', '需要判定'} or not team_name
+
+
+def study_abroad_grade_split(grade):
+    if grade in {'学龄前', '一年级', '二年级', '三年级', '四年级', '五年级'} or any(token in grade for token in ('小班', '中班', '大班')):
+        return '青少'
+    return '初中'
+
+
+def mapped_order_yoy_group(team, adviser_belong=None, grade_correction=None, follow_adviser=None):
     team_name = str(team or '').strip()
     belong = str(adviser_belong or '').strip()
     grade = str(grade_correction or '').strip()
-    if team_name in {'无法判断', '校区资源无法归属', '需要判定'} or not team_name:
+    follow = str(follow_adviser or '').strip()
+    if empty_order_team(team_name) and follow in TEMPORARY_STUDY_ABROAD_ADVISERS:
+        return study_abroad_grade_split(grade)
+    if empty_order_team(team_name):
         return None
     if belong in {'武清顾问', '塘沽顾问', '塘沽学管'} or team_name in {'武清', '塘沽'}:
         if grade in {'', '未知'}:
@@ -238,9 +254,7 @@ def mapped_order_yoy_group(team, adviser_belong=None, grade_correction=None):
     if belong in {'大学顾问', '大学学管'}:
         return '大学'
     if not belong and team_name == '留学预备':
-        if grade in {'学龄前', '一年级', '二年级', '三年级', '四年级', '五年级'} or any(token in grade for token in ('小班', '中班', '大班')):
-            return '青少'
-        return '初中'
+        return study_abroad_grade_split(grade)
     if team_name == '高中':
         return '高中'
     if team_name == '大学':
@@ -248,8 +262,8 @@ def mapped_order_yoy_group(team, adviser_belong=None, grade_correction=None):
     return None
 
 
-def mapped_order_business_group(team, grade_attr=None, grade_name=None, adviser_belong=None, grade_correction=None):
-    return rolled_business_group(mapped_order_yoy_group(team, adviser_belong, grade_correction))
+def mapped_order_business_group(team, grade_attr=None, grade_name=None, adviser_belong=None, grade_correction=None, follow_adviser=None):
+    return rolled_business_group(mapped_order_yoy_group(team, adviser_belong, grade_correction, follow_adviser))
 
 
 def mapped_cash_business_group(team):
@@ -288,6 +302,7 @@ def order_attribution(row, columns, people):
         cell_value(row, cols, '年级名称'),
         cell_value(row, cols, '顾问归属'),
         cell_value(row, cols, '年级校正'),
+        cell_value(row, cols, '跟进顾问'),
     )
     return attribution_label(
         people,

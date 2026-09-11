@@ -118,6 +118,13 @@ tbody th { color: var(--ink); font-weight: 800; }
 .comparison { margin-top: 14px; }
 .comparison + .comparison { margin-top: 14px; }
 .comparison table { min-width: 760px; }
+.channel-matrix table { min-width: 1680px; }
+.channel-matrix .total-row th, .channel-matrix .total-row td { font-weight: 800; background: #f7f9fc; }
+.channel-matrix thead th { text-align: center; vertical-align: bottom; }
+.channel-matrix thead th:first-child, .channel-matrix tbody th { text-align: left; }
+.channel-matrix td { text-align: right; }
+.channel-matrix .group-head { border-left: 1px solid var(--line); }
+.negative { color: #c34b3d; font-weight: 800; }
 .comparison .metric { color: var(--muted); font-weight: 700; }
 .drill-toggle { padding: 5px 9px; border: 1px solid #b9ccef; border-radius: 5px; background: var(--blue-soft); color: var(--blue); cursor: pointer; font-size: 11px; font-weight: 700; }
 .drill-toggle:hover { background: #dce8ff; }
@@ -127,6 +134,22 @@ tbody th { color: var(--ink); font-weight: 800; }
 .drill-table thead th { color: var(--muted); }
 .drill-table .negative { color: #c34b3d; font-weight: 800; }
 .empty-drill { padding: 12px 0 3px; color: var(--muted); }
+
+body.capacity-mode .comparison { display: none; }
+.capacity-layout { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(340px, .85fr); gap: 14px; }
+.capacity-toolbar { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+.capacity-toolbar label { display: grid; gap: 5px; color: var(--muted); font-size: 12px; font-weight: 700; }
+.capacity-table tbody tr { cursor: pointer; }
+.capacity-table tbody tr:hover { background: #f3f6fb; }
+.capacity-table tbody tr.selected { background: var(--blue-soft); }
+.radar-wrap { display: flex; justify-content: center; padding: 6px 0 2px; }
+.radar-legend { display: flex; gap: 18px; justify-content: center; margin: 6px 0 10px; color: var(--muted); font-size: 12px; font-weight: 700; }
+.radar-legend i { display: inline-block; width: 11px; height: 11px; margin-right: 6px; vertical-align: -1px; border: 1px solid transparent; }
+.radar-legend .avg i { background: rgba(104,117,135,.28); border-color: #8b97a7; }
+.radar-legend .person i { background: rgba(45,108,223,.28); border-color: var(--blue); }
+.dim-table td:not(:first-child), .dim-table th:not(:first-child) { text-align: right; }
+#scope:disabled { color: var(--muted); }
+@media (max-width: 980px) { .capacity-layout { grid-template-columns: 1fr; } }
 footer { margin-top: 20px; padding-top: 14px; border-top: 1px solid var(--line); color: var(--muted); font-size: 11px; }
 @media (max-width: 980px) { main { padding: 22px 18px 28px; } .dashboard-grid { grid-template-columns: 1fr; } }
 @media (max-width: 650px) { header { display: block; } .meta { min-width: 0; margin-top: 12px; text-align: left; } h1 { font-size: 32px; } .timeline, .cards { grid-template-columns: 1fr; } .timeline-label { align-items: flex-start; flex-direction: column; gap: 3px; } .panel { padding: 16px; } }
@@ -143,6 +166,7 @@ footer { margin-top: 20px; padding-top: 14px; border-top: 1px solid var(--line);
 <nav id="tabs" class="tabs"></nav>
 <div id="view"></div>
 <section class="panel comparison"><div class="panel-head"><div><h2>业务组同期对比</h2><p class="section-kicker">现金与工单按团队口径分别下钻到一级、二级渠道</p></div></div><div id="yoy-comparison" class="table-wrap"></div></section>
+<section class="panel comparison channel-matrix"><div class="panel-head"><div><h2>渠道同期对比</h2><p class="section-kicker">行是二级渠道，列是青少、初中、高中、大学，右侧合计该渠道全部现金、工单及占总现金占比，按合计现金降序；底行总计。组内现金占比仍是该渠道当期现金中该业务组份额</p></div></div><div id="channel-matrix" class="table-wrap"></div></section>
 <section class="panel comparison"><div class="panel-head"><div><h2>业务组同期对比 · 年级</h2><p class="section-kicker">%(grade_kicker)s</p></div></div><div id="grade-comparison" class="table-wrap"></div></section>
 <footer>Artifact %(artifact_id)s · Run %(run_id)s</footer>
 </main>
@@ -154,7 +178,9 @@ const S = document.querySelector('#scope');
 const T = document.querySelector('#tabs');
 const V = document.querySelector('#view');
 const YOY = document.querySelector('#yoy-comparison');
+const CHANNEL = document.querySelector('#channel-matrix');
 const GRADE = document.querySelector('#grade-comparison');
+const YOY_GROUP_NAMES = ['青少', '初中', '高中', '大学'];
 const EMPTY_DRILLS = { current: { cash: { channel: {}, school_grade: {} }, orders: { channel: {}, school_grade: {} } }, prior: { cash: { channel: {}, school_grade: {} }, orders: { channel: {}, school_grade: {} } } };
 const DRILLS = D.drilldowns;
 function escapeHtml(value) { return String(value == null ? '' : value).replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[character])); }
@@ -204,9 +230,75 @@ function gradeDrill(groupName, teamId, start, length, metric, university, drillI
   const flatten = values => Object.entries(values).reduce((result, [key, value]) => { const grade = key.split('||')[1]; result[grade] = (result[grade] || 0) + value; return result; }, {});
   const currentGrades = flatten(current); const priorGrades = flatten(prior); const sortedGrades = sortGrades([...new Set([...Object.keys(currentGrades), ...Object.keys(priorGrades)])], currentGrades, priorGrades); return compareDrill(Object.fromEntries(sortedGrades.map(grade => [grade, currentGrades[grade] || 0])), Object.fromEntries(sortedGrades.map(grade => [grade, priorGrades[grade] || 0])), metric, ['年级']);
 }
-function wireDrills(container) { container.querySelectorAll('.drill-toggle').forEach(button => { button.onclick = () => { const row = document.querySelector('#' + button.dataset.drill); row.hidden = !row.hidden; button.textContent = row.hidden ? '展开下钻' : '收起下钻'; }; }); }
+function wireDrills(container) { container.querySelectorAll('.drill-toggle').forEach(button => { if (button.dataset.wired) return; button.dataset.wired = '1'; const expand = button.textContent; const collapse = expand.replace('展开', '收起'); button.onclick = () => { const row = document.querySelector('#' + button.dataset.drill); row.hidden = !row.hidden; button.textContent = row.hidden ? expand : collapse; }; }); }
 function yoyGroups(team) {
   return team.yoy_groups || [];
+}
+function sourceTeams() { return D.teams.filter(item => item.team_id && item.team_id !== 'market_total'); }
+function groupOf(team, name) { return (team.groups || []).find(group => group.display_name === name); }
+function addChannelMetric(source, months, teamId, start, length, targetMap) {
+  Object.entries(source || {}).forEach(([key, value]) => { const parts = key.split('|'); if (parts.length < 5 || parts[1] !== teamId) return; const monthIndex = months.indexOf(parts[0]); if (monthIndex < start || monthIndex >= start + length) return; const group = parts[2], channel = parts[4]; targetMap[channel] ??= {}; targetMap[channel][group] = (targetMap[channel][group] || 0) + value; });
+}
+function channelTotal(map, channel) { return YOY_GROUP_NAMES.reduce((sum, group) => sum + (map[channel]?.[group] || 0), 0); }
+function channelGroupTotal(map, group) { return Object.keys(map).reduce((sum, channel) => sum + (map[channel]?.[group] || 0), 0); }
+function channelMetricCells(cash, prior, orders, priorOrdersValue, shareBase) {
+  const cashYoy = prior > 0 ? (cash - prior) / prior : null; const orderYoy = priorOrdersValue > 0 ? (orders - priorOrdersValue) / priorOrdersValue : null; const share = shareBase > 0 ? cash / shareBase : null;
+  return '<td class="group-head">' + money(cash) + '</td><td class="' + (cashYoy !== null && cashYoy < 0 ? 'negative' : '') + '">' + pct(cashYoy) + '</td><td>' + count(orders) + '</td><td class="' + (orderYoy !== null && orderYoy < 0 ? 'negative' : '') + '">' + pct(orderYoy) + '</td><td>' + pct(share) + '</td>';
+}
+function renderChannelMatrix() {
+  const team = selectedTeam(); const [start, length] = range(); const teamId = team.team_id;
+  const currentCash = {}, priorCash = {}, currentOrders = {}, priorOrders = {};
+  addChannelMetric(DRILLS.current.cash.channel, D.months, teamId, start, length, currentCash);
+  addChannelMetric(DRILLS.prior.cash.channel, D.prior_months, teamId, start, length, priorCash);
+  addChannelMetric(DRILLS.current.orders.channel, D.months, teamId, start, length, currentOrders);
+  addChannelMetric(DRILLS.prior.orders.channel, D.prior_months, teamId, start, length, priorOrders);
+  const channels = [...new Set([...Object.keys(currentCash), ...Object.keys(priorCash), ...Object.keys(currentOrders), ...Object.keys(priorOrders)])];
+  if (!channels.length) { CHANNEL.innerHTML = '<div class="empty-drill">当前范围暂无渠道明细</div>'; return; }
+  const grandCash = channels.reduce((sum, channel) => sum + channelTotal(currentCash, channel), 0);
+  const grandPriorCash = channels.reduce((sum, channel) => sum + channelTotal(priorCash, channel), 0);
+  const grandOrders = channels.reduce((sum, channel) => sum + channelTotal(currentOrders, channel), 0);
+  const grandPriorOrders = channels.reduce((sum, channel) => sum + channelTotal(priorOrders, channel), 0);
+  channels.sort((a, b) => channelTotal(currentCash, b) - channelTotal(currentCash, a) || String(a).localeCompare(String(b), 'zh-CN'));
+  const groupHead = YOY_GROUP_NAMES.map(name => '<th class="group-head" colspan="5">' + escapeHtml(name) + '</th>').join('') + '<th class="group-head" colspan="5">合计</th>';
+  const metricHead = YOY_GROUP_NAMES.map(() => '<th class="group-head">现金</th><th>同比</th><th>工单</th><th>同比</th><th>现金占比</th>').join('') + '<th class="group-head">现金</th><th>同比</th><th>工单</th><th>同比</th><th>现金占比</th>';
+  let html = '<table><thead><tr><th rowspan="2">二级渠道</th>' + groupHead + '</tr><tr>' + metricHead + '</tr></thead><tbody>';
+  channels.forEach(channel => {
+    const cashTotal = channelTotal(currentCash, channel);
+    html += '<tr><th>' + escapeHtml(channel) + '</th>';
+    YOY_GROUP_NAMES.forEach(group => {
+      html += channelMetricCells(currentCash[channel]?.[group] || 0, priorCash[channel]?.[group] || 0, currentOrders[channel]?.[group] || 0, priorOrders[channel]?.[group] || 0, cashTotal);
+    });
+    html += channelMetricCells(cashTotal, channelTotal(priorCash, channel), channelTotal(currentOrders, channel), channelTotal(priorOrders, channel), grandCash);
+    html += '</tr>';
+  });
+  html += '<tr class="total-row"><th>总计</th>';
+  YOY_GROUP_NAMES.forEach(group => {
+    html += channelMetricCells(channelGroupTotal(currentCash, group), channelGroupTotal(priorCash, group), channelGroupTotal(currentOrders, group), channelGroupTotal(priorOrders, group), grandCash);
+  });
+  html += channelMetricCells(grandCash, grandPriorCash, grandOrders, grandPriorOrders, grandCash) + '</tr>';
+  CHANNEL.innerHTML = html + '</tbody></table>';
+}
+function renderTeamShareTable(groupName, parentCash, parentOrders, sum) {
+  const teams = sourceTeams();
+  if (!teams.length) return '<div class="empty-drill">当前范围暂无团队明细</div>';
+  let html = '<table class="drill-table"><thead><tr><th>团队</th><th>现金目标</th><th>现金实际</th><th>现金完成</th><th>现金占比</th><th>工单目标</th><th>工单实际</th><th>工单完成</th><th>工单占比</th></tr></thead><tbody>';
+  teams.forEach(item => {
+    const group = groupOf(item, groupName); const cash = group ? sum(group, 'cash') : 0; const orders = group ? sum(group, 'orders') : 0; const cashTarget = group ? target(group, 'cash') : null; const ordersTarget = group ? target(group, 'orders') : null;
+    html += '<tr><th>' + escapeHtml(item.display_name) + '</th><td>' + money(cashTarget) + '</td><td>' + money(cash) + '</td><td>' + progressBar(cashTarget ? cash / cashTarget : null) + '</td><td>' + pct(parentCash > 0 ? cash / parentCash : null) + '</td><td>' + count(ordersTarget) + '</td><td>' + count(orders) + '</td><td>' + progressBar(ordersTarget ? orders / ordersTarget : null) + '</td><td>' + pct(parentOrders > 0 ? orders / parentOrders : null) + '</td></tr>';
+  });
+  return html + '</tbody></table>';
+}
+function renderGroupRows(team, sum) {
+  if (team.team_id !== 'market_total') {
+    return team.groups.map(group => '<tr><th>' + escapeHtml(group.display_name) + '</th><td>' + money(target(group, 'cash')) + '</td><td>' + money(sum(group, 'cash')) + '</td><td>' + progressBar(target(group, 'cash') ? sum(group, 'cash') / target(group, 'cash') : null) + '</td><td>' + count(target(group, 'orders')) + '</td><td>' + count(sum(group, 'orders')) + '</td><td>' + progressBar(target(group, 'orders') ? sum(group, 'orders') / target(group, 'orders') : null) + '</td></tr>').join('');
+  }
+  let html = '';
+  team.groups.forEach((group, index) => {
+    const drillId = 'group-team-' + index; const cash = sum(group, 'cash'); const orders = sum(group, 'orders');
+    html += '<tr><th>' + escapeHtml(group.display_name) + '</th><td>' + money(target(group, 'cash')) + '</td><td>' + money(cash) + '</td><td>' + progressBar(target(group, 'cash') ? cash / target(group, 'cash') : null) + '</td><td>' + pct(cash > 0 ? 1 : null) + '</td><td>' + count(target(group, 'orders')) + '</td><td>' + count(orders) + '</td><td>' + progressBar(target(group, 'orders') ? orders / target(group, 'orders') : null) + '</td><td>' + pct(orders > 0 ? 1 : null) + '</td><td><button class="drill-toggle" data-drill="' + drillId + '">展开团队</button></td></tr>';
+    html += '<tr id="' + drillId + '" class="drill-row" hidden><td colspan="10">' + renderTeamShareTable(group.display_name, cash, orders, sum) + '</td></tr>';
+  });
+  return html;
 }
 function renderComparison(container, mode) {
   const team = selectedTeam(); const [start, length] = range(); const isGrade = mode === 'grade';
@@ -249,18 +341,165 @@ function renderTimeline() {
   const fyStart = new Date('2026-06-01'); const fyEnd = new Date('2027-06-01'); const fyProgress = Math.max(0, Math.min(100, (TODAY - fyStart) / (fyEnd - fyStart) * 100)); const quarterRanges = { Q1: ['2026-06-01', '2026-09-01'], Q2: ['2026-09-01', '2026-12-01'], Q3: ['2026-12-01', '2027-03-01'], Q4: ['2027-03-01', '2027-06-01'] }; const quarter = quarterRanges[S.value]; const quarterProgress = S.value === 'year' ? fyProgress : Math.max(0, Math.min(100, (TODAY - new Date(quarter[0])) / (new Date(quarter[1]) - new Date(quarter[0])) * 100));
   document.querySelector('#timeline').innerHTML = '<div class="timeline-card"><div class="timeline-label"><span>FY27 年度时间进度</span><strong>' + fyProgress.toFixed(1) + '%</strong></div><div class="progress-track"><div class="progress-fill" style="width:' + fyProgress + '%"></div></div></div><div class="timeline-card"><div class="timeline-label"><span>' + (S.value === 'year' ? '全年' : S.value) + ' 时间进度</span><strong>' + quarterProgress.toFixed(1) + '%</strong></div><div class="progress-track"><div class="progress-fill" style="width:' + quarterProgress + '%"></div></div></div>';
 }
+
+const CAPACITY_ID = 'staff_capacity';
+const CAPACITY_DIMS = [
+  { key: 'orders', label: '工单数', kind: 'count' },
+  { key: 'heads', label: '签约量', kind: 'count' },
+  { key: 'conversion', label: '转化率', kind: 'pct' },
+  { key: 'partner', label: '渠道&校代贡献', kind: 'cash' },
+  { key: 'tmk', label: 'TMK贡献', kind: 'cash' },
+  { key: 'campaign', label: '活动贡献', kind: 'cash' }
+];
+let capacitySelected = null;
+function isCapacityTab() { return T.querySelector('.active')?.dataset.id === CAPACITY_ID; }
+function fyProgressRatio() { const fyStart = new Date('2026-06-01'); const fyEnd = new Date('2027-06-01'); return Math.max(0, Math.min(1, (TODAY - fyStart) / (fyEnd - fyStart))); }
+function capacityMetrics(person) {
+  const orders = Number(person.orders_actual || 0);
+  const heads = Number(person.heads_actual || 0);
+  const mix = person.cash_contributions || {};
+  return {
+    name: person.display_name,
+    cash: Number(person.cash_actual || 0),
+    orders,
+    heads,
+    conversion: orders > 0 ? heads / orders : 0,
+    partner: Number(mix.partner || 0),
+    tmk: Number(mix.tmk || 0),
+    campaign: Number(mix.campaign || 0),
+    capacity: Number(person.annual_cash_capacity || 800000),
+    line: person.line,
+    teamName: person.team_name,
+    teamId: person.team_id,
+    businessGroup: person.business_group
+  };
+}
+function capacityPeerKey(row) {
+  if (row.teamId === 'offline_market') return 'offline|' + (row.businessGroup || '未分组');
+  return row.teamId || 'online';
+}
+function capacityPeerLabel(row) {
+  if (row.teamId === 'offline_market') return (row.businessGroup || '未分组') + '均值';
+  return (row.teamName || '团队') + '均值';
+}
+function capacityTeamAverage(rows, selected) {
+  const key = selected ? capacityPeerKey(selected) : '';
+  const peers = rows.filter(row => capacityPeerKey(row) === key);
+  const mean = {};
+  CAPACITY_DIMS.forEach(dim => { mean[dim.key] = peers.length ? peers.reduce((sum, row) => sum + (row[dim.key] || 0), 0) / peers.length : 0; });
+  return { mean, peers, label: selected ? capacityPeerLabel(selected) : '团队均值' };
+}
+function capacityPeople() {
+  const line = renderCapacityView._line || 'all';
+  const rows = [];
+  sourceTeams().forEach(team => {
+    const teamLine = team.team_id === 'offline_market' ? 'offline' : 'online';
+    (team.people || []).forEach(person => {
+      const item = Object.assign({}, person, { line: person.line || teamLine, team_name: team.display_name, team_id: team.team_id });
+      if (line !== 'all' && (item.line || teamLine) !== line) return;
+      rows.push(capacityMetrics(item));
+    });
+  });
+  rows.sort((a, b) => b.cash - a.cash || String(a.name).localeCompare(String(b.name), 'zh-CN'));
+  return rows;
+}
+function formatDim(kind, value) {
+  if (kind === 'cash') return money(value);
+  if (kind === 'pct') return pct(value);
+  return count(value);
+}
+function radarSvg(person, average, maxes) {
+  const size = 320, cx = 160, cy = 168, radius = 96;
+  const n = CAPACITY_DIMS.length;
+  const rings = [0.25, 0.5, 0.75, 1].map(scale => {
+    const pts = CAPACITY_DIMS.map((_, i) => {
+      const angle = -Math.PI / 2 + i * 2 * Math.PI / n;
+      return (cx + Math.cos(angle) * radius * scale).toFixed(1) + ',' + (cy + Math.sin(angle) * radius * scale).toFixed(1);
+    }).join(' ');
+    return '<polygon points="' + pts + '" fill="none" stroke="#dfe5ec" stroke-width="1"></polygon>';
+  }).join('');
+  const axes = CAPACITY_DIMS.map((dim, i) => {
+    const angle = -Math.PI / 2 + i * 2 * Math.PI / n;
+    const x = cx + Math.cos(angle) * radius;
+    const y = cy + Math.sin(angle) * radius;
+    const lx = cx + Math.cos(angle) * (radius + 28);
+    const ly = cy + Math.sin(angle) * (radius + 28);
+    return '<line x1="' + cx + '" y1="' + cy + '" x2="' + x.toFixed(1) + '" y2="' + y.toFixed(1) + '" stroke="#dfe5ec"></line><text x="' + lx.toFixed(1) + '" y="' + ly.toFixed(1) + '" text-anchor="middle" dominant-baseline="middle" font-size="11" font-weight="700" fill="#687587">' + escapeHtml(dim.label) + '</text>';
+  }).join('');
+  const pointsOf = values => CAPACITY_DIMS.map((dim, i) => {
+    const angle = -Math.PI / 2 + i * 2 * Math.PI / n;
+    const max = maxes[dim.key] > 0 ? maxes[dim.key] : 1;
+    const rr = radius * Math.max(0, Math.min(1, (values[dim.key] || 0) / max));
+    return (cx + Math.cos(angle) * rr).toFixed(1) + ',' + (cy + Math.sin(angle) * rr).toFixed(1);
+  }).join(' ');
+  return '<svg class="radar" viewBox="0 0 ' + size + ' 336" width="100%" height="336">' + rings + axes + '<polygon points="' + pointsOf(average) + '" fill="rgba(104,117,135,.22)" stroke="#8b97a7" stroke-width="2"></polygon><polygon points="' + pointsOf(person) + '" fill="rgba(45,108,223,.22)" stroke="#2d6cdf" stroke-width="2"></polygon></svg>';
+}
+function renderCapacityView() {
+  S.value = 'year';
+  S.disabled = true;
+  document.body.classList.add('capacity-mode');
+  const hint = document.querySelector('.controls .hint');
+  if (hint) hint.textContent = '产能页固定全年 FY27';
+  const rows = capacityPeople();
+  if (!rows.some(row => row.name === capacitySelected)) capacitySelected = rows[0]?.name || null;
+  const selected = rows.find(row => row.name === capacitySelected) || rows[0];
+  const peer = capacityTeamAverage(rows, selected); const mean = peer.mean;
+  const maxes = {};
+  CAPACITY_DIMS.forEach(dim => { maxes[dim.key] = Math.max(mean[dim.key] || 0, ...(peer.peers || []).map(row => row[dim.key] || 0), selected ? (selected[dim.key] || 0) : 0); });
+  const pace = fyProgressRatio();
+  let table = '<table class="capacity-table"><thead><tr><th>排名</th><th>人员</th><th>团队</th><th>业务组</th><th>已产生现金</th><th>标准参考产能</th><th>时间进度完成率</th></tr></thead><tbody>';
+  rows.forEach((row, index) => {
+    const expected = row.capacity > 0 ? row.capacity * pace : null;
+    const rate = expected > 0 ? row.cash / expected : null;
+    table += '<tr data-name="' + escapeHtml(row.name) + '"' + (row.name === capacitySelected ? ' class="selected"' : '') + '><td>' + (index + 1) + '</td><th>' + escapeHtml(row.name) + '</th><td>' + escapeHtml(row.teamName || '') + '</td><td>' + escapeHtml(row.businessGroup || '') + '</td><td>' + money(row.cash) + '</td><td>' + money(row.capacity) + '</td><td class="' + (rate !== null && rate < 1 ? 'negative' : '') + '">' + progressBar(rate) + '</td></tr>';
+  });
+  if (!rows.length) table += '<tr><td colspan="7" class="empty-drill">当前筛选暂无人员</td></tr>';
+  table += '</tbody></table>';
+  let radar = '<div class="empty-drill">当前筛选暂无人员</div>';
+  if (selected) {
+    let dims = '<table class="dim-table"><thead><tr><th>六维</th><th>个人</th><th>团队均值</th><th>相对均值</th></tr></thead><tbody>';
+    CAPACITY_DIMS.forEach(dim => {
+      const personValue = selected[dim.key] || 0;
+      const avgValue = mean[dim.key] || 0;
+      const rel = avgValue > 0 ? (personValue - avgValue) / avgValue : null;
+      dims += '<tr><th>' + escapeHtml(dim.label) + '</th><td>' + formatDim(dim.kind, personValue) + '</td><td>' + formatDim(dim.kind, avgValue) + '</td><td class="' + (rel !== null && rel < 0 ? 'negative' : '') + '">' + pct(rel) + '</td></tr>';
+    });
+    dims += '</tbody></table>';
+    radar = '<div class="radar-wrap">' + radarSvg(selected, mean, maxes) + '</div><div class="radar-legend"><span class="avg"><i></i>' + escapeHtml(peer.label) + '</span><span class="person"><i></i>' + escapeHtml(selected.name) + '</span></div>' + dims;
+  }
+  V.innerHTML = '<div class="capacity-layout"><section class="panel people-panel"><div class="panel-head"><div><h2>市场人员产能</h2><p class="section-kicker">全年已产生现金对照统一标准产能 80 万；时间进度完成率 = 现金 / (80万 × 年度时间进度)。按现金从高到低排列。</p></div></div><div class="capacity-toolbar"><label>团队<select id="capacityLine"><option value="all">全部</option><option value="offline">线下</option><option value="online">线上</option></select></label><span class="hint">点击一行看六维对比</span></div><div class="table-wrap">' + table + '</div></section><section class="panel"><div class="panel-head"><div><h2>个人六维对比</h2><p class="section-kicker">工单数、签约量、转化率，加上渠道&校代 / TMK / 活动三类现金贡献。灰色是本团队均值：线下按留学预备/高中/大学，线上私域整队一个均值。蓝色是个人。</p></div></div>' + radar + '</section></div>';
+  const lineSelect = document.querySelector('#capacityLine');
+  if (lineSelect) {
+    lineSelect.value = renderCapacityView._line || 'all';
+    lineSelect.onchange = event => { renderCapacityView._line = event.target.value; renderCapacityView(); };
+  }
+  V.querySelectorAll('.capacity-table tbody tr[data-name]').forEach(row => {
+    row.onclick = () => { capacitySelected = row.dataset.name; renderCapacityView(); };
+  });
+}
+
 function renderView() {
+  if (isCapacityTab()) { renderCapacityView(); return; }
+  document.body.classList.remove('capacity-mode');
+  S.disabled = false;
+  const hint = document.querySelector('.controls .hint');
+  if (hint) hint.textContent = '范围切换只影响本地汇总与下钻窗口';
+
   const team = selectedTeam(); const [start, length] = range(); const sum = (group, key) => group.monthly_actuals[key].slice(start, start + length).reduce((total, value) => total + value, 0); const priorSum = (group, key) => group.prior_monthly_actuals[key].slice(start, start + length).reduce((total, value) => total + value, 0); const cash = team.groups.reduce((total, group) => total + sum(group, 'cash'), 0); const orders = team.groups.reduce((total, group) => total + sum(group, 'orders'), 0); const priorCash = team.groups.reduce((total, group) => total + priorSum(group, 'cash'), 0); const priorOrders = team.groups.reduce((total, group) => total + priorSum(group, 'orders'), 0); const cashTarget = totalTarget(team, 'cash'); const ordersTarget = totalTarget(team, 'orders'); const yoy = (current, prior) => prior > 0 ? (current - prior) / prior : null; const completion = (current, targetValue) => targetValue > 0 ? current / targetValue : null; const isTotal = team.team_id === 'market_total';
   const metricCard = (label, current, prior, targetValue, formatter, accent) => '<article class="metric-card" style="border-top-color:' + accent + '"><div class="metric-head"><small>' + label + '</small><span class="metric-scope">' + (S.value === 'year' ? '全年' : S.value) + '</span></div><strong>' + formatter(current) + '</strong><div class="metric-details"><span class="metric-detail"><em>同期</em>' + formatter(prior) + '</span><span class="metric-detail"><em>同比</em>' + pct(yoy(current, prior)) + '</span><span class="metric-detail"><em>目标</em>' + formatter(targetValue) + '</span><span class="metric-detail"><em>完成</em>' + pct(completion(current, targetValue)) + '</span></div></article>';
-  let html = '<section class="cards">' + metricCard('被动报入现金', cash, priorCash, cashTarget, money, 'var(--blue)') + metricCard('被动工单', orders, priorOrders, ordersTarget, count, 'var(--orange)') + '</section><div class="dashboard-grid"><section class="panel"><div class="panel-head"><div><h2>' + (isTotal ? '市场总计 · 现金与工单' : '三大业务组 · 现金与工单') + '</h2><p class="section-kicker">目标、实际与完成率</p></div></div><div class="table-wrap"><table><thead><tr><th>业务组</th><th>现金目标</th><th>现金实际</th><th>现金完成</th><th>工单目标</th><th>工单实际</th><th>工单完成</th></tr></thead><tbody>';
-  html += team.groups.map(group => '<tr><th>' + escapeHtml(group.display_name) + '</th><td>' + money(target(group, 'cash')) + '</td><td>' + money(sum(group, 'cash')) + '</td><td>' + progressBar(target(group, 'cash') ? sum(group, 'cash') / target(group, 'cash') : null) + '</td><td>' + count(target(group, 'orders')) + '</td><td>' + count(sum(group, 'orders')) + '</td><td>' + progressBar(target(group, 'orders') ? sum(group, 'orders') / target(group, 'orders') : null) + '</td></tr>').join('');
+  const groupHead = isTotal
+    ? '<tr><th>业务组</th><th>现金目标</th><th>现金实际</th><th>现金完成</th><th>现金占比</th><th>工单目标</th><th>工单实际</th><th>工单完成</th><th>工单占比</th><th>下钻</th></tr>'
+    : '<tr><th>业务组</th><th>现金目标</th><th>现金实际</th><th>现金完成</th><th>工单目标</th><th>工单实际</th><th>工单完成</th></tr>';
+  let html = '<section class="cards">' + metricCard('被动报入现金', cash, priorCash, cashTarget, money, 'var(--blue)') + metricCard('被动工单', orders, priorOrders, ordersTarget, count, 'var(--orange)') + '</section><div class="dashboard-grid"><section class="panel"><div class="panel-head"><div><h2>' + (isTotal ? '市场总计 · 现金与工单' : '三大业务组 · 现金与工单') + '</h2><p class="section-kicker">' + (isTotal ? '目标、实际、完成率；展开业务组查看线下、线上平台和虚拟人占比' : '目标、实际与完成率') + '</p></div></div><div class="table-wrap"><table><thead>' + groupHead + '</thead><tbody>';
+  html += renderGroupRows(team, sum);
   html += '</tbody></table></div></section>';
   if (!isTotal) html += '<section class="panel people-panel"><div class="panel-head"><div><h2>人员月度贡献</h2><p class="section-kicker">按业务团队、绩效月查看目标、完成与渠道</p></div></div><div class="people-toolbar"><div class="people-filters"><label for="peopleGroup">业务团队</label><select id="peopleGroup">%(people_group_options)s</select></div><label for="perfMonth">绩效月</label><select id="perfMonth">' + D.months.map(month => '<option value="' + month + '">' + month + '</option>').join('') + '</select></div><div id="peopleDetail"></div></section>';
   V.innerHTML = html + '</div>';
+  if (isTotal) wireDrills(V);
   if (!isTotal) { const monthSelect = document.querySelector('#perfMonth'); const groupSelect = document.querySelector('#peopleGroup'); const currentMonth = TODAY.toISOString().slice(0, 7); monthSelect.value = D.months.includes(currentMonth) ? currentMonth : D.months[D.months.length - 1]; renderPeople(team, monthSelect.value); monthSelect.onchange = event => renderPeople(team, event.target.value); groupSelect.onchange = () => renderPeople(team, monthSelect.value); }
-  renderComparison(YOY, 'channel'); renderComparison(GRADE, 'grade');
+  renderComparison(YOY, 'channel'); renderChannelMatrix(); renderComparison(GRADE, 'grade');
 }
-function init() { T.innerHTML = D.teams.map(team => '<button data-id="' + escapeHtml(team.team_id) + '">' + escapeHtml(team.display_name) + '</button>').join(''); T.querySelectorAll('button').forEach(button => button.onclick = () => { T.querySelectorAll('button').forEach(item => item.classList.remove('active')); button.classList.add('active'); renderView(); renderTimeline(); }); T.querySelector('button').classList.add('active'); S.onchange = () => { renderView(); renderTimeline(); }; renderView(); renderTimeline(); }
+function init() { T.innerHTML = D.teams.map(team => '<button data-id="' + escapeHtml(team.team_id) + '">' + escapeHtml(team.display_name) + '</button>').join('') + '<button data-id="' + CAPACITY_ID + '">市场人员产能</button>'; T.querySelectorAll('button').forEach(button => button.onclick = () => { T.querySelectorAll('button').forEach(item => item.classList.remove('active')); button.classList.add('active'); renderView(); renderTimeline(); }); T.querySelector('button').classList.add('active'); S.onchange = () => { renderView(); renderTimeline(); }; renderView(); renderTimeline(); }
 init();
 </script>
 </body>

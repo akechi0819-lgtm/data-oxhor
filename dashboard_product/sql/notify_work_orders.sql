@@ -22,6 +22,12 @@ classified AS (
     SELECT
       wo.*,
       CASE
+        WHEN (TRIM(团队) IN ('无法判断', '校区资源无法归属', '需要判定') OR NULLIF(TRIM(团队), '') IS NULL) AND TRIM(跟进顾问) = '张艺彤' THEN
+          CASE
+            WHEN TRIM(年级校正) IN ('学龄前', '一年级', '二年级', '三年级', '四年级', '五年级')
+              OR TRIM(年级校正) LIKE '%小班%' OR TRIM(年级校正) LIKE '%中班%' OR TRIM(年级校正) LIKE '%大班%' THEN '青少'
+            ELSE '初中'
+          END
         WHEN TRIM(团队) IN ('无法判断', '校区资源无法归属', '需要判定') OR NULLIF(TRIM(团队), '') IS NULL THEN NULL
         WHEN TRIM(顾问归属) IN ('武清顾问', '塘沽顾问', '塘沽学管') OR TRIM(团队) IN ('武清', '塘沽') THEN
           CASE

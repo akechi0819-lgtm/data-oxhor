@@ -1,0 +1,6 @@
+{
+  "schema_version": "dashboard_capacity_targets.v1",
+  "fiscal_year": "FY27",
+  "annual_cash_by_person": 800000,
+  "note": "全员统一年度现金产能参考。雷达贡献只切已归属现金：一级渠道含 TMK 计 TMK；一级渠道为市场活动且二级为异业渠道或线下校代计渠道&校代；一级渠道为市场活动的其余二级计活动。平台和未匹配工单现金不计入这三块。"
+}

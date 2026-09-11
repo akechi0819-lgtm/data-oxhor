@@ -72,7 +72,7 @@ def match_person_names(candidates, campaign, entry_person, resource_desc=None):
 
 def read(p): return json.loads(Path(p).read_text(encoding='utf-8'))
 def run(ws,rid,snap,out,a,b):
- c=read(ws/'Work/workspace.json'); z=subprocess.run(['python3','-m','interfaces.data_platform','run-saved-query','--warehouse',str(ws/c['current_warehouse_path']),'--snapshot-id',snap,'--run-id',rid,'--output-root',str(out),'--registry-root',str(ws/'Work/SavedQueries'),'--query-id','dashboard_actuals','--version','v7','--params-json',json.dumps([a,b]),'--max-rows','50000','--max-result-bytes','10000000'],cwd=ROOT.parent,capture_output=True,text=True); r=json.loads(z.stdout or '{}')
+ c=read(ws/'Work/workspace.json'); z=subprocess.run(['python3','-m','interfaces.data_platform','run-saved-query','--warehouse',str(ws/c['current_warehouse_path']),'--snapshot-id',snap,'--run-id',rid,'--output-root',str(out),'--registry-root',str(ws/'Work/SavedQueries'),'--query-id','dashboard_actuals','--version','v9','--params-json',json.dumps([a,b]),'--max-rows','50000','--max-result-bytes','10000000'],cwd=ROOT.parent,capture_output=True,text=True); r=json.loads(z.stdout or '{}')
  if r.get('status')!='passed': raise ValueError(f"Query failed: {r.get('errors')} | stderr: {z.stderr}")
  # 如果 result 为 None，从 artifact 文件读取
  if not r.get('result') and r.get('artifact',{}).get('path'):
@@ -81,8 +81,9 @@ def run(ws,rid,snap,out,a,b):
   r['result'] = artifact_data  # artifact 文件本身就是 {columns, rows} 结构
  if not r.get('result'): raise ValueError(f"Query returned no result: {r}")
  return r
-def project(q,p,tg,people):
- act={}; yoy_act={}; per={}; prior_act={}; yoy_prior={}; per_monthly={}; person_drill={}
+def project(q,p,tg,people,capacity=None):
+ from dashboard_product.capacity import add_contribution, annual_cash_capacity, credit_unique, empty_contributions, person_line, unique_total
+ act={}; yoy_act={}; per={}; prior_act={}; yoy_prior={}; per_monthly={}; person_drill={}; heads_credits={}
  drill={"current":{"cash":{"channel":{},"school_grade":{}},"orders":{"channel":{},"school_grade":{}}},"prior":{"cash":{"channel":{},"school_grade":{}},"orders":{"channel":{},"school_grade":{}}}}
  configured_people=[]
  for team_config in people.get('teams',[]):
@@ -99,9 +100,9 @@ def project(q,p,tg,people):
   return match_person_names(candidates, campaign, entry_person)
 
  def add_row(row, period, months, actuals, yoy_actuals, is_current):
-  if len(row)!=11: raise ValueError(f'Unexpected dashboard query row: expected 11 columns, got {len(row)}')
-  dt,team,group,first_ch,second_ch,campaign,entry_person,school,grade,metric,val = row[:11]
-  if not team or group not in YOY_GROUPS or not metric or val in (None, ''): return
+  if len(row)!=12: raise ValueError(f'Unexpected dashboard query row: expected 12 columns, got {len(row)}')
+  dt,team,group,first_ch,second_ch,campaign,entry_person,school,grade,metric,val,student_id = row[:12]
+  if not team or group not in YOY_GROUPS or metric not in ('work_orders','passive_reported_cash') or val in (None, ''): return
   month=str(dt)[:7]; value=float(val); target=TARGET_GROUP[group]
   actuals[(month,team,target,metric)]=actuals.get((month,team,target,metric),0)+value
   yoy_actuals[(month,team,group,metric)]=yoy_actuals.get((month,team,group,metric),0)+value
@@ -110,7 +111,8 @@ def project(q,p,tg,people):
   grade_key='|'.join((month,team,group,str(school or '暂无归属'),str(grade or '暂无归属')))
   drill[period][metric_key]['channel'][channel_key]=drill[period][metric_key]['channel'].get(channel_key,0)+value
   drill[period][metric_key]['school_grade'][grade_key]=drill[period][metric_key]['school_grade'].get(grade_key,0)+value
-  for person_name in matched_people(team, target, campaign, entry_person):
+  people_hit=matched_people(team, target, campaign, entry_person)
+  for person_name in people_hit:
    if is_current:
     per[(team,person_name,metric)]=per.get((team,person_name,metric),0)+value
     perf_month=date_to_perf_month(dt)
@@ -118,6 +120,12 @@ def project(q,p,tg,people):
     if perf_month:
      drill_key=(team,person_name,perf_month,metric,str(first_ch or '未归类'),str(second_ch or '未细分'))
      person_drill[drill_key]=person_drill.get(drill_key,0)+value
+  if is_current and metric=='passive_reported_cash' and people_hit:
+   sid=str(student_id).strip() if student_id not in (None,'') else ''
+   if sid:
+    weight=1.0/len(people_hit)
+    for person_name in people_hit:
+     credit_unique(heads_credits,(team,person_name),sid,weight)
  # 处理当前年度数据
  for row in q['result']['rows']:
   add_row(row,'current',MONTHS,act,yoy_act,True)
@@ -152,6 +160,10 @@ def project(q,p,tg,people):
       for (drill_team, drill_person, drill_month, drill_metric, first_channel, second_channel), value in person_drill.items():
        if drill_team != tid or drill_person != person_name or drill_month not in monthly_drilldowns: continue
        monthly_drilldowns[drill_month]['cash' if drill_metric == 'passive_reported_cash' else 'orders'][f'{first_channel}||{second_channel}'] = value
+      contrib=empty_contributions()
+      for (drill_team, drill_person, drill_month, drill_metric, first_channel, second_channel), value in person_drill.items():
+       if drill_team==tid and drill_person==person_name and drill_metric=='passive_reported_cash':
+        add_contribution(contrib, first_channel, second_channel, value)
       roster.append({
         'display_name':person_name,
         'group_name':g.get('display_name'),
@@ -159,6 +171,10 @@ def project(q,p,tg,people):
         'monthly_targets':monthly_targets,
         'cash_actual':per.get((tid,person_name,'passive_reported_cash'),0),
         'orders_actual':per.get((tid,person_name,'work_orders'),0),
+        'heads_actual':unique_total(heads_credits,(tid,person_name)),
+        'annual_cash_capacity':annual_cash_capacity(capacity),
+        'line':person_line(tid),
+        'cash_contributions':contrib,
         'monthly_actuals':{'cash':monthly_cash,'orders':monthly_orders},
         'monthly_drilldowns':monthly_drilldowns
       })
@@ -208,7 +224,7 @@ def refresh(workspace,run_id):
 
  q=run(ws,run_id,snap,out,current_start,current_end)
  p=run(ws,run_id+'_prior',snap,out,prior_start,prior_end_str)
- d=project(q,p,read(ROOT/'config/project_targets.json'),read(ROOT/'config/people.json'))
+ d=project(q,p,read(ROOT/'config/project_targets.json'),read(ROOT/'config/people.json'),read(ROOT/'config/capacity_targets.json'))
  a={'schema_version':'dashboard_artifact.v1','artifact_id':'dashboard_'+uuid4().hex[:12],'run_id':run_id,'snapshot_id':snap,'as_of_date':today.isoformat(),'data_through_date':(today.fromordinal(today.toordinal()-1)).isoformat(),'created_at':datetime.now(timezone.utc).isoformat(),'query_results':[q,p],'errors':[],'dashboard':d}
  path=out/'artifact.json'; path.write_text(json.dumps(a,ensure_ascii=False,indent=2),encoding='utf-8')
  return {'status':'artifact_created','artifact':str(path)}

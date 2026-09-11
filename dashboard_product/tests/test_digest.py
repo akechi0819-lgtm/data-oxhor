@@ -158,6 +158,16 @@ class DigestTest(unittest.TestCase):
         self.assertIn('落后时间进度（工单）', html)
         self.assertNotIn('李进', json.dumps(youth, ensure_ascii=False))
         self.assertNotIn('王昊', json.dumps(high_school, ensure_ascii=False))
+        import tempfile
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'university.xlsx'
+            write_details_xlsx(university, path)
+            from openpyxl import load_workbook
+            headers = next(load_workbook(path)['人员进度'].iter_rows(min_row=1, max_row=1, values_only=True))
+            self.assertEqual(headers[-6:], (
+                '人头目标', '人头完成', '人头完成率%',
+                '现金目标', '现金完成', '现金完成率%',
+            ))
 
     def test_xlsx_has_attributed_and_unattributed_sheets(self):
         import tempfile
@@ -488,3 +498,9 @@ class MappingTest(unittest.TestCase):
         self.assertEqual(mapped_order_yoy_group('留学预备', '武清顾问', '未知'), '大学')
         self.assertEqual(mapped_order_yoy_group('留学预备', '塘沽顾问', '7年级（初一）'), '初中')
         self.assertEqual(mapped_order_business_group('留学预备', None, None, '初中顾问', '一年级'), '留学预备')
+        self.assertEqual(mapped_order_yoy_group(None, None, '四年级', '张艺彤'), '青少')
+        self.assertEqual(mapped_order_yoy_group('', None, '六年级', '张艺彤'), '初中')
+        self.assertEqual(mapped_order_yoy_group('无法判断', None, '五年级', '张艺彤'), '青少')
+        self.assertIsNone(mapped_order_yoy_group(None, None, '四年级', '王新源'))
+        self.assertIsNone(mapped_order_yoy_group(None, None, '四年级'))
+        self.assertEqual(mapped_order_business_group(None, None, None, None, '四年级', '张艺彤'), '留学预备')

@@ -1,7 +1,7 @@
 # dashboard — 许家印（看板运维）
 
 ## 职责
-对已确认口径跑固定 saved query：`dashboard_actuals/v7` → refresh **一次**全量 artifact → 按团队板块渲四分册 HTML（`full` / `online_private` / `online_platform` / `offline_market`）→ **真发**到现有服务器（公网 `http://dashboard.apinova.cn/`，basic auth，匿名看不到全量）。
+对已确认口径跑固定 saved query：`dashboard_actuals/v9` → refresh **一次**全量 artifact → 按团队板块渲四分册 HTML（`full` / `online_private` / `online_platform` / `offline_market`）→ **真发**到现有服务器（公网 `http://dashboard.apinova.cn/`，basic auth，匿名看不到全量）。
 
 ## 路径
 - 根：`/home/box/oxhor/dashboard/`
@@ -37,13 +37,13 @@ python -m dashboard_product.notify send --artifact "$ART" --dry-run
 
 分册与 htpasswd 操作见 `dashboard_product/docs/AUTH_TEAM_BOOKLETS_RUN.md`。`/healthz` 仍匿名；业务页需登录。**本轮若未上 TLS，HTTP+basic auth 密码在网上裸奔。**
 
-## 状态（2026-09-10）
+## 状态（2026-09-11）
 - 薄包与 `.env.server`(600) 已落地。钉钉独立运行还依赖该文件里的 `DINGTALK_WEBHOOK_*` / `DINGTALK_SECRET_*`，必须走 C 层 CopyToBox，禁止贴聊天。旧 C 层包不含大学和线上私域密钥，发这两路前必须重拷。
 - 当前工作区 Snapshot 以 warehouse `workspace.json` 为准。
 - 分册：按团队板块裁剪（`full` / `online_private` / `online_platform` / `offline_market`）；旧业务组 `liuxue/gaozhong/daxue` 不再日更。C 层 secrets 以密码本重建（600）。**门口变更后需再跑 `install_dashboard_auth.sh`**
 - 钉钉五通道：`online_private` / `online_platform` / `offline_youth` / `offline_high_school` / `offline_university`。本机已填线下青少/高中/大学和线上私域；线上平台仍空。
-- 大学通道展示工单 + 人头（去重 `学员编号`，不含 1500），落后仍按工单。其余通道工单 + 现金。花名册以 `config/people.json` 覆盖 artifact；小初提能组现员潘体学（工单 25、现金 50,000）。A 层 overlay **必须带 people.json**，不要沿用排除花名册的旧包。
-- 刷新消费 `dashboard_actuals/v7`：目标区仍是留学预备/高中/大学；渠道同比和年级同比用青少/初中/高中/大学。现金跨月按工单 ID 回查全量工单再归属个人。
+- 大学通道播报图展示工单 + 人头（去重 `学员编号`，不含 1500），落后仍按工单；明细表人员进度另带现金目标/完成。其余通道工单 + 现金。花名册以 `config/people.json` 覆盖 artifact；小初提能组现员潘体学（工单 25、现金 50,000）。A 层 overlay **必须带 people.json**，不要沿用排除花名册的旧包。
+- 刷新消费 `dashboard_actuals/v9`：目标区仍是留学预备/高中/大学；同比区青少/初中/高中/大学。查询第 12 列为现金 `student_id`。无法判断/空团队且跟进顾问为张艺彤时按留学预备回落。全量页第五页签「市场人员产能」不进钉钉。
 - 例行「看板日更」每天 **10:00** Asia/Shanghai（挂许家印名下）：refresh→团队板块四分册 render→publish。钉钉需另跑 `notify send`。
 - 全量 `artifact.json` 留在本地，不进公网
 - 不要建设本机↔Grok 双向 MCP；A 层用 overlay + sha256，C 层单独拷 `.env.server`。不要读业务代码重写。

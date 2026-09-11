@@ -271,6 +271,10 @@ class BookletRenderTest(unittest.TestCase):
         self.assertIn('潘体学', page)
         self.assertIn('平台同学', page)
         self.assertIn('渠道同比和年级同比按青少、初中、高中、大学', page)
+        self.assertIn('渠道同期对比', page)
+        self.assertIn('id="channel-matrix"', page)
+        self.assertIn('展开团队', page)
+        self.assertIn('renderTeamShareTable', page)
 
     def test_render_writes_named_team_booklets_and_default_artifact_html(self):
         artifact = _artifact()

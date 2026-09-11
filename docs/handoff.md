@@ -54,7 +54,7 @@ S4 Quick 真实性能回归仍待补齐。看板侧剩余事项是线上平台�
 
 - 决定：将已验收的被动新生正向报入现金口径正式登记为 `attributed_passive_reported_cash/v1`，并把字段语义、业务组映射、文本工单关联和未匹配团队归属政策写入 `bridge_bi_operations` v1.2.0。
 - 原因：该口径不仅服务当前看板，也用于后续市场团队贡献、自由探索和异常分析；可执行 SQL 与企业语义必须各自有唯一归属。
-- 影响：Saved Query 是逐笔现金底稿，保留来源行号、工单关联状态和归属规则；Bridge 不保存 SQL。当时看板仍消费 `dashboard_actuals/v6`，该次没有改动其刷新链路。现行刷新已改 `dashboard_actuals/v7`。
+- 影响：Saved Query 是逐笔现金底稿，保留来源行号、工单关联状态和归属规则；Bridge 不保存 SQL。当时看板仍消费 `dashboard_actuals/v6`，该次没有改动其刷新链路。现行刷新是 `dashboard_actuals/v9`。
 - 验证：Saved Query 在 `snapshot_bi_work_order_id_20260904` 运行成功，5,030 条现金源明细；Bridge v1.2.0 Pack 合同校验通过。Q1 汇总与现有看板查询现金汇总均为 `12,748,539.70` 元。
 
 ## 看板模块决策（2026-09-02）
@@ -67,13 +67,12 @@ S4 Quick 真实性能回归仍待补齐。看板侧剩余事项是线上平台�
 ## 语培完成进度看板施工状态（2026-09-09 更新）
 
 - 模块：`dashboard_product/` 已实现 artifact 刷新、四分册静态发布、basic auth 和钉钉人员进度。日更 10:00 挂许家印云电脑；本机 Codex 定时已停。钉钉不并入日更脚本。
-- 当前 Snapshot：工作区 `workspace.json` 为准（本机 2026-09-09 仍为 `snapshot_bi_operations_20260908`；云端日更为 `snapshot_bi_operations_20260909`）。使用现金明细 `landing.br_cash__sheet_39b8dee2e4b3` 与工单 `landing.br_work_orders__sheet_1f0596db9f25`。查询仍经 Data Platform 受控只读入口；原始工作簿、DuckDB 与运行结果不进 Git。
-- 工单口径：按工单表 `ID` 去重，按 `分配时间` 落在查询窗口；正式 SQL 输出字段为 `event_date, team_id, business_group, first_channel, second_channel, campaign_name, entry_person, school_name, grade_name, metric, actual_value`。
+- 当前 Snapshot：工作区 `workspace.json` 为准（本机 2026-09-11 为 `snapshot_bi_operations_20260911_r2`）。使用现金明细 `landing.br_cash__sheet_39b8dee2e4b3` 与工单 `landing.br_work_orders__sheet_1f0596db9f25`。查询仍经 Data Platform 受控只读入口；原始工作簿、DuckDB 与运行结果不进 Git。
+- 工单口径：按工单表 `ID` 去重，按 `分配时间` 落在查询窗口；正式 SQL 输出字段为 `event_date, team_id, business_group, first_channel, second_channel, campaign_name, entry_person, school_name, grade_name, metric, actual_value, student_id`。无法判断/空团队默认不进看板；跟进顾问为张艺彤时按留学预备回落，再按年级校正拆青少/初中。
 - 被动现金口径：现金底稿 `渠道属性=被动`、`新老生类型=新生` 且 `报入现金收入>0`；负向不纳入。现金业务组只看现金表 `团队`：青少、初中、高中、大学（ICC/国际学科进高中）。目标区再把青少+初中滚成留学预备；同比区保留四组年段。
 - 现金业务组与渠道团队分两层计算：业务组总额只由现金表 `团队` 映射决定；工单 ID 连接只用于在业务组内部拆分线下市场、线上平台和线上私域。未匹配工单按“活动名含虚拟人→活动名含线上→渠道含 TMK→活动名含校代→其余线上”顺序归属渠道团队。
-- 看板运行从项目父目录执行 `python3 -m dashboard_product.refresh refresh --workspace customers/bi_operations --run-id <id>`，再用 `render --artifact .../artifact.json --all-booklets` 生成四分册 HTML。刷新消费 `dashboard_actuals/v7`：目标区留学预备/高中/大学，同比区青少/初中/高中/大学。当前 Snapshot 以工作区 `workspace.json` 为准（本机 2026-09-09 仍为 `snapshot_bi_operations_20260908`；云端日更为 `snapshot_bi_operations_20260909`）。
-- 新生报名校区口径（留学预备分析，不是钉钉大学推送）：团队为初中、初中国际学科、青少且新老生类型为新生；同一学员编号+班级编码在窗口内的报入现金净额绝对值 `>=1500`、报名人次大于零时，按学员编号去重计人头。新生报入现金仅汇总正向报入现金收入，单笔为该金额除以合格去重人头。
-- 钉钉大学人头（2026-09-10）：已归属被动新生正向现金里非空 `学员编号` 去重，不含 1500；共有现金按人数均分。落后仍看工单。线上私域小初提能组现员潘体学（工单 25、现金 50,000）。
+- 看板运行从项目父目录执行 `python3 -m dashboard_product.refresh refresh --workspace customers/bi_operations --run-id <id>`，再用 `render --artifact .../artifact.json --all-booklets` 生成四分册 HTML。刷新消费 `dashboard_actuals/v9`：目标区留学预备/高中/大学，同比区青少/初中/高中/大学。全量页第五页签为市场人员产能，不进钉钉。
+- 新生报名校区口径：团队为初中、初中国际学科、青少且新老生类型为新生；同一学员编号+班级编码在窗口内的报入现金净额绝对值 `>=1500`、报名人次大于零时，按学员编号去重计人头。新生报入现金仅汇总正向报入现金收入，单笔为该金额除以合格去重人头。
 - 已核验：留学预备新生现金与线上当期报表对齐。人头按同一公式复算时与当时截图相差 1 人，定位为国金来源版本差异，非门槛、去重或单笔公式差异；下次使用同源 Snapshot 时复核。
 
 ## 已知风险

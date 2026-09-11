@@ -4,6 +4,7 @@ orders_raw AS (
  DATE '1899-12-30'+CAST(TRY_CAST(分配时间 AS DOUBLE) AS INTEGER) AS event_date,
  TRIM(团队) AS source_team,
  TRIM(顾问归属) AS adviser_belong,
+ TRIM(跟进顾问) AS follow_adviser,
  TRIM(年级校正) AS grade_correction,
  TRIM(线上线下) AS online_offline, TRIM(二级渠道) AS second_channel, NULLIF(TRIM(一级渠道),'') AS first_channel, NULLIF(TRIM(活动名称),'') AS campaign_name,
  NULLIF(TRIM(学生学校名称),'') AS school_name, NULLIF(TRIM(年级名称),'') AS grade_name, NULLIF(TRIM(COALESCE(
@@ -15,6 +16,12 @@ orders_raw AS (
 ), mapped_orders AS (
  SELECT *,
  CASE
+  WHEN (source_team IN ('无法判断', '校区资源无法归属', '需要判定') OR source_team IS NULL OR source_team = '') AND follow_adviser = '张艺彤' THEN
+   CASE
+    WHEN grade_correction IN ('学龄前', '一年级', '二年级', '三年级', '四年级', '五年级')
+      OR grade_correction LIKE '%小班%' OR grade_correction LIKE '%中班%' OR grade_correction LIKE '%大班%' THEN '青少'
+    ELSE '初中'
+   END
   WHEN source_team IN ('无法判断', '校区资源无法归属', '需要判定') OR source_team IS NULL OR source_team = '' THEN NULL
   WHEN adviser_belong IN ('武清顾问', '塘沽顾问', '塘沽学管') OR source_team IN ('武清', '塘沽') THEN
    CASE
@@ -50,7 +57,7 @@ orders_raw AS (
 ), orders AS (
  SELECT event_date, o.business_group, o.team_id,
  o.first_channel, o.second_channel, o.campaign_name, o.school_name, o.grade_name, o.entry_person,
- COUNT(*)::DOUBLE actual_value, 'work_orders' metric
+ COUNT(*)::DOUBLE actual_value, 'work_orders' metric, NULL AS student_id
  FROM mapped_orders r
  JOIN orders_dim o ON r.work_order_id = o.work_order_id
  CROSS JOIN params
@@ -67,6 +74,7 @@ orders_raw AS (
  市场活动名称 AS cash_campaign_name,
  NULLIF(TRIM(生源校),'') AS school_name,
  NULLIF(TRIM(学员年级),'') AS grade_name,
+ NULLIF(TRIM(学员编号),'') AS student_id,
  SUM(TRY_CAST(REPLACE(REPLACE(TRIM(报入现金收入),',',''),'￥','') AS DECIMAL(38,2))) AS cash_amount
  FROM landing.br_cash__sheet_39b8dee2e4b3, params
  WHERE TRIM(渠道属性)='被动'
@@ -91,13 +99,14 @@ orders_raw AS (
  c.school_name,
  c.grade_name,
  c.cash_amount AS actual_value,
- 'passive_reported_cash' AS metric
+ 'passive_reported_cash' AS metric,
+ c.student_id
  FROM cash_raw c
  LEFT JOIN orders_dim o
  ON c.work_order_id = o.work_order_id
  WHERE c.cash_business_group IS NOT NULL
 )
-SELECT event_date, team_id, business_group, first_channel, second_channel, campaign_name, entry_person, school_name, grade_name, metric, actual_value FROM orders
+SELECT event_date, team_id, business_group, first_channel, second_channel, campaign_name, entry_person, school_name, grade_name, metric, actual_value, student_id FROM orders
 UNION ALL
-SELECT event_date, team_id, business_group, first_channel, second_channel, campaign_name, entry_person, school_name, grade_name, metric, actual_value FROM cash_matched
+SELECT event_date, team_id, business_group, first_channel, second_channel, campaign_name, entry_person, school_name, grade_name, metric, actual_value, student_id FROM cash_matched
 ORDER BY event_date, team_id, business_group, metric, campaign_name;

@@ -1,3 +1,5 @@
+> 历史施工记录。现行刷新合同是 `dashboard_actuals/v9`，见 [`CURRENT_STATUS.md`](CURRENT_STATUS.md)。
+
 > **已废止/被取代（2026-09-07）**：校代兜底改为资源描述「市场人员：」。见 `FIX_SCHOOL_AGENT_MARKET_PERSON_RUN.md`。
 
 # RUN：校代→资源录入人归属排查（2026-09-07）
@@ -7,7 +9,7 @@
 
 ## 结论
 
-1. **规则在，接线在，单测绿。** `matched_people()` 仍是：同团队同业务组花名册 → 活动名命中人名优先 → 否则活动名含「校代」时用 `entry_person` 子串匹配。当时 `dashboard_actuals/v6` 输出工单 `资源录入人` 为 `entry_person`，现金经工单 ID 左连接继承；SQL sha256 与 manifest 一致。现行刷新是 v7。
+1. **规则在，接线在，单测绿。** `matched_people()` 仍是：同团队同业务组花名册 → 活动名命中人名优先 → 否则活动名含「校代」时用 `entry_person` 子串匹配。当时 `dashboard_actuals/v6` 输出工单 `资源录入人` 为 `entry_person`，现金经工单 ID 左连接继承；SQL sha256 与 manifest 一致。当时刷新是 v7。
 2. **用户体感「只剩活动名找人名」不是代码删了兜底。** 当前显式 snapshot 下，含「校代」的工单绝大多数 `entry_person` **不是** `people.json` 花名册成员，兜底匹配为空；个人区本来就不计未入册的人。兜底对花名册成员**有生效**（工单 19 单、现金 6 行，均落到同一大学线人员）。
 3. **未改代码、未改口径。** 非实现/接线 bug。**不必因本排查重跑日更或重发分册**；重发不会把不在册的录入人挂到个人。
 

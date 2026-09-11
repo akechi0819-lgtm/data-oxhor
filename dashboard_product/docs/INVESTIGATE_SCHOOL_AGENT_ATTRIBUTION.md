@@ -1,3 +1,5 @@
+> 历史施工记录。现行刷新合同是 `dashboard_actuals/v9`，见 [`CURRENT_STATUS.md`](CURRENT_STATUS.md)。
+
 > **已废止/被取代（2026-09-07）**：校代兜底改为资源描述「市场人员：」。见 `FIX_SCHOOL_AGENT_MARKET_PERSON_RUN.md`。
 
 # 排查：校代 → 资源录入人 个人归属兜底
@@ -15,7 +17,7 @@
 ## 初扫（许家印只指路，不施工）
 - `dashboard_product/refresh.py` `matched_people()`：代码里**已有**校代→`entry_person` 分支（约 61–70 行）。
 - 单测 `tests/test_render.py::test_person_attribution_filters_business_group_then_uses_entry_person_for_school_agent` 覆盖该路径。
-- 当时 `dashboard_actuals/v6` SQL 已输出 `entry_person`（工单 `资源录入人`；现金经 LEFT JOIN 工单继承）。现行刷新是 v7。
+- 当时 `dashboard_actuals/v6` SQL 已输出 `entry_person`（工单 `资源录入人`；现金经 LEFT JOIN 工单继承）。当时刷新是 v7。
 
 因此问题更可能是：**线上未生效 / 被前置条件挡掉 / 数据侧 entry_person 空**，而不是文档完全没写。请用 grok build 实证排查，不要只看文档。
 

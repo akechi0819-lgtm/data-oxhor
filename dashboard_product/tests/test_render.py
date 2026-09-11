@@ -11,8 +11,8 @@ class RenderTest(unittest.TestCase):
         from dashboard_product.refresh import read
         root = Path(__file__).resolve().parents[1]
         rows = [
-            ["2026-09-03", "offline_market", "高中", "TMK", "校园", "杨新宇活动", None, "学校", "高一", "work_orders", 2],
-            ["2026-09-03", "offline_market", "高中", "TMK", "校园", "杨新宇活动", None, "学校", "高一", "passive_reported_cash", 26000],
+            ["2026-09-03", "offline_market", "高中", "TMK", "校园", "杨新宇活动", None, "学校", "高一", "work_orders", 2, None],
+            ["2026-09-03", "offline_market", "高中", "TMK", "校园", "杨新宇活动", None, "学校", "高一", "passive_reported_cash", 26000, None],
         ]
         result = project({"result": {"rows": rows}}, {"result": {"rows": []}}, read(root / "config/project_targets.json"), read(root / "config/people.json"))
         team = next(item for item in result["teams"] if item["team_id"] == "offline_market")
@@ -27,7 +27,7 @@ class RenderTest(unittest.TestCase):
         from dashboard_product.refresh import read
         root = Path(__file__).resolve().parents[1]
         rows = [
-            ["2026-09-03", "offline_market", "大学", "TMK", "校园", "天财豆蔻学姐号微信推广-曹恒为玮-线上雅思行地推", "曹恒玮", "某大学", "大一", "work_orders", 1],
+            ["2026-09-03", "offline_market", "大学", "TMK", "校园", "天财豆蔻学姐号微信推广-曹恒为玮-线上雅思行地推", "曹恒玮", "某大学", "大一", "work_orders", 1, None],
         ]
         result = project({"result": {"rows": rows}}, {"result": {"rows": []}}, read(root / "config/project_targets.json"), read(root / "config/people.json"))
         team = next(item for item in result["teams"] if item["team_id"] == "offline_market")
@@ -38,7 +38,7 @@ class RenderTest(unittest.TestCase):
         from dashboard_product.refresh import read
         root = Path(__file__).resolve().parents[1]
         rows = [
-            ["2026-09-03", "offline_market", "大学", "TMK", "校园", None, "曹恒玮", "某大学", "大一", "work_orders", 1],
+            ["2026-09-03", "offline_market", "大学", "TMK", "校园", None, "曹恒玮", "某大学", "大一", "work_orders", 1, None],
         ]
         result = project({"result": {"rows": rows}}, {"result": {"rows": []}}, read(root / "config/project_targets.json"), read(root / "config/people.json"))
         team = next(item for item in result["teams"] if item["team_id"] == "offline_market")
@@ -49,9 +49,9 @@ class RenderTest(unittest.TestCase):
         from dashboard_product.refresh import read
         root = Path(__file__).resolve().parents[1]
         rows = [
-            ["2026-09-03", "offline_market", "高中", "TMK", "校园", "马澳高中活动", None, "学校", "高一", "work_orders", 5],
-            ["2026-09-03", "offline_market", "青少", "TMK", "校园", "校代系统资源活动", "马澳", "学校", "初三", "work_orders", 3],
-            ["2026-09-03", "offline_market", "青少", "TMK", "校园", "校代系统资源活动", "马澳", "学校", "初三", "passive_reported_cash", 39000],
+            ["2026-09-03", "offline_market", "高中", "TMK", "校园", "马澳高中活动", None, "学校", "高一", "work_orders", 5, None],
+            ["2026-09-03", "offline_market", "青少", "TMK", "校园", "校代系统资源活动", "马澳", "学校", "初三", "work_orders", 3, None],
+            ["2026-09-03", "offline_market", "青少", "TMK", "校园", "校代系统资源活动", "马澳", "学校", "初三", "passive_reported_cash", 39000, None],
         ]
         result = project({"result": {"rows": rows}}, {"result": {"rows": []}}, read(root / "config/project_targets.json"), read(root / "config/people.json"))
         team = next(item for item in result["teams"] if item["team_id"] == "offline_market")
@@ -68,10 +68,15 @@ class RenderTest(unittest.TestCase):
         self.assertIn("COALESCE(o.first_channel, '暂无归属') AS first_channel", query)
         self.assertIn("COALESCE(o.second_channel, '暂无归属') AS second_channel", query)
         self.assertIn("顾问归属", query)
+        self.assertIn("跟进顾问", query)
+        self.assertIn("张艺彤", query)
         self.assertIn("年级校正", query)
         self.assertIn("c.cash_business_group AS business_group", query)
         self.assertIn("WHEN TRIM(团队) IN ('初中','初中国际学科') THEN '初中'", query)
         self.assertNotIn("COALESCE(o.business_group, c.cash_business_group)", query)
+        self.assertIn("NULLIF(TRIM(学员编号),'') AS student_id", query)
+        self.assertIn("NULL AS student_id", query)
+        self.assertIn("metric, actual_value, student_id FROM orders", query)
 
     def test_renders_projection_and_unconfigured_values(self):
         group = {
@@ -106,6 +111,11 @@ class RenderTest(unittest.TestCase):
         self.assertIn("工单渠道", page)
         self.assertIn("现金渠道", page)
         self.assertIn("渠道同比和年级同比按青少、初中、高中、大学", page)
+        self.assertIn("渠道同期对比", page)
+        self.assertIn('id="channel-matrix"', page)
+        self.assertIn("现金占比", page)
+        self.assertIn("renderChannelMatrix", page)
+        self.assertIn("展开团队", page)
         self.assertNotIn("<th>状态</th>", page)
         self.assertIn("<em>目标</em>", page)
         self.assertIn("<em>完成</em>", page)
@@ -121,9 +131,9 @@ class RenderTest(unittest.TestCase):
         from dashboard_product.refresh import read
         root = Path(__file__).resolve().parents[1]
         rows = [
-            ["2026-09-03", "offline_market", "青少", "TMK", "校园", "王昊活动", None, "学校", "一年级", "passive_reported_cash", 100],
-            ["2026-09-03", "offline_market", "初中", "TMK", "校园", "初中活动", None, "学校", "七年级", "passive_reported_cash", 40],
-            ["2026-09-03", "offline_market", "高中", "TMK", "校园", "杨新宇活动", None, "学校", "高一", "passive_reported_cash", 20],
+            ["2026-09-03", "offline_market", "青少", "TMK", "校园", "王昊活动", None, "学校", "一年级", "passive_reported_cash", 100, None],
+            ["2026-09-03", "offline_market", "初中", "TMK", "校园", "初中活动", None, "学校", "七年级", "passive_reported_cash", 40, None],
+            ["2026-09-03", "offline_market", "高中", "TMK", "校园", "杨新宇活动", None, "学校", "高一", "passive_reported_cash", 20, None],
         ]
         result = project({"result": {"rows": rows}}, {"result": {"rows": []}}, read(root / "config/project_targets.json"), read(root / "config/people.json"))
         team = next(item for item in result["teams"] if item["team_id"] == "offline_market")
@@ -143,6 +153,34 @@ class RenderTest(unittest.TestCase):
         self.assertIn("return team.yoy_groups || [];", src)
         self.assertNotIn("Array(12).fill(0)", src)
         self.assertNotIn("if (team.yoy_groups && team.yoy_groups.length)", src)
+
+    def test_channel_matrix_and_market_total_team_share_are_client_side(self):
+        src = (Path(__file__).resolve().parents[1] / "render_template.py").read_text(encoding="utf-8")
+        self.assertIn("function renderChannelMatrix()", src)
+        self.assertIn("YOY_GROUP_NAMES = ['青少', '初中', '高中', '大学']", src)
+        self.assertIn("rowspan=\"2\">二级渠道", src)
+        self.assertIn("右侧合计该渠道全部现金、工单及占总现金占比，按合计现金降序", src)
+        self.assertIn("colspan=\"5\">合计", src)
+        self.assertIn("class=\"total-row\"><th>总计</th>", src)
+        self.assertIn("channelTotal(currentCash, b) - channelTotal(currentCash, a)", src)
+        self.assertIn("function capacityPeerKey(row)", src)
+        self.assertIn("return 'offline|' + (row.businessGroup || '未分组')", src)
+        self.assertIn("item.team_id !== 'market_total'", src)
+        self.assertIn("function renderTeamShareTable(", src)
+        self.assertIn("parentCash > 0 ? cash / parentCash", src)
+        self.assertIn("parentOrders > 0 ? orders / parentOrders", src)
+        self.assertIn("展开团队", src)
+        self.assertIn("staff_capacity", src)
+        self.assertIn("市场人员产能", src)
+        self.assertIn("工单数", src)
+        self.assertIn("签约量", src)
+        self.assertIn("转化率", src)
+        self.assertIn("渠道&校代贡献", src)
+        self.assertIn("TMK贡献", src)
+        self.assertIn("活动贡献", src)
+        self.assertIn("CAPACITY_DIMS = [", src)
+        self.assertEqual(src.count("{ key:"), 6)
+        self.assertIn("renderChannelMatrix(); renderComparison(GRADE, 'grade')", src)
 
     def test_rejects_missing_identity(self):
         with tempfile.TemporaryDirectory() as directory:

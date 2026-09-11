@@ -350,12 +350,16 @@ def write_details_xlsx(digest, path):
                 person.get('heads_target'),
                 person.get('heads_actual'),
                 None if person.get('heads_completion') is None else round(person['heads_completion'] * 100, 1),
+                person.get('cash_target'),
+                person.get('cash_actual'),
+                None if person.get('cash_completion') is None else round(person['cash_completion'] * 100, 1),
             ]
             for person in digest['people']
         ]
         people_headers = [
             '人员', '业务团队', '工单目标', '工单完成', '工单完成率%', '应完成工单', '日均需完成', '落后',
             '人头目标', '人头完成', '人头完成率%',
+            '现金目标', '现金完成', '现金完成率%',
         ]
     else:
         people_rows = [

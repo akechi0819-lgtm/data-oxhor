@@ -1,3 +1,5 @@
+> 历史施工记录。现行刷新合同是 `dashboard_actuals/v9`，见 [`CURRENT_STATUS.md`](CURRENT_STATUS.md)。
+
 # RUN: school-agent market person fix (2026-09-07)
 
 ## Verdict
@@ -9,7 +11,7 @@ User correct. Use resource-description market-person token, not entry clerk.
 - roster hit via entry clerk: ~2/72
 
 ## Code
-- 当时 dashboard_actuals/v6 query.sql: entry_person = regexp_extract(resource description market-person), else entry clerk; manifest sha updated。现行刷新是 v7，仍保留该抽取。
+- 当时 dashboard_actuals/v6 query.sql: entry_person = regexp_extract(resource description market-person), else entry clerk; manifest sha updated。当时刷新是 v7，仍保留该抽取。
 - refresh.py comment; tests/docs wording
 
 ## Verify
