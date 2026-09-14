@@ -90,6 +90,14 @@ git diff --check
 - 影响：`liuxue` / `gaozhong` / `daxue` 不再有过滤入口。刷新产物缺少 `yoy_groups` 时同比表为空，不会补四个空年段。
 - 验证：`python3 -m unittest discover -s dashboard_product/tests -v`；`python3 -m unittest tests.bridge.test_reviewed_artifact -v`。
 
+
+### 2026-09-14：TMK 激活的校代资源临时打回线下市场
+
+- 决定：临时补丁。一级渠道为 `TMK激活-平台`、活动名含 `校代系统资源`、资源描述 `市场人员：` 能命中线下市场花名册的工单，从线上平台改回线下市场后再做个人归属。原生「平台」投放不改。
+- 原因：TMK 激活石仁达小表单校代资源时，`线上线下=线上` 把单划进线上平台；石仁达只在线下大学花名册，个人完成和线下大学合计少算。
+- 影响：刷新在 `refresh.py` 聚合层改 `team_id`；钉钉明细在 `notify_work_orders.sql` / `notify_cash.sql` 同步同一规则。Saved Query `dashboard_actuals/v9` 未改。云端 A 层 overlay 必须带这三处。SQL 的花名册 `IN` 名单与 `config/people.json` 线下成员耦合，加人时要一起改。
+- 验证：`python3 -m unittest discover -s dashboard_product/tests -v`；`run_dashboard_20260914_172915` 石仁达 9 月工单 42→48，全年 156→163。
+
 ### 2026-09-11：看板 v9、产能页、渠道合计与张艺彤回落
 
 - 决定：刷新改消费 `dashboard_actuals/v9`。查询增加第 12 列现金 `student_id`；运行时只保留 v9，删除 v8。全量页并列第五页签「市场人员产能」：全年现金对照统一 80 万标准产能，六维雷达为工单数、签约量、转化率、渠道&校代/TMK/活动贡献，均值按团队算。渠道同期对比增加合计列与总计行。无法判断/空团队且跟进顾问为张艺彤时按留学预备回落。大学钉钉明细表人员进度额外输出现金目标/完成。

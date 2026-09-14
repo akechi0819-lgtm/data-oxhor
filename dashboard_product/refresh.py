@@ -70,6 +70,22 @@ def match_person_names(candidates, campaign, entry_person, resource_desc=None):
     if matched: return matched
     return names_in_text(names, EMBEDDED_CAMPAIGN_RE.sub(' ', desc))
 
+SCHOOL_AGENT_RESOURCE_MARK='校代系统资源'
+TMK_PLATFORM_CHANNEL='TMK激活-平台'
+
+def remap_tmk_school_agent_team(team, first_channel, campaign, entry_person, offline_names):
+    """Temporary patch: TMK-activated school-agent resources owned by offline roster count as offline."""
+    if team != 'online_platform':
+        return team
+    if str(first_channel or '') != TMK_PLATFORM_CHANNEL:
+        return team
+    if SCHOOL_AGENT_RESOURCE_MARK not in str(campaign or ''):
+        return team
+    name=str(entry_person or '').strip()
+    if name and name in offline_names:
+        return 'offline_market'
+    return team
+
 def read(p): return json.loads(Path(p).read_text(encoding='utf-8'))
 def run(ws,rid,snap,out,a,b):
  c=read(ws/'Work/workspace.json'); z=subprocess.run(['python3','-m','interfaces.data_platform','run-saved-query','--warehouse',str(ws/c['current_warehouse_path']),'--snapshot-id',snap,'--run-id',rid,'--output-root',str(out),'--registry-root',str(ws/'Work/SavedQueries'),'--query-id','dashboard_actuals','--version','v9','--params-json',json.dumps([a,b]),'--max-rows','50000','--max-result-bytes','10000000'],cwd=ROOT.parent,capture_output=True,text=True); r=json.loads(z.stdout or '{}')
@@ -93,6 +109,7 @@ def project(q,p,tg,people,capacity=None):
     person_name=person.get('display_name')
     if not person_name or person.get('status') == 'vacant': continue
     configured_people.append((team_config['team_id'], person.get('business_group') or group_business_group, person_name))
+ offline_names={name for configured_team,_,name in configured_people if configured_team=='offline_market'}
 
  def matched_people(team, business_group, campaign, entry_person):
   candidates=[name for configured_team, configured_group, name in configured_people
@@ -102,6 +119,7 @@ def project(q,p,tg,people,capacity=None):
  def add_row(row, period, months, actuals, yoy_actuals, is_current):
   if len(row)!=12: raise ValueError(f'Unexpected dashboard query row: expected 12 columns, got {len(row)}')
   dt,team,group,first_ch,second_ch,campaign,entry_person,school,grade,metric,val,student_id = row[:12]
+  team=remap_tmk_school_agent_team(team, first_ch, campaign, entry_person, offline_names)
   if not team or group not in YOY_GROUPS or metric not in ('work_orders','passive_reported_cash') or val in (None, ''): return
   month=str(dt)[:7]; value=float(val); target=TARGET_GROUP[group]
   actuals[(month,team,target,metric)]=actuals.get((month,team,target,metric),0)+value

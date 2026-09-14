@@ -60,6 +60,63 @@ class RenderTest(unittest.TestCase):
         self.assertEqual(ma_ao["cash_actual"], 39000)
         self.assertEqual(ma_ao["monthly_drilldowns"]["2026-09"]["orders"]["TMK||校园"], 3)
 
+    def test_tmk_school_agent_owned_by_offline_roster_counts_offline(self):
+        from dashboard_product.refresh import read, remap_tmk_school_agent_team
+        root = Path(__file__).resolve().parents[1]
+        people = read(root / "config/people.json")
+        offline_names = {
+            person.get("display_name")
+            for team in people["teams"] if team["team_id"] == "offline_market"
+            for group in team.get("groups", [])
+            for person in group.get("members", [])
+            if person.get("display_name") and person.get("status") != "vacant"
+        }
+        self.assertEqual(
+            remap_tmk_school_agent_team(
+                "online_platform",
+                "TMK激活-平台",
+                "2027财年第4财月91校代系统资源活动",
+                "石仁达",
+                offline_names,
+            ),
+            "offline_market",
+        )
+        self.assertEqual(
+            remap_tmk_school_agent_team(
+                "online_platform",
+                "平台",
+                "2027财年第4财月91校代系统资源活动",
+                "石仁达",
+                offline_names,
+            ),
+            "online_platform",
+        )
+        self.assertEqual(
+            remap_tmk_school_agent_team(
+                "online_platform",
+                "TMK激活-平台",
+                "2027财年第4财月抖音来客-新媒体管家",
+                "石仁达",
+                offline_names,
+            ),
+            "online_platform",
+        )
+        rows = [
+            ["2026-09-12", "online_platform", "大学", "TMK激活-平台", "小表单", "2027财年第4财月91校代系统资源活动", "石仁达", "天津师范大学", "大四", "work_orders", 3, None],
+            ["2026-09-12", "online_platform", "大学", "平台", "抖音来客", "2027财年第4财月抖音来客-新媒体管家", "苗莎莎", "天津大学", "大一", "work_orders", 4, None],
+        ]
+        result = project({"result": {"rows": rows}}, {"result": {"rows": []}}, read(root / "config/project_targets.json"), people)
+        offline = next(item for item in result["teams"] if item["team_id"] == "offline_market")
+        platform = next(item for item in result["teams"] if item["team_id"] == "online_platform")
+        shi = next(item for item in offline["people"] if item["display_name"] == "石仁达")
+        uni_offline = next(item for item in offline["groups"] if item["display_name"] == "大学")
+        uni_platform = next(item for item in platform["groups"] if item["display_name"] == "大学")
+        self.assertEqual(shi["orders_actual"], 3)
+        self.assertEqual(shi["monthly_actuals"]["orders"][3], 3)
+        self.assertEqual(shi["monthly_drilldowns"]["2026-09"]["orders"]["TMK激活-平台||小表单"], 3)
+        self.assertEqual(uni_offline["monthly_actuals"]["orders"][3], 3)
+        self.assertEqual(uni_platform["monthly_actuals"]["orders"][3], 4)
+
     def test_cash_channel_contract_uses_work_order_left_join(self):
         query = (Path(__file__).resolve().parents[1] / "sql/dashboard_actuals.sql").read_text(encoding="utf-8")
         self.assertIn("LEFT JOIN orders_dim o", query)
@@ -77,6 +134,15 @@ class RenderTest(unittest.TestCase):
         self.assertIn("NULLIF(TRIM(学员编号),'') AS student_id", query)
         self.assertIn("NULL AS student_id", query)
         self.assertIn("metric, actual_value, student_id FROM orders", query)
+
+    def test_notify_sql_remaps_tmk_school_agent_owned_by_offline_roster(self):
+        root = Path(__file__).resolve().parents[1]
+        for name in ('notify_work_orders.sql', 'notify_cash.sql'):
+            query = (root / 'sql' / name).read_text(encoding='utf-8')
+            self.assertIn("TMK激活-平台", query)
+            self.assertIn("校代系统资源", query)
+            self.assertIn("石仁达", query)
+            self.assertIn("THEN 'offline_market'", query)
 
     def test_renders_projection_and_unconfigured_values(self):
         group = {

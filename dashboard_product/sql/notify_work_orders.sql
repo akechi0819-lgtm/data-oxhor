@@ -16,6 +16,12 @@ classified AS (
     CASE
       WHEN TRIM(线上线下) = '线下' THEN 'offline_market'
       WHEN TRIM(二级渠道) = '虚拟人' THEN 'online_private'
+      WHEN TRIM(线上线下) = '线上'
+           AND TRIM(一级渠道) = 'TMK激活-平台'
+           AND COALESCE(活动名称, '') LIKE '%校代系统资源%'
+           AND NULLIF(regexp_extract(COALESCE(资源描述, ''), '市场人员[[:space:]]*[:：][[:space:]]*([^[:space:],，;；]+)', 1), '')
+               IN ('王昊','马澳','张钦莉','王欣庆','谷志文','于洋','杨新宇','刘彬','李进','师顺盈','石仁达','翟昕羽','曹恒玮')
+           THEN 'offline_market'
       WHEN TRIM(线上线下) = '线上' THEN 'online_platform'
     END AS _mapped_team_id
   FROM (
