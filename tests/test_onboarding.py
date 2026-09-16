@@ -29,6 +29,9 @@ class OnboardingTests(unittest.TestCase):
     def test_doctor_checks_runtime_and_pack(self) -> None:
         result = doctor(pack_path=self.pack)
         self.assertEqual("doctor_passed", result["status"])
+
+        full = doctor(profile="full", pack_path=self.pack)
+        self.assertEqual({"duckdb", "openpyxl", "Pillow", "business_pack"}, {item["name"] for item in full["checks"]})
         self.assertTrue(all(item["status"] == "passed" for item in result["checks"]))
 
     def test_first_deployment_flow_and_handoff(self) -> None:

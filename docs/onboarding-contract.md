@@ -31,7 +31,7 @@ python3 -m interfaces.workspace_modeling handoff --workspace PATH [--session-id 
 
 Codex 用户不需要直接输入这些命令。项目提供 `.agents/skills/first-deployment-onboarding`，将“首次使用/帮我装好/导入数据/建立 Bridge”等自然语言请求路由到上述入口，并在缺少业务端口、来源槽位或替换确认时向用户提问。工作区初始化时由路径自动生成内部 `company_id`，用户不需要提供公司名称。
 
-- `doctor` 检查 DuckDB、Pack 和所选运行时 profile；不安装依赖。安装由 `tools/install_runtime.sh` 或发布包 extras 完成。全量回归使用 `tools/install_runtime.sh test`（组合 `test + ppt`），不能直接依赖系统 Python。
+- `doctor` 检查 DuckDB、Pack 和所选运行时 profile；不安装依赖。安装由 `tools/install_runtime.sh` 或发布包 extras 完成。全量回归使用 `tools/install_runtime.sh test`，不能直接依赖系统 Python。
 - `init` 只创建新工作区；复制 Pack 和可选的同公司 Bridge，不接受跨公司 Bridge。
 - `import-data` 只复制本地 XLSX/XLSM 到 `Input/Data/<source_id>/`，默认拒绝覆盖已有槽位；不联网、不上传。
 - `sync` 复用 Bridge 对齐向导的不可变 Snapshot 发布；必须使用新 `snapshot_id`，不会覆盖或复用已使用身份。

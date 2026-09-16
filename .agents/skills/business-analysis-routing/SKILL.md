@@ -18,7 +18,7 @@ description: 将已完成首次部署和 Bridge 对齐的自然语言分析请�
 3. 命中案例时，将其当作方法线索（问题结构、关键查询、限制和交付形式），需要时先执行 `case-verify` 检查证据哈希。案例中的旧数字、旧 Snapshot 或旧文件都不能直接回答当前问题。
 4. 结合当前 Pack 的指标/诊断定义和当前 Bridge 的物理字段映射，由宿主 Agent 生成本次只读 SQL。通过 Data Platform 的 `describe`/`quality` 和 `query`（或已确认的 `run-saved-query`）执行；每次查询都必须显式携带当前 `snapshot_id`、`run_id` 和输出目录。不得直接用 DuckDB 客户端绕过入口，也不得按 `latest`、修改时间或模糊文件名选数据。
 5. 只基于当前查询结果回答，并说明时间范围、口径、来源和已知限制。Casebook 的命中信息可在运行证据中作为方法引用记录，但不替代当前查询证据。
-6. 用户明确要求文件交付时，再使用宿主原生表格/图表能力或现有 PPT 入口。S4 Quick 需先冻结本次分析证据，再按 [S4 Quick 提示词](../../../docs/s4-ppt-quick-prompt.md) 调用 `analysis_product/s4_ppt_quick.py`；复杂模板或视觉交付才进入 `ppt-master` Default。交付物必须能回查到本次受控查询。
+6. 用户明确要求文件交付时，表格/图表使用宿主原生能力；PPT 将已验证的分析结论、查询结果、口径、时间范围、来源和限制交给宿主全局 `ppt-master` Skill。路由选择由该 Skill 的当前规则决定：用户明确要求快速/轻量时可进入 Quick，其他情况按 Default 及对应路由执行；项目不自行复制路由规则。交付物必须可打开、内容非空，关键数字能回查到本次受控查询。如果全局 `ppt-master` 不可用，明确阻断 PPT 交付，但保留已完成的分析和证据；不回退到项目内置生成器。
 
 ## 保存与沉淀
 
@@ -34,4 +34,3 @@ description: 将已完成首次部署和 Bridge 对齐的自然语言分析请�
 
 - [S5 Casebook 合同](../../../docs/casebook-pilot-contract.md)
 - [项目接入指南](../../../docs/integration-guide.md)
-- [S4 Quick PPT 提示词](../../../docs/s4-ppt-quick-prompt.md)

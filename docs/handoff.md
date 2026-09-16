@@ -6,7 +6,7 @@
 
 项目主线已完成 Data Platform、Business Pack、Company Bridge、Bridge 对齐向导、工作区建模、Casebook/内测反馈和双宿主交付验证。业务核心保持宿主无关；调用者按任务选择模块 Agent，分别进入工作区建模、Bridge 对齐、受控分析、案例沉淀、文件交付或看板发布。
 
-PPT Master v4.7.0 保持为固定上游完整树，Quick 入口仍由项目代码编排；正式 Bridge 和 reviewed 证据继续作为当前产品基线。
+PPT Master 已从项目内置改为宿主全局 Skill，项目不再维护 Quick 入口或上游文件树；正式 Bridge 和 reviewed 证据继续作为当前产品基线。
 
 ## 当前合同
 
@@ -31,7 +31,7 @@ Codex 的自然语言入口见 [首次部署自然语言 Skill](../.agents/skill
 - 向导模型候选始终是 proposed；只有客户决定或显式 optional unresolved 能进入 reviewed，关键歧义必须阻断。
 - 客户工作区使用固定 `Input/Work/Output` 并保存相对路径，可整体复制；追加资料持久化到 `Input/Reference`，源码 checkout 的 `customers/` 默认忽略。
 - 源文件承担长期归档；向导工作区只保留当前 Snapshot，不维护 `snapshot_history`。`sync-data` 先构建并切换新 Snapshot，再删除旧 Run；失败或存在未完成会话时保留旧状态。仅记录已用 ID，防止删除后复用；已完成会话为只读。
-- Data Platform 的 SHA-256 只负责导入完整性；向导候选、问题、决定和参考资料身份不使用哈希。Quick 冻结分析的证据 SHA-256 是交付身份合同，缺失或变化必须阻断。
+- Data Platform 的 SHA-256 负责导入完整性；向导候选、问题、决定和参考资料身份不使用哈希。PPT 交付必须使用当前 Snapshot 受控查询的真实结果与来源凭据。
 - Snapshot 只用于运行兼容性校验，不写入 Bridge；Bridge 不通过 `latest` 或修改时间选择状态。
 - Bridge 字段定位直接使用源表实际表头名；禁止使用列序或 `column_n`。重复表头在 landing 中使用 `__2` 等后缀。
 - 工单主键 `ID` 与现金 `工单ID` 仅以非空、修剪后的文本精确连接；Saved Query 不做数值化转换。Bridge 不声明未执行的 ID 归一化规则。2026-09-04 已用 `snapshot_bi_work_order_id_20260904` 验证现金-工单精确 ID 连接恢复。
@@ -39,7 +39,7 @@ Codex 的自然语言入口见 [首次部署自然语言 Skill](../.agents/skill
 
 ## 唯一待办
 
-S4 Quick 真实性能回归仍待补齐。看板侧剩余事项是线上平台人员配置和线上平台钉钉 webhook；不在本文件展开，见 `dashboard_product/docs/PENDING_ISSUES.md`。恢复时使用主线 Bridge 的现金明细与工单输入，通过新版冻结分析和共同 Quick 入口完成双宿主回归；不引入教务数据或 fake adapter 绕过门禁。
+看板侧剩余事项是线上平台人员配置和线上平台钉钉 webhook；不在本文件展开，见 `dashboard_product/docs/PENDING_ISSUES.md`。PPT 不再有项目内 Quick 性能回归待办；之后的生成验收跟随宿主全局 `ppt-master` 版本。
 
 不要增加 MCP、独立强化插件、完整 Artifact 平台或通用工作流编排；新增治理必须对应可复现失败或明确客户要求。
 
@@ -80,7 +80,7 @@ S4 Quick 真实性能回归仍待补齐。看板侧剩余事项是线上平台�
 - DeepSeek Harness 仍是 Developer Preview，升级可能破坏插件接口；
 - 当前 landing 关系名由 `source_id + sheet_name` 确定，源 Sheet 改名后必须重新做 Bridge 兼容性校验；
 - fake adapter 只用于候选合同测试；正式推理由 Codex 或 DeepSeek Harness 的原生 Agent 承担，不建设宿主 Adapter；
-- PPT Master attribution guard、文件树数量和 pinned tree digest 已通过离线复核；后续升级或重新装配仍需重新执行同一组检查。
+- 宿主全局 `ppt-master` 的版本、完整性和升级由宿主环境管理；项目回归不再检查其文件树。
 - S5 不能以自动上传、自动打包 `runs/`、跨客户检索、宿主 Session 复制、向量库或自动发布 Skill 作为捷径；反馈证据只在用户明确授权时导出。
 
 ## 技术依据

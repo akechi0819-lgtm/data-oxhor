@@ -13,7 +13,7 @@
 | 数据接入 | `data_acquisition/` | 已落地 | 来源 manifest、BI 下载和仓库重建任务 |
 | 数据平台 | `data_platform/` | 已落地 | landing、不可变 Snapshot、schema、quality、受控只读 SQL |
 | 工作区建模 | `workspace_modeling/` | 已落地 | Pack、Bridge、对齐向导、首次部署、Casebook、内测反馈 |
-| 自由分析交付 | `analysis_product/` | 已落地/持续增强 | Quick PPT 冻结与导出辅助；分析编排由宿主 Agent 完成 |
+| 自由分析交付 | 宿主 Agent + `analysis_product/` | 已落地/持续增强 | 分析编排由宿主完成；PPT 调用宿主全局 `ppt-master` |
 | 固定看板 | `dashboard_product/` | 已落地/持续增强 | 四分册静态发布、basic auth、钉钉人员进度 |
 | 日常监控 | `agents/daily_monitor/` | 预留 | 只有 Agent 合同，尚无运行代码 |
 
@@ -21,7 +21,7 @@
 
 当前主要施工对象是 `dashboard_product/` 和与其共享的 BI Bridge、saved query 及 Snapshot 合同。看板的设计期由自由分析 Agent 或宿主确认指标和 SQL；运行期由看板发布 Agent 执行固定查询、渲染并发布。看板不得在刷新时调用模型临时改变业务口径。
 
-自由分析主线继续使用 `data_platform` 的显式 `run_id`、`snapshot_id` 和受控查询；需要交付文件时再调用 `analysis_product` 或宿主原生表格/图表能力。当前唯一历史待补事项是 S4 Quick 的真实性能回归，详见 `docs/handoff.md`。
+自由分析主线继续使用 `data_platform` 的显式 `run_id`、`snapshot_id` 和受控查询；表格/图表使用宿主原生能力，PPT 由宿主全局 `ppt-master` 按需选择 Quick 或 Default。项目内置 Quick 编排和固定 PPT Master 副本已拆除。
 
 ## 开发原则
 
@@ -48,6 +48,13 @@ git diff --check
 ```
 
 ## 决策记录
+
+### 2026-09-16：PPT Master 从项目内置改为宿主全局能力
+
+- 决定：删除项目内 `.agents/skills/ppt-master`、S4 Quick 编排代码、PPT 安装 profile 及对应测试/提示词。自由分析只负责将当前 Snapshot 的受控查询证据和分析上下文交给宿主全局 `ppt-master`，由它按需路由 Quick 或 Default。
+- 原因：项目固定 Quick 使 PPT 形式受限，并重复了完整 Skill 已有的路由和质量门禁。
+- 影响：项目不再安装或验证 PPT 运行时；宿主必须能发现全局 `ppt-master`。缺失时只阻断 PPT 交付，不影响分析、查询证据和其他文件交付。
+- 验证：全局 `ppt-master` v4.7.0 attribution guard；项目全量测试；PPT/S4 残留引用扫描。
 
 ### 2026-09-07：采用模块 Agent 目录，不建设总路由 Agent
 

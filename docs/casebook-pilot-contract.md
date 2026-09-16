@@ -144,6 +144,6 @@ Work/Evaluation/
 | 1b | S5.2 Evaluation | `pilot_feedback/`、`Work/Evaluation/` | 版本、卡片状态、脱敏、授权白名单、ZIP 校验 |
 | 1c | S5.3 Router | `casebook/router.py` | 四段路由、Bridge 兼容、90 天/3 次/人工评价 |
 | 2 | 集成 | `interfaces/casebook_pilot.py` | CLI 退出码、合成工作区 E2E、全量回归 |
-| 3 | 独立审查 | 只读审核和必要小修 | 过度设计、门禁冗余、与 Data/Bridge/Quick 冲突 |
+| 3 | 独立审查 | 只读审核和必要小修 | 过度设计、门禁冗余、与 Data/Bridge 冲突 |
 
-合成 fixture 仅位于 `tests/fixtures/casebook/` 和 `tests/fixtures/pilot_feedback/`。必须覆盖客户/角色隔离、篡改证据、confirmed 不可编辑、rejected/superseded、过期 Snapshot、测试包版本冲突、未完成评价不可导出、默认包无原始数据、禁止或未授权附件、篡改反馈、四种引导状态，以及次数不足/跨角色/无人工评价不提醒。S4 Quick 真实性能回归不属于本矩阵，继续挂起。
+合成 fixture 仅位于 `tests/fixtures/casebook/` 和 `tests/fixtures/pilot_feedback/`。必须覆盖客户/角色隔离、篡改证据、confirmed 不可编辑、rejected/superseded、过期 Snapshot、测试包版本冲突、未完成评价不可导出、默认包无原始数据、禁止或未授权附件、篡改反馈、四种引导状态，以及次数不足/跨角色/无人工评价不提醒。

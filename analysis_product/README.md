@@ -2,11 +2,7 @@
 
 ## 产品边界
 
-`analysis_product/` 是分析产品的确定性代码和交付编排资产。它负责：
-
-- S4 Quick PPT 的冻结证据校验、项目准备、导出和文件验收；
-- 后续可加入分析结果的来源凭据、表格/图表交付编排；
-- 接收宿主 Agent 已经确定的 `workspace`、`run_id`、`snapshot_id`、查询结果和交付请求。
+`analysis_product/` 是自由分析未来可扩展的确定性代码边界。当前不包含 PPT 生成器、PPT 路由器或交付编排代码；开放式分析由宿主 Agent 编排，PPT 交付由宿主全局 `ppt-master` Skill 负责。
 
 开放式分析的自然语言入口仍是宿主 Skill：
 
@@ -22,7 +18,7 @@
 宿主 Agent
   -> business-analysis-routing Skill（自然语言路由和对话边界）
   -> interfaces.data_platform（当前 Snapshot 的受控查询）
-  -> analysis_product/（按需的分析交付和 PPT Quick）
+  -> 宿主原生交付能力 / 全局 ppt-master（按需）
   -> 客户工作区 Output/（带身份的交付物）
 ```
 
@@ -30,6 +26,6 @@
 
 ## 当前状态
 
-- `s4_ppt_quick.py`、`s4_ppt_preflight.py` 和 `run_s4_local.sh`：已迁移并可用；
-- 开放式分析路由：由 `.agents/skills/business-analysis-routing` 提供，基础流程已完成；
+- 开放式分析路由：由 `.agents/skills/business-analysis-routing` 提供；
+- PPT：项目不再内置 Quick 实现或 PPT Master 副本，宿主根据需求调用全局 `ppt-master` 的 Quick 或 Default 路由；
 - 独立分析 CLI、异常下钻编排和通用分析 artifact：尚未开始，避免在没有稳定合同前提前抽象。

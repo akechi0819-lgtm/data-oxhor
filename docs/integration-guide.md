@@ -10,7 +10,7 @@
 python3 -m pip install "data-oxhor[full]"
 ```
 
-`core` 只安装数据分析运行时，`test` 是最小基础测试依赖；`tools/install_runtime.sh test` 会组合安装 `test + ppt`，因此包含 S4 的 `skia-pathops` 与 `uharfbuzz`；`ppt` 增加 Quick PPT 所需组件，`full` 覆盖当前项目的 Python 能力。源码用户可执行 `sh tools/install_runtime.sh test` 或 `sh tools/install_runtime.sh full`；不建议在系统 Python 中逐项安装。DeepSeek Harness、Office/字体和模型凭据仍属于宿主环境，不由 Python wheel 管理。
+`core` 只安装数据分析运行时，`test` 增加项目测试依赖，`full` 覆盖当前项目的 Python 能力。源码用户可执行 `sh tools/install_runtime.sh test` 或 `sh tools/install_runtime.sh full`；不建议在系统 Python 中逐项安装。PPT Master、DeepSeek Harness、Office/字体和模型凭据属于宿主环境，不由项目 wheel 管理。
 
 首次部署引导层使用同一 Python 环境：
 
@@ -100,7 +100,7 @@ Codex 已通过项目 Shell 完成 CLI 命令链和错误处理验证，不增�
 DeepSeek Harness → controlled shell → Python CLI → Data Platform
 ```
 
-Harness 全局安装、Web、真实模型回合、项目 Workspace、受控 Shell、真实三表 `inspect → ingest → describe → quality → query`、项目 Skill `diagnose-source-overlap` 调用，以及三张真实教务表的陌生结构识别、Bridge 生成、教师课量查询和图表输出均已通过。主线现金明细与工单分析、可打开 PPTX 生成及渲染回查也已通过；当前仅以新版冻结身份协议做 Quick 性能回归。该流程直接使用 Harness 原生 Agent，不依赖正式 `CandidateAdapter`。
+Harness 全局安装、Web、真实模型回合、项目 Workspace、受控 Shell、真实三表 `inspect → ingest → describe → quality → query`、项目 Skill `diagnose-source-overlap` 调用，以及三张真实教务表的陌生结构识别、Bridge 生成、教师课量查询和图表输出均已通过。主线现金明细与工单分析、可打开 PPTX 生成及渲染回查也已通过。该流程直接使用 Harness 原生 Agent，不依赖正式 `CandidateAdapter`。
 
 ### 重叠与清洗
 
@@ -176,11 +176,11 @@ python3 -m interfaces.casebook guide --workspace customers/company_customer
 
 已完成 Bridge 对齐后，宿主 Agent 可使用项目级 [业务分析路由 Skill](../.agents/skills/business-analysis-routing/SKILL.md) 处理日常问题。它只规定最小调用顺序：先用 `guide` 检查当前工作区状态，再按角色/问题类别用 `case-search` 找同公司确认案例；案例只提供方法线索，当前数字必须通过 Data Platform 以显式 `snapshot_id`、`run_id` 的只读 `describe`/`quality`/`query`（或确认后的 `run-saved-query`）重新取得。用户明确验收后才用 `case-create` 保存 candidate，交付物需回查本次查询；保存时的 Snapshot/Pack/Bridge 身份由当前工作区自动绑定，`casebook_capture.v1` manifest 不重复传入这些字段；`repeat-candidates` 只提出人工审核候选，不自动生成或发布 Skill。该 Skill 不实现 Agent Loop、Session、SQL 编译器或额外存储。
 
-## 8. 项目级交付 Skills（S4）
+## 8. 宿主交付能力
 
-S4 不新增业务 CLI 或输出平台。项目已将上游 `hugohe3/ppt-master` v4.7.0（提交 `e8323bfaee249cffe1301ec40fca5875eb544d46`）固定版本装配到 `.agents/skills/ppt-master`，MIT 许可证、发布包 SHA-256 和树摘要见 `.agents/skills/ppt-master.upstream.json`；离线检查会执行其 `scripts/attribution_guard.py`。电子表格和数据可视化先使用宿主原生能力，不增加项目依赖。项目只增加 `analysis_product/s4_ppt_quick.py` 作为宿主无关的 Quick 编排入口，不复制 PPT Master 的 SVG、模板或 Renderer 实现。
+项目不新增通用输出平台，也不内置 PPT Master。电子表格和数据可视化先使用宿主原生能力；PPTX 由宿主全局 `ppt-master` Skill 负责，项目不固化 Quick/Default 分流。
 
-宿主通过自然语言需求决定直接回答、表格/查询结果或 PPTX，PPT 不采用固定月报结构或页序。分析已冻结且没有复杂交付要求时，Codex 与 DeepSeek Harness 都使用 [S4 Quick PPT 宿主提示词](./s4-ppt-quick-prompt.md) 和同一 `quick-ppt prepare/finalize` 入口；冻结清单以 Snapshot、SHA-256 与由受控查询真实写入的 `referenced_source_ids` 约束可用查询证据，入口会复核导入副本，不接受 manifest 自报的来源作为唯一凭据。当前 BI 主线使用 `bridge_bi_operations`，包含现金明细与工单来源；历史 Bridge 和教务验收不属于当前交付输入。模板、人工确认、图片、预览、讲稿、旁白或复杂动画才进入 PPT Master Default。首轮验收只使用本地数据和原生可编辑 PPTX，关闭自动更新、外部研究、生图、TTS、旁白和本地 Web 辅助界面。缺少工作时间、请假和通勤规则时，当前未占用只能称“候选空档”。文件必须可打开、内容非空且关键数字可回查到同一只读查询结果。
+自由分析将当前 Snapshot 的受控查询结果、分析结论、口径、时间范围、来源和限制作为 PPT 输入。全局 Skill 按它的当前路由规则选择 Quick 或 Default；项目不复制其 SVG、模板、Renderer、依赖或质量门禁。无论选择哪种模式，交付文件都必须可打开、内容非空，关键数字能回查到同一受控查询。全局 Skill 不可用时，只阻断 PPT 交付，不使已完成的分析或证据失效。
 
 ## 9. 固定看板与钉钉
 

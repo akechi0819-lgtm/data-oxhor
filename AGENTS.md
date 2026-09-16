@@ -33,7 +33,7 @@
 - Agent 只能通过 Data Platform 受控入口执行只读 SQL，不直接连接客户 DuckDB，不使用 `latest`、修改时间或模糊文件名选状态。
 - 未确认 Bridge 映射不能作为正式事实；日期重叠只是风险信号，不能直接当作重复或退款。
 - 负向现金必须按数据事实表述为负向现金，原因需业务确认，不得自动称为退款。
-- 正式文件必须可打开、内容非空，关键数字必须回查同一受控查询；Quick PPT 还必须满足冻结证据和来源凭据门禁。
+- 正式文件必须可打开、内容非空，关键数字必须回查同一受控查询；PPT 由宿主全局 `ppt-master` 生成，不得因路由模式不同放宽证据和数字回查要求。
 
 ## 模块边界
 
@@ -51,7 +51,7 @@
 - CLI/宿主接入：`docs/integration-guide.md`
 - 本地运维与故障排查：`docs/operator-runbook.md`
 - 开发、测试、发布和文档维护：`docs/maintainer-guide.md`
-- Bridge、Onboarding、Casebook、PPT 合同：对应 `docs/*-contract.md` 和 `docs/s4-ppt-quick-prompt.md`
+- Bridge、Onboarding、Casebook 合同：对应 `docs/*-contract.md`；PPT 执行合同由宿主全局 `ppt-master` Skill 提供
 - 当前开发状态与决策：`DEVELOPMENT.md`
 - 当前完成度与历史交接：`docs/handoff.md`
 - 看板发布与钉钉：`dashboard_product/DEPLOYMENT.md`、`agents/dashboard_publisher/AGENT.md`

@@ -36,7 +36,7 @@ description: 用自然语言引导 Codex 完成这个项目的首次部署：检
 <python> -m interfaces.workspace_modeling doctor --profile core
 ```
 
-如果用户明确要 PPT、报告或完整交付，再检查 `--profile full`。`doctor` 失败时说明缺少的模块，优先建议项目安装脚本：
+如果用户明确要项目内的图像或完整文件交付，再检查 `--profile full`。PPT 不属于项目 profile；需要 PPT 时由宿主检查全局 `ppt-master` Skill。`doctor` 失败时说明缺少的模块，优先建议项目安装脚本：
 
 ```bash
 sh tools/install_runtime.sh core

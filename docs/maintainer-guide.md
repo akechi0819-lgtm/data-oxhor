@@ -9,7 +9,7 @@
 - 运行完整回归：`sh tools/run_tests.sh -v`。
 - CLI 冒烟：`python3 -m interfaces.data_platform --help`、`python3 -m interfaces.business_pack validate`、`python3 -m interfaces.workspace_modeling --help`、`python3 -m dashboard_product.refresh --help`。
 - 看板回归：`python3 -m unittest discover -s dashboard_product/tests -v`。
-- PPT Master 固定树变更后，运行 `.venv/bin/python .agents/skills/ppt-master/scripts/attribution_guard.py` 和相关完整性测试。
+- PPT Master 属于宿主全局 Skill；不要在项目内恢复其副本、安装 profile 或完整性测试。
 
 ## 维护原则
 

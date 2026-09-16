@@ -46,7 +46,7 @@
 - Conversation Node 和对话内交互图表；
 - 各宿主的权限、沙箱和 Session 配置。
 
-因此换宿主时，PPT、表格、图表、DuckDB、数据预处理、确定性门禁和项目 Skills 不受影响；主要变化是宿主自己的对话、Session、工具授权和 UI。只有未来真实宿主不能调用 CLI 时，才为该消费者评估最薄调用适配器；不把现有宿主封装成另一套 Agent 系统。
+因此换宿主时，数据查询、表格/图表、DuckDB、数据预处理、确定性门禁和项目 Skills 不受影响；PPT 能力要求新宿主安装全局 `ppt-master`。只有未来真实宿主不能调用 CLI 时，才为该消费者评估最薄调用适配器；不把现有宿主封装成另一套 Agent 系统。
 
 ## 3. 数据流和身份
 
@@ -86,7 +86,7 @@
 - Pack 校验器检查稳定 ID 和交叉引用；Bridge 建成后由语义模块阻断未确认映射成为正式事实；
 - Bridge 对齐向导把模型候选限制为 proposed，以不可覆盖决定生成 confirmed_review；关键问题未答时阻断，非关键未答项显式 unresolved 并禁用能力；
 - 多来源重叠和清洗由项目 Skill 提示模型使用 Data Platform 只读查询举证；客户确认业务键、来源优先级和 SQL 后，以 saved query 固化。Bridge 只保存企业语义映射，不保存物理去重或合并 SQL；
-- 已冻结的短数据 PPT 使用项目 Quick 入口：冻结清单绑定证据哈希、Snapshot、关键查询和受控查询生成的来源凭据；项目只调用 PPT Master 官方 Quick checker/exporter，拒绝 Default 混用和本地静态 Quick 不允许的媒体/动画；
+- PPT 由宿主全局 `ppt-master` 按需路由 Quick 或 Default；项目只提供当前 Snapshot 的受控查询证据、口径、时间范围、来源与限制，不实现第二套路由或 Renderer；
 - 交付文件由宿主打开检查，数字必须可回查到同一查询结果；只有真实失败才增加最小确定性工具；
 - 状态恢复使用显式 `run_id`、`snapshot_id` 和后续 Pack/Bridge 版本，不通过 `latest`、修改时间或模糊文件名猜测。
 
@@ -114,9 +114,9 @@ Data Platform v2 将每个 Sheet 按实际表头名原样落入 landing，并在
 
 ## 6. 输出和交互
 
-自由分析的调用说明位于 `agents/ad_hoc_analysis/AGENT.md`，宿主 Skill `.agents/skills/business-analysis-routing` 提供更细的调用步骤；`analysis_product/` 只承载确定性分析交付代码（当前为 PPT Quick）。Agent 文件是可选择的运行合同，不实现项目内 Agent Loop、Session 或模型路由。
+自由分析的调用说明位于 `agents/ad_hoc_analysis/AGENT.md`，宿主 Skill `.agents/skills/business-analysis-routing` 提供更细的调用步骤；`analysis_product/` 保留为未来确定性分析代码边界，当前不承载 PPT 实现。Agent 文件是可选择的运行合同，不实现项目内 Agent Loop、Session 或模型路由。
 
-Codex、DeepSeek Harness 等宿主已具备 HTML、图表和文件生成/交付能力。项目已装配固定版本的 `ppt-master` Skill，Skill 负责方法和模板，宿主负责执行与交付；表格和可视化先复用宿主能力。两个宿主已完成主线分析和可打开 PPTX 的交付验证。PPT 交付是通用会话合同，按需求选择直接回答、表格/查询结果或 PPTX，不固化教育业务页序。首轮验收关闭自动更新、外部研究、生图、TTS、旁白和本地 Web 辅助界面；只有出现宿主无法满足的可复现文件正确性问题时，才增加最小确定性工具。当前不建设独立 Renderer 或 Deliverables 平台。
+Codex、DeepSeek Harness 等宿主已具备 HTML、图表和文件生成/交付能力。表格和可视化先复用宿主能力；PPT 由宿主全局 `ppt-master` 负责方法、路由、模板和质量门禁。PPT 交付不固化教育业务页序，也不在项目中复制全局 Skill。只有出现宿主无法满足的可复现文件正确性问题时，才增加最小确定性工具。当前不建设独立 Renderer 或 Deliverables 平台。
 
 ## 7. Casebook、内测回收与真实使用中的沉淀
 
