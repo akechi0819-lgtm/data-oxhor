@@ -5,6 +5,7 @@ orders_raw AS (
  TRIM(团队) AS source_team,
  TRIM(顾问归属) AS adviser_belong,
  TRIM(跟进顾问) AS follow_adviser,
+ TRIM(主被动) AS active_type,
  TRIM(年级校正) AS grade_correction,
  TRIM(线上线下) AS online_offline, TRIM(二级渠道) AS second_channel, NULLIF(TRIM(一级渠道),'') AS first_channel, NULLIF(TRIM(活动名称),'') AS campaign_name,
  NULLIF(TRIM(学生学校名称),'') AS school_name, NULLIF(TRIM(年级名称),'') AS grade_name, NULLIF(TRIM(COALESCE(
@@ -12,7 +13,7 @@ orders_raw AS (
    资源录入人
  )),'') AS entry_person,
  ROW_NUMBER() OVER(PARTITION BY NULLIF(TRIM(ID),'') ORDER BY source_row_number) rn
- FROM landing.br_work_orders__sheet_1f0596db9f25 WHERE TRIM(主被动)='被动'
+ FROM landing.br_work_orders__sheet_1f0596db9f25
 ), mapped_orders AS (
  SELECT *,
  CASE
@@ -53,15 +54,17 @@ orders_raw AS (
  CASE WHEN online_offline='线下' THEN 'offline_market'
       WHEN second_channel='虚拟人' THEN 'online_private'
       WHEN online_offline='线上' THEN 'online_platform' END AS team_id
- FROM mapped_orders WHERE rn=1 AND work_order_id IS NOT NULL AND business_group IS NOT NULL
+ FROM mapped_orders WHERE rn=1 AND work_order_id IS NOT NULL
 ), orders AS (
- SELECT event_date, o.business_group, o.team_id,
- o.first_channel, o.second_channel, o.campaign_name, o.school_name, o.grade_name, o.entry_person,
+ SELECT event_date, COALESCE(r.business_group, '业务组暂无法拆分') AS business_group,
+ CASE WHEN r.business_group IS NOT NULL THEN o.team_id END AS team_id,
+ r.first_channel, r.second_channel, r.campaign_name, r.school_name, r.grade_name,
+ CASE WHEN r.business_group IS NOT NULL THEN r.entry_person END AS entry_person,
  COUNT(*)::DOUBLE actual_value, 'work_orders' metric, NULL AS student_id
  FROM mapped_orders r
  JOIN orders_dim o ON r.work_order_id = o.work_order_id
  CROSS JOIN params
- WHERE r.rn=1 AND r.work_order_id IS NOT NULL AND r.business_group IS NOT NULL AND event_date>=start_date AND event_date<end_date
+ WHERE r.rn=1 AND r.work_order_id IS NOT NULL AND r.active_type='被动' AND event_date>=start_date AND event_date<end_date
  GROUP BY ALL
 ), cash_raw AS (
  SELECT NULLIF(TRIM(工单ID),'') AS work_order_id,
@@ -85,17 +88,18 @@ orders_raw AS (
  GROUP BY ALL
 ), cash_matched AS (
  SELECT c.cash_date AS event_date,
- CASE WHEN o.team_id IS NOT NULL THEN o.team_id
-      WHEN STRPOS(COALESCE(c.cash_campaign_name,''), '虚拟人') > 0 THEN 'online_private'
-      WHEN STRPOS(COALESCE(c.cash_campaign_name,''), '线上') > 0 THEN 'online_platform'
-      WHEN UPPER(COALESCE(c.channel,'')) LIKE '%TMK%' THEN 'offline_market'
-      WHEN STRPOS(COALESCE(c.cash_campaign_name,''), '校代') > 0 THEN 'offline_market'
-      ELSE 'online_platform' END AS team_id,
- c.cash_business_group AS business_group,
- COALESCE(o.first_channel, '暂无归属') AS first_channel,
- COALESCE(o.second_channel, '暂无归属') AS second_channel,
+ CASE WHEN o.work_order_id IS NOT NULL AND c.cash_business_group IS NOT NULL THEN o.team_id END AS team_id,
+ COALESCE(c.cash_business_group, '业务组暂无法拆分') AS business_group,
+ CASE
+  WHEN o.work_order_id IS NOT NULL THEN COALESCE(o.first_channel, '暂无归属')
+  WHEN c.cash_business_group IS NULL THEN COALESCE(NULLIF(TRIM(c.channel),''), '渠道/顾问暂无法拆分')
+  ELSE '渠道/顾问暂无法拆分' END AS first_channel,
+ CASE
+  WHEN o.work_order_id IS NOT NULL THEN COALESCE(o.second_channel, '暂无归属')
+  WHEN c.cash_business_group IS NULL THEN COALESCE(NULLIF(TRIM(c.cash_campaign_name),''), NULLIF(TRIM(c.channel),''), '渠道/顾问暂无法拆分')
+  ELSE '渠道/顾问暂无法拆分' END AS second_channel,
  COALESCE(o.campaign_name, c.cash_campaign_name) AS campaign_name,
- o.entry_person,
+ CASE WHEN o.work_order_id IS NOT NULL THEN o.entry_person END AS entry_person,
  c.school_name,
  c.grade_name,
  c.cash_amount AS actual_value,
@@ -104,7 +108,6 @@ orders_raw AS (
  FROM cash_raw c
  LEFT JOIN orders_dim o
  ON c.work_order_id = o.work_order_id
- WHERE c.cash_business_group IS NOT NULL
 )
 SELECT event_date, team_id, business_group, first_channel, second_channel, campaign_name, entry_person, school_name, grade_name, metric, actual_value, student_id FROM orders
 UNION ALL

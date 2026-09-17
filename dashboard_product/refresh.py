@@ -1,74 +1,16 @@
 #!/usr/bin/env python3
-import argparse,json,re,subprocess
+import argparse,json,subprocess
 from pathlib import Path
 from datetime import datetime,timezone
 from uuid import uuid4
+from workspace_modeling.operations.personnel import BUSINESS_GROUP_BY_ROSTER_GROUP, PEOPLE_CONFIG_PATH, date_to_perf_month, match_person_names
 ROOT=Path(__file__).parent
 TEAMS=[('offline_market','线下市场'),('online_private','线上私域（虚拟人团队）'),('online_platform','线上平台')]
 MONTHS=[f'2026-{m:02d}' for m in range(6,13)]+[f'2027-{m:02d}' for m in range(1,6)]
 PRIOR_MONTHS=[f'2025-{m:02d}' for m in range(6,13)]+[f'2026-{m:02d}' for m in range(1,6)]
-BUSINESS_GROUP_BY_ROSTER_GROUP={'青少组':'留学预备','小初提能组':'留学预备','高中组':'高中','高中多途径组':'高中','国际学校择校组':'高中','大学组':'大学'}
 YOY_GROUPS=('青少','初中','高中','大学')
 TARGET_GROUP={'青少':'留学预备','初中':'留学预备','高中':'高中','大学':'大学'}
-
-def date_to_perf_month(date_str):
-    """将日期转换为绩效月（YYYY-MM格式）
-    绩效月定义：每月26日到次月25日算作次月的绩效月
-    例如：2026-05-26 到 2026-06-25 算作 2026-06 绩效月
-    """
-    from datetime import datetime
-    if not date_str:
-        return None
-    try:
-        dt = datetime.fromisoformat(str(date_str)[:10])
-        # 如果是26日或之后，算作下个月的绩效月
-        if dt.day >= 26:
-            # 加一个月
-            if dt.month == 12:
-                perf_year = dt.year + 1
-                perf_month = 1
-            else:
-                perf_year = dt.year
-                perf_month = dt.month + 1
-            return f'{perf_year:04d}-{perf_month:02d}'
-        else:
-            # 1-25日算作当月绩效月
-            return f'{dt.year:04d}-{dt.month:02d}'
-    except:
-        return None
-
-SKIP_CAMPAIGN_VALUES=frozenset({'是','否','None','','NULL'})
-
-def campaign_allows_person_match(campaign):
-    return bool(campaign) and str(campaign) not in SKIP_CAMPAIGN_VALUES
-
-MARKET_PERSON_RE=re.compile(r'市场人员\s*[:：]\s*([^\s,，;；]+)')
-MARKET_RESOURCE_RE=re.compile(r'([^\s,，;；/]+)市场资源')
-EMBEDDED_CAMPAIGN_RE=re.compile(r'\d{4}\.\d{2}\.\d{2}-\S+')
-
-def names_in_text(names, text):
-    blob=str(text or '')
-    if not blob: return []
-    return [name for name in names if name in blob]
-
-def match_person_names(candidates, campaign, entry_person, resource_desc=None):
-    names=[name for name in candidates if name]
-    if not names: return []
-    if campaign_allows_person_match(campaign):
-        matched=names_in_text(names, campaign)
-        if matched: return matched
-    desc=str(resource_desc or '')
-    labeled=MARKET_PERSON_RE.search(desc)
-    if labeled:
-        matched=names_in_text(names, labeled.group(1))
-        if matched: return matched
-    resource_owner=MARKET_RESOURCE_RE.search(desc)
-    if resource_owner:
-        matched=names_in_text(names, resource_owner.group(1))
-        if matched: return matched
-    matched=names_in_text(names, entry_person)
-    if matched: return matched
-    return names_in_text(names, EMBEDDED_CAMPAIGN_RE.sub(' ', desc))
+UNASSIGNED_GROUP='业务组暂无法拆分'
 
 SCHOOL_AGENT_RESOURCE_MARK='校代系统资源'
 TMK_PLATFORM_CHANNEL='TMK激活-平台'
@@ -88,7 +30,7 @@ def remap_tmk_school_agent_team(team, first_channel, campaign, entry_person, off
 
 def read(p): return json.loads(Path(p).read_text(encoding='utf-8'))
 def run(ws,rid,snap,out,a,b):
- c=read(ws/'Work/workspace.json'); z=subprocess.run(['python3','-m','interfaces.data_platform','run-saved-query','--warehouse',str(ws/c['current_warehouse_path']),'--snapshot-id',snap,'--run-id',rid,'--output-root',str(out),'--registry-root',str(ws/'Work/SavedQueries'),'--query-id','dashboard_actuals','--version','v9','--params-json',json.dumps([a,b]),'--max-rows','50000','--max-result-bytes','10000000'],cwd=ROOT.parent,capture_output=True,text=True); r=json.loads(z.stdout or '{}')
+ c=read(ws/'Work/workspace.json'); z=subprocess.run(['python3','-m','interfaces.data_platform','run-saved-query','--warehouse',str(ws/c['current_warehouse_path']),'--snapshot-id',snap,'--run-id',rid,'--output-root',str(out),'--registry-root',str(ws/'Work/SavedQueries'),'--query-id','dashboard_actuals','--version','v10','--params-json',json.dumps([a,b]),'--max-rows','50000','--max-result-bytes','10000000'],cwd=ROOT.parent,capture_output=True,text=True); r=json.loads(z.stdout or '{}')
  if r.get('status')!='passed': raise ValueError(f"Query failed: {r.get('errors')} | stderr: {z.stderr}")
  # 如果 result 为 None，从 artifact 文件读取
  if not r.get('result') and r.get('artifact',{}).get('path'):
@@ -100,6 +42,7 @@ def run(ws,rid,snap,out,a,b):
 def project(q,p,tg,people,capacity=None):
  from dashboard_product.capacity import add_contribution, annual_cash_capacity, credit_unique, empty_contributions, person_line, unique_total
  act={}; yoy_act={}; per={}; prior_act={}; yoy_prior={}; per_monthly={}; person_drill={}; heads_credits={}
+ market_act={}; market_yoy={}; market_prior={}; market_yoy_prior={}
  drill={"current":{"cash":{"channel":{},"school_grade":{}},"orders":{"channel":{},"school_grade":{}}},"prior":{"cash":{"channel":{},"school_grade":{}},"orders":{"channel":{},"school_grade":{}}}}
  configured_people=[]
  for team_config in people.get('teams',[]):
@@ -119,12 +62,21 @@ def project(q,p,tg,people,capacity=None):
  def add_row(row, period, months, actuals, yoy_actuals, is_current):
   if len(row)!=12: raise ValueError(f'Unexpected dashboard query row: expected 12 columns, got {len(row)}')
   dt,team,group,first_ch,second_ch,campaign,entry_person,school,grade,metric,val,student_id = row[:12]
+  if group not in (*YOY_GROUPS,UNASSIGNED_GROUP) or metric not in ('work_orders','passive_reported_cash') or val in (None, ''): return
+  month=str(dt)[:7]; value=float(val); target=TARGET_GROUP.get(group,UNASSIGNED_GROUP)
+  market_actuals=market_act if is_current else market_prior
+  market_yoy_actuals=market_yoy if is_current else market_yoy_prior
+  market_actuals[(month,target,metric)]=market_actuals.get((month,target,metric),0)+value
+  market_yoy_actuals[(month,group,metric)]=market_yoy_actuals.get((month,group,metric),0)+value
+  metric_key='cash' if metric=='passive_reported_cash' else 'orders'
+  market_channel_key='|'.join((month,'market_total',group,str(first_ch or '未归类'),str(second_ch or '未细分')))
+  market_grade_key='|'.join((month,'market_total',group,str(school or '暂无归属'),str(grade or '暂无归属')))
+  drill[period][metric_key]['channel'][market_channel_key]=drill[period][metric_key]['channel'].get(market_channel_key,0)+value
+  drill[period][metric_key]['school_grade'][market_grade_key]=drill[period][metric_key]['school_grade'].get(market_grade_key,0)+value
   team=remap_tmk_school_agent_team(team, first_ch, campaign, entry_person, offline_names)
-  if not team or group not in YOY_GROUPS or metric not in ('work_orders','passive_reported_cash') or val in (None, ''): return
-  month=str(dt)[:7]; value=float(val); target=TARGET_GROUP[group]
+  if not team or group not in YOY_GROUPS: return
   actuals[(month,team,target,metric)]=actuals.get((month,team,target,metric),0)+value
   yoy_actuals[(month,team,group,metric)]=yoy_actuals.get((month,team,group,metric),0)+value
-  metric_key='cash' if metric=='passive_reported_cash' else 'orders'
   channel_key='|'.join((month,team,group,str(first_ch or '未归类'),str(second_ch or '未细分')))
   grade_key='|'.join((month,team,group,str(school or '暂无归属'),str(grade or '暂无归属')))
   drill[period][metric_key]['channel'][channel_key]=drill[period][metric_key]['channel'].get(channel_key,0)+value
@@ -203,23 +155,17 @@ def project(q,p,tg,people,capacity=None):
   team_orders_target=sum(g['annual_targets']['orders'] or 0 for g in gs)
   teams.append({'team_id':tid,'display_name':label,'cash_target':team_cash_target or None,'orders_target':team_orders_target or None,'groups':gs,'yoy_groups':yoy_gs,'people':roster})
  total_groups=[]
- for group_name in [item['display_name'] for item in tg['business_groups'].values()]:
-  sources=[team['groups'] for team in teams]
-  group_items=[next(group for group in source if group['display_name']==group_name) for source in sources]
-  total_groups.append({'display_name':group_name,'quarter_targets':{quarter:{metric:sum((item['quarter_targets'].get(quarter,{}).get(metric) or 0) for item in group_items) or None for metric in ('cash','orders')} for quarter in ('Q1','Q2','Q3','Q4')},'annual_targets':{'cash':sum((item['annual_targets']['cash'] or 0) for item in group_items) or None,'orders':sum((item['annual_targets']['orders'] or 0) for item in group_items) or None},'monthly_actuals':{'cash':[sum(item['monthly_actuals']['cash'][i] for item in group_items) for i in range(12)],'orders':[sum(item['monthly_actuals']['orders'][i] for item in group_items) for i in range(12)]},'prior_monthly_actuals':{'cash':[sum(item['prior_monthly_actuals']['cash'][i] for item in group_items) for i in range(12)],'orders':[sum(item['prior_monthly_actuals']['orders'][i] for item in group_items) for i in range(12)]},'cash_actual':sum(item['cash_actual'] for item in group_items),'orders_actual':sum(item['orders_actual'] for item in group_items)})
+ for group_name in [item['display_name'] for item in tg['business_groups'].values()]+[UNASSIGNED_GROUP]:
+  group_items=[group for team in teams for group in team['groups'] if group['display_name']==group_name]
+  quarter_targets={quarter:{metric:sum((item['quarter_targets'].get(quarter,{}).get(metric) or 0) for item in group_items) or None for metric in ('cash','orders')} for quarter in ('Q1','Q2','Q3','Q4')}
+  annual_targets={'cash':sum((item['annual_targets']['cash'] or 0) for item in group_items) or None,'orders':sum((item['annual_targets']['orders'] or 0) for item in group_items) or None}
+  monthly={'cash':[market_act.get((m,group_name,'passive_reported_cash'),0) for m in MONTHS],'orders':[market_act.get((m,group_name,'work_orders'),0) for m in MONTHS]}
+  prior_monthly={'cash':[market_prior.get((m,group_name,'passive_reported_cash'),0) for m in PRIOR_MONTHS],'orders':[market_prior.get((m,group_name,'work_orders'),0) for m in PRIOR_MONTHS]}
+  total_groups.append({'display_name':group_name,'quarter_targets':quarter_targets,'annual_targets':annual_targets,'monthly_actuals':monthly,'prior_monthly_actuals':prior_monthly,'cash_actual':sum(monthly['cash']),'orders_actual':sum(monthly['orders'])})
  total_yoy=[]
- for n in YOY_GROUPS:
-  yoy_items=[next(group for group in team['yoy_groups'] if group['display_name']==n) for team in teams]
-  total_yoy.append({'display_name':n,'monthly_actuals':{'cash':[sum(item['monthly_actuals']['cash'][i] for item in yoy_items) for i in range(12)],'orders':[sum(item['monthly_actuals']['orders'][i] for item in yoy_items) for i in range(12)]},'prior_monthly_actuals':{'cash':[sum(item['prior_monthly_actuals']['cash'][i] for item in yoy_items) for i in range(12)],'orders':[sum(item['prior_monthly_actuals']['orders'][i] for item in yoy_items) for i in range(12)]}})
+ for n in (*YOY_GROUPS,UNASSIGNED_GROUP):
+  total_yoy.append({'display_name':n,'monthly_actuals':{'cash':[market_yoy.get((m,n,'passive_reported_cash'),0) for m in MONTHS],'orders':[market_yoy.get((m,n,'work_orders'),0) for m in MONTHS]},'prior_monthly_actuals':{'cash':[market_yoy_prior.get((m,n,'passive_reported_cash'),0) for m in PRIOR_MONTHS],'orders':[market_yoy_prior.get((m,n,'work_orders'),0) for m in PRIOR_MONTHS]}})
  teams.append({'team_id':'market_total','display_name':'市场总计','cash_target':sum((team['cash_target'] or 0) for team in teams) or None,'orders_target':sum((team['orders_target'] or 0) for team in teams) or None,'groups':total_groups,'yoy_groups':total_yoy,'people':[]})
- for period in ('current','prior'):
-  for metric in ('cash','orders'):
-   for kind in ('channel','school_grade'):
-    total={}
-    for key,value in list(drill[period][metric][kind].items()):
-     parts=key.split('|'); total_key='|'.join((parts[0],'market_total',*parts[2:]))
-     total[total_key]=total.get(total_key,0)+value
-    drill[period][metric][kind].update(total)
  return {'months':MONTHS,'prior_months':PRIOR_MONTHS,'teams':teams,'drilldowns':drill}
 def refresh(workspace,run_id):
  from datetime import date
@@ -242,7 +188,7 @@ def refresh(workspace,run_id):
 
  q=run(ws,run_id,snap,out,current_start,current_end)
  p=run(ws,run_id+'_prior',snap,out,prior_start,prior_end_str)
- d=project(q,p,read(ROOT/'config/project_targets.json'),read(ROOT/'config/people.json'),read(ROOT/'config/capacity_targets.json'))
+ d=project(q,p,read(ROOT/'config/project_targets.json'),read(PEOPLE_CONFIG_PATH),read(ROOT/'config/capacity_targets.json'))
  a={'schema_version':'dashboard_artifact.v1','artifact_id':'dashboard_'+uuid4().hex[:12],'run_id':run_id,'snapshot_id':snap,'as_of_date':today.isoformat(),'data_through_date':(today.fromordinal(today.toordinal()-1)).isoformat(),'created_at':datetime.now(timezone.utc).isoformat(),'query_results':[q,p],'errors':[],'dashboard':d}
  path=out/'artifact.json'; path.write_text(json.dumps(a,ensure_ascii=False,indent=2),encoding='utf-8')
  return {'status':'artifact_created','artifact':str(path)}

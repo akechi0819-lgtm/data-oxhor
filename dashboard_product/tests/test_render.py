@@ -1,3 +1,4 @@
+from workspace_modeling.operations.personnel import PEOPLE_CONFIG_PATH
 import json
 import tempfile
 import unittest
@@ -14,7 +15,7 @@ class RenderTest(unittest.TestCase):
             ["2026-09-03", "offline_market", "高中", "TMK", "校园", "杨新宇活动", None, "学校", "高一", "work_orders", 2, None],
             ["2026-09-03", "offline_market", "高中", "TMK", "校园", "杨新宇活动", None, "学校", "高一", "passive_reported_cash", 26000, None],
         ]
-        result = project({"result": {"rows": rows}}, {"result": {"rows": []}}, read(root / "config/project_targets.json"), read(root / "config/people.json"))
+        result = project({"result": {"rows": rows}}, {"result": {"rows": []}}, read(root / "config/project_targets.json"), read(PEOPLE_CONFIG_PATH))
         team = next(item for item in result["teams"] if item["team_id"] == "offline_market")
         person = next(item for item in team["people"] if item["display_name"] == "杨新宇")
         self.assertEqual(person["business_group"], "高中")
@@ -29,7 +30,7 @@ class RenderTest(unittest.TestCase):
         rows = [
             ["2026-09-03", "offline_market", "大学", "TMK", "校园", "天财豆蔻学姐号微信推广-曹恒为玮-线上雅思行地推", "曹恒玮", "某大学", "大一", "work_orders", 1, None],
         ]
-        result = project({"result": {"rows": rows}}, {"result": {"rows": []}}, read(root / "config/project_targets.json"), read(root / "config/people.json"))
+        result = project({"result": {"rows": rows}}, {"result": {"rows": []}}, read(root / "config/project_targets.json"), read(PEOPLE_CONFIG_PATH))
         team = next(item for item in result["teams"] if item["team_id"] == "offline_market")
         cao = next(item for item in team["people"] if item["display_name"] == "曹恒玮")
         self.assertEqual(cao["orders_actual"], 1)
@@ -40,7 +41,7 @@ class RenderTest(unittest.TestCase):
         rows = [
             ["2026-09-03", "offline_market", "大学", "TMK", "校园", None, "曹恒玮", "某大学", "大一", "work_orders", 1, None],
         ]
-        result = project({"result": {"rows": rows}}, {"result": {"rows": []}}, read(root / "config/project_targets.json"), read(root / "config/people.json"))
+        result = project({"result": {"rows": rows}}, {"result": {"rows": []}}, read(root / "config/project_targets.json"), read(PEOPLE_CONFIG_PATH))
         team = next(item for item in result["teams"] if item["team_id"] == "offline_market")
         cao = next(item for item in team["people"] if item["display_name"] == "曹恒玮")
         self.assertEqual(cao["orders_actual"], 1)
@@ -53,7 +54,7 @@ class RenderTest(unittest.TestCase):
             ["2026-09-03", "offline_market", "青少", "TMK", "校园", "校代系统资源活动", "马澳", "学校", "初三", "work_orders", 3, None],
             ["2026-09-03", "offline_market", "青少", "TMK", "校园", "校代系统资源活动", "马澳", "学校", "初三", "passive_reported_cash", 39000, None],
         ]
-        result = project({"result": {"rows": rows}}, {"result": {"rows": []}}, read(root / "config/project_targets.json"), read(root / "config/people.json"))
+        result = project({"result": {"rows": rows}}, {"result": {"rows": []}}, read(root / "config/project_targets.json"), read(PEOPLE_CONFIG_PATH))
         team = next(item for item in result["teams"] if item["team_id"] == "offline_market")
         ma_ao = next(item for item in team["people"] if item["display_name"] == "马澳")
         self.assertEqual(ma_ao["orders_actual"], 3)
@@ -63,7 +64,7 @@ class RenderTest(unittest.TestCase):
     def test_tmk_school_agent_owned_by_offline_roster_counts_offline(self):
         from dashboard_product.refresh import read, remap_tmk_school_agent_team
         root = Path(__file__).resolve().parents[1]
-        people = read(root / "config/people.json")
+        people = read(PEOPLE_CONFIG_PATH)
         offline_names = {
             person.get("display_name")
             for team in people["teams"] if team["team_id"] == "offline_market"
@@ -122,23 +123,42 @@ class RenderTest(unittest.TestCase):
         self.assertIn("LEFT JOIN orders_dim o", query)
         self.assertIn("资源描述", query)
         self.assertIn("市场人员", query)
-        self.assertIn("COALESCE(o.first_channel, '暂无归属') AS first_channel", query)
-        self.assertIn("COALESCE(o.second_channel, '暂无归属') AS second_channel", query)
+        self.assertIn("渠道/顾问暂无法拆分", query)
+        self.assertIn("COALESCE(c.cash_business_group, '业务组暂无法拆分')", query)
         self.assertIn("顾问归属", query)
         self.assertIn("跟进顾问", query)
         self.assertIn("张艺彤", query)
         self.assertIn("年级校正", query)
-        self.assertIn("c.cash_business_group AS business_group", query)
+        self.assertIn("COALESCE(c.cash_business_group, '业务组暂无法拆分') AS business_group", query)
         self.assertIn("WHEN TRIM(团队) IN ('初中','初中国际学科') THEN '初中'", query)
         self.assertNotIn("COALESCE(o.business_group, c.cash_business_group)", query)
         self.assertIn("NULLIF(TRIM(学员编号),'') AS student_id", query)
         self.assertIn("NULL AS student_id", query)
         self.assertIn("metric, actual_value, student_id FROM orders", query)
 
+    def test_market_total_keeps_unassigned_facts_without_putting_them_in_teams_or_people(self):
+        from dashboard_product.refresh import read
+        root = Path(__file__).resolve().parents[1]
+        rows = [
+            ["2026-08-12", None, "业务组暂无法拆分", "平台", "小红书", "活动", None, None, None, "work_orders", 3, None],
+            ["2026-08-12", None, "高中", "渠道/顾问暂无法拆分", "渠道/顾问暂无法拆分", "现金活动", None, None, None, "passive_reported_cash", 181200, "S1"],
+            ["2026-08-12", "offline_market", "高中", "TMK", "讲座", "杨新宇活动", None, None, None, "work_orders", 2, None],
+        ]
+        result = project({"result": {"rows": rows}}, {"result": {"rows": []}}, read(root / "config/project_targets.json"), read(PEOPLE_CONFIG_PATH))
+        market = next(item for item in result["teams"] if item["team_id"] == "market_total")
+        offline = next(item for item in result["teams"] if item["team_id"] == "offline_market")
+        market_groups = {item["display_name"]: item for item in market["groups"]}
+        offline_groups = {item["display_name"]: item for item in offline["groups"]}
+        self.assertEqual(market_groups["业务组暂无法拆分"]["monthly_actuals"]["orders"][2], 3)
+        self.assertEqual(market_groups["高中"]["monthly_actuals"]["cash"][2], 181200)
+        self.assertEqual(offline_groups["高中"]["monthly_actuals"]["cash"][2], 0)
+        self.assertEqual(offline_groups["高中"]["monthly_actuals"]["orders"][2], 2)
+        self.assertIn("2026-08|market_total|高中|渠道/顾问暂无法拆分|渠道/顾问暂无法拆分", result["drilldowns"]["current"]["cash"]["channel"])
+
     def test_notify_sql_remaps_tmk_school_agent_owned_by_offline_roster(self):
         root = Path(__file__).resolve().parents[1]
         for name in ('notify_work_orders.sql', 'notify_cash.sql'):
-            query = (root / 'sql' / name).read_text(encoding='utf-8')
+            query = (root.parent / 'monitoring_product' / 'sql' / name).read_text(encoding='utf-8')
             self.assertIn("TMK激活-平台", query)
             self.assertIn("校代系统资源", query)
             self.assertIn("石仁达", query)
@@ -201,7 +221,7 @@ class RenderTest(unittest.TestCase):
             ["2026-09-03", "offline_market", "初中", "TMK", "校园", "初中活动", None, "学校", "七年级", "passive_reported_cash", 40, None],
             ["2026-09-03", "offline_market", "高中", "TMK", "校园", "杨新宇活动", None, "学校", "高一", "passive_reported_cash", 20, None],
         ]
-        result = project({"result": {"rows": rows}}, {"result": {"rows": []}}, read(root / "config/project_targets.json"), read(root / "config/people.json"))
+        result = project({"result": {"rows": rows}}, {"result": {"rows": []}}, read(root / "config/project_targets.json"), read(PEOPLE_CONFIG_PATH))
         team = next(item for item in result["teams"] if item["team_id"] == "offline_market")
         groups = {group["display_name"]: group for group in team["groups"]}
         self.assertEqual(groups["留学预备"]["monthly_actuals"]["cash"][3], 140)
@@ -228,13 +248,12 @@ class RenderTest(unittest.TestCase):
         self.assertIn("右侧合计该渠道全部现金、工单及占总现金占比，按合计现金降序", src)
         self.assertIn("colspan=\"5\">合计", src)
         self.assertIn("class=\"total-row\"><th>总计</th>", src)
-        self.assertIn("channelTotal(currentCash, b) - channelTotal(currentCash, a)", src)
+        self.assertIn("channelTotal(currentCash, b, matrixGroupNames) - channelTotal(currentCash, a, matrixGroupNames)", src)
         self.assertIn("function capacityPeerKey(row)", src)
         self.assertIn("return 'offline|' + (row.businessGroup || '未分组')", src)
         self.assertIn("item.team_id !== 'market_total'", src)
-        self.assertIn("function renderTeamShareTable(", src)
-        self.assertIn("parentCash > 0 ? cash / parentCash", src)
-        self.assertIn("parentOrders > 0 ? orders / parentOrders", src)
+        self.assertIn("function matrixGroups(team)", src)
+        self.assertIn("业务组暂无法拆分", src)
         self.assertIn("展开团队", src)
         self.assertIn("staff_capacity", src)
         self.assertIn("市场人员产能", src)
