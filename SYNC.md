@@ -108,3 +108,8 @@ A 层必须成套同步 `monitoring_product/`、`workspace_modeling/operations/`
 ## 2026-09-16 监控云端验收完成
 
 监控已部署到 monitor，魏忠贤既有 10:30 四通道日推原位切换。权威 Routine ID `5937c316-103d-5e32-8684-f103cbc82db3`；旧 automation 目录只是本地残影。实读仅一条启用日推。云监控 19 项、看板 27 项测试通过；同 Snapshot 四通道 PNG 与旧版一致；包版 refresh 真仓无发布验证通过。旧通知与临时花名册兼容软链已删除，B/C 不搬迁，本轮未补发。见 `docs/monitoring-cloud-deployment.md`。
+
+
+## 2026-09-18 查询证据链与来源修复同步完成
+
+代码提交 `d09a228` 及前置证据链已按 A 层成套同步，最终 39/39 文件哈希与包一致。7 份旧文档先取回审查，再按精确哈希处理清单替换，剩余跳过为 0。云端查询/Casebook/Bridge 56 项、监控 19 项、看板 30 项测试通过；共享软链和原例行不变。未移动 B/C，未执行生产刷新、发布或发送。分析角色继续读取 warehouse 下的 Agent/Skill，新中性提醒与纯文字答复保存说明已到位。详见 [云端同步验收](docs/evidence-cloud-deployment.md)。
