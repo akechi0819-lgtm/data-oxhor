@@ -58,6 +58,89 @@ class QueryServiceTests(unittest.TestCase):
                     self.assertEqual(result["status"], "passed")
                     self.assertEqual(verify_receipt(root / "run_query_test" / result["receipt"]["path"])[0]["referenced_source_ids"], ["fixture"])
 
+    def test_provenance_uses_sql_parser_for_literals_comments_and_empty_results(self):
+        queries = [
+            ("SELECT '--说明' AS note, amount FROM landing.values_table", None, 3),
+            ("SELECT '/*说明*/ landing.fake' AS note FROM landing.values_table -- landing.fake", None, 3),
+            ("/* outer /* nested */ comment */ SELECT * FROM LANDING.VALUES_TABLE WHERE false", None, 0),
+            ("WITH selected AS (SELECT * FROM landing.values_table WHERE amount > ?) SELECT * FROM selected", [1], 2),
+            ("SELECT '$category ? --' AS note FROM landing.values_table WHERE category=$category", {"category": "a"}, 2),
+            ("SELECT * FROM landing.values_table a NATURAL JOIN landing.values_table b", None, 3),
+            ("SELECT a.* FROM landing.values_table a JOIN landing.values_table b ON a.amount=b.amount AND EXISTS (SELECT 1 FROM landing.values_table c WHERE c.amount=?)", [1], 3),
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            db = root / "warehouse.duckdb"
+            warehouse(db)
+            for sql, parameters, row_count in queries:
+                with self.subTest(sql=sql):
+                    result = execute_query(warehouse=db, snapshot_id="snapshot_query_test", sql=sql,
+                                           parameters=parameters, run_id="run_query_test", output_root=root)
+                    receipt = verify_receipt(root / "run_query_test" / result["receipt"]["path"])[0]
+                    self.assertEqual(receipt["referenced_relations"], ["landing.values_table"])
+                    self.assertEqual(receipt["referenced_source_ids"], ["fixture"])
+                    self.assertEqual(len(read_query_result(result, output_root=root)["rows"]), row_count)
+            result = execute_query(warehouse=db, snapshot_id="snapshot_query_test",
+                                   sql="SELECT 'landing.values_table' AS note", run_id="run_query_test", output_root=root)
+            receipt = verify_receipt(root / "run_query_test" / result["receipt"]["path"])[0]
+            self.assertEqual(receipt["referenced_relations"], [])
+
+    def test_provenance_expands_views_and_preserves_registered_quoted_names(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            db = root / "warehouse.duckdb"
+            warehouse(db)
+            with duckdb.connect(str(db)) as connection:
+                connection.execute('CREATE TABLE landing."Odd.Name""X"(amount INTEGER)')
+                connection.execute("INSERT INTO ingest.sheets VALUES ('quoted', ?, '[]')", ['Odd.Name"X'])
+                connection.execute('CREATE VIEW queries.selected AS SELECT * FROM landing."Odd.Name""X"')
+            manifest(db, 'snapshot_query_test')
+            for sql in ['SELECT * FROM LANDING."odd.name""x"', 'SELECT * FROM queries.selected']:
+                with self.subTest(sql=sql):
+                    result = execute_query(warehouse=db, snapshot_id="snapshot_query_test", sql=sql,
+                                           run_id="run_query_test", output_root=root)
+                    receipt = verify_receipt(root / "run_query_test" / result["receipt"]["path"])[0]
+                    self.assertEqual(receipt["referenced_relations"], ['landing.Odd.Name"X'])
+                    self.assertEqual(receipt["referenced_source_ids"], ["quoted"])
+
+    def test_provenance_rejects_unregistered_relations_and_unresolved_dependencies(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            db = root / "warehouse.duckdb"
+            warehouse(db)
+            with duckdb.connect(str(db)) as connection:
+                connection.execute("CREATE TABLE landing.unregistered(amount INTEGER)")
+                connection.execute("CREATE VIEW queries.joined AS SELECT * FROM landing.values_table a JOIN landing.values_table b USING(category)")
+            manifest(db, "snapshot_query_test")
+            queries = [
+                ("SELECT * FROM landing.unregistered", None),
+                ("SELECT * FROM queries.joined", None),
+                ("SELECT * FROM query_table($table_name)", {"table_name": "landing.values_table"}),
+            ]
+            for sql, parameters in queries:
+                with self.subTest(sql=sql), self.assertRaises(QueryError) as error:
+                    execute_query(warehouse=db, snapshot_id="snapshot_query_test", sql=sql,
+                                  parameters=parameters, run_id="run_query_test", output_root=root)
+                self.assertEqual(error.exception.code, "QUERY_PROVENANCE_INVALID")
+
+    def test_parameter_dependent_table_selection_cannot_emit_false_provenance(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            db = root / "warehouse.duckdb"
+            warehouse(db)
+            with duckdb.connect(str(db)) as connection:
+                connection.execute("CREATE TABLE landing.other_table AS SELECT * FROM landing.values_table WHERE false")
+                connection.execute("INSERT INTO ingest.sources VALUES ('other', 'snapshot_query_test')")
+                connection.execute("INSERT INTO ingest.sheets VALUES ('other', 'other_table', '[]')")
+            manifest(db, "snapshot_query_test")
+            sql = "SELECT * FROM query_table(CASE WHEN ? THEN 'landing.values_table' ELSE 'landing.other_table' END)"
+            for parameters in ([True], [False]):
+                with self.subTest(parameters=parameters), self.assertRaises(QueryError) as error:
+                    execute_query(warehouse=db, snapshot_id="snapshot_query_test", sql=sql,
+                                  parameters=parameters, run_id="run_query_test", output_root=root)
+                self.assertEqual(error.exception.code, "QUERY_PROVENANCE_INVALID")
+            self.assertFalse((root / "run_query_test").exists())
+
     def test_rejects_writes_external_access_and_multiple_statements(self):
         denied = [
             "CREATE TABLE landing.bad(a int)",

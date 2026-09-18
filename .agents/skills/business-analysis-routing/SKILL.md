@@ -20,10 +20,18 @@ description: 将已完成首次部署和 Bridge 对齐的自然语言分析请�
 5. 只基于当前查询结果回答，并说明时间范围、口径、来源和已知限制。Casebook 的命中信息可在运行证据中作为方法引用记录，但不替代当前查询证据。
 6. 用户明确要求文件交付时，表格/图表使用宿主原生能力；PPT 将已验证的分析结论、查询结果、口径、时间范围、来源和限制交给宿主全局 `ppt-master` Skill。路由选择由该 Skill 的当前规则决定：用户明确要求快速/轻量时可进入 Quick，其他情况按 Default 及对应路由执行；项目不自行复制路由规则。交付物必须可打开、内容非空，关键数字能回查到本次受控查询。如果全局 `ppt-master` 不可用，明确阻断 PPT 交付，但保留已完成的分析和证据；不回退到项目内置生成器。
 
+## 分析结束提醒
+
+结论和必要交付完成后，若本次尚未保存、未提醒过，且用户未明确拒绝保存，只提醒一次：
+
+> 如需以后复用这次分析，可以在验收后让我保存为 Casebook 候选。
+
+这些条件只使用宿主当前对话状态，不增加状态存储或后台 Hook；不按复杂度、多数据源或业务价值判断是否提醒，不自动创建案例或修改状态机。用户已明确要求保存时直接进入下述流程，不重复提醒。
+
 ## 保存与沉淀
 
 - 只有用户明确表示该分析已验收、以后需要复用时，才调用现有 `case-create` 保存最小证据包；默认创建 `candidate`，不要自动确认、发布或修改 Pack/Bridge/Skill。
-- 保存时通过 `workspace_modeling.delivery.create_delivery` 将本次受控查询回执和已验收的自包含交付文件组为 `business_delivery.v1` 证据包，再用 `casebook_capture.v2` 的 `evidence_sources=[{"path":"工作区相对的delivery.json路径"}]` 调用现有保存入口；问题、规范化问题、关键查询和结论限制仍须提供。CLI 将包内 Snapshot、Pack/Bridge、公司和角色与所选工作区逐项核对，不给历史或外来证据自动贴当前身份。使用 `case-verify` 检查完整引用与哈希，再由用户明确决定 `case-confirm`。无文件交付时继续保留查询证据，不为沉淀案例自动制造未验收报告。
+- 保存时通过 `workspace_modeling.delivery.create_delivery` 将本次受控查询回执和已验收的自包含交付文件组为 `business_delivery.v1` 证据包，再用 `casebook_capture.v2` 的 `evidence_sources=[{"path":"工作区相对的delivery.json路径"}]` 调用现有保存入口；问题、规范化问题、关键查询和结论限制仍须提供。CLI 将包内 Snapshot、Pack/Bridge、公司和角色与所选工作区逐项核对，不给历史或外来证据自动贴当前身份。使用 `case-verify` 检查完整引用与哈希，再由用户明确决定 `case-confirm`。纯文字分析在用户明确验收并同意保存后，将已验收答复原样写入本次工作区输出目录的 `answer.md`，再与查询回执一起走相同的 `create_delivery` 与 capture 流程；不扩写答复、不自动制造新报告。未同意保存时继续保留已有查询证据。
 - `repeat-candidates` 只用于用户或内测回收明确要求检查重复模式时。它只返回候选，不生成或发布 Skill；跨客户可复用的方法由人工审核后沉淀为项目 Skill、模板或 Pack。
 
 ## 宿主边界

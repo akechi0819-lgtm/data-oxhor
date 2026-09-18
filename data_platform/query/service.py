@@ -24,10 +24,7 @@ DENIED_CATALOG_RELATIONS = re.compile(
 QUERY_ID = re.compile(r"^[a-z][a-z0-9_-]{2,63}$")
 VERSION = re.compile(r"^v[0-9]+(?:\.[0-9]+){0,2}$")
 RUN_ID = re.compile(r"^run_[a-z0-9][a-z0-9_-]{2,67}$")
-LANDING_RELATION = re.compile(
-    r'(?<![a-z0-9_])(?:landing|"landing")\s*\.\s*(?:"([^"]+)"|([a-z_][a-z0-9_]*))',
-    re.IGNORECASE,
-)
+
 
 
 class QueryError(ValueError):
@@ -65,31 +62,68 @@ def _require_snapshot(connection: duckdb.DuckDBPyConnection, snapshot_id: str) -
         raise QueryError("SNAPSHOT_MISMATCH", "requested snapshot_id does not identify this warehouse")
 
 
-def _strip_sql_literals_and_comments(sql: str) -> str:
-    sql = re.sub(r"--[^\n]*", "", sql)
-    sql = re.sub(r"/\*.*?\*/", "", sql, flags=re.DOTALL)
-    return re.sub(r"'(?:''|[^'])*'", "''", sql)
+def _provenance_sql(connection: duckdb.DuckDBPyConnection, sql: str) -> str:
+    # get_table_names cannot bind parameters or resolve JOIN USING/NATURAL
+    # columns. Normalize these native AST nodes only for dependency discovery;
+    # execution and evidence keep the original SQL and parameters unchanged.
+    statement = json.loads(connection.execute("SELECT json_serialize_sql(?)", [sql]).fetchone()[0])
+    if statement.get("error"):
+        raise QueryError("QUERY_PROVENANCE_INVALID", "cannot serialize SQL for source provenance")
+    null_statement = json.loads(connection.execute("SELECT json_serialize_sql('SELECT NULL')").fetchone()[0])
+    null_node = null_statement["statements"][0]["node"]["select_list"][0]
 
+    def normalize_for_provenance(value: Any, in_table_function: bool = False) -> Any:
+        if isinstance(value, dict):
+            in_table_function = in_table_function or value.get("type") == "TABLE_FUNCTION"
+            if value.get("class") == "PARAMETER":
+                if in_table_function:
+                    raise QueryError("QUERY_PROVENANCE_INVALID", "parameters in table functions cannot establish stable source provenance")
+                return null_node
+            normalized = {key: normalize_for_provenance(item, in_table_function) for key, item in value.items()}
+            if value.get("type") == "JOIN" and (value.get("using_columns") or value.get("ref_type") == "NATURAL"):
+                normalized.update(using_columns=[], ref_type="CROSS", join_type="INNER")
+            return normalized
+        if isinstance(value, list):
+            return [normalize_for_provenance(item, in_table_function) for item in value]
+        return value
 
-def _referenced_landing_relations(sql: str) -> list[str]:
-    cleaned = _strip_sql_literals_and_comments(sql)
-    return sorted({match.group(1) or match.group(2) for match in LANDING_RELATION.finditer(cleaned)})
+    return connection.execute(
+        "SELECT json_deserialize_sql(?)", [json.dumps(normalize_for_provenance(statement))]
+    ).fetchone()[0]
 
 
 def _query_source_provenance(connection: duckdb.DuckDBPyConnection, sql: str) -> tuple[list[str], list[str]]:
-    relations = _referenced_landing_relations(sql)
+    try:
+        names = connection.get_table_names(_provenance_sql(connection, sql), qualified=True)
+        relations = set()
+        for name in names:
+            # Let DuckDB decode quoted identifiers, including embedded dots and
+            # escaped quotes, instead of splitting SQL names ourselves.
+            parsed = json.loads(connection.execute(
+                "SELECT json_serialize_sql(?)", ["SELECT * FROM " + name]
+            ).fetchone()[0])
+            if parsed.get("error"):
+                raise QueryError("QUERY_PROVENANCE_INVALID", "cannot parse source relation: " + name)
+            relation = parsed["statements"][0]["node"]["from_table"]
+            schema = relation["schema_name"]
+            if not schema:
+                raise QueryError("QUERY_PROVENANCE_INVALID", "source relation must be schema-qualified: " + name)
+            if schema.lower() == "landing":
+                relations.add(relation["table_name"])
+    except duckdb.Error as exc:
+        raise QueryError("QUERY_PROVENANCE_INVALID", "cannot resolve query source provenance: " + str(exc)) from exc
     if not relations:
         return [], []
-    placeholders = ", ".join("?" for _ in relations)
-    rows = connection.execute(
-        f"SELECT target_table, source_id FROM ingest.sheets WHERE target_table IN ({placeholders})",
-        relations,
-    ).fetchall()
-    mapped = {table: source_id for table, source_id in rows}
-    missing = sorted(set(relations) - set(mapped))
+    # DuckDB identifiers are ASCII case-insensitive, even when quoted. Preserve
+    # the registered spelling in evidence instead of the query's spelling.
+    fold = str.maketrans("ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz")
+    rows = connection.execute("SELECT target_table, source_id FROM ingest.sheets").fetchall()
+    mapped = {table.translate(fold): (table, source_id) for table, source_id in rows}
+    missing = sorted(name for name in relations if name.translate(fold) not in mapped)
     if missing:
         raise QueryError("QUERY_PROVENANCE_INVALID", "landing relation has no source provenance: " + ", ".join(missing))
-    return [f"landing.{relation}" for relation in relations], sorted(set(mapped.values()))
+    referenced = [mapped[name.translate(fold)] for name in relations]
+    return sorted({f"landing.{table}" for table, _ in referenced}), sorted({source for _, source in referenced})
 
 
 def validate_query(connection: duckdb.DuckDBPyConnection, sql: str, parameters: Any = None) -> None:

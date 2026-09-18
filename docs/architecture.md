@@ -25,12 +25,13 @@
                          │
                ┌─────────▼──────────┐
                │ 本地案例与反馈沉淀 │
-               │ Casebook/Skill    │
-               │ Template/Pack/Bridge │
+               │ Casebook            │
+               │ ↓ 人工审核后沉淀    │
+               │ Skill/Template/Pack/Bridge │
                └────────────────────┘
 ```
 
-项目本地优先；已授权云端宿主可以执行固定定时、刷新、发布与托管，不承载个人自由分析主流程。本次演进不迁移现有云端任务。新增需求优先复用模块，仅在职责、权限或运行周期独立时评估新增 Agent 运行说明。
+项目本地优先；已授权云端宿主可以执行固定定时、刷新、发布与托管，不承载个人自由分析主流程。本次演进不迁移现有云端任务。新增需求依次评估：**复用已有模块 → 扩展已有接口 → 新增模块 → 新增 Agent**。只有前三种方式无法满足，并且职责、权限边界或运行周期确有独立需求时，才新增 Agent 运行说明。
 
 ## 2. 为什么宿主可替换
 
@@ -118,7 +119,7 @@ Data Platform v2 将每个 Sheet 按实际表头名原样落入 landing，并在
 
 ## 6. 输出和交互
 
-自由分析的调用说明位于 `agents/ad_hoc_analysis/AGENT.md`，宿主 Skill `.agents/skills/business-analysis-routing` 提供更细的调用步骤；`analysis_product/` 保留为未来确定性分析代码边界，当前不承载 PPT 实现。Agent 文件是可选择的运行合同，不实现项目内 Agent Loop、Session 或模型路由。
+自由分析的调用说明位于 `agents/ad_hoc_analysis/AGENT.md`，宿主 Skill `.agents/skills/business-analysis-routing` 提供更细的调用步骤；确定性交付组包已由 `workspace_modeling.delivery` 实现，`analysis_product/` 当前不承载组包或 PPT 实现，不作为另建交付模块的施工要求。Agent 文件是可选择的运行合同，不实现项目内 Agent Loop、Session 或模型路由。
 
 Codex、DeepSeek Harness 等宿主已具备 HTML、图表和文件生成/交付能力。表格和可视化先复用宿主能力；PPT 由宿主全局 `ppt-master` 负责方法、路由、模板和质量门禁。PPT 交付不固化教育业务页序，也不在项目中复制全局 Skill。只有出现宿主无法满足的可复现文件正确性问题时，才增加最小确定性工具。当前不建设独立 Renderer 或 Deliverables 平台。
 
@@ -139,7 +140,7 @@ Codex、DeepSeek Harness 等宿主已具备 HTML、图表和文件生成/交付�
 
 ## 8. 复杂度门槛
 
-第一版只保留模块内已有或随模块实现的必要约束：只读查询、Snapshot 不覆盖、unresolved 阻断和文件验收。MCP、独立强化插件、完整 Run Manager、Artifact Registry、Reviewer、Promotion 自动化、Retention 和恢复平台都不是默认内容；只有失败 fixture 或明确客户要求证明必要时才增加。
+保留模块内已有的必要约束：只读查询、Snapshot 不覆盖、unresolved 阻断和文件验收。本次核查后的有限修复只补齐既有模块连接，不新增总 Agent、Capability Registry 系统、独立 Metric Layer 或 Artifact 平台；复杂度门槛不是恢复已取消施工的授权。其他扩展须由具体问题或明确新需求提出，按复用模块、扩展接口、新增模块、新增 Agent 的顺序另行评估。
 
 ## 9. 日常监控模块（2026-09-16）
 
