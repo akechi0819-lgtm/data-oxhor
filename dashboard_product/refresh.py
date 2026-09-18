@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import argparse,json,subprocess
 from pathlib import Path
+from data_platform.query.evidence import read_query_result
 from datetime import datetime,timezone
 from uuid import uuid4
 from workspace_modeling.operations.personnel import BUSINESS_GROUP_BY_ROSTER_GROUP, PEOPLE_CONFIG_PATH, date_to_perf_month, match_person_names
@@ -31,13 +32,8 @@ def remap_tmk_school_agent_team(team, first_channel, campaign, entry_person, off
 def read(p): return json.loads(Path(p).read_text(encoding='utf-8'))
 def run(ws,rid,snap,out,a,b):
  c=read(ws/'Work/workspace.json'); z=subprocess.run(['python3','-m','interfaces.data_platform','run-saved-query','--warehouse',str(ws/c['current_warehouse_path']),'--snapshot-id',snap,'--run-id',rid,'--output-root',str(out),'--registry-root',str(ws/'Work/SavedQueries'),'--query-id','dashboard_actuals','--version','v10','--params-json',json.dumps([a,b]),'--max-rows','50000','--max-result-bytes','10000000'],cwd=ROOT.parent,capture_output=True,text=True); r=json.loads(z.stdout or '{}')
- if r.get('status')!='passed': raise ValueError(f"Query failed: {r.get('errors')} | stderr: {z.stderr}")
- # 如果 result 为 None，从 artifact 文件读取
- if not r.get('result') and r.get('artifact',{}).get('path'):
-  artifact_path = out / rid / r['artifact']['path']  # artifact path 是相对于 out/rid/ 的
-  artifact_data = read(artifact_path)
-  r['result'] = artifact_data  # artifact 文件本身就是 {columns, rows} 结构
- if not r.get('result'): raise ValueError(f"Query returned no result: {r}")
+ if z.returncode != 0 or r.get('status')!='passed': raise ValueError(f"Query failed: {r.get('errors')} | stderr: {z.stderr}")
+ r['result'] = read_query_result(r, output_root=out)
  return r
 def project(q,p,tg,people,capacity=None):
  from dashboard_product.capacity import add_contribution, annual_cash_capacity, credit_unique, empty_contributions, person_line, unique_total

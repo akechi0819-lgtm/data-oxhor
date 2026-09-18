@@ -1,12 +1,11 @@
-"""Team personnel progress digest from a dashboard artifact."""
+"""Personnel progress rules and warehouse attribution."""
 
 from __future__ import annotations
 
 from collections import Counter, defaultdict
 from datetime import date, datetime, time, timedelta
 
-from dashboard_product.booklets import TEAM_DISPLAY_NAMES
-from dashboard_product.refresh import (
+from workspace_modeling.operations.personnel import (
     date_to_perf_month,
     match_person_names,
 )
@@ -49,7 +48,7 @@ CASH_METRIC = 'passive_reported_cash'
 
 
 def configured_people_for_channel(channel_id, people_config):
-    from dashboard_product.refresh import BUSINESS_GROUP_BY_ROSTER_GROUP
+    from workspace_modeling.operations.personnel import BUSINESS_GROUP_BY_ROSTER_GROUP
     if channel_id not in NOTIFY_CHANNELS:
         return []
     channel = NOTIFY_CHANNELS[channel_id]
@@ -146,32 +145,6 @@ def completion_rate(actual, target):
     if target is None or target <= 0:
         return None
     return actual / target
-
-
-def current_query_rows(artifact):
-    results = artifact.get('query_results') or []
-    if not results:
-        return []
-    first = results[0]
-    if not isinstance(first, dict):
-        return []
-    nested = first.get('result')
-    if isinstance(nested, dict) and isinstance(nested.get('rows'), list):
-        return nested['rows']
-    rows = first.get('rows')
-    return rows if isinstance(rows, list) else []
-
-
-def find_team(artifact, team_id):
-    for team in (artifact.get('dashboard') or {}).get('teams') or []:
-        if team.get('team_id') == team_id:
-            return team
-    return {
-        'team_id': team_id,
-        'display_name': TEAM_DISPLAY_NAMES.get(team_id, team_id),
-        'groups': [],
-        'people': [],
-    }
 
 
 def person_month_value(person, months, month, metric):
@@ -367,14 +340,6 @@ def ledger_attributions(order_columns, order_rows, cash_columns, cash_rows, peop
     return order_labels, cash_labels
 
 
-def metric_kind(metric):
-    if metric == CASH_METRIC:
-        return 'cash'
-    if metric == ORDER_METRIC:
-        return 'orders'
-    return None
-
-
 def resolve_channels(channel_ids=None):
     if not channel_ids:
         return NOTIFY_CHANNEL_IDS
@@ -387,56 +352,6 @@ def resolve_channels(channel_ids=None):
         else:
             raise ValueError(f'unknown notify channel: {item}')
     return tuple(unique_keep_order(resolved))
-
-
-def build_detail_rows(rows, team_id, perf_month, people, business_group=None):
-    grouped = candidates_by_business_group(people)
-    details = {'orders': [], 'cash': []}
-    for row in rows:
-        if not isinstance(row, (list, tuple)) or len(row) < 11:
-            continue
-        event_date, row_team, row_group, first_channel, second_channel, campaign, entry_person, school, grade, metric, value = row[:11]
-        rolled_group = rolled_business_group(row_group)
-        if row_team != team_id or rolled_group not in BUSINESS_GROUPS:
-            continue
-        if business_group and rolled_group != business_group:
-            continue
-        business_group_name = rolled_group
-        kind = metric_kind(metric)
-        if kind is None or value in (None, ''):
-            continue
-        if date_to_perf_month(event_date) != perf_month:
-            continue
-        names = attributed_names(grouped.get(business_group_name) or [], campaign, entry_person)
-        details[kind].append({
-            'event_date': str(event_date)[:10],
-            'business_group': business_group_name,
-            'first_channel': first_channel or '未归类',
-            'second_channel': second_channel or '未细分',
-            'campaign_name': campaign,
-            'entry_person': entry_person,
-            'school_name': school,
-            'grade_name': grade,
-            'value': float(value),
-            'attributed_people': names,
-            'attribution': '、'.join(names) if names else '未归属',
-        })
-    for kind in details:
-        details[kind].sort(key=lambda item: (item['event_date'], item['business_group'], str(item['campaign_name'] or '')))
-    return details
-
-
-def summarize_details(items):
-    attributed = [item for item in items if item['attributed_people']]
-    unattributed = [item for item in items if not item['attributed_people']]
-    return {
-        'total': sum(item['value'] for item in items),
-        'attributed': sum(item['value'] for item in attributed),
-        'unattributed': sum(item['value'] for item in unattributed),
-        'total_rows': len(items),
-        'attributed_rows': len(attributed),
-        'unattributed_rows': len(unattributed),
-    }
 
 
 def owner_names(owner):
@@ -530,63 +445,28 @@ def build_people_rows(people, months, month, time_progress, workdays):
     return rows
 
 
-def build_digest(artifact, channel_id, rows=None):
-    if channel_id not in NOTIFY_CHANNELS:
-        raise ValueError(f'unknown notify channel: {channel_id}')
+def build_digest(context, channel_id):
     channel = NOTIFY_CHANNELS[channel_id]
-    team_id = channel['team_id']
-    business_group = channel['business_group']
-    as_of = parse_iso_date(artifact.get('as_of_date'))
-    data_through = parse_iso_date(artifact.get('data_through_date') or artifact.get('as_of_date'))
+    as_of = parse_iso_date(context['as_of_date'])
     perf_month = date_to_perf_month(as_of.isoformat())
-    if not perf_month:
-        raise ValueError('cannot derive performance month')
-    window_start, window_end = performance_month_window(perf_month)
-    time_progress = performance_month_progress(perf_month, as_of)
-    workdays = remaining_workdays(as_of, window_end)
-    dashboard = artifact.get('dashboard') or {}
-    months = dashboard.get('months') or []
-    team = find_team(artifact, team_id)
-    people = [
-        person for person in (team.get('people') or [])
-        if not business_group or person.get('business_group') == business_group
-    ]
-    details = build_detail_rows(
-        rows if rows is not None else current_query_rows(artifact),
-        team_id,
-        perf_month,
-        people,
-        business_group=business_group,
-    )
-    people_rows = build_people_rows(people, months, perf_month, time_progress, workdays)
+    start, end = performance_month_window(perf_month)
     return {
+        **context,
         'team_id': channel_id,
-        'source_team_id': team_id,
-        'business_group': business_group,
+        'source_team_id': channel['team_id'],
+        'business_group': channel['business_group'],
         'display_name': channel['display_name'],
-        'as_of_date': as_of.isoformat(),
-        'data_through_date': data_through.isoformat(),
         'perf_month': perf_month,
-        'window_start': window_start.isoformat(),
-        'window_end': window_end.isoformat(),
-        'time_progress': time_progress,
-        'remaining_workdays': workdays,
-        'run_id': artifact.get('run_id'),
-        'snapshot_id': artifact.get('snapshot_id'),
+        'window_start': start.isoformat(), 'window_end': end.isoformat(),
+        'time_progress': performance_month_progress(perf_month, as_of),
+        'remaining_workdays': remaining_workdays(as_of, end),
         'secondary_metric': channel_secondary_metric(channel_id),
-        'people': people_rows,
-        'behind': [row for row in people_rows if row['behind']],
-        'orders': summarize_details(details['orders']),
-        'cash': summarize_details(details['cash']),
-        'order_details': details['orders'],
-        'cash_details': details['cash'],
+        'people': [], 'behind': [],
     }
 
 
-def build_all_digests(artifact, team_ids=None):
-    selected = resolve_channels(team_ids)
-    rows = current_query_rows(artifact)
-    return [build_digest(artifact, channel_id, rows=rows) for channel_id in selected]
+def build_all_digests(context, team_ids=None):
+    return [build_digest(context, channel_id) for channel_id in resolve_channels(team_ids)]
 
 
 def apply_warehouse_actuals(digest):
@@ -642,6 +522,19 @@ def apply_warehouse_actuals(digest):
         else:
             item['daily_orders'] = item['remaining_orders'] / workdays
         people.append(item)
+    for kind, amount_column in (('orders', None), ('cash', '报入现金收入')):
+        table = warehouse[kind]
+        index = table['columns'].index(amount_column) if amount_column else None
+        totals = {'total': 0.0, 'attributed': 0.0, 'unattributed': 0.0,
+                  'total_rows': 0, 'attributed_rows': 0, 'unattributed_rows': 0}
+        for row in table['rows']:
+            value = float(row[index] or 0) if index is not None else 1.0
+            bucket = 'attributed' if owner_names(row[0]) else 'unattributed'
+            totals['total'] += value
+            totals[bucket] += value
+            totals['total_rows'] += 1
+            totals[bucket + '_rows'] += 1
+        digest[kind] = totals
     digest['people'] = people
     digest['behind'] = [row for row in people if row['behind']]
     return digest

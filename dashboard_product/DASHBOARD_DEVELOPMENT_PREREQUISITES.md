@@ -7,7 +7,7 @@
 ## 运行边界
 
 - 运行输入是客户工作区路径和新的 `run_id`；工作区提供当前 Snapshot 与 warehouse 路径。
-- 事实查询只能通过 Data Platform `run-saved-query`，当前刷新调用 `dashboard_actuals/v9`。
+- 事实查询只能通过 Data Platform `run-saved-query`，当前刷新调用 `dashboard_actuals/v10`。
 - 源码不直接连接 DuckDB、不读取 landing 表、不使用 `latest` 指针。
 - 运行产物只写客户工作区 `Output/Dashboard/<run_id>/`。
 
@@ -16,7 +16,7 @@
 ```bash
 python3 -m dashboard_product.refresh refresh --workspace customers/<workspace> --run-id run_<id>
 python3 -m dashboard_product.refresh render --artifact customers/<workspace>/Output/Dashboard/run_<id>/artifact.json --all-booklets
-python3 -m dashboard_product.notify send --artifact customers/<workspace>/Output/Dashboard/run_<id>/artifact.json --dry-run
+python3 -m monitoring_product.notify send --workspace <workspace> --snapshot-id <snapshot_id> --run-id <run_id> --as-of-date <YYYY-MM-DD> --data-through-date <YYYY-MM-DD> --dry-run
 ```
 
 `refresh` 创建不可变 artifact；`render --all-booklets` 只读取显式 artifact 并写出四分册。当前发布由 `deploy/publish_static_dashboard.sh` 完成。钉钉发送是独立命令，不并入日更脚本。
@@ -36,11 +36,11 @@ python3 -m dashboard_product.notify send --artifact customers/<workspace>/Output
 
 个人实际归属先按工单团队和业务组筛选，再匹配人员。顺序：活动名含花名册姓名 → SQL 已抽进 `entry_person` 的「市场人员：」或资源录入人 → Python 侧再用「姓名市场资源」和去掉旧活动串后的资源描述正文。现金用工单 ID 对全量工单数仓连，不限本绩效月；连上继承该工单归属，连不上再退回现金表市场活动名。看板 artifact 查询行为 12 列，末列为现金 `student_id`，不含完整资源描述；「姓名市场资源」和描述正文兜底主要在钉钉明细路径生效。
 
-人员对象可包含 `business_group`、`monthly_targets`、`monthly_drilldowns`、`heads_actual`、`annual_cash_capacity`、`line` 和 `cash_contributions`。产能页全员标准产能为 80 万，不进钉钉。人员目标按绩效月保存，现金或工单目标缺失时显示“未配置”；大学人头目标折算后的现金目标由配置直接登记，看板 HTML 仍展示现金。钉钉大学通道播报图改展示人头完成，不把 1500 校区门槛套进来；明细表人员进度额外带现金目标/完成。钉钉花名册以 `config/people.json` 覆盖 artifact；2026-09-10 线上私域小初提能组为潘体学（工单 25、现金 50,000）。`monthly_drilldowns` 按绩效月和指标保存一级/二级渠道完成值；现金下钻的渠道必须来自现金按 `工单ID` 左连接后的工单维度，未匹配时为“暂无归属”，不能改用现金表原始渠道。`vacant` 占位人员保留在人员配置中，但不写入展示 artifact。
+人员对象可包含 `business_group`、`monthly_targets`、`monthly_drilldowns`、`heads_actual`、`annual_cash_capacity`、`line` 和 `cash_contributions`。产能页全员标准产能为 80 万，不进钉钉。人员目标按绩效月保存，现金或工单目标缺失时显示“未配置”；大学人头目标折算后的现金目标由配置直接登记，看板 HTML 仍展示现金。钉钉大学通道播报图改展示人头完成，不把 1500 校区门槛套进来；明细表人员进度额外带现金目标/完成。钉钉花名册以 `workspace_modeling/operations/people.json` 覆盖 artifact；2026-09-10 线上私域小初提能组为潘体学（工单 25、现金 50,000）。`monthly_drilldowns` 按绩效月和指标保存一级/二级渠道完成值；现金下钻的渠道必须来自现金按 `工单ID` 左连接后的工单维度，未匹配时为“暂无归属”，不能改用现金表原始渠道。`vacant` 占位人员保留在人员配置中，但不写入展示 artifact。
 
 ## Saved Query 与业务口径
 
-查询合同登记在 `config/saved_queries.json`。刷新使用 `dashboard_actuals/v9`，参数 `[start_date, end_date]`，输出增加 `student_id`（现金 `学员编号`，工单行为空）；逐笔对账使用 `attributed_passive_reported_cash/v1`，同样按业务日期使用半开区间。产能页人员标准产能见 `config/capacity_targets.json`。
+查询合同登记在 `config/saved_queries.json`。刷新使用 `dashboard_actuals/v10`，参数 `[start_date, end_date]`，输出增加 `student_id`（现金 `学员编号`，工单行为空）；逐笔对账使用 `attributed_passive_reported_cash/v1`，同样按业务日期使用半开区间。产能页人员标准产能见 `config/capacity_targets.json`。
 
 现金范围为被动、新生、正向报入现金。现金业务组只看现金表团队，不跟工单改口。工单 ID 左连接只取渠道和人员；未关联时渠道为 `暂无归属`。团队再按虚拟人、线上、TMK、校代、默认线上平台顺序归属。团队兜底和工单关联状态必须分开报告。
 

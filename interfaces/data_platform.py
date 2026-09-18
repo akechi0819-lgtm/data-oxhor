@@ -183,7 +183,7 @@ def run_query_command(args: argparse.Namespace) -> dict[str, Any]:
             return promote_query(warehouse=args.warehouse, snapshot_id=args.snapshot_id, sql=args.sql_file.read_text(encoding="utf-8"), registry_root=args.registry_root, query_id=args.query_id, version=args.version, confirmed_by=args.confirmed_by)
         parameters = json.loads(args.params_json)
         return run_saved_query(warehouse=args.warehouse, snapshot_id=args.snapshot_id, registry_root=args.registry_root, query_id=args.query_id, version=args.version, parameters=parameters, run_id=args.run_id, output_root=args.output_root, max_rows=args.max_rows, max_result_bytes=args.max_result_bytes)
-    except (QueryError, OSError, json.JSONDecodeError, duckdb.Error) as exc:
+    except (QueryError, OSError, ValueError, duckdb.Error) as exc:
         return _query_failure(args.command, exc)
 
 

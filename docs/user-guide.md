@@ -1,5 +1,9 @@
 # Data OXHor 使用说明
 
+## 市场日常工作入口
+
+临时查询、细分下钻、导表和生成小程序，打开项目内 `market_workspace/`。Agent 按该目录的 `AGENTS.md` 调用 `./oxhor` 受控查询，源数据仍为原 bi_operations 工作区。程序放 Programs，临时脚本放 Scratch，正式成果放 Reports，查询证据放 Evidence；清理前只选择不再需要的任务子目录。详细操作见 [市场工作区说明](../market_workspace/README.md)。导入新数据、改变正式口径或维护看板/监控时，转对应模块。
+
 Data OXHor 是由多个可独立选择的模块组成的运营数据中台。使用时先根据任务选择一个模块 Agent，再在对应客户工作区中运行。项目没有负责所有场景的总 Agent；宿主负责会话、模型和模块之间的协作。
 
 常用模块包括：工作区初始化、自由分析、看板发布和预留的日常监控。每个模块的启动说明见根目录 [`agents/`](../agents/README.md)。

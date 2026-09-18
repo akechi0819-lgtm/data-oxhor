@@ -54,7 +54,7 @@ python3 -m interfaces.company_bridge validate \
   --bridge /path/to/bridge/company_bridge.v1_1_0.json \
   --pack workspace_modeling/business_pack/packs/education_training_operations_cn/pack.json \
   --snapshot-description /path/to/snapshot-description.json \
-  --snapshot-quality /path/to/snapshot-quality.json
+  --snapshot-quality /path/to/run_quality/data/query_results/evidence_id/receipt.json
 ```
 
 所有命令输出结构化 JSON，并以非零退出码表示失败。输出文件已存在时失败，不覆盖已有版本；CLI 不使用 `latest`、修改时间或模糊文件名恢复状态。
@@ -189,7 +189,7 @@ Bridge 对齐向导把这条人工门禁产品化：宿主原生 Agent 的模型
 
 - `snapshot_id`：明确指向哪一批数据，不能用 `latest`、修改时间或模糊文件名猜测；
 - `warehouse_description.v1`：由 Data Platform `describe` 生成，列出该 Snapshot 实际存在的关系、列名和类型，校验 Bridge 映射没有悬空到不存在的列；
-- `controlled_query_result.v1`：由 Data Platform `quality` 生成，必须引用同一个 `snapshot_id` 且 `status=passed`。它检查文件/表结构、登记的质量问题和结果载荷是否满足运行门槛，不替代业务口径确认，也不等于所有业务数字都已经正确。
+- `query_receipt.v1`：Data Platform `quality` 的 `controlled_query_result.v2` 返回可定位实际回执；CLI `--snapshot-quality` 指向回执文件，经完整验证后转换为内部 `snapshot_quality_profile.v1`，必须引用同一个 `snapshot_id` 且 `status=passed`。只读 Bridge 对齐画像直接使用该内部协议，不冒充查询回执。它检查文件/表结构、登记的质量问题和结果载荷是否满足运行门槛，不替代业务口径确认，也不等于所有业务数字都已经正确。
 
 因此，Bridge 可以先独立完成并复用；当要在某一批真实数据上运行时，再用 Snapshot 描述和质量结果核对“映射指向的结构”和“这批结构通过质量门”。如果只构建 Bridge，不需要先发布 Snapshot；如果提供了 Snapshot 描述，就必须同时提供同一 Snapshot 的质量结果，校验器会检查关系/列引用和质量状态。不能把 Super Agent 的 SQLite 或历史工作簿直接冒充为 Data Platform Snapshot。
 

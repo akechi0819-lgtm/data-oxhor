@@ -1,5 +1,7 @@
 # 本地运维手册
 
+> 2026-09-16 模块切换：人员进度与钉钉推送已迁至 `monitoring_product/`，看板不再承担发送。新入口要求 workspace、snapshot-id、run-id、as-of-date、data-through-date；正式发送另需显式 env-file。共享花名册在 `workspace_modeling/operations/people.json`。本地迁移完成不代表云端任务已切换；详见项目根目录 `monitoring_product/README.md`。
+
 ## 1. 版本和路径
 
 | 项目 | 当前值 |
@@ -88,8 +90,8 @@ C 层环境变量只写在 `dashboard_product/.env.server`（mode 600），模�
 云电脑独立运行必须 CopyToBox 该文件，禁止进 Git、禁止贴聊天。缺 webhook 的通道会被跳过。钉钉发送：
 
 ```bash
-python3 -m dashboard_product.notify send --artifact <artifact.json> --dry-run
-python3 -m dashboard_product.notify send --artifact <artifact.json>
+python3 -m monitoring_product.notify send --workspace <workspace> --snapshot-id <snapshot_id> --run-id <run_id> --as-of-date <YYYY-MM-DD> --data-through-date <YYYY-MM-DD> --dry-run
+python3 -m monitoring_product.notify send --workspace <workspace> --snapshot-id <snapshot_id> --run-id <run_id> --as-of-date <YYYY-MM-DD> --data-through-date <YYYY-MM-DD>
 ```
 
 冒烟：`python3 -m unittest discover -s dashboard_product/tests -v`；公网 `http://dashboard.apinova.cn/healthz` 匿名 200，未登录业务页 401。

@@ -1,3 +1,4 @@
+from workspace_modeling.operations.personnel import PEOPLE_CONFIG_PATH
 import unittest
 from pathlib import Path
 
@@ -41,7 +42,7 @@ class CapacityProjectionTest(unittest.TestCase):
             {'result': {'rows': rows}},
             {'result': {'rows': []}},
             read(ROOT / 'config/project_targets.json'),
-            read(ROOT / 'config/people.json'),
+            read(PEOPLE_CONFIG_PATH),
             read(ROOT / 'config/capacity_targets.json'),
         )
         team = next(item for item in result['teams'] if item['team_id'] == 'offline_market')

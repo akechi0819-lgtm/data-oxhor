@@ -1,0 +1,5 @@
+#!/bin/sh
+set -eu
+market_root=$(CDPATH= cd -- "$(dirname "$0")" && pwd)
+repo_root=$(CDPATH= cd -- "$market_root/.." && pwd)
+exec "$repo_root/.venv/bin/python" "$market_root/tools/data.py" "$@"

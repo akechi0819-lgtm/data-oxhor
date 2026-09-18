@@ -42,7 +42,14 @@ class ReviewedCompanyBridgeArtifactTests(unittest.TestCase):
         self.assertTrue(all(relation.startswith("landing.") for relation in relations))
 
     def test_dashboard_work_order_ids_stay_text_and_manifest_matches(self) -> None:
-        query_path = self.root / "customers/bi_operations/Work/SavedQueries/dashboard_actuals/v9/query.sql"
+        config = json.loads(
+            (self.root / "dashboard_product/config/saved_queries.json").read_text(encoding="utf-8")
+        )
+        declared_query = next(item for item in config["queries"] if item["query_id"] == "dashboard_actuals")
+        query_path = (
+            self.root / config["workspace"] / "Work/SavedQueries"
+            / declared_query["query_id"] / declared_query["version"] / "query.sql"
+        )
         query = query_path.read_text(encoding="utf-8")
         manifest = json.loads(query_path.with_name("manifest.json").read_text(encoding="utf-8"))
         tracked = (self.root / "dashboard_product/sql/dashboard_actuals.sql").read_text(encoding="utf-8")

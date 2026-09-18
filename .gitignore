@@ -16,3 +16,6 @@ dashboard_product/.claude/
 .writeback-backup/
 .sync-outbox/
 artifacts/audit_tmp/
+
+# Local analysis reports and generated deliverables
+outputs/

@@ -26,7 +26,7 @@ def build_parser() -> argparse.ArgumentParser:
     workspace.add_argument("--workspace", type=Path, required=True)
 
     command = commands.add_parser("case-create", parents=[workspace]); command.add_argument("--case-id", required=True); command.add_argument("--primary-role", required=True); command.add_argument("--question-category", required=True); command.add_argument("--question", required=True); command.add_argument("--normalized-question", required=True); command.add_argument("--key-queries-json", required=True); command.add_argument("--evidence-json", required=True); command.add_argument("--summary", required=True); command.add_argument("--created-by", required=True); command.add_argument("--supersedes")
-    command = commands.add_parser("case-capture", parents=[workspace]); command.add_argument("--manifest", required=True, help="workspace-relative casebook_capture.v1 JSON manifest")
+    command = commands.add_parser("case-capture", parents=[workspace]); command.add_argument("--manifest", required=True, help="workspace-relative casebook_capture.v2 JSON manifest")
     for name in ("case-confirm", "case-reject"):
         command = commands.add_parser(name, parents=[workspace]); command.add_argument("--case-id", required=True); command.add_argument("--decided-by", required=True); command.add_argument("--decision-note", required=True)
     command = commands.add_parser("case-supersede", parents=[workspace]); command.add_argument("--case-id", required=True); command.add_argument("--superseding-case-id", required=True); command.add_argument("--decided-by", required=True); command.add_argument("--decision-note", required=True)

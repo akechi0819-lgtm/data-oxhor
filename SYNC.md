@@ -58,7 +58,7 @@
 | `/home/box/oxhor/warehouse/` | 孙悟空（仓务）+ 牛马力工（环境/迁移） | 仓代码、venv、重建 snapshot、BI 会话写回 | 不发布看板；不改 dashboard `.env.server` |
 | `/home/box/oxhor/dashboard/` | 许家印（日刷）+ 牛马力工（接线） | refresh/render；（授权后）publish；读软链 customers | 不改数仓 snapshot 语义；密钥不外泄 |
 | `/home/box/oxhor/analysis/` | 弗洛伊德 | 分析产物（落地后） | 未迁完前占位；禁臆造因果当结论 |
-| `/home/box/oxhor/monitor/` | 魏忠贤 | 契约化监控（落地后） | 未产品化前不装值守 |
+| `/home/box/oxhor/monitor/` | 魏忠贤 | 人员监控与既有授权日推，写本次输出 | 只读数仓/看板；不写仓、不发布看板 |
 
 软链约定：`dashboard/customers|interfaces|data_platform` → warehouse 对应路径；看板只读数仓。
 
@@ -98,5 +98,13 @@
 - 本机 A 层已含四分册、basic auth 和钉钉人员进度代码。云电脑独立发送钉钉前，必须 C 层同步 `dashboard_product/.env.server`（600）到 `/home/box/oxhor/dashboard/dashboard_product/.env.server`。2026-09-09 的 C 层包不含大学和线上私域密钥，不能复用。
 - 禁止把 webhook 写入公开 `data-oxhor`、禁止贴聊天、禁止建设本机↔Grok 双向 MCP。
 - 2026-09-10 本机已填 `OFFLINE_YOUTH` / `OFFLINE_HIGH_SCHOOL` / `OFFLINE_UNIVERSITY` / `ONLINE_PRIVATE`；`ONLINE_PLATFORM` 仍空，空通道跳过。
-- A 层 overlay 必须带 `digest.py`、`notify_render.py`、`config/people.json` 和对应测试/文档。这次**不要排除 people.json**：小初提能组已由杨玉林换成潘体学（工单 25、现金 50,000）。
+- A 层 overlay 必须带 `digest.py`、`notify_render.py`、`workspace_modeling/operations/people.json` 和对应测试/文档。这次**不要排除 people.json**：小初提能组已由杨玉林换成潘体学（工单 25、现金 50,000）。
 - 钉钉大学通道是工单 + 人头（去重 `学员编号`，不含 1500）；落后仍按工单。不要让 Grok 读业务代码重写。
+
+## 2026-09-16 日常监控模块切换
+
+A 层必须成套同步 `monitoring_product/`、`workspace_modeling/operations/`、`dashboard_product/refresh.py`、`pyproject.toml`、Agent 与运行文档；旧通知代码/SQL/部署脚本和旧花名册路径删除，不保留转发。三份 SQL 和既有人员目标保留本地最新改动。C 层文件不自动搬迁，新命令用 `--env-file` 指向已有凭据。通知宿主改用 `monitoring_product.notify send` 的工作区/Snapshot/运行编号/日期参数，先 dry-run；看板日更命令不变。此记录是部署交接，不表示云端已经同步。完整步骤见 `monitoring_product/README.md`。
+
+## 2026-09-16 监控云端验收完成
+
+监控已部署到 monitor，魏忠贤既有 10:30 四通道日推原位切换。权威 Routine ID `5937c316-103d-5e32-8684-f103cbc82db3`；旧 automation 目录只是本地残影。实读仅一条启用日推。云监控 19 项、看板 27 项测试通过；同 Snapshot 四通道 PNG 与旧版一致；包版 refresh 真仓无发布验证通过。旧通知与临时花名册兼容软链已删除，B/C 不搬迁，本轮未补发。见 `docs/monitoring-cloud-deployment.md`。

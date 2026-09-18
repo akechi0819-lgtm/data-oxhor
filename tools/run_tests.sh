@@ -9,4 +9,6 @@ if [ ! -x "$venv/bin/python" ]; then
     exit 2
 fi
 
-exec "$venv/bin/python" -m unittest discover -s "$repo_root/tests" -p 'test_*.py' "$@"
+"$venv/bin/python" -m unittest discover -s "$repo_root/tests" -t "$repo_root" -p 'test_*.py' "$@"
+"$venv/bin/python" -m unittest discover -s "$repo_root/dashboard_product/tests" -p 'test_*.py' "$@"
+"$venv/bin/python" -m unittest discover -s "$repo_root/monitoring_product/tests" -p 'test_*.py' "$@"

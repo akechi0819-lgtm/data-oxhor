@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+from data_platform.query.evidence import read_query_result
+
 import argparse
 import hmac
 import json
@@ -11,12 +13,15 @@ import secrets
 import hashlib
 import base64
 import time
+import sys
+from datetime import date
 import urllib.parse
 import urllib.request
 from pathlib import Path
 
-from dashboard_product.digest import NOTIFY_CHANNEL_IDS, NOTIFY_CHANNELS, apply_warehouse_actuals, build_all_digests, ensure_roster, ledger_attributions, missing_cash_order_ids, resolve_channels
-from dashboard_product.notify_render import (
+from workspace_modeling.operations.personnel import PEOPLE_CONFIG_PATH
+from monitoring_product.digest import NOTIFY_CHANNEL_IDS, NOTIFY_CHANNELS, apply_warehouse_actuals, build_all_digests, ensure_roster, ledger_attributions, missing_cash_order_ids, resolve_channels
+from monitoring_product.notify_render import (
     dingtalk_title,
     render_markdown,
     render_people_html,
@@ -45,16 +50,6 @@ def _excel_date(value):
     return value
 
 
-def _load_query_table(payload):
-    if payload.get('result') and payload['result'].get('rows') is not None:
-        return payload['result']['columns'], payload['result']['rows']
-    artifact = payload.get('artifact') or {}
-    path = artifact.get('path')
-    if not path:
-        return [], []
-    return None, path
-
-
 def _pack_warehouse_table(columns, rows, owners=None):
     keep = [column for column in columns if column not in DROP_WAREHOUSE_COLUMNS]
     indexes = [columns.index(column) for column in keep]
@@ -74,10 +69,16 @@ def _pack_warehouse_table(columns, rows, owners=None):
 
 
 def find_warehouse(workspace, snapshot_id):
-    matches = list((Path(workspace) / 'Work' / 'Runs').glob(f'**/snapshots/{snapshot_id}/warehouse.duckdb'))
-    if not matches:
+    workspace = Path(workspace).resolve()
+    config = read_json(workspace / 'Work' / 'workspace.json')
+    if config.get('current_snapshot_id') != snapshot_id:
+        raise ValueError('snapshot is not the workspace current snapshot')
+    warehouse = (workspace / config['current_warehouse_path']).resolve()
+    if not warehouse.is_relative_to(workspace):
+        raise ValueError('warehouse must remain within workspace')
+    if not warehouse.is_file():
         raise FileNotFoundError(f'warehouse not found for {snapshot_id}')
-    return matches[0]
+    return warehouse
 
 
 def run_detail_query(workspace, snapshot_id, run_id, sql_file, params, output_root):
@@ -85,7 +86,7 @@ def run_detail_query(workspace, snapshot_id, run_id, sql_file, params, output_ro
     output_root = Path(output_root)
     output_root.mkdir(parents=True, exist_ok=True)
     command = [
-        'python3', '-m', 'interfaces.data_platform', 'query',
+        sys.executable, '-m', 'interfaces.data_platform', 'query',
         '--warehouse', str(find_warehouse(workspace, snapshot_id)),
         '--snapshot-id', snapshot_id,
         '--run-id', run_id,
@@ -97,40 +98,39 @@ def run_detail_query(workspace, snapshot_id, run_id, sql_file, params, output_ro
     ]
     completed = subprocess.run(command, cwd=str(ROOT.parent), capture_output=True, text=True)
     payload = json.loads(completed.stdout or '{}')
-    if payload.get('status') != 'passed':
+    if completed.returncode != 0 or payload.get('status') != 'passed':
         raise ValueError(f'detail query failed: {payload.get("errors") or completed.stderr}')
-    if payload.get('result') and payload['result'].get('rows') is not None:
-        return payload['result']['columns'], payload['result']['rows']
-    artifact = payload.get('artifact') or {}
-    relative = artifact.get('path')
-    if not relative:
-        return [], []
-    data = read_json(output_root / run_id / relative)
+    evidence_dir = output_root / run_id
+    evidence_dir.mkdir(parents=True, exist_ok=True)
+    (evidence_dir / 'query_receipt.json').write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2), encoding='utf-8')
+    (evidence_dir / 'query.sql').write_text(Path(sql_file).read_text(encoding='utf-8'), encoding='utf-8')
+    data = read_query_result(payload, output_root=output_root)
     return data['columns'], data['rows']
 
 
-def fetch_channel_ledger(artifact, digest, workspace=None, output_root=None):
-    workspace = Path(workspace) if workspace else ROOT.parent / 'customers' / 'bi_operations'
-    output_root = Path(output_root) if output_root else Path(digest.get('output_root') or '/tmp/dashboard-notify-query')
+def fetch_channel_ledger(context, digest, workspace, output_root):
+    workspace = Path(workspace)
+    output_root = Path(output_root)
     channel = NOTIFY_CHANNELS[digest['team_id']]
     from datetime import date, timedelta
     start = date.fromisoformat(digest['window_start'])
     end = date.fromisoformat(digest['window_end']) + timedelta(days=1)
     params = [start.isoformat(), end.isoformat(), channel['team_id'], channel['business_group']]
-    snapshot_id = artifact['snapshot_id']
+    snapshot_id = context['snapshot_id']
     orders_columns, orders_rows = run_detail_query(
-        workspace, snapshot_id, f"{artifact['run_id']}_{digest['team_id']}_orders",
+        workspace, snapshot_id, f"{context['run_id']}_{digest['team_id']}_orders",
         ROOT / 'sql' / 'notify_work_orders.sql', params, output_root,
     )
     cash_columns, cash_rows = run_detail_query(
-        workspace, snapshot_id, f"{artifact['run_id']}_{digest['team_id']}_cash",
+        workspace, snapshot_id, f"{context['run_id']}_{digest['team_id']}_cash",
         ROOT / 'sql' / 'notify_cash.sql', params, output_root,
     )
     extra_columns, extra_rows = [], []
     missing_ids = missing_cash_order_ids(orders_columns, orders_rows, cash_columns, cash_rows)
     if missing_ids:
         extra_columns, extra_rows = run_detail_query(
-            workspace, snapshot_id, f"{artifact['run_id']}_{digest['team_id']}_orders_by_id",
+            workspace, snapshot_id, f"{context['run_id']}_{digest['team_id']}_orders_by_id",
             ROOT / 'sql' / 'notify_work_orders_by_ids.sql', [missing_ids], output_root,
         )
     order_owners, cash_owners = ledger_attributions(
@@ -151,7 +151,7 @@ def read_json(path):
 def load_notify_config():
     path = ROOT / 'config' / 'dingtalk.json'
     if not path.exists():
-        return {'schema_version': 'dashboard_dingtalk.v1', 'public_origin': DEFAULT_ORIGIN}
+        return {'schema_version': 'monitoring_dingtalk.v1', 'public_origin': DEFAULT_ORIGIN}
     data = read_json(path)
     data.setdefault('public_origin', DEFAULT_ORIGIN)
     return data
@@ -200,25 +200,27 @@ def post_dingtalk(webhook, secret, title, text):
     return {'status': 'sent'}
 
 
-def write_team_artifacts(digest, output_dir, artifact=None, workspace=None):
+def prepare_digest(digest, context, output_dir, workspace):
+    """Resolve the roster and warehouse facts once, before any delivery rendering."""
+    digest = dict(digest)
+    people_config_path = PEOPLE_CONFIG_PATH
+    digest = ensure_roster(digest, read_json(people_config_path))
+    try:
+        digest['warehouse'] = fetch_channel_ledger(context, digest, workspace=workspace, output_root=Path(output_dir) / '_query')
+        return apply_warehouse_actuals(digest)
+    except Exception as error:
+        raise ValueError(
+            f"notify blocked: channel={digest['team_id']}, snapshot={context['snapshot_id']}: {error}"
+        ) from error
+
+
+def write_team_artifacts(digest, output_dir):
     team_dir = Path(output_dir) / digest['team_id']
     team_dir.mkdir(parents=True, exist_ok=True)
     html_path = team_dir / 'people.html'
     png_path = team_dir / 'people.png'
     xlsx_path = team_dir / 'details.xlsx'
     md_path = team_dir / 'message.md'
-    digest = dict(digest)
-    people_config_path = ROOT / 'config' / 'people.json'
-    if people_config_path.exists():
-        months = ((artifact or {}).get('dashboard') or {}).get('months') or []
-        digest = ensure_roster(digest, read_json(people_config_path), months=months)
-    if artifact is not None:
-        try:
-            digest['warehouse'] = fetch_channel_ledger(artifact, digest, workspace=workspace, output_root=Path(output_dir) / '_query')
-            digest = apply_warehouse_actuals(digest)
-        except Exception as error:
-            digest = dict(digest)
-            digest['warehouse_error'] = str(error)
     html_path.write_text(render_people_html(digest), encoding='utf-8')
     write_people_image(digest, html_path, png_path)
     write_details_xlsx(digest, xlsx_path)
@@ -288,14 +290,8 @@ def send_team_message(digest, png_url, xlsx_url):
     return {'status': 'sent', 'png': png_url, 'xlsx': xlsx_url}
 
 
-def default_output_dir(artifact_path):
-    return Path(artifact_path).resolve().parent / 'notify'
-
-
 def load_env_file(path):
     path = Path(path)
-    if not path.exists():
-        return
     for raw in path.read_text(encoding='utf-8').splitlines():
         line = raw.strip()
         if not line or line.startswith('#') or '=' not in line:
@@ -304,22 +300,38 @@ def load_env_file(path):
         os.environ.setdefault(key.strip(), value.strip())
 
 
-def send(artifact, team_ids=None, dry_run=False, output_dir=None, env_file=None):
-    artifact_path = Path(artifact)
-    data = read_json(artifact_path)
+def send(workspace, *, snapshot_id, run_id, as_of_date, data_through_date,
+         team_ids=None, dry_run=False, output_dir=None, env_file=None):
+    workspace = Path(workspace).resolve()
+    if not run_id or any(c not in 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-' for c in run_id):
+        raise ValueError('run_id must contain only letters, digits, underscore or hyphen')
+    date.fromisoformat(as_of_date)
+    date.fromisoformat(data_through_date)
+    if data_through_date > as_of_date:
+        raise ValueError('data_through_date must not exceed as_of_date')
+    find_warehouse(workspace, snapshot_id)
+    if not dry_run and not env_file:
+        raise ValueError('sending requires explicit --env-file for C-layer credentials')
+    data = dict(snapshot_id=snapshot_id, run_id=run_id, as_of_date=as_of_date,
+                data_through_date=data_through_date)
     config = load_notify_config()
     if env_file:
         load_env_file(env_file)
-    elif (ROOT / '.env.server').exists():
-        load_env_file(ROOT / '.env.server')
     selected = resolve_channels(team_ids)
     digests = build_all_digests(data, selected)
-    output_dir = Path(output_dir) if output_dir else default_output_dir(artifact_path)
+    output_dir = Path(output_dir) if output_dir else workspace / 'Output' / 'Monitoring' / run_id
     output_dir.mkdir(parents=True, exist_ok=True)
-    files = [write_team_artifacts(digest, output_dir, artifact=data) for digest in digests]
+    digests = [prepare_digest(digest, data, output_dir, workspace) for digest in digests]
+    files = [write_team_artifacts(digest, output_dir) for digest in digests]
+    (output_dir / 'evidence.json').write_text(json.dumps({
+        'schema_version': 'monitoring_evidence.v1', **data,
+        'workspace': str(workspace), 'digests': digests,
+        'query_output': str(output_dir / '_query'),
+    }, ensure_ascii=False, indent=2), encoding='utf-8')
     result = {
         'status': 'dry_run' if dry_run else 'built',
-        'artifact': str(artifact_path),
+        **data,
+        'workspace': str(workspace),
         'output_dir': str(output_dir),
         'teams': files,
     }
@@ -329,7 +341,7 @@ def send(artifact, team_ids=None, dry_run=False, output_dir=None, env_file=None)
     stage_dir = output_dir / f'.stage-{token}'
     try:
         stage_upload_tree(files, stage_dir)
-        upload_notify_assets(stage_dir, token, env_file=env_file or ROOT / '.env.server')
+        upload_notify_assets(stage_dir, token, env_file=env_file)
         origin = public_origin(config)
         deliveries = []
         for digest in digests:
@@ -353,13 +365,23 @@ def main():
     parser = argparse.ArgumentParser()
     sub = parser.add_subparsers(dest='command', required=True)
     send_parser = sub.add_parser('send')
-    send_parser.add_argument('--artifact', type=Path, required=True)
+    send_parser.add_argument('--workspace', type=Path, required=True)
+    for name in ('snapshot-id', 'run-id', 'as-of-date', 'data-through-date'):
+        send_parser.add_argument('--' + name, required=True)
+    send_parser.add_argument('--env-file', type=Path)
     send_parser.add_argument('--team', action='append', help='channel id, or offline_market for the three offline groups')
     send_parser.add_argument('--dry-run', action='store_true')
     send_parser.add_argument('--output-dir', type=Path)
     args = parser.parse_args()
     if args.command == 'send':
-        result = send(args.artifact, team_ids=args.team, dry_run=args.dry_run, output_dir=args.output_dir)
+        try:
+            result = send(args.workspace, snapshot_id=args.snapshot_id, run_id=args.run_id,
+                          as_of_date=args.as_of_date, data_through_date=args.data_through_date,
+                          team_ids=args.team, dry_run=args.dry_run, output_dir=args.output_dir,
+                          env_file=args.env_file)
+        except Exception as error:
+            print(json.dumps({'status': 'failed', 'error': str(error)}, ensure_ascii=False))
+            return 1
         print(json.dumps(result, ensure_ascii=False))
         return 0 if result['status'] in {'dry_run', 'sent'} else 1
     raise SystemExit('unknown command')

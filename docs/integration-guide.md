@@ -1,5 +1,7 @@
 # 核心 CLI 接入指南
 
+> 2026-09-16 模块切换：人员进度与钉钉推送已迁至 `monitoring_product/`，看板不再承担发送。新入口要求 workspace、snapshot-id、run-id、as-of-date、data-through-date；正式发送另需显式 env-file。共享花名册在 `workspace_modeling/operations/people.json`。本地迁移完成不代表云端任务已切换；详见项目根目录 `monitoring_product/README.md`。
+
 ## 1. 当前公开入口
 
 ### 1.1 安装
@@ -34,15 +36,30 @@ python3 -m interfaces.data_platform --help
 
 已实现子命令：
 
-| 命令 | 能力 |
-|---|---|
-| `inspect` | 根据 manifest 探查 XLSX，不输出明细行 |
-| `ingest` | 发布不可变 DuckDB/Parquet Snapshot |
-| `describe` | 描述 Snapshot 的 schema、表和字段 |
-| `quality` | 查询已登记的数据质量问题 |
-| `query` | 执行受控只读 SQL |
-| `promote-query` | 经确认后登记保存查询 |
-| `run-saved-query` | 执行已登记的保存查询 |
+| 命令 | 所属模块 / 输入与依赖 | 输出 | 写入范围与外部副作用 |
+|---|---|---|---|
+| `inspect` | Data Platform；来源 manifest、工作簿、run_id | 结构/源哈希报告，不含明细行 | 显式本地输出；原始来源只读，无网络发送 |
+| `ingest` | Data Platform；来源 manifest、新 snapshot_id、run_id | DuckDB/Parquet、Snapshot manifest | 发布新 Snapshot 与本地清单；不覆盖已有 Snapshot |
+| `describe` | Data Platform；仓库路径、snapshot_id | schema/字段 JSON | 仓库只读，无外部副作用 |
+| `quality` | Data Platform；仓库、snapshot_id、run_id、输出根 | 已登记质量问题的查询结果 | 仓库只读；所有成功结果写本地查询证据包 |
+| `query` | Data Platform；仓库、snapshot_id、run_id、SQL/参数、输出根与限制 | 受控查询结果及来源 | 仓库只读；始终写 SQL/参数/完整结果/回执，无网络发送 |
+| `promote-query` | Data Platform；仓库、snapshot_id、SQL、查询 ID/版本、确认人、registry_root | 保存查询登记 | 写仓库外新版本目录；不可覆盖版本，无业务确认推理 |
+| `run-saved-query` | Data Platform；登记 ID/版本、参数、仓库、snapshot_id、run_id、输出根 | 同 query | 校验登记 SQL 哈希；只读仓库、本地结果写入 |
+
+其他模块仍使用各自入口，不注册为 Data Platform 子命令：
+
+| 入口 | 所属模块 / 主要输入与依赖 | 输出与读写范围 | 外部副作用 |
+|---|---|---|---|
+| `interfaces.workspace_modeling`、`interfaces.bridge_alignment` | Workspace Modeling；显式工作区、来源/Pack、确认决定 | Input/Work/Output、Snapshot 切换、对齐会话、正式 Bridge；详见各合同 | 本地复制与状态写入；不得替用户确认；sync 切换后可能清理旧 Snapshot |
+| `interfaces.business_pack` | Workspace Modeling；Pack 文件 | validate/describe JSON，只读 | 无 |
+| `interfaces.company_bridge` | Workspace Modeling；Pack、候选/Bridge、可选 Snapshot 画像 | 校验/扫描结果或 build 正式 Bridge；按子命令写显式输出 | 无自动业务确认或发送 |
+| `interfaces.casebook` | Workspace Modeling；工作区、角色、用户选择的证据/评价 | guide/search/verify 只读；create/capture/confirm 等写本工作区 Casebook；反馈导出写本地 ZIP | 不自动上传，不自动确认案例 |
+| `dashboard_product.refresh` | Dashboard；工作区、run、已确认保存查询与目标/花名册 | refresh 写本地业务 artifact；render 写 HTML | refresh/render 不等同发布；部署脚本另需发布授权 |
+| `monitoring_product.notify` | Monitoring；workspace、snapshot、run、日期、花名册；正式发送需 env-file | 独立查询、digest、图片/Excel/证据；写显式本地输出 | dry-run 不发送；正式 send 上传并发送已授权钉钉通道 |
+| `market_workspace/oxhor` | 市场工作面；固定数据工作区、显式 Snapshot/run | 只读 CLI 调用，写市场 Evidence；不提供导入/发布 | 无 |
+| `project_intelligence` CLI / stdio MCP | Project Intelligence；批准代码/文档、工作区结构元数据 | 只读上下文，不返回业务明细、不执行业务 SQL | 服务内无业务写入；远程接入边界见专门文档 |
+
+这是一份静态能力说明，精确参数与写入目录仍以各命令 `--help` 和模块合同为准。自由分析交付由宿主组织，不增加 `analyze` 核心服务或运行时 Capability Registry。
 
 每个子命令的精确参数以 `--help` 为准，例如：
 
@@ -62,12 +79,24 @@ python3 -m interfaces.data_platform query --help
 - Snapshot 发布后不可原地覆盖；
 - 查询拒绝写操作、外部 reader、系统目录和绕过形式；
 - 查询限制最大返回行数和结果字节数；
-- 大查询结果和 Snapshot 登记到最小 `artifact_manifest.jsonl`；
+- Snapshot 登记到最小 `artifact_manifest.jsonl`；查询使用各自独立的回执目录，不再追加该账本；
 - 保存查询写在 Snapshot 外部，不修改 DuckDB 文件。
 
 源 SHA-256 用于 inspect/ingest 的 manifest 绑定和 Snapshot/Artifact manifest。它不需要成为每次查询、Session 或交付物都传播的公共身份字段。
 
 这组能力不是完整 Run/Artifact 平台。所有 Sheet 按实际表头名进入 landing，`ingest.sheets.target_table` 给出实际关系名。业务表头、字段含义和清洗口径必须从 Company Bridge 获取，不能在 Data Platform 中硬编码。
+
+### 2.1 公共证据合同（查询与自由分析已实现）
+
+合同区分查询回执、文件身份、业务交付清单，完整字段责任与样例见 [公共证据合同](./evidence-contract.md)。该文档本轮未加入 Project Intelligence 读取白名单；通过本节仍可获取关键边界，未扩大只读服务权限。
+
+- 当前 `controlled_query_result.v2`：成功查询始终保存 SQL、参数、完整结果和 `query_receipt.v1`；stdout 提供回执文件身份，小结果另有内联副本。读取使用 `read_query_result` 验证证据；看板与监控仍保留各自最终业务 artifact。
+- 每次成功查询都保存实际 SQL、参数、完整结果与可验证回执；run/Snapshot、独立执行身份、时间/生产版本、来源与文件 SHA-256 必须可追溯。数据层不承担 Pack/Bridge/metric 语义。
+- 业务清单由宿主/产品生成，绑定所选工作区配置和实际仓库/Snapshot 来源、角色、Pack/Bridge，引用同 Snapshot 的一份或多份子查询及交付文件；不能只凭同名 Snapshot 或自填公司字段接受外来证据。正式指标定义沿用 Pack.metrics；当前交付包的 metric_refs 为空，指标执行关联不排期，待具体口径问题证明需要后再评估。
+- 文件路径限制在显式证据包根内；Casebook 复制明确选择的最小引用闭包并保留包内相对目录，复制后重验，删源后仍可验证。新写入不沿用扁平复制回执而丢失内部引用；已封存案例不回写，不能宣称旧证据已满足新协议。
+- 看板、监控、市场 CLI 已使用新查询校验读取；看板与监控最终产物保持现状，原定统一改造已取消。现有查询证据校验保留，不增加兼容运行分支。
+
+确定性组包 API 为 `workspace_modeling.delivery.create_delivery`；完整可调用示例见 [公共证据合同第 7 节](./evidence-contract.md#7-宿主确定性组包-api)。Bridge 的 `--snapshot-quality` 指向实际 quality 查询回执文件，而非 stdout JSON。
 
 ## 3. Agent Host 接入
 
@@ -86,7 +115,7 @@ python3 -m interfaces.data_platform <command> ...
 - 读取 stdout JSON、进程退出码和显式产物路径；
 - 把 API Key、客户路径和源数据留在机器或客户工作区，不提交仓库。
 
-不建设 MCP Server，不要求不同宿主安装同一协议插件，也不把 Codex 或 DeepSeek Harness 再封装成项目内 Agent。若未来出现不能调用 Shell 的真实宿主，再根据该消费者的实际限制评估最薄调用适配器。
+当前业务操作使用 CLI，不要求不同宿主安装同一协议插件，也不把 Codex 或 DeepSeek Harness 再封装成项目内 Agent。已存在的 Project Intelligence stdio MCP 只读项目上下文，不开放业务 SQL。Business MCP 后置评估，必须复用工作区/语义检查与 Data Platform 受控入口，不直连 DuckDB。
 
 ### Codex
 
@@ -170,11 +199,11 @@ python3 -m interfaces.casebook --help
 python3 -m interfaces.casebook guide --workspace customers/company_customer
 ```
 
-`runs/` 保持本地原始证据，不能作为长期记忆被整目录读取或自动上传。Casebook 使用 `case-create` 逐项指定证据，或使用 `case-capture --manifest Work/analysis_capture.json` 读取一个由宿主 Agent 明确整理的 `casebook_capture.v1` manifest；确认后用 `case-confirm`，检索使用 `case-search`。两种入口都复制最小查询证据、SQL、哈希、版本和限制，后续只能在同一客户与角色范围内检索；涉及当前事实时仍须查询当前 Snapshot。`case-verify` 可重算摘要和证据哈希。
+`runs/` 保持本地原始证据，不能作为长期记忆被整目录读取或自动上传。Casebook 使用 `case-create` 逐项指定证据，或使用 `case-capture --manifest Work/analysis_capture.json` 读取一个由宿主 Agent 明确整理的 `casebook_capture.v2` manifest；确认后用 `case-confirm`，检索使用 `case-search`。两种入口都复制最小查询证据、SQL、哈希、版本和限制，后续只能在同一客户与角色范围内检索；涉及当前事实时仍须查询当前 Snapshot。`case-verify` 校验归档引用闭包及封存身份，删除原运行目录后仍可验证。
 
 本地部署的内测用户用 `test-pack-import`、`evaluation-start`、`evaluation-record-card` 和 `evaluation-complete` 执行版本化测试包，主动用 `feedback-export --export-type metrics-only` 导出默认脱敏反馈；用户可用 `evaluation-attach-evidence` 显式选择附加证据，再导出 `evidence-approved`。`feedback-verify` 只校验 ZIP 清单和哈希，不联网。项目不自动上传客户工作簿、DuckDB、Parquet 或 `runs/`。引导路由只提示工作区初始化、数据同步、Bridge 对齐、分析或 `repeat-candidates` 候选沉淀，既不取代宿主 Session，也不自动发布 Skill。实现接口与目录合同以 [S5 合同](./casebook-pilot-contract.md) 为准。
 
-已完成 Bridge 对齐后，宿主 Agent 可使用项目级 [业务分析路由 Skill](../.agents/skills/business-analysis-routing/SKILL.md) 处理日常问题。它只规定最小调用顺序：先用 `guide` 检查当前工作区状态，再按角色/问题类别用 `case-search` 找同公司确认案例；案例只提供方法线索，当前数字必须通过 Data Platform 以显式 `snapshot_id`、`run_id` 的只读 `describe`/`quality`/`query`（或确认后的 `run-saved-query`）重新取得。用户明确验收后才用 `case-create` 保存 candidate，交付物需回查本次查询；保存时的 Snapshot/Pack/Bridge 身份由当前工作区自动绑定，`casebook_capture.v1` manifest 不重复传入这些字段；`repeat-candidates` 只提出人工审核候选，不自动生成或发布 Skill。该 Skill 不实现 Agent Loop、Session、SQL 编译器或额外存储。
+已完成 Bridge 对齐后，宿主 Agent 可使用项目级 [业务分析路由 Skill](../.agents/skills/business-analysis-routing/SKILL.md) 处理日常问题。它只规定最小调用顺序：先用 `guide` 检查当前工作区状态，再按角色/问题类别用 `case-search` 找同公司确认案例；案例只提供方法线索，当前数字必须通过 Data Platform 以显式 `snapshot_id`、`run_id` 的只读 `describe`/`quality`/`query`（或确认后的 `run-saved-query`）重新取得。用户明确验收后才用 `case-create` 保存 candidate，交付物需回查本次查询；保存时逐项核对交付清单与当前工作区 Snapshot/Pack/Bridge 身份，`casebook_capture.v2` manifest 不重复传入这些字段；`repeat-candidates` 只提出人工审核候选，不自动生成或发布 Skill。该 Skill 不实现 Agent Loop、Session、SQL 编译器或额外存储。
 
 ## 8. 宿主交付能力
 
@@ -189,7 +218,7 @@ python3 -m interfaces.casebook guide --workspace customers/company_customer
 ```bash
 python3 -m dashboard_product.refresh refresh --workspace customers/bi_operations --run-id run_dashboard_<id>
 python3 -m dashboard_product.refresh render --artifact <artifact.json> --all-booklets
-python3 -m dashboard_product.notify send --artifact <artifact.json> --dry-run
+python3 -m monitoring_product.notify send --workspace <workspace> --snapshot-id <snapshot_id> --run-id <run_id> --as-of-date <YYYY-MM-DD> --data-through-date <YYYY-MM-DD> --dry-run
 ```
 
-刷新只消费已确认 `dashboard_actuals/v9`。目标区留学预备/高中/大学，同比区青少/初中/高中/大学。全量页另有「市场人员产能」页签。四分册发布和 Nginx 门口见 [`dashboard_product/DEPLOYMENT.md`](../dashboard_product/DEPLOYMENT.md)。Webhook 属于 C 层，不在本接入指南展开。
+刷新只消费已确认 `dashboard_actuals/v10`。目标区留学预备/高中/大学，同比区青少/初中/高中/大学。全量页另有「市场人员产能」页签。四分册发布和 Nginx 门口见 [`dashboard_product/DEPLOYMENT.md`](../dashboard_product/DEPLOYMENT.md)。Webhook 属于 C 层，不在本接入指南展开。

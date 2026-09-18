@@ -1,5 +1,7 @@
 # 静态看板发布
 
+> 2026-09-16 模块切换：人员进度与钉钉推送已迁至 `monitoring_product/`，看板不再承担发送。新入口要求 workspace、snapshot-id、run-id、as-of-date、data-through-date；正式发送另需显式 env-file。共享花名册在 `workspace_modeling/operations/people.json`。本地迁移完成不代表云端任务已切换；详见项目根目录 `monitoring_product/README.md`。
+
 本地登录参数可放在未纳入 Git 的 `.env.server`（模板见 `.env.server.example`）。该文件仅供人工/本地部署工具读取，权限应保持为 `600`；不要复制到服务器或提交到 Git。htpasswd、用户→分册映射和初始密码在 `deploy/secrets/`（C 层，目录 700 / 文件 600），同样不进 Git。
 
 ## 当前数据流
@@ -13,7 +15,7 @@
 
 **不要**把 `artifact.json` 放到 `/var/www/dashboard/` 或任何公网目录。服务器不接触 DuckDB、`Input/`、`Work/Runs/`、客户凭据或整个 `customers/` 目录，也不需要 Python、Data Platform 或 systemd 刷新任务。
 
-钉钉人员进度把 `people.png` 和 `details.xlsx` 放到 `/var/www/dashboard/notify/<token>/<team_id>/`。路径匿名可读（钉钉拉图不会登录），目录不可列出。不要上传 `artifact.json`、HTML 或 webhook。首次启用跑 `./dashboard_product/deploy/install_notify_nginx.sh`（只改 Nginx，不动看板密码）。日更脚本不自动群发。
+钉钉人员进度把 `people.png` 和 `details.xlsx` 放到 `/var/www/dashboard/notify/<token>/<team_id>/`。路径匿名可读（钉钉拉图不会登录），目录不可列出。不要上传 `artifact.json`、HTML 或 webhook。首次启用跑 `./monitoring_product/deploy/install_notify_nginx.sh`（只改 Nginx，不动看板密码）。日更脚本不自动群发。
 
 云电脑要独立发送钉钉，必须把本机 `dashboard_product/.env.server`（C 层，mode 600）CopyToBox 到 `/home/box/oxhor/dashboard/dashboard_product/.env.server`。该文件含服务器 SSH 密码和 `DINGTALK_WEBHOOK_*` / `DINGTALK_SECRET_*`。禁止进公开 Git、禁止贴聊天、禁止写进文档明文。缺某个通道的 webhook 时，`notify send` 会跳过该通道而不是伪造发送。2026-09-10 本机已填线下青少/高中/大学和线上私域；线上平台仍空。云电脑要发虚拟人/大学群，必须重新 CopyToBox 该文件，旧 C 层包不含这两路密钥。
 

@@ -5,8 +5,8 @@ case "$-" in *x*) echo "refuse to run with xtrace (would leak credentials)" >&2;
 set +x
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-DASHBOARD_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
-ENV_FILE="${ENV_FILE:-${DASHBOARD_ROOT}/.env.server}"
+MONITORING_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+ENV_FILE="${ENV_FILE:?set ENV_FILE to the explicit C-layer credentials file}"
 STAGE="${NOTIFY_STAGE:-}"
 TOKEN="${NOTIFY_TOKEN:-}"
 ALLOWED_TEAMS=' offline_youth offline_high_school offline_university online_private online_platform '

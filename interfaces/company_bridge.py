@@ -18,6 +18,13 @@ from workspace_modeling.company_bridge.service import (
 )
 
 
+def _load_quality(path):
+    from data_platform.query.evidence import verify_receipt
+    document, data = verify_receipt(Path(path))
+    return {"schema_version": "snapshot_quality_profile.v1", "status": "passed",
+            "snapshot_id": document["snapshot_id"], "row_count": len(data["rows"]), "result": data, "errors": []}
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="company-bridge")
     commands = parser.add_subparsers(dest="command", required=True)
@@ -39,13 +46,13 @@ def build_parser() -> argparse.ArgumentParser:
     validate.add_argument("--bridge", type=Path, required=True)
     validate.add_argument("--pack", type=Path, required=True)
     validate.add_argument("--snapshot-description", type=Path, help="optional Data Platform schema compatibility input")
-    validate.add_argument("--snapshot-quality", type=Path, help="optional quality result paired with the Snapshot description")
+    validate.add_argument("--snapshot-quality", type=Path, help="verified query_receipt.v1 from quality, paired with the Snapshot description")
 
     build = commands.add_parser("build", help="build a formal Bridge from a reviewed candidate set")
     build.add_argument("--candidates", type=Path, required=True)
     build.add_argument("--pack", type=Path, required=True)
     build.add_argument("--snapshot-description", type=Path, help="optional Data Platform schema compatibility input")
-    build.add_argument("--snapshot-quality", type=Path, help="optional quality result paired with the Snapshot description")
+    build.add_argument("--snapshot-quality", type=Path, help="verified query_receipt.v1 from quality, paired with the Snapshot description")
     build.add_argument("--bridge-id", required=True)
     build.add_argument("--bridge-version", required=True)
     build.add_argument("--company-id", required=True)
@@ -107,13 +114,13 @@ def main(argv: list[str] | None = None) -> int:
         elif args.command == "validate":
             pack = load_pack(args.pack)
             description = load_json(args.snapshot_description) if args.snapshot_description else None
-            quality = load_json(args.snapshot_quality) if args.snapshot_quality else None
+            quality = _load_quality(args.snapshot_quality) if args.snapshot_quality else None
             document = load_bridge(args.bridge)
             result = validate_bridge(document, pack=pack, description=description, quality=quality)
         else:
             pack = load_pack(args.pack)
             description = load_json(args.snapshot_description) if args.snapshot_description else None
-            quality = load_json(args.snapshot_quality) if args.snapshot_quality else None
+            quality = _load_quality(args.snapshot_quality) if args.snapshot_quality else None
             candidates = load_candidate_set(args.candidates)
             document = build_bridge(
                 candidates=candidates,
@@ -133,7 +140,7 @@ def main(argv: list[str] | None = None) -> int:
                 "bridge_path": str(args.output),
                 "errors": [],
             }
-    except (BridgeError, PackError, OSError, json.JSONDecodeError) as exc:
+    except (BridgeError, PackError, OSError, ValueError) as exc:
         errors = getattr(exc, "errors", None)
         result = _failure(getattr(exc, "code", "COMPANY_BRIDGE_FAILED"), str(exc), errors)
     print(json.dumps(result, ensure_ascii=False, indent=2))

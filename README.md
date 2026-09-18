@@ -1,8 +1,8 @@
 # Data OXHor
 
-Data OXHor 是面向教育运营团队的模块化运营数据中台。它把数据接入、数据仓库、业务口径、客户工作区、分析交付和固定看板拆成可独立使用的产品模块，供外部 Agent Host 或人工运维流程调用。
+Data OXHor 是面向教育运营团队的模块化运营数据中台。它把数据接入、数据仓库、业务口径、客户工作区、分析交付、固定看板和日常监控拆成可独立使用的产品模块，供外部 Agent Host 或人工运维流程调用。
 
-项目本身不承担一个总 Agent，也不在项目内做跨模块自然语言路由。使用者可以从 `agents/` 选择所需的模块 Agent，在对应客户工作区中运行；Agent 通过稳定 CLI 调用确定性代码。
+根目录 `AGENTS.md` 提供轻量板块导航，帮助整体架构调整时定位目录和模块说明，选定后按需读取。项目不实现总控 Agent 或跨模块调度。使用者可以从 `agents/` 选择所需的模块 Agent，在对应客户工作区中运行；Agent 通过稳定 CLI 调用确定性代码。
 
 ## 项目结构
 
@@ -11,12 +11,17 @@ data_acquisition/    数据来源接入、认证和导入任务
 data_platform/       landing、Snapshot、质量检查和受控只读查询
 workspace_modeling/  Business Pack、Company Bridge、工作区、Casebook 和首次部署
 analysis_product/    自由分析的确定性扩展边界，当前无内置 PPT 实现
-dashboard_product/   固定口径看板的刷新、四分册发布和可选钉钉人员进度
+dashboard_product/   固定口径看板的刷新和四分册发布
+monitoring_product/  人员进度监控、受控明细查询和钉钉日报
+market_workspace/    市场日常启动入口：自由分析、导表、程序和临时脚本
 interfaces/          对外 CLI 边界
+project_intelligence/ 项目级只读上下文服务（Python API / CLI / stdio MCP）
 customers/           按公司隔离的 Input/Work/Output 工作区
 agents/              可单独选择的模块 Agent 说明，不含总路由 Agent
 docs/                合同、架构、接入、运维和用户文档
 ```
+
+监控与看板并列运行：`daily_monitor → monitoring_product → Data Platform`，共享业务配置放在 `workspace_modeling/operations/`。
 
 模块关系如下：
 
@@ -35,12 +40,14 @@ docs/                合同、架构、接入、运维和用户文档
 
 ## 如何使用
 
-先根据任务选择一个独立 Agent：
+市场日常查询、导表和生成小程序，直接打开 [市场工作区](market_workspace/README.md)，从 `./oxhor status` 开始；该目录复用已有数仓。
+
+其他场景根据任务选择一个独立 Agent：
 
 - [工作区初始化 Agent](./agents/workspace_setup/AGENT.md)：首次部署、导入数据、发布 Snapshot、对齐 Bridge。
 - [自由分析 Agent](./agents/ad_hoc_analysis/AGENT.md)：当前 Snapshot 上的业务查询、诊断、下钻和按需交付。
 - [看板发布 Agent](./agents/dashboard_publisher/AGENT.md)：运行已确认的固定查询、生成 HTML 并发布看板。
-- [日常监控 Agent](./agents/daily_monitor/AGENT.md)：监控场景的预留合同，当前尚未实现运行代码。
+- [日常监控 Agent](./agents/daily_monitor/AGENT.md)：人员进度检查、落后名单和钉钉日报；运行模块为 `monitoring_product/`。
 
 这些文件是模块使用说明和启动提示，不是项目内的 Agent Loop。宿主仍负责会话、模型、权限和文件交付。
 
@@ -51,7 +58,11 @@ docs/                合同、架构、接入、运维和用户文档
 - 当前事实必须来自当前 Snapshot 的受控查询；Casebook 只能提供已确认的方法线索。
 - 看板只运行已确认的 saved query，不由模型临时决定公式或筛选。
 - 原始工作簿、DuckDB、Parquet、`runs/` 和客户工作区数据不进入 Git，也不自动上传。
-- 项目不建设总路由 Agent、项目侧 Session 管理器或 MCP 服务。
+- 项目不建设总路由 Agent 或项目侧 Session 管理器。Project Intelligence 提供独立的本地只读上下文服务；现提供独立 stdio MCP 适配器，已通过官方 Secure MCP Tunnel 接入 ChatGPT Developer Mode，运行说明见 `docs/project-intelligence-tunnel.md`。
+
+## 阶段状态
+
+本阶段架构演进已结束：查询证据留存、自由分析报告组包和 Casebook 归档验证已完成。看板保持静态图表，监控维持现有产物，不继续为统一格式扩建。没有已排期的后续施工；新问题按实际需求处理。记录见 [施工计划与验收](./docs/Agent_架构演进施工计划.md)。
 
 ## 常用入口
 
@@ -61,7 +72,9 @@ python3 -m interfaces.data_platform --help
 python3 -m interfaces.business_pack validate
 python3 -m interfaces.company_bridge validate --help
 python3 -m interfaces.casebook --help
+python3 -B -m project_intelligence --help
 python3 -m dashboard_product.refresh --help
+python3 -m monitoring_product.notify --help
 sh tools/run_tests.sh -v
 ```
 

@@ -2,7 +2,7 @@
 
 ## 1. 权威模型
 
-系统由“原生 Agent Host + 可独立选择的模块 Agent + 稳定 CLI 边界 + 宿主无关 Data/Pack/Bridge + 客户工作区”构成。项目是模块化运营数据中台，不提供默认主 Agent 或跨模块自然语言路由；调用者按任务选择 `agents/` 下的模块 Agent。
+系统由“原生 Agent Host + 可独立选择的模块 Agent + 稳定 CLI 边界 + 宿主无关 Data/Pack/Bridge + 客户工作区”构成。根目录 `AGENTS.md` 提供轻量板块导航，帮助调用者按任务定位目录及 `agents/` 下的说明，选定后按需读取，不预加载所有模块。项目不建设总控 Agent、跨模块调度或 Session 管理。
 
 ```text
 ┌──────────────────────────────────────────────┐
@@ -30,6 +30,8 @@
                └────────────────────┘
 ```
 
+项目本地优先；已授权云端宿主可以执行固定定时、刷新、发布与托管，不承载个人自由分析主流程。本次演进不迁移现有云端任务。新增需求优先复用模块，仅在职责、权限或运行周期独立时评估新增 Agent 运行说明。
+
 ## 2. 为什么宿主可替换
 
 核心模块只暴露 CLI、文件、JSON、SQL 和版本化 manifest，不接收 Harness 的 `ctx`、Session 类、Conversation Node 或 Codex 专属对象。Codex、DeepSeek Harness 或其他具备受控 Shell 的宿主根据任务选择 `agents/` 下的模块说明，再调用同一 CLI。项目不在宿主之上或之内再建设总 Agent、模型路由或对话调度；宿主可替换性不依赖 MCP。
@@ -46,7 +48,7 @@
 - Conversation Node 和对话内交互图表；
 - 各宿主的权限、沙箱和 Session 配置。
 
-因此换宿主时，数据查询、表格/图表、DuckDB、数据预处理、确定性门禁和项目 Skills 不受影响；PPT 能力要求新宿主安装全局 `ppt-master`。只有未来真实宿主不能调用 CLI 时，才为该消费者评估最薄调用适配器；不把现有宿主封装成另一套 Agent 系统。
+因此换宿主时，数据查询、表格/图表、DuckDB、数据预处理、确定性门禁和项目 Skills 不受影响；PPT 能力要求新宿主安装全局 `ppt-master`。业务执行继续使用 CLI；项目级上下文按明确用户需求独立建设只读服务及后续薄 MCP 适配器，不把现有宿主封装成另一套 Agent 系统。
 
 ## 3. 数据流和身份
 
@@ -66,13 +68,15 @@
 
 运行以显式 `run_id` 区分，查询和恢复以显式 `snapshot_id` 定位仓库。源 SHA-256 用于 inspect/ingest 的源绑定以及 Snapshot/Artifact manifest。每个受控查询结果同时记录由 `ingest.sheets` 反查的 `referenced_relations` 与 `referenced_source_ids`；这只服务于冻结分析的来源校验，不扩张为统一血缘平台。SQL 是直接查询输入或保存查询内容。Education Pack 1.0.0 与 Company Bridge 按企业工作区独立版本化；Data Platform 不伪造 Pack/Bridge 选择。
 
+公共证据演进只统一查询回执、文件身份与业务交付清单的公共字段和引用，不统一产品业务内容，也不建设 Artifact Registry。Data Platform 生产物理执行证据，业务层绑定工作区与 Pack/Bridge，Casebook 复制最小引用闭包并验证；Pack.metrics 保持指标定义权威，不新建第二套指标库。字段责任、路径和分轮状态见 [公共证据合同](./evidence-contract.md)。第 2 轮已实现自由分析链路：查询始终落盘回执，交付组包与 Casebook 可独立验证；看板、监控和市场入口已同步查询读取，看板保持静态图表定位，监控保持现有产物结构；原定最终产物统一改造已取消。后续只针对现有能力无法解决的实际问题调整，不为格式一致而扩建。
+
 固定看板发布走另一条只读链路，不经过分析交付：
 
 ```text
 当前 Snapshot
-  → dashboard_actuals/v9（Data Platform run-saved-query）
+  → dashboard_actuals/v10（Data Platform run-saved-query）
   → artifact.json（全量，不进公网；目标区三组，同比区青少/初中/高中/大学；查询 12 列含 student_id）
-  → 四分册 HTML + 可选钉钉人员图/表（现金可跨月用工单 ID 回查全量工单）
+  → 四分册 HTML
   → 服务器只托管静态文件
 ```
 
@@ -136,3 +140,31 @@ Codex、DeepSeek Harness 等宿主已具备 HTML、图表和文件生成/交付�
 ## 8. 复杂度门槛
 
 第一版只保留模块内已有或随模块实现的必要约束：只读查询、Snapshot 不覆盖、unresolved 阻断和文件验收。MCP、独立强化插件、完整 Run Manager、Artifact Registry、Reviewer、Promotion 自动化、Retention 和恢复平台都不是默认内容；只有失败 fixture 或明确客户要求证明必要时才增加。
+
+## 9. 日常监控模块（2026-09-16）
+
+`monitoring_product/` 已从看板独立，首个场景是人员绩效进度与钉钉日报。调用链为：
+
+```text
+外部宿主定时 / 人工调用
+  → daily_monitor Agent
+  → monitoring_product.notify（显式 workspace / snapshot_id / run_id / 日期）
+  → Data Platform 受控只读查询（三份通知 SQL，含跨月工单回查）
+  → 同一份最终 digest → 图片 / Excel / 正文 → 已授权的钉钉通道
+```
+
+与看板共同使用 `workspace_modeling/operations/` 的人员匹配、绩效月与 BI 运营花名册；监控不再导入看板 Python 模块、不消费看板 artifact。Agent 可只读查看看板以核对，但不得自行刷新或发布。当前公司专用 SQL/花名册不宣称跨公司通用。
+
+查询凭据与实际 SQL 留在本地 `_query/`；最终结果保存在 `evidence.json`。小查询即使由 Data Platform 内联返回，也保存查询回执，避免丢失来源凭据。所有选中通道成功取数后才生成交付物；任一失败整批阻断，不把失败当零。外部调度、密钥和服务器托管权限仍由宿主管理。
+
+## 市场日常启动目录
+
+`market_workspace/` 是当前公司市场角色的日常工作面，绑定现有 `customers/bi_operations/` 数据工作区，不另建公司身份，不复制 Snapshot，不改变原 operations 端口或 Bridge。底层模块继续由项目维护；生成代码、临时脚本和交付物与底层实现分开存放。
+
+市场入口 `oxhor` 只绑定路径、检查 guide 与显式 Snapshot、固定本地 Evidence 输出，再调用已有 casebook/Data Platform CLI；不实现 SQL 引擎或第二套业务口径。Programs/Scratch 可按任务清理，Reports/Evidence/Notes 按成果保留。不用目录软链暴露数仓，也不声称有 OS 级权限隔离。该目录是本次为现有工作区装配的入口，首次部署 init 的行为没有改变；未来其他端口按实际需求装配，不预建路由器。
+
+## Project Intelligence 本地上下文边界（2026-09-17）
+
+用户确认新增独立 `project_intelligence/`，用于项目架构讨论与评审。第一阶段提供本地 Python API / CLI，对批准代码文档分段读取，对工作区仅投影身份与结构元数据。它单向复用 Data Platform describe 与 Bridge 合同校验，不调用会取样本的 guide/profile，不提供业务 SQL 或任何写操作。
+
+现已在原服务外新增独立 stdio MCP 协议适配器，保持五个工具与服务实现不变；后续已通过项目外的官方 Secure MCP Tunnel 接入 ChatGPT Developer Mode，MCP 内核不新增网络监听。接入不改变既有宿主、模块 Agent、调度与 Session 边界，也不建设本机与 Grok 双向控制。远端状态保持未核验，文档记录、代码声明和本机实查分别带来源。范围、限制和命令见 [Project Intelligence](./project-intelligence.md)。

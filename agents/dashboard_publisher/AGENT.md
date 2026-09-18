@@ -2,26 +2,20 @@
 
 ## 负责范围
 
-对已确认业务口径运行固定 saved query，刷新看板 artifact、按团队板块渲染四分册 HTML 并执行发布。可选发送钉钉人员进度。它不做开放式分析，不让模型在刷新时改变指标公式、筛选条件或归属规则。
-
-## 运行入口
+运行已确认的固定查询，刷新看板 artifact、渲染四分册 HTML 并发布。不得在刷新时改变业务口径。
 
 ```bash
-python3 -m dashboard_product.refresh refresh \
-  --workspace customers/bi_operations \
-  --run-id <run_id>
-python3 -m dashboard_product.refresh render \
-  --artifact <artifact.json> --all-booklets
-python3 -m dashboard_product.notify send \
-  --artifact <artifact.json> --dry-run
+python3 -m dashboard_product.refresh refresh --workspace <workspace> --run-id <run_id>
+python3 -m dashboard_product.refresh render --artifact <artifact.json> --all-booklets
 ```
 
-发布流程、环境变量和服务器步骤见 [看板部署说明](../../dashboard_product/DEPLOYMENT.md)。团队板块分册与 htpasswd 见 [AUTH_TEAM_BOOKLETS_RUN.md](../../dashboard_product/docs/AUTH_TEAM_BOOKLETS_RUN.md)。钉钉 webhook 只在 C 层 `.env.server`；云电脑独立运行前必须单独 CopyToBox 该文件，禁止贴聊天。钉钉花名册以 `config/people.json` 为准；大学通道第二列是人头（去重学员编号，不含 1500），落后仍按工单。当前数据合同和已知问题见 `dashboard_product/docs/`。日更默认只发布四分册，不自动群发钉钉。
+人员进度计算和钉钉推送由 [日常监控 Agent](../daily_monitor/AGENT.md) 与 `monitoring_product/` 负责，不属于看板发布入口。
 
 ## 必须遵守
 
-- 只使用已确认的 saved query 和明确的 `snapshot_id`。
-- 原始工作簿、DuckDB、Parquet 和明细数据不得发布到服务器。
-- 指标定义需要变更时，先由自由分析 Agent 完成证据和确认，再修改 saved query、Bridge 与看板合同。
-- 发布前验证 artifact 和 HTML 非空且可打开。
-- 不得把 `.env.server`、htpasswd、webhook 写入公开 Git 或对话。
+- 只使用已确认的 saved query 和明确 Snapshot。
+- 业务口径变更先完成证据核对和人工确认。
+- 只发布四分册静态 HTML；不得上传源文件、数仓、全量 artifact 或密钥。
+- 发布前验证文件可打开且内容非空。
+- 与监控共用 `workspace_modeling/operations/` 的绩效月、人员匹配规则及花名册，不复制维护第二份。
+- 部署见 [看板部署说明](../../dashboard_product/DEPLOYMENT.md)。

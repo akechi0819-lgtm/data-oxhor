@@ -73,7 +73,7 @@ S5 首版只记录和展示建议。Skill/模板不能因次数自动创建、�
 
 ## 6. 验收和优化闭环
 
-S5 的合同测试使用 `tests/fixtures/casebook/` 和 `tests/fixtures/pilot_feedback/` 的合成/脱敏样例。至少覆盖：客户隔离、证据哈希、过期案例、候选确认/拒绝/替代、测试包版本、默认不含原始数据的导出、用户授权证据白名单、反馈包校验，以及引导路由的四种状态。
+S5 的合同测试使用 `tests/evidence_helpers.py` 生成的正式 Snapshot/交付包及 `tests/fixtures/pilot_feedback/` 的合成/脱敏样例。至少覆盖：客户隔离、证据哈希、过期案例、候选确认/拒绝/替代、测试包版本、默认不含原始数据的导出、用户授权证据白名单、反馈包校验，以及引导路由的四种状态。
 
 真实内测的验收标准：高风险反例必须全部通过；来源和数据可回查边界必须全部通过；常规问题、文件打开性和人工可用性按测试包记录。回收后的可复现代码失败转为仓库合成回归测试；企业口径进入对应客户 Bridge；跨客户稳定方法经人工审核进入 Skill/模板或 Pack；高价值单客户问题进入该客户 Casebook。
 
@@ -93,17 +93,17 @@ S5 的合同测试使用 `tests/fixtures/casebook/` 和 `tests/fixtures/pilot_fe
 Work/Casebook/
   candidates/<case_id>/case.json
   candidates/<case_id>/summary.md
-  candidates/<case_id>/evidence/<ordinal>-<name>
+  candidates/<case_id>/evidence/delivery_<ordinal>/<包内相对路径>
   confirmed/<case_id>/...
   rejected/<case_id>/...
   superseded/<case_id>/...
 ```
 
-`case.json` 是 `casebook_case.v1`，必填：`case_id`、`company_id`、`primary_role`、`question_category`、`status`、`question`、`normalized_question`、`snapshot_id`、`pack_ref`、`bridge_ref`、`key_queries`、`evidence`、`created_at`、`created_by`、`summary_sha256`。每项 `evidence` 必含相对 `path`、`sha256`、`kind`（`query_result`、`sql`、`artifact`、`log`）和非空 `referenced_source_ids`（只有 artifact 可为空）。创建时必须绑定当前 Snapshot 和工作区 Pack/Bridge。
+`case.json` 是 `casebook_case.v1`，必填：`case_id`、`company_id`、`primary_role`、`question_category`、`status`、`question`、`normalized_question`、`snapshot_id`、`pack_ref`、`bridge_ref`、`key_queries`、`evidence`、`created_at`、`created_by`、`summary_sha256`。每项 `evidence` 必含相对 `path`、`sha256`、`kind`（新写入为 `delivery`；旧封存记录保留原证据类型）和非空 `referenced_source_ids`（只有 artifact 可为空）。创建时必须绑定当前 Snapshot 和工作区 Pack/Bridge。
 
 创建只产生 candidate。确认/拒绝以原子目录移动改状态且需要非空 `decided_by`、说明；confirmed 不可原地编辑。替代必须先创建并确认新案例，新的 `supersedes` 指向旧 ID，再将旧案例移至 superseded 并写入 `superseded_by`。检索只返回相同公司、角色的 confirmed；可按类别缩小，旧 Snapshot 标记 `stale_for_current_snapshot` 但作为线索不阻断。
 
-命令：`case-create`、`case-capture`、`case-confirm`、`case-reject`、`case-supersede`、`case-search`、`case-verify`。`case-create` 逐项列出证据，禁止目录参数；`case-capture` 只读取一个显式工作区相对 `casebook_capture.v1` JSON manifest，然后委托同一创建门禁；它不扫描 `runs/`、不执行 SQL，也不跳过人工确认。`case-verify` 重算摘要与证据 SHA-256。
+命令：`case-create`、`case-capture`、`case-confirm`、`case-reject`、`case-supersede`、`case-search`、`case-verify`。`case-create` 的 evidence-json 逐项选择 `{"path":"Output/.../delivery.json"}`，禁止旧扁平输入和目录参数；`case-capture` 只读取一个显式工作区相对 `casebook_capture.v2` JSON manifest，然后委托同一创建门禁；它不扫描 `runs/`、不执行 SQL，也不跳过人工确认。`case-verify` 重算摘要、交付清单及 SQL/参数/结果/交付文件 SHA-256，并核对案例封存上下文；删除原输出仍可独立验证。组包使用 `workspace_modeling.delivery.create_delivery`，见 [公共证据合同](./evidence-contract.md#7-宿主确定性组包-api)。
 
 ### 7.3 S5.2：内测测试包与反馈回收
 
@@ -146,4 +146,4 @@ Work/Evaluation/
 | 2 | 集成 | `interfaces/casebook_pilot.py` | CLI 退出码、合成工作区 E2E、全量回归 |
 | 3 | 独立审查 | 只读审核和必要小修 | 过度设计、门禁冗余、与 Data/Bridge 冲突 |
 
-合成 fixture 仅位于 `tests/fixtures/casebook/` 和 `tests/fixtures/pilot_feedback/`。必须覆盖客户/角色隔离、篡改证据、confirmed 不可编辑、rejected/superseded、过期 Snapshot、测试包版本冲突、未完成评价不可导出、默认包无原始数据、禁止或未授权附件、篡改反馈、四种引导状态，以及次数不足/跨角色/无人工评价不提醒。
+合成 fixture 仅位于 `tests/evidence_helpers.py` 生成的正式 Snapshot/交付包及 `tests/fixtures/pilot_feedback/`。必须覆盖客户/角色隔离、篡改证据、confirmed 不可编辑、rejected/superseded、过期 Snapshot、测试包版本冲突、未完成评价不可导出、默认包无原始数据、禁止或未授权附件、篡改反馈、四种引导状态，以及次数不足/跨角色/无人工评价不提醒。

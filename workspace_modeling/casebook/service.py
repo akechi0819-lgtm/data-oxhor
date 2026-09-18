@@ -3,6 +3,8 @@ from __future__ import annotations
 import hashlib
 import re
 import shutil
+import uuid
+import os
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -12,7 +14,7 @@ from workspace_modeling.company_bridge.service import load_bridge
 
 
 CASE_STATUSES = {"candidate", "confirmed", "rejected", "superseded"}
-EVIDENCE_KINDS = {"query_result", "sql", "artifact", "log"}
+EVIDENCE_KINDS = {"query_result", "sql", "artifact", "log", "delivery"}
 SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 
 
@@ -211,31 +213,35 @@ def create_case(
     for status in CASE_STATUSES:
         if _case_path(root, status, case_id).exists():
             _error("CASE_EXISTS", f"case already exists: {case_id}")
-    case_path = _case_path(root, "candidate", case_id)
+    final_path = _case_path(root, "candidate", case_id)
+    case_path = final_path.parent / ("." + case_id + ".pending-" + uuid.uuid4().hex)
     case_path.mkdir(parents=True)
     try:
         evidence: list[dict[str, Any]] = []
-        evidence_directory = case_path / "evidence"
+        from workspace_modeling.delivery import context, verify_delivery
+        from data_platform.query.evidence import EvidenceError
+        expected = context(root, primary_role)
         for ordinal, source in enumerate(evidence_sources, start=1):
-            if not isinstance(source, dict) or set(source) != {"path", "kind", "referenced_source_ids"}:
-                _error("EVIDENCE_FIELDS_INVALID", "each evidence source needs path, kind, referenced_source_ids")
-            source_path = _workspace_file(root, source["path"], field=f"evidence_sources[{ordinal - 1}].path")
-            kind = source["kind"]
-            source_ids = source["referenced_source_ids"]
-            if kind not in EVIDENCE_KINDS:
-                _error("EVIDENCE_KIND_INVALID", "evidence kind is unsupported")
-            if not isinstance(source_ids, list) or not all(isinstance(value, str) and value for value in source_ids):
-                _error("SOURCE_IDS_INVALID", "referenced_source_ids must be an array of non-empty strings")
-            if kind != "artifact" and not source_ids:
-                _error("SOURCE_IDS_REQUIRED", "non-artifact evidence requires referenced_source_ids")
-            filename = f"{ordinal}-{source_path.name}"
-            target = evidence_directory / filename
-            evidence_directory.mkdir(parents=True, exist_ok=True)
-            shutil.copyfile(source_path, target)
-            evidence.append({
-                "path": f"evidence/{filename}", "sha256": _hash_file(target), "kind": kind,
-                "referenced_source_ids": list(source_ids),
-            })
+            if not isinstance(source, dict) or set(source) != {"path"}:
+                _error("EVIDENCE_FIELDS_INVALID", "each evidence source must select one delivery manifest path")
+            source_path = _workspace_file(root, source["path"], field="evidence_sources.path")
+            delivery, closure = verify_delivery(source_path, expected=expected)
+            package = case_path / "evidence" / f"delivery_{ordinal}"
+            for source_file in closure:
+                target = package / source_file.relative_to(source_path.parent)
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(source_file, target)
+            entry = package / source_path.name
+            verify_delivery(entry, expected=expected)
+            source_ids = set()
+            from data_platform.query.evidence import resolve_file, verify_receipt
+            for reference in delivery["query_refs"]:
+                receipt, _ = verify_receipt(resolve_file(source_path.parent, reference))
+                source_ids.update(receipt["referenced_source_ids"])
+            if not source_ids:
+                _error("SOURCE_IDS_REQUIRED", "Casebook requires query evidence with physical sources")
+            evidence.append({"path": entry.relative_to(case_path).as_posix(), "sha256": _hash_file(entry),
+                             "kind": "delivery", "referenced_source_ids": sorted(source_ids)})
         summary_path = case_path / "summary.md"
         summary_path.write_text(_text(summary, "summary") + "\n", encoding="utf-8")
         document: dict[str, Any] = {
@@ -244,7 +250,7 @@ def create_case(
             "status": "candidate", "question": _text(question, "question"),
             "normalized_question": _text(normalized_question, "normalized_question"),
             "snapshot_id": config["current_snapshot_id"], "pack_ref": config["pack_ref"], "bridge_ref": _bridge_ref(root, config),
-            "key_queries": key_queries, "evidence": evidence,
+            "key_queries": key_queries, "evidence": evidence, "evidence_contract": "business_delivery.v1", "snapshot_ref": expected["snapshot_ref"],
             "created_at": created_at or datetime.now(UTC).isoformat(), "created_by": _text(created_by, "created_by"),
             "summary_sha256": _hash_file(summary_path),
         }
@@ -259,8 +265,13 @@ def create_case(
             document["supersedes"] = supersedes
         _validate_case(document, case_path=case_path, expected_status="candidate")
         write_json(case_path / "case.json", document, overwrite=False)
-    except Exception:
+        os.rename(case_path, final_path)
+        case_path = final_path
+    except Exception as exc:
         shutil.rmtree(case_path, ignore_errors=True)
+        from data_platform.query.evidence import EvidenceError
+        if isinstance(exc, EvidenceError):
+            _error("EVIDENCE_INVALID", str(exc))
         raise
     return {"schema_version": "casebook_result.v1", "status": "candidate_created", "case_id": case_id, "case_path": str(case_path.resolve())}
 
@@ -273,7 +284,7 @@ def capture_case(*, root: Path, manifest_path: str) -> dict[str, Any]:
     """
     manifest = _workspace_file(root, manifest_path, field="manifest_path")
     document = load_json(manifest)
-    if document.get("schema_version") != "casebook_capture.v1":
+    if document.get("schema_version") != "casebook_capture.v2":
         _error("CAPTURE_SCHEMA_INVALID", "unsupported Casebook capture manifest")
     required = {
         "schema_version", "case_id", "primary_role", "question_category", "question",
@@ -377,4 +388,14 @@ def verify_case(*, root: Path, case_id: str) -> dict[str, Any]:
         file_path = case_path / evidence["path"]
         if not file_path.is_file() or file_path.is_symlink() or _hash_file(file_path) != evidence["sha256"]:
             errors.append({"code": "EVIDENCE_HASH_MISMATCH", "path": evidence["path"], "message": "evidence hash does not match"})
-    return {"schema_version": "casebook_result.v1", "status": "passed" if not errors else "failed", "case_id": case_id, "errors": errors}
+        if evidence["kind"] == "delivery":
+            from workspace_modeling.delivery import verify_delivery
+            try:
+                verify_delivery(file_path, expected={
+                    "workspace_ref": {"company_id": document["company_id"]},
+                    "snapshot_ref": document["snapshot_ref"],
+                    **{k: document[k] for k in ("primary_role", "snapshot_id", "pack_ref", "bridge_ref")},
+                })
+            except (ValueError, OSError, KeyError, TypeError) as exc:
+                errors.append({"code": "EVIDENCE_CLOSURE_INVALID", "path": evidence["path"], "message": str(exc)})
+    return {"schema_version": "casebook_result.v1", "status": "passed" if not errors else "failed", "case_id": case_id, "verification_scope": "delivery_closure" if document.get("evidence_contract") == "business_delivery.v1" else "legacy_file_hashes", "errors": errors}

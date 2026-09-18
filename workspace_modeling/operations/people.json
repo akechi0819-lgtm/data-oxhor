@@ -85,6 +85,12 @@
           "display_name": "高中组",
           "members": [
             {
+              "person_id": "liu_bin",
+              "display_name": "刘彬",
+              "status": "active",
+              "business_group": "高中"
+            },
+            {
               "person_id": "gu_zhiven",
               "display_name": "谷志文",
               "status": "pending",
@@ -95,18 +101,6 @@
                 }
               },
               "note": "待定"
-            },
-            {
-              "person_id": "yu_yang",
-              "display_name": "于洋",
-              "status": "pending_replacement",
-              "business_group": "高中",
-              "monthly_targets": {
-                "2026-09": {
-                  "orders": 60
-                }
-              },
-              "note": "待替换"
             },
             {
               "person_id": "yang_xinyu",
@@ -121,15 +115,22 @@
               "note": "待替换"
             },
             {
-              "person_id": "liu_bin",
-              "display_name": "刘彬",
-              "status": "active",
-              "business_group": "高中"
+              "person_id": "yu_yang",
+              "display_name": "于洋",
+              "status": "pending_replacement",
+              "business_group": "高中",
+              "monthly_targets": {
+                "2026-09": {
+                  "orders": 60
+                }
+              },
+              "note": "待替换"
             },
             {
-              "slot_id": "offline-high-school-vacancy-1",
-              "status": "vacant",
-              "display_name": "空白占位 1"
+              "person_id": "meng_fangming",
+              "display_name": "孟方明",
+              "status": "active",
+              "business_group": "高中"
             }
           ]
         },

@@ -1,0 +1,12 @@
+/Programs/*
+!/Programs/.gitkeep
+/Scratch/*
+!/Scratch/.gitkeep
+/Reports/*
+!/Reports/.gitkeep
+/Evidence/*
+!/Evidence/.gitkeep
+/Notes/*
+!/Notes/.gitkeep
+__pycache__/
+.DS_Store

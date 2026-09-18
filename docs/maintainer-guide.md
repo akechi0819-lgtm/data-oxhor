@@ -10,6 +10,7 @@
 - CLI 冒烟：`python3 -m interfaces.data_platform --help`、`python3 -m interfaces.business_pack validate`、`python3 -m interfaces.workspace_modeling --help`、`python3 -m dashboard_product.refresh --help`。
 - 看板回归：`python3 -m unittest discover -s dashboard_product/tests -v`。
 - PPT Master 属于宿主全局 Skill；不要在项目内恢复其副本、安装 profile 或完整性测试。
+- 项目上下文服务见 [Project Intelligence](./project-intelligence.md)。定向回归：`.venv/bin/python -B -m unittest tests.project_intelligence.test_service -v`，已由主测试发现入口覆盖。新增暴露文件须评审 `project_intelligence/policy.py`，不得直接放开整个目录。
 
 ## 维护原则
 
@@ -31,3 +32,7 @@
 ## 当前交接
 
 阶段历史、已完成能力、已知风险和暂挂事项集中记录在 [项目交接状态](./handoff.md)。交接文档可以保留历史事实，但不得被 `AGENTS.md` 或客户使用说明引用为日常操作步骤。
+
+## Project Intelligence MCP 可选测试
+
+在既有虚拟环境安装 `mcp==2.2.0` 或项目 `.[mcp]` extra 后，运行 `.venv/bin/python -B -m unittest tests.project_intelligence.test_service tests.project_intelligence.test_mcp -v`。协议测试启动真实 stdio 子进程，未安装可选依赖时明确 skip，不能据此宣称 MCP 验收通过。详见 [stdio MCP](./project-intelligence-mcp.md)。

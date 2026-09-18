@@ -7,6 +7,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+from tests.evidence_helpers import delivery
 from workspace_modeling.casebook.service import (
     CasebookError,
     capture_case,
@@ -20,14 +21,10 @@ from workspace_modeling.casebook.service import (
 
 
 class CasebookTests(unittest.TestCase):
-    def setUp(self) -> None:
-        self.fixture_root = Path("tests/fixtures/casebook").resolve()
-
     def _workspace(self, parent: Path, company_id: str = "company_fixture", snapshot_id: str = "snapshot_current") -> Path:
         root = parent / company_id
         (root / "Work" / "Bridge").mkdir(parents=True)
         (root / "Work" / "Pack").mkdir(parents=True)
-        (root / "Work" / "Runs" / "evidence").mkdir(parents=True)
         bridge = json.loads(Path("artifacts/company_bridge/bridges/company_bridge.bi_operations.v1_1_0.json").read_text(encoding="utf-8"))
         bridge["company_id"] = company_id
         (root / "Work" / "Bridge" / "reference.json").write_text(json.dumps(bridge), encoding="utf-8")
@@ -42,8 +39,8 @@ class CasebookTests(unittest.TestCase):
             "current_warehouse_path": "Work/Runs/run_current/data/snapshots/snapshot_current/warehouse.duckdb",
             "used_snapshot_ids": [snapshot_id],
         }), encoding="utf-8")
-        shutil.copyfile(self.fixture_root / "query-result.json", root / "Work" / "Runs" / "evidence" / "query-result.json")
-        shutil.copyfile(self.fixture_root / "query.sql", root / "Work" / "Runs" / "evidence" / "query.sql")
+        delivery_path = delivery(root)
+        (root / "Work" / "delivery-pointer.txt").write_text(str(delivery_path.relative_to(root)))
         return root
 
     def _create(self, root: Path, case_id: str, *, role: str = "operator", category: str = "cash_diagnosis", supersedes: str | None = None) -> None:
@@ -52,10 +49,7 @@ class CasebookTests(unittest.TestCase):
                 root=root, case_id=case_id, primary_role=role, question_category=category,
                 question="Why did net cash decline?", normalized_question="net cash decline diagnosis",
                 key_queries=["cash_by_campus"], created_by="reviewer", summary="The decline needs a current Snapshot query.",
-                evidence_sources=[
-                    {"path": "Work/Runs/evidence/query-result.json", "kind": "query_result", "referenced_source_ids": ["cash"]},
-                    {"path": "Work/Runs/evidence/query.sql", "kind": "sql", "referenced_source_ids": ["cash"]},
-                ],
+                evidence_sources=[{"path":str(delivery(root, role).relative_to(root))}],
                 supersedes=supersedes,
             )
 
@@ -65,7 +59,7 @@ class CasebookTests(unittest.TestCase):
             self._create(root, "case_cash_decline")
             case_path = root / "Work" / "Casebook" / "candidates" / "case_cash_decline"
             self.assertEqual("passed", verify_case(root=root, case_id="case_cash_decline")["status"])
-            (case_path / "evidence" / "1-query-result.json").write_text("tampered", encoding="utf-8")
+            (case_path / "evidence" / "delivery_1" / "delivery.json").write_text("tampered", encoding="utf-8")
             verification = verify_case(root=root, case_id="case_cash_decline")
             self.assertEqual("failed", verification["status"])
             self.assertEqual("EVIDENCE_HASH_MISMATCH", verification["errors"][0]["code"])
@@ -75,12 +69,11 @@ class CasebookTests(unittest.TestCase):
             root = self._workspace(Path(directory))
             manifest = root / "Work" / "capture.json"
             manifest.write_text(json.dumps({
-                "schema_version": "casebook_capture.v1", "case_id": "case_captured",
+                "schema_version": "casebook_capture.v2", "case_id": "case_captured",
                 "primary_role": "operator", "question_category": "cash_diagnosis",
                 "question": "Why did net cash decline?", "normalized_question": "net cash decline diagnosis",
                 "key_queries": ["cash_by_campus"], "evidence_sources": [{
-                    "path": "Work/Runs/evidence/query-result.json", "kind": "query_result",
-                    "referenced_source_ids": ["cash"],
+                    "path": (root / "Work/delivery-pointer.txt").read_text(),
                 }], "summary": "Re-run the current Snapshot query before stating a conclusion.",
                 "created_by": "reviewer",
             }), encoding="utf-8")
@@ -91,7 +84,7 @@ class CasebookTests(unittest.TestCase):
     def test_capture_manifest_rejects_missing_fields(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = self._workspace(Path(directory))
-            (root / "Work" / "capture.json").write_text(json.dumps({"schema_version": "casebook_capture.v1"}), encoding="utf-8")
+            (root / "Work" / "capture.json").write_text(json.dumps({"schema_version": "casebook_capture.v2"}), encoding="utf-8")
             with self.assertRaises(CasebookError) as captured:
                 capture_case(root=root, manifest_path="Work/capture.json")
             self.assertEqual("CAPTURE_FIELDS_MISSING", captured.exception.code)
@@ -155,7 +148,7 @@ class CasebookTests(unittest.TestCase):
                     create_case(
                         root=root, case_id="case_unsafe", primary_role="operator", question_category="cash", question="q",
                         normalized_question="q", key_queries=[], summary="s", created_by="reviewer",
-                        evidence_sources=[{"path": "../outside.json", "kind": "query_result", "referenced_source_ids": ["cash"]}],
+                        evidence_sources=[{"path": "../outside.json"}],
                     )
             self.assertEqual("PATH_OUTSIDE_WORKSPACE", captured.exception.code)
             self.assertFalse((root / "Work" / "Casebook" / "candidates" / "case_unsafe").exists())

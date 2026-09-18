@@ -530,8 +530,8 @@ def _validate_quality(document: Any, errors: list[dict[str, str]], snapshot_id: 
     if not isinstance(document, dict):
         errors.append(_problem("TYPE_INVALID", "snapshot_quality", "must be a JSON object"))
         return None
-    if document.get("schema_version") != "controlled_query_result.v1":
-        errors.append(_problem("SCHEMA_UNSUPPORTED", "snapshot_quality.schema_version", "expected controlled_query_result.v1"))
+    if document.get("schema_version") != "snapshot_quality_profile.v1":
+        errors.append(_problem("SCHEMA_UNSUPPORTED", "snapshot_quality.schema_version", "expected snapshot_quality_profile.v1"))
     if document.get("status") != "passed":
         errors.append(_problem("SNAPSHOT_QUALITY_NOT_PASSED", "snapshot_quality.status", "Snapshot quality result must be passed"))
     if document.get("snapshot_id") != snapshot_id:
@@ -539,10 +539,6 @@ def _validate_quality(document: Any, errors: list[dict[str, str]], snapshot_id: 
     if not isinstance(document.get("errors", []), list):
         errors.append(_problem("TYPE_INVALID", "snapshot_quality.errors", "must be an array"))
     result = document.get("result")
-    if result is None:
-        if document.get("artifact") is None and not isinstance(document.get("row_count"), int):
-            errors.append(_problem("QUALITY_PAYLOAD_MISSING", "snapshot_quality", "quality result must contain inline rows or an artifact"))
-        return document.get("row_count") if isinstance(document.get("row_count"), int) else None
     if not isinstance(result, dict) or not isinstance(result.get("columns"), list) or not isinstance(result.get("rows"), list):
         errors.append(_problem("TYPE_INVALID", "snapshot_quality.result", "must contain columns and rows arrays"))
         return None

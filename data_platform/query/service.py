@@ -5,6 +5,9 @@ import json
 import os
 import re
 import uuid
+import shutil
+from datetime import UTC
+from data_platform.query.evidence import encode, file_ref, producer, snapshot_ref, verify_receipt, EvidenceError
 from datetime import date, datetime
 from decimal import Decimal
 from pathlib import Path
@@ -169,12 +172,16 @@ def describe_warehouse(*, warehouse: Path, snapshot_id: str) -> dict[str, Any]:
 def execute_query(
     *, warehouse: Path, snapshot_id: str, sql: str, run_id: str, output_root: Path,
     parameters: Any = None, max_rows: int = 1000, max_result_bytes: int = 1_000_000,
-    inline_bytes: int = 64_000,
+    inline_bytes: int = 64_000, saved_query_ref: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     if max_rows < 1 or max_result_bytes < 1 or inline_bytes < 1:
         raise QueryError("QUERY_LIMIT_INVALID", "query limits must be positive")
     if not RUN_ID.fullmatch(run_id):
         raise QueryError("RUN_ID_INVALID", "run_id is invalid")
+    try:
+        identity = snapshot_ref(warehouse, snapshot_id)
+    except EvidenceError as exc:
+        raise QueryError("SNAPSHOT_MANIFEST_INVALID", str(exc)) from exc
     with _connect(warehouse) as connection:
         _require_snapshot(connection, snapshot_id)
         validate_query(connection, sql, parameters)
@@ -186,47 +193,41 @@ def execute_query(
         raise QueryError("QUERY_LIMIT_EXCEEDED", f"query returned more than {max_rows} rows")
     payload_rows = [[_json_value(value) for value in row] for row in rows]
     data = {"columns": columns, "rows": payload_rows}
-    encoded = json.dumps(data, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    encoded = encode(data)
     if len(encoded) > max_result_bytes:
         raise QueryError("QUERY_LIMIT_EXCEEDED", f"query result exceeds {max_result_bytes} bytes")
-    result: dict[str, Any] = {
-        "schema_version": "controlled_query_result.v1",
-        "status": "passed",
-        "run_id": run_id,
-        "snapshot_id": snapshot_id,
-        "row_count": len(rows),
-        "columns": columns,
-        "result": None,
-        "artifact": None,
-        "referenced_relations": referenced_relations,
-        "referenced_source_ids": referenced_source_ids,
-        "errors": [],
-    }
-    if len(encoded) <= inline_bytes:
-        result["result"] = data
-        return result
-    target = output_root / run_id / "data" / "query_results" / f"query_{uuid.uuid4().hex}.json"
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_bytes(encoded)
-    digest = hashlib.sha256(encoded).hexdigest()
-    artifact = {
-        "artifact_id": f"artifact_{digest[:24]}",
-        "run_id": run_id,
-        "snapshot_id": snapshot_id,
-        "path": target.relative_to(output_root / run_id).as_posix(),
-        "sha256": digest,
-        "size_bytes": len(encoded),
-    }
+    evidence_id = "evidence_" + uuid.uuid4().hex
+    target = output_root / run_id / "data" / "query_results" / evidence_id
+    if not target.resolve().is_relative_to(output_root.resolve()):
+        raise QueryError("EVIDENCE_PATH_INVALID", "query output escapes output root")
+    target.mkdir(parents=True, exist_ok=False)
     try:
-        with (output_root / run_id / "artifact_manifest.jsonl").open("a", encoding="utf-8") as handle:
-            handle.write(json.dumps(artifact, ensure_ascii=False, sort_keys=True) + "\n")
+        (target / "query.sql").write_bytes(sql.encode("utf-8"))
+        (target / "parameters.json").write_bytes(encode(parameters))
+        (target / "result.json").write_bytes(encoded)
+        receipt = {
+            "schema_version": "query_receipt.v1", "kind": "query", "evidence_id": evidence_id,
+            "run_id": run_id, "snapshot_id": snapshot_id, "snapshot_ref": identity,
+            "created_at": datetime.now(UTC).isoformat(), "producer": producer("data_platform.query"),
+            "sql": file_ref(target / "query.sql", target, "text/plain"),
+            "parameters": file_ref(target / "parameters.json", target, "application/json"),
+            "result": file_ref(target / "result.json", target, "application/json"),
+            "row_count": len(rows), "columns": columns,
+            "limits": {"max_rows": max_rows, "max_result_bytes": max_result_bytes},
+            "referenced_relations": referenced_relations, "referenced_source_ids": referenced_source_ids,
+        }
+        if saved_query_ref is not None:
+            receipt["saved_query_ref"] = saved_query_ref
+        receipt_path = target / "receipt.json"
+        receipt_path.write_bytes(encode(receipt))
+        verify_receipt(receipt_path)
+        return {"schema_version": "controlled_query_result.v2", "status": "passed",
+                "run_id": run_id, "snapshot_id": snapshot_id,
+                "receipt": file_ref(receipt_path, output_root / run_id, "application/json", evidence_id=evidence_id),
+                "result": data if len(encoded) <= inline_bytes else None, "errors": []}
     except Exception:
-        target.unlink(missing_ok=True)
+        shutil.rmtree(target)
         raise
-    result["artifact"] = {
-        **artifact,
-    }
-    return result
 
 
 def quality_issues(*, warehouse: Path, snapshot_id: str, run_id: str, output_root: Path, max_rows: int = 1000) -> dict[str, Any]:
@@ -295,4 +296,5 @@ def run_saved_query(
     return execute_query(
         warehouse=warehouse, snapshot_id=snapshot_id, sql=sql, parameters=parameters,
         run_id=run_id, output_root=output_root, max_rows=max_rows, max_result_bytes=max_result_bytes,
+        saved_query_ref={"query_id": query_id, "version": version},
     )

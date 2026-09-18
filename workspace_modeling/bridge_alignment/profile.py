@@ -71,12 +71,11 @@ def profile_snapshot(
         "enterprise_decisions": [],
     }
     quality = {
-        "schema_version": "controlled_query_result.v1",
+        "schema_version": "snapshot_quality_profile.v1",
         "status": "passed",
         "snapshot_id": snapshot_id,
         "row_count": len(quality_rows),
         "result": {"columns": quality_columns, "rows": [list(row) for row in quality_rows]},
-        "artifact": None,
         "errors": [],
     }
     return profile, description, quality

@@ -9,6 +9,8 @@ from pathlib import Path
 
 import duckdb
 
+from data_platform.query.evidence import verify_receipt, read_query_result
+from tests.evidence_helpers import manifest
 from data_platform.query.service import QueryError, describe_warehouse, execute_query, promote_query, run_saved_query
 
 
@@ -30,6 +32,7 @@ def warehouse(path: Path, snapshot_id: str = "snapshot_query_test") -> None:
         connection.execute("CREATE TABLE private.secret(value INTEGER)")
         connection.execute("INSERT INTO private.secret VALUES (7)")
 
+    manifest(path, snapshot_id)
 
 class QueryServiceTests(unittest.TestCase):
     def test_describe_and_read_query_features(self):
@@ -53,7 +56,7 @@ class QueryServiceTests(unittest.TestCase):
                 with self.subTest(sql=sql):
                     result = execute_query(warehouse=db, snapshot_id="snapshot_query_test", sql=sql, run_id="run_query_test", output_root=root)
                     self.assertEqual(result["status"], "passed")
-                    self.assertEqual(result["referenced_source_ids"], ["fixture"])
+                    self.assertEqual(verify_receipt(root / "run_query_test" / result["receipt"]["path"])[0]["referenced_source_ids"], ["fixture"])
 
     def test_rejects_writes_external_access_and_multiple_statements(self):
         denied = [
@@ -104,35 +107,20 @@ class QueryServiceTests(unittest.TestCase):
             self.assertEqual(byte_error.exception.code, "QUERY_LIMIT_EXCEEDED")
             result = execute_query(warehouse=db, snapshot_id="snapshot_query_test", sql="SELECT repeat('x', 1000)", run_id="run_query_test", output_root=root, inline_bytes=10)
             self.assertIsNone(result["result"])
-            self.assertTrue((root / "run_query_test" / result["artifact"]["path"]).is_file())
-            self.assertTrue((root / "run_query_test/artifact_manifest.jsonl").is_file())
+            self.assertTrue((root / "run_query_test" / result["receipt"]["path"]).is_file())
+            self.assertEqual(1, len(read_query_result(result, output_root=root)["rows"]))
 
-    def test_removes_large_result_when_artifact_manifest_append_fails(self):
+    def test_failed_receipt_does_not_remove_existing_evidence(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            db = root / "warehouse.duckdb"
+            root=Path(directory)
+            db=root/'warehouse.duckdb'
             warehouse(db)
-            artifact_manifest = root / "run_query_test" / "artifact_manifest.jsonl"
-            original_open = Path.open
-
-            def fail_manifest_append(path, *args, **kwargs):
-                mode = args[0] if args else kwargs.get("mode", "r")
-                if path == artifact_manifest and "a" in mode:
-                    raise OSError("append failed")
-                return original_open(path, *args, **kwargs)
-
-            with mock.patch("pathlib.Path.open", autospec=True, side_effect=fail_manifest_append):
-                with self.assertRaises(OSError):
-                    execute_query(
-                        warehouse=db,
-                        snapshot_id="snapshot_query_test",
-                        sql="SELECT repeat('x', 1000)",
-                        run_id="run_query_test",
-                        output_root=root,
-                        inline_bytes=10,
-                    )
-            result_dir = root / "run_query_test" / "data" / "query_results"
-            self.assertEqual(list(result_dir.glob("*.json")), [])
+            good=execute_query(warehouse=db,snapshot_id='snapshot_query_test',sql='SELECT 1',run_id='run_query_test',output_root=root)
+            with mock.patch('data_platform.query.service.verify_receipt',side_effect=ValueError('failed verification')):
+                with self.assertRaises(ValueError):
+                    execute_query(warehouse=db,snapshot_id='snapshot_query_test',sql='SELECT 2',run_id='run_query_test',output_root=root)
+            self.assertEqual([[1]],read_query_result(good,output_root=root)['rows'])
+            self.assertEqual(1,len(list((root/'run_query_test/data/query_results').iterdir())))
 
     def test_promote_requires_confirmation_is_versioned_and_parameterized(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -151,7 +139,7 @@ class QueryServiceTests(unittest.TestCase):
                 promote_query(warehouse=db, snapshot_id="snapshot_query_test", sql=sql, registry_root=registry, query_id="category_values", version="v1", confirmed_by="user@example")
             self.assertEqual(duplicate.exception.code, "QUERY_VERSION_EXISTS")
             result = run_saved_query(warehouse=db, snapshot_id="snapshot_query_test", registry_root=registry, query_id="category_values", version="v1", parameters={"category": "a"}, run_id="run_query_test", output_root=root, max_rows=10, max_result_bytes=10000)
-            self.assertEqual(result["row_count"], 2)
+            self.assertEqual(len(read_query_result(result, output_root=root)["rows"]), 2)
             self.assertEqual(hashlib.sha256(db.read_bytes()).hexdigest(), before)
             manifest = json.loads((registry / "category_values/v1/manifest.json").read_text(encoding="utf-8"))
             self.assertEqual(manifest["sha256"], hashlib.sha256((registry / "category_values/v1/query.sql").read_bytes()).hexdigest())
@@ -160,7 +148,8 @@ class QueryServiceTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             db = root / "warehouse.duckdb"
-            other_db = root / "other_warehouse.duckdb"
+            other_db = root / "other" / "warehouse.duckdb"
+            other_db.parent.mkdir()
             registry = root / "registry"
             warehouse(db)
             promote_query(warehouse=db, snapshot_id="snapshot_query_test", sql="SELECT * FROM landing.values_table", registry_root=registry, query_id="snapshot_bound", version="v1", confirmed_by="user@example")

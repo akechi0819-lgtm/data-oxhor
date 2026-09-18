@@ -1,6 +1,26 @@
 # Data OXHor 运行时宪法
 
-本文件只定义 Data OXHor 各模块 Agent 在运行中的全局规则和安全边界。项目没有默认主 Agent 或跨模块路由器；调用者从 `agents/` 选择工作区初始化、自由分析、看板发布或其他模块 Agent。开发状态、测试结果、版本历史和发布步骤见 `DEVELOPMENT.md` 与 `docs/maintainer-guide.md`。
+本文件提供 Data OXHor 的轻量板块导航，以及各模块 Agent 的全局规则和安全边界。根入口只帮助定位本次工作，不实现总控 Agent、跨模块调度或 Session 管理。开发状态、测试结果、版本历史和发布步骤见 `DEVELOPMENT.md` 与 `docs/maintainer-guide.md`。
+
+## 板块导航（按需读取）
+
+在根目录进行整体架构调整时，先用下表定位涉及的板块，再读取对应代码或运行说明。不要启动时遍历全部 Agent、Skills、合同或历史记录；跨模块改动只补读实际受影响的接口。用户已指定板块时直接进入，只有无法判断是代码维护还是业务使用时才澄清。
+
+| 本次工作 | 所在目录 | 按需入口 |
+|---|---|---|
+| 整体架构、模块边界与开发维护 | 项目根目录、`docs/` | `docs/architecture.md`、`DEVELOPMENT.md` |
+| 项目上下文只读服务 | `project_intelligence/` | `docs/project-intelligence.md`；本地 CLI / stdio MCP，不执行业务操作 |
+| BI 下载、来源接入、重建任务 | `data_acquisition/` | 对应 connector/job；部署与数据更新见 `agents/workspace_setup/AGENT.md` |
+| Snapshot、质量检查、受控查询 | `data_platform/`、`interfaces/data_platform.py` | `docs/integration-guide.md` |
+| 初始化工作区、Pack/Bridge、口径对齐 | `workspace_modeling/` | `agents/workspace_setup/AGENT.md` |
+| 市场自由分析、临时查询、导表与小程序 | `market_workspace/` | `market_workspace/AGENTS.md`；通过 `./oxhor` 只读引用现有数据工作区 |
+| 看板维护、渲染与发布 | `dashboard_product/` | 维护读取对应代码；运行发布见 `agents/dashboard_publisher/AGENT.md` |
+| 日常监控、人员进度与钉钉推送 | `monitoring_product/` | `agents/daily_monitor/AGENT.md`、`monitoring_product/README.md` |
+| 看板与监控共用的人员规则、花名册 | `workspace_modeling/operations/` | `personnel.py`、`people.json`，修改时核对两个消费方 |
+
+- 导航只选择工作范围，不自动执行部署、查询或推送，也不加载其他板块的完整说明。
+- 市场工作启动于 `market_workspace/`；数据仍绑定 `customers/bi_operations/`（原端口 `operations` 不变）。启动目录保存生成程序、临时文件、报告和证据，工作区身份与当前 Snapshot 仍读取原 `Work/workspace.json`。
+- PPT 是按需交付形式：需要制作时再调用宿主全局 `ppt-master`，传入已验证的分析与证据，不把 PPT 制作规则常驻根入口。
 
 ## 默认职责
 
@@ -54,5 +74,6 @@
 - Bridge、Onboarding、Casebook 合同：对应 `docs/*-contract.md`；PPT 执行合同由宿主全局 `ppt-master` Skill 提供
 - 当前开发状态与决策：`DEVELOPMENT.md`
 - 当前完成度与历史交接：`docs/handoff.md`
-- 看板发布与钉钉：`dashboard_product/DEPLOYMENT.md`、`agents/dashboard_publisher/AGENT.md`
+- 看板发布：`dashboard_product/DEPLOYMENT.md`、`agents/dashboard_publisher/AGENT.md`
+- 日常监控与钉钉：`monitoring_product/README.md`、`agents/daily_monitor/AGENT.md`
 - 云电脑分层同步：`SYNC.md`（A 代码 / B 数据 / C 密钥；不建设双向 MCP）

@@ -9,6 +9,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from interfaces.casebook import main
+from tests.evidence_helpers import delivery
 
 
 class CasebookPilotCliTests(unittest.TestCase):
@@ -62,7 +63,7 @@ class CasebookPilotCliTests(unittest.TestCase):
                     "case-create", "--workspace", str(root), "--case-id", "case_cli", "--primary-role", "operator",
                     "--question-category", "cash", "--question", "q", "--normalized-question", "q",
                     "--key-queries-json", "[]", "--evidence-json",
-                    json.dumps([{"path": "Work/evidence.txt", "kind": "log", "referenced_source_ids": ["cash"]}]),
+                    json.dumps([{"path": str(delivery(root).relative_to(root))}]),
                     "--summary", "synthetic", "--created-by", "tester",
                 ])
             self.assertEqual(0, code)
@@ -87,9 +88,9 @@ class CasebookPilotCliTests(unittest.TestCase):
             (root / "Work" / "workspace.json").write_text(json.dumps(config), encoding="utf-8")
             (root / "Work" / "evidence.txt").write_text("synthetic", encoding="utf-8")
             (root / "Work" / "capture.json").write_text(json.dumps({
-                "schema_version": "casebook_capture.v1", "case_id": "case_capture_cli", "primary_role": "operator",
+                "schema_version": "casebook_capture.v2", "case_id": "case_capture_cli", "primary_role": "operator",
                 "question_category": "cash", "question": "q", "normalized_question": "q", "key_queries": [],
-                "evidence_sources": [{"path": "Work/evidence.txt", "kind": "log", "referenced_source_ids": ["cash"]}],
+                "evidence_sources": [{"path": str(delivery(root).relative_to(root))}],
                 "summary": "synthetic", "created_by": "tester",
             }), encoding="utf-8")
             with patch("workspace_modeling.casebook.router.guide", return_value={"next_step": "analyze"}):

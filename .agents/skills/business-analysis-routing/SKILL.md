@@ -23,7 +23,7 @@ description: 将已完成首次部署和 Bridge 对齐的自然语言分析请�
 ## 保存与沉淀
 
 - 只有用户明确表示该分析已验收、以后需要复用时，才调用现有 `case-create` 保存最小证据包；默认创建 `candidate`，不要自动确认、发布或修改 Pack/Bridge/Skill。
-- 保存时至少提供本次问题、规范化问题、关键查询、查询结果或 SQL 文件、来源凭据、结论限制和已验收的交付物（如有）。当前 Snapshot/Pack/Bridge 身份由 CLI 从当前工作区自动绑定，不在 `casebook_capture.v1` manifest 中重复传入。使用 `case-verify` 检查哈希，再由用户明确决定 `case-confirm`。
+- 保存时通过 `workspace_modeling.delivery.create_delivery` 将本次受控查询回执和已验收的自包含交付文件组为 `business_delivery.v1` 证据包，再用 `casebook_capture.v2` 的 `evidence_sources=[{"path":"工作区相对的delivery.json路径"}]` 调用现有保存入口；问题、规范化问题、关键查询和结论限制仍须提供。CLI 将包内 Snapshot、Pack/Bridge、公司和角色与所选工作区逐项核对，不给历史或外来证据自动贴当前身份。使用 `case-verify` 检查完整引用与哈希，再由用户明确决定 `case-confirm`。无文件交付时继续保留查询证据，不为沉淀案例自动制造未验收报告。
 - `repeat-candidates` 只用于用户或内测回收明确要求检查重复模式时。它只返回候选，不生成或发布 Skill；跨客户可复用的方法由人工审核后沉淀为项目 Skill、模板或 Pack。
 
 ## 宿主边界

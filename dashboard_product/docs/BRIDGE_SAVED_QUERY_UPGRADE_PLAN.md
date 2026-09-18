@@ -1,10 +1,8 @@
-> 历史施工记录。现行刷新合同是 `dashboard_actuals/v9`，见 [`CURRENT_STATUS.md`](CURRENT_STATUS.md)。
-
 # 市场归属现金：Bridge 与 Saved Query 升级计划
 
-**状态：看板已实施；刷新运行口径以 `dashboard_actuals/v9` 的实际 SQL 为准（当前 2026-09-11）。**
+**状态：看板已实施；刷新运行口径以 `dashboard_actuals/v7` 的实际 SQL 为准（当前 2026-09-09）。**
 
-已基于验收后的现金逻辑登记可复用逐笔底稿。看板当时使用 `dashboard_actuals/v7`，现行为 v9；其同比 artifact 投影已独立修复为按上一财年逐月切片，不改变该 Saved Query 的 SQL。正式 Bridge 用于字段与业务语义校验，刷新不直接执行 Bridge 的现金业务组 Override。
+已基于验收后的现金逻辑登记可复用逐笔底稿。看板继续使用 `dashboard_actuals/v7`；其同比 artifact 投影已独立修复为按上一财年逐月切片，不改变该 Saved Query 的 SQL。正式 Bridge 用于字段与业务语义校验，刷新不直接执行 Bridge 的现金业务组 Override。
 
 ## 目标
 
@@ -93,7 +91,7 @@ Bridge 不保存 SQL。Saved Query 不保存旧 Snapshot 的结论或历史金�
 3. Saved Query 回归运行：`run_attributed_passive_reported_cash_v1_20260905`，Snapshot 为 `snapshot_bi_work_order_id_20260904`，返回 5,030 条现金源明细；团队归属为空为 0，查询输出保留 `is_work_order_matched=false` 与 `attribution_rule`。
 4. Q1（2026-06-01 至 2026-09-01）汇总为 `12,748,539.70` 元，当时与 `dashboard_actuals/v6` 同窗口的现金汇总一致。
 5. 当前看板不纳入未映射业务组记录；工单未关联记录仍按确认的团队兜底规则归属，渠道统一显示为 `暂无归属`。
-6. 看板未改为消费逐笔底稿，当时消费 `dashboard_actuals/v7`；现行为 v9，逐笔底稿仍不进入刷新。新查询供后续异常分析、自由探索和未来看板重构时直接复用。
+6. 看板未改为消费逐笔底稿，仍消费 `dashboard_actuals/v7`；刷新链路保持不变。新查询供后续异常分析、自由探索和未来看板重构时直接复用。
 
 ## 后续使用
 

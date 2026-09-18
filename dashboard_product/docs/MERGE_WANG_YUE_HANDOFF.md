@@ -8,7 +8,7 @@
 虚拟人（`online_private`）高中相关板块里「王玥」出现两人份，实为同一人，合并。
 
 ## 现状（初扫）
-`dashboard_product/config/people.json` 中 `online_private` 下同一人出现两次（同 `person_id=wang_yue`，`display_name=王玥`）：
+`workspace_modeling/operations/people.json` 中 `online_private` 下同一人出现两次（同 `person_id=wang_yue`，`display_name=王玥`）：
 1. 组：`高中多途径组`
 2. 组：`国际学校择校组`
 

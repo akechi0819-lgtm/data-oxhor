@@ -4,7 +4,7 @@
 花名册已由前序施工完成，本 RUN **未再改** `people.json`。
 - `online_private` / `wang_yue`（王玥）只保留在「高中多途径组」
 - 「国际学校择校组」members 为空
-- 备份：`dashboard_product/config/people.json.bak-wangyue-20260908`
+- 备份：`workspace_modeling/operations/people.json.bak-wangyue-20260908`
 - 未改口径公式
 
 ## 单测

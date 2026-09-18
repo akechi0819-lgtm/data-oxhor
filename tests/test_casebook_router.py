@@ -7,6 +7,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from unittest.mock import patch
 
+from tests.evidence_helpers import delivery
 from workspace_modeling.casebook.router import guide, repeat_candidates
 from workspace_modeling.casebook.service import confirm_case, create_case
 
@@ -69,18 +70,13 @@ class RouterTests(unittest.TestCase):
     def test_repeat_candidates_need_three_recent_confirmed_cases_and_evaluation(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory) / "customer"
-            fixture = Path("tests/fixtures/casebook").resolve()
             (root / "Work" / "Bridge").mkdir(parents=True)
             (root / "Work" / "Pack").mkdir(parents=True)
-            (root / "Work" / "Runs" / "evidence").mkdir(parents=True)
             bridge = json.loads(Path("artifacts/company_bridge/bridges/company_bridge.bi_operations.v1_1_0.json").read_text(encoding="utf-8"))
             bridge["company_id"] = "company_fixture"
             (root / "Work" / "Bridge" / "reference.json").write_text(json.dumps(bridge), encoding="utf-8")
             (root / "Work" / "Pack" / "pack.json").write_bytes(Path("workspace_modeling/business_pack/packs/education_training_operations_cn/pack.json").read_bytes())
             self._config(root, current_snapshot_id="snapshot_current", bridge_reference_path="Work/Bridge/reference.json")
-            for source in ("query-result.json", "query.sql"):
-                target = root / "Work" / "Runs" / "evidence" / source
-                target.write_bytes((fixture / source).read_bytes())
             case_ids = []
             with patch("workspace_modeling.casebook.router.guide", return_value={"next_step": "analyze"}):
                 for index in range(3):
@@ -90,7 +86,7 @@ class RouterTests(unittest.TestCase):
                         root=root, case_id=case_id, primary_role="operator", question_category="cash",
                         question="Why did net cash decline?", normalized_question="net cash decline",
                         key_queries=["cash"], created_by="reviewer", summary="reviewed",
-                        evidence_sources=[{"path": "Work/Runs/evidence/query-result.json", "kind": "query_result", "referenced_source_ids": ["cash"]}],
+                        evidence_sources=[{"path": str(delivery(root).relative_to(root))}],
                     )
                     confirm_case(root=root, case_id=case_id, decided_by="reviewer", decision_note="confirmed")
                     path = root / "Work" / "Casebook" / "confirmed" / case_id / "case.json"

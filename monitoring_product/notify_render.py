@@ -384,33 +384,9 @@ def write_details_xlsx(digest, path):
         ]
     _sheet(workbook, '人员进度', people_headers, people_rows)
 
-    def detail_rows(items):
-        return [
-            [
-                item['attribution'],
-                item['event_date'],
-                item['business_group'],
-                item['first_channel'],
-                item['second_channel'],
-                item['campaign_name'],
-                item['entry_person'],
-                item['school_name'],
-                item['grade_name'],
-                item['value'],
-            ]
-            for item in items
-        ]
-
-    headers = ['归属人', '日期', '业务组', '一级渠道', '二级渠道', '活动名称', '录入人', '学校', '年级', '数量或金额']
-    warehouse = digest.get('warehouse') or {}
-    if warehouse.get('orders'):
-        _sheet(workbook, '工单明细', warehouse['orders']['columns'], warehouse['orders']['rows'])
-    else:
-        _sheet(workbook, '工单明细', headers, detail_rows(digest['order_details']))
-    if warehouse.get('cash'):
-        _sheet(workbook, '现金明细', warehouse['cash']['columns'], warehouse['cash']['rows'])
-    else:
-        _sheet(workbook, '现金明细', headers, detail_rows(digest['cash_details']))
+    warehouse = digest['warehouse']
+    _sheet(workbook, '工单明细', warehouse['orders']['columns'], warehouse['orders']['rows'])
+    _sheet(workbook, '现金明细', warehouse['cash']['columns'], warehouse['cash']['rows'])
     path.parent.mkdir(parents=True, exist_ok=True)
     workbook.save(path)
     return path

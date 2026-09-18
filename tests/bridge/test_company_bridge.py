@@ -44,7 +44,7 @@ def snapshot_inputs() -> tuple[dict[str, object], dict[str, object]]:
         "errors": [],
     }
     quality = {
-        "schema_version": "controlled_query_result.v1",
+        "schema_version": "snapshot_quality_profile.v1",
         "status": "passed",
         "run_id": "run_bridge_quality",
         "snapshot_id": "snapshot_bridge_test",
@@ -466,12 +466,18 @@ class CompanyBridgeContractTests(unittest.TestCase):
             candidates_path = root / "confirmed_candidates.json"
             pack_path = root / "pack.json"
             description_path = root / "description.json"
-            quality_path = root / "quality.json"
+            quality_path = root / "run_bridge_quality" / "quality.json"
+            quality_path.parent.mkdir()
             bridge_path = root / "bridge.json"
             candidates_path.write_text(json.dumps(complete_candidates(), ensure_ascii=False), encoding="utf-8")
             pack_path.write_text(json.dumps(self.pack, ensure_ascii=False), encoding="utf-8")
             description_path.write_text(json.dumps(self.description, ensure_ascii=False), encoding="utf-8")
-            quality_path.write_text(json.dumps(self.quality, ensure_ascii=False), encoding="utf-8")
+            from tests.platform.test_query_service import warehouse
+            from data_platform.query.service import execute_query
+            db = root / "warehouse.duckdb"
+            warehouse(db, "snapshot_bridge_test")
+            quality_result = execute_query(warehouse=db, snapshot_id="snapshot_bridge_test", sql="SELECT * FROM quality.issues WHERE false", run_id="run_bridge_quality", output_root=root)
+            quality_path = root / quality_result["run_id"] / quality_result["receipt"]["path"]
             output = io.StringIO()
             with redirect_stdout(output):
                 exit_code = main(
