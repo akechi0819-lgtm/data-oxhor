@@ -6,9 +6,9 @@
 
 ## 运行边界
 
-- 当前发布基线（2026-09-20）：主看板产品迭代已超过 v10，但主看板事实查询合同仍固定为 `dashboard_actuals/v10`；线上团队特供看板另用 `online_market_orders/v1`。两者不能互相替代。
+- 当前发布基线（2026-09-20）：主看板整体口径统一为 V12，事实查询合同为 `dashboard_actuals/v12`；线上团队影子数据仍使用 `online_market_orders/v1`，作为 V12 主页面的特供入口，不再发布团队分册。
 - 运行输入是客户工作区路径和新的 `run_id`；工作区提供当前 Snapshot 与 warehouse 路径。
-- 事实查询只能通过 Data Platform `run-saved-query`，当前刷新调用 `dashboard_actuals/v10`。
+- 事实查询只能通过 Data Platform `run-saved-query`，当前刷新调用 `dashboard_actuals/v12`。
 - 源码不直接连接 DuckDB、不读取 landing 表、不使用 `latest` 指针。
 - 运行产物只写客户工作区 `Output/Dashboard/<run_id>/`。
 - 线上团队特供看板例外使用显式影子根目录 `Work/ShadowOnlineMarket/<run_id>/`；影子 Snapshot 不写回 `Work/workspace.json` 的 `current_snapshot_id`，新页面只消费显式 `--warehouse` 与 `--snapshot-id`。
@@ -17,11 +17,11 @@
 
 ```bash
 python3 -m dashboard_product.refresh refresh --workspace customers/<workspace> --run-id run_<id>
-python3 -m dashboard_product.refresh render --artifact customers/<workspace>/Output/Dashboard/run_<id>/artifact.json --all-booklets
+python3 -m dashboard_product.refresh render --artifact customers/<workspace>/Output/Dashboard/run_<id>/artifact.json
 python3 -m monitoring_product.notify send --workspace <workspace> --snapshot-id <snapshot_id> --run-id <run_id> --as-of-date <YYYY-MM-DD> --data-through-date <YYYY-MM-DD> --dry-run
 ```
 
-`refresh` 创建不可变 artifact；`render --all-booklets` 只读取显式 artifact 并写出四分册。当前发布由 `deploy/publish_static_dashboard.sh` 完成。钉钉发送是独立命令，不并入日更脚本。
+`refresh` 创建不可变 artifact；`render` 只读取显式 artifact 并写出 `full.html` 主页面。当前发布由 `deploy/publish_static_dashboard.sh` 完成。线上团队影子看板由独立脚本发布为 `online_market_special.html`。钉钉发送是独立命令，不并入日更脚本。
 
 影子看板使用 `online_market_shadow` → `online_market_refresh` → `online_market_render`，按 `资源主被动 = 被动` 统计线上工单，清洗后的 `主被动` 只作审计；现金目标已配置，现金实际明细为空，工单目标包含 FY27 网络资源 5708、新媒体 1007、合计 6715。
 
@@ -29,7 +29,7 @@ python3 -m monitoring_product.notify send --workspace <workspace> --snapshot-id 
 
 - 四个团队页签加第五页「市场人员产能」：线下市场、线上私域（虚拟人团队）、线上平台、市场总计、市场人员产能。
 - 线下市场团队个性化配置已完成；线上私域有部分人员；线上平台仍空。
-- 服务器静态部署已完成：四分册 HTML + basic auth；刷新、计算、Snapshot 更新和 HTML 发布准备在本机或云电脑执行。
+- 服务器静态部署已完成：`full.html` 主页面 + basic auth；刷新、计算、Snapshot 更新和 HTML 发布准备在本机或云电脑执行。
 - 例行日更每天 10:00（Asia/Shanghai）挂许家印，跑 `deploy/publish_static_dashboard.sh`。公开入口为 `http://dashboard.apinova.cn`。钉钉五通道代码已落地，线下青少/高中/大学和线上私域 webhook 已填；线上平台仍空。
 
 ## Artifact
@@ -44,7 +44,7 @@ python3 -m monitoring_product.notify send --workspace <workspace> --snapshot-id 
 
 ## Saved Query 与业务口径
 
-查询合同登记在 `config/saved_queries.json`。刷新使用 `dashboard_actuals/v10`，参数 `[start_date, end_date]`，输出增加 `student_id`（现金 `学员编号`，工单行为空）；逐笔对账使用 `attributed_passive_reported_cash/v1`，同样按业务日期使用半开区间。产能页人员标准产能见 `config/capacity_targets.json`。
+查询合同登记在 `config/saved_queries.json`。刷新使用 `dashboard_actuals/v12`，参数 `[start_date, end_date]`，输出增加 `student_id`（现金 `学员编号`，工单行为空）；逐笔对账使用 `attributed_passive_reported_cash/v1`，同样按业务日期使用半开区间。产能页人员标准产能见 `config/capacity_targets.json`。
 
 现金范围为被动、新生、正向报入现金。现金业务组只看现金表团队，不跟工单改口。工单 ID 左连接只取渠道和人员；未关联时渠道为 `暂无归属`。团队再按虚拟人、线上、TMK、校代、默认线上平台顺序归属。团队兜底和工单关联状态必须分开报告。
 

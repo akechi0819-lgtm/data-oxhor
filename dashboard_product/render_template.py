@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
-"""Render the dashboard artifact as a self-contained HTML report."""
+"""Render the full dashboard artifact as a self-contained HTML report."""
 
-from dashboard_product.booklets import booklet_chrome, filter_dashboard_for_booklet
+import copy
+
+from dashboard_product.dashboard_chrome import dashboard_chrome
 
 
-def render_html(artifact_data, booklet=None):
-    dashboard = filter_dashboard_for_booklet(artifact_data['dashboard'], booklet)
-    chrome = booklet_chrome(booklet)
+def render_html(artifact_data):
+    dashboard = copy.deepcopy(artifact_data['dashboard'])
+    chrome = dashboard_chrome()
     snapshot_id = artifact_data['snapshot_id']
     run_id = artifact_data['run_id']
     artifact_id = artifact_data['artifact_id']

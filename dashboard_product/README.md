@@ -1,14 +1,14 @@
 # 固定看板
 
-`dashboard_product/` 负责已确认口径的固定查询、看板 artifact、四分册 HTML 与静态发布。人员绩效监控和钉钉日报已迁至 [monitoring_product](../monitoring_product/README.md)，不再由看板入口计算或发送。
+`dashboard_product/` 负责已确认口径的固定查询、看板 artifact、统一主页面和静态发布。人员绩效监控和钉钉日报已迁至 [monitoring_product](../monitoring_product/README.md)，不再由看板入口计算或发送。
 
-线上团队特供看板是独立链路：留学线上工单先进入 `Work/ShadowOnlineMarket/` 下的影子 Snapshot，不更新主工作区当前 Snapshot；现金目标已配置，现金实际暂不接入。旧线上分册只增加跳转链接，不复用或改写留学计算。
+线上团队特供看板是独立链路：留学线上工单先进入 `Work/ShadowOnlineMarket/` 下的影子 Snapshot，不更新主工作区当前 Snapshot；现金目标已配置，现金实际暂不接入。V12 主页面只保留特供页入口，不复用或改写留学计算。
 
 ## 运行
 
 ```bash
 python3 -m dashboard_product.refresh refresh --workspace <workspace> --run-id <run_id>
-python3 -m dashboard_product.refresh render --artifact <artifact.json> --all-booklets
+python3 -m dashboard_product.refresh render --artifact <artifact.json>
 
 # 影子 Snapshot 与留学线上看板
 python3 -m dashboard_product.online_market_shadow \
@@ -25,7 +25,7 @@ python3 -m dashboard_product.online_market_render \
   --artifact <output-dir>/online_market_artifact.json
 ```
 
-当前发布基线为 2026-09-20：主看板产品已包含 v10 之后的证据链接入、线上影子看板和发布链更新；主看板事实查询合同仍为 `dashboard_actuals/v10`，不以查询版本号代替产品发布状态。刷新通过 Data Platform 受控查询读取当前 Snapshot。市场总计保留全部有效事实；项目、团队、渠道、顾问和人员仅使用严格归属。无法映射业务组的事实标记为“业务组暂无法拆分”；工单 ID 为空或无法精确匹配的现金在渠道与顾问下标记为“渠道/顾问暂无法拆分”，两者都不强行分配给团队或个人。生成 `full.html`、`online_private.html`、`online_platform.html`、`offline_market.html`；公网仅托管分册 HTML，不上传全量 artifact。定时仍由外部宿主调用 `deploy/publish_static_dashboard.sh`。
+当前整体发布基线为 V12：纳入线上影子看板和人员规则更新，主看板事实查询合同为 `dashboard_actuals/v12`。刷新通过 Data Platform 受控查询读取当前 Snapshot；线上影子看板继续使用 `online_market_orders/v1`，作为主页面入口后的独立特供页。市场总计保留全部有效事实；项目、团队、渠道、顾问和人员仅使用严格归属。无法映射业务组的事实标记为“业务组暂无法拆分”；工单 ID 为空或无法精确匹配的现金在渠道与顾问下标记为“渠道/顾问暂无法拆分”，两者都不强行分配给团队或个人。公网只托管 `full.html` 主页面和 `online_market_special.html`，不上传全量 artifact。定时仍由外部宿主调用 `deploy/publish_static_dashboard.sh`。
 
 ## 配置与边界
 
@@ -49,11 +49,11 @@ python3 -m unittest discover -s dashboard_product/tests -v
 
 ## 产品行为与核对边界
 
-- 团队页签为线下市场、线上私域、线上平台、市场总计；人员产能单独展示。季度筛选作用于团队目标与同比，人员产能使用全年范围。
+- 主页面包含线下市场、线上私域、线上平台、市场总计和市场人员产能；季度筛选作用于团队目标与同比，人员产能使用全年范围。
 - 团队目标按留学预备、高中、大学展示；同比与渠道拆分按青少、初中、高中、大学展示。市场总计保留“业务组暂无法拆分”，因此不要求等于三个已分配团队之和。
 - 工单指标统计有效被动工单；现金指标使用被动、新生、正向报入现金。现金通过工单 ID 精确关联全量工单，关联不局限于当前绩效月；现金业务组按现金表团队判断。
 - “工单是否精确匹配”与“业务组是否明确”是不同条件，未归属事实保留在市场总计，不静默丢弃，也不默认分给线上平台。
-- 刷新只消费 `dashboard_actuals/v10`，参数为 `[start_date, end_date]`，第 12 列为 `student_id`。`attributed_passive_reported_cash/v1` 是独立逐笔核对底稿，不替代看板实际归属合同；对账须说明所用查询与口径。
+- 刷新只消费 `dashboard_actuals/v12`，参数为 `[start_date, end_date]`，第 12 列为 `student_id`。`attributed_passive_reported_cash/v1` 是独立逐笔核对底稿，不替代看板实际归属合同；对账须说明所用查询与口径。
 - 个人归属沿用现有活动名、市场人员、资源描述和录入人规则。`TMK激活-平台`、活动含 `校代系统资源` 且市场人员属于线下花名册的归属规则仍在现有实现中；调整人员时须核对共享花名册及监控 SQL，不能只改文档。
 - 当前人员展示和归属候选统一使用 `personnel.is_displayable_person`；`vacant`、`departed`、`transferred` 不进入看板或监控花名册，监控 SQL 的线下名单必须同步当前可展示花名册。
 - 人员产能使用配置中的标准产能，展示现金、时间进度及六维指标；不因此触发钉钉。看板发布与监控发送权限独立。

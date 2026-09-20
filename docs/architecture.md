@@ -75,9 +75,9 @@
 
 ```text
 当前 Snapshot
-  → dashboard_actuals/v10（Data Platform run-saved-query）
+  → dashboard_actuals/v12（Data Platform run-saved-query）
   → artifact.json（全量，不进公网；目标区三组，同比区青少/初中/高中/大学；查询 12 列含 student_id）
-  → 四分册 HTML
+  → full.html 主页面
   → 服务器只托管静态文件
 ```
 

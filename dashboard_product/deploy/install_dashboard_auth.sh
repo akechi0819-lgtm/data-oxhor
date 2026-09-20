@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# One-time server cutover: htpasswd + user map + nginx booklet vhost.
+# One-time server cutover: htpasswd + nginx full-dashboard vhost.
 # Reads SSH credentials from .env.server. Does not print or upload plaintext
 # passwords (initial-passwords stays on this machine).
 set -euo pipefail
@@ -12,13 +12,11 @@ ENV_FILE="${ENV_FILE:-${DASHBOARD_ROOT}/.env.server}"
 SECRETS_DIR="${SECRETS_DIR:-${SCRIPT_DIR}/secrets}"
 NGINX_CONF_SRC="${NGINX_CONF_SRC:-${SCRIPT_DIR}/nginx-dashboard-http.conf}"
 REMOTE_HTPASSWD="${REMOTE_HTPASSWD:-/etc/nginx/dashboard.htpasswd}"
-REMOTE_MAP="${REMOTE_MAP:-/etc/nginx/dashboard-user-booklets.map}"
 REMOTE_NGINX_CONF="${REMOTE_NGINX_CONF:-/etc/nginx/sites-available/dashboard}"
 
 test -r "$ENV_FILE"
 test -s "$NGINX_CONF_SRC"
 test -s "${SECRETS_DIR}/htpasswd" || { echo "missing ${SECRETS_DIR}/htpasswd — run generate_dashboard_auth.py first" >&2; exit 2; }
-test -s "${SECRETS_DIR}/user-booklets.map" || { echo "missing ${SECRETS_DIR}/user-booklets.map" >&2; exit 2; }
 
 set -a
 . "$ENV_FILE"
@@ -33,16 +31,15 @@ done
 test ! -e "${SECRETS_DIR}/initial-passwords" || true
 export SERVER_HOST SERVER_PORT SERVER_USER SERVER_PASSWORD
 export HTPASSWD_SRC="${SECRETS_DIR}/htpasswd"
-export MAP_SRC="${SECRETS_DIR}/user-booklets.map"
 export NGINX_CONF_SRC
-export REMOTE_HTPASSWD REMOTE_MAP REMOTE_NGINX_CONF
+export REMOTE_HTPASSWD REMOTE_NGINX_CONF
 
 # Password auth must go through an expect PTY. If a normal sandboxed call
 # reports Permission denied for unchanged credentials, invoke this script from
 # the approved elevated execution environment.
 /usr/bin/expect -f /dev/stdin <<'EOF'
 set timeout 60
-spawn /usr/bin/scp -O -o StrictHostKeyChecking=yes -o PreferredAuthentications=password -o PubkeyAuthentication=no -o GSSAPIAuthentication=no -P $env(SERVER_PORT) $env(HTPASSWD_SRC) $env(MAP_SRC) $env(NGINX_CONF_SRC) $env(SERVER_USER)@$env(SERVER_HOST):/tmp/
+spawn /usr/bin/scp -O -o StrictHostKeyChecking=yes -o PreferredAuthentications=password -o PubkeyAuthentication=no -o GSSAPIAuthentication=no -P $env(SERVER_PORT) $env(HTPASSWD_SRC) $env(NGINX_CONF_SRC) $env(SERVER_USER)@$env(SERVER_HOST):/tmp/
 expect {
   -re {assword:} { send -- "$env(SERVER_PASSWORD)\r"; exp_continue }
   eof { set status [lindex [wait] 3]; exit $status }
@@ -54,31 +51,29 @@ EOF
 set timeout 60
 spawn /usr/bin/ssh -o StrictHostKeyChecking=yes -o PreferredAuthentications=password -o PubkeyAuthentication=no -o GSSAPIAuthentication=no -p $env(SERVER_PORT) $env(SERVER_USER)@$env(SERVER_HOST) {set -euo pipefail
 ht_src=/tmp/htpasswd
-map_src=/tmp/user-booklets.map
 conf_src=/tmp/nginx-dashboard-http.conf
-test -s "$ht_src" && test -s "$map_src" && test -s "$conf_src"
+test -s "$ht_src" && test -s "$conf_src"
 install -m 0640 -o root -g www-data "$ht_src" /etc/nginx/dashboard.htpasswd
-install -m 0640 -o root -g www-data "$map_src" /etc/nginx/dashboard-user-booklets.map
 if test -f /etc/nginx/sites-available/dashboard; then
-  cp -a /etc/nginx/sites-available/dashboard /etc/nginx/sites-available/dashboard.bak.pre-booklets
+  cp -a /etc/nginx/sites-available/dashboard /etc/nginx/sites-available/dashboard.bak.pre-full-dashboard
 fi
 install -m 0644 "$conf_src" /etc/nginx/sites-available/dashboard
 if test -d /etc/nginx/sites-enabled; then
   ln -sfn /etc/nginx/sites-available/dashboard /etc/nginx/sites-enabled/dashboard
 fi
-rm -f "$ht_src" "$map_src" "$conf_src"
+rm -f "$ht_src" "$conf_src"
 # Old anonymous vhost lived in conf.d and would win over sites-enabled.
 if test -f /etc/nginx/conf.d/dashboard.apinova.cn.conf; then
-  mkdir -p /root/dashboard-pre-booklets
-  mv -f /etc/nginx/conf.d/dashboard.apinova.cn.conf /root/dashboard-pre-booklets/dashboard.apinova.cn.conf.bak
+  mkdir -p /root/dashboard-pre-full
+  mv -f /etc/nginx/conf.d/dashboard.apinova.cn.conf /root/dashboard-pre-full/dashboard.apinova.cn.conf.bak
 fi
 # Keep leftover anonymous current.html out of the web root.
 if test -f /var/www/dashboard/current.html; then
-  mkdir -p /root/dashboard-pre-booklets
-  mv -f /var/www/dashboard/current.html /root/dashboard-pre-booklets/current.html.bak
+  mkdir -p /root/dashboard-pre-full
+  mv -f /var/www/dashboard/current.html /root/dashboard-pre-full/current.html.bak
 fi
-# Retired business-group booklets are no longer on the whitelist.
-rm -f /var/www/dashboard/liuxue.html /var/www/dashboard/gaozhong.html /var/www/dashboard/daxue.html
+# Retired team and business-group pages are no longer published.
+rm -f /var/www/dashboard/online_private.html /var/www/dashboard/online_platform.html /var/www/dashboard/offline_market.html /var/www/dashboard/liuxue.html /var/www/dashboard/gaozhong.html /var/www/dashboard/daxue.html
 nginx -t
 systemctl reload nginx
 curl -fsS -o /dev/null -H "Host: dashboard.apinova.cn" http://127.0.0.1/healthz
@@ -90,4 +85,4 @@ expect {
 }
 EOF
 
-printf 'installed nginx booklet auth on %s (htpasswd/map 640 root:www-data; passwords not uploaded)\n' "$SERVER_HOST"
+printf 'installed full-dashboard auth on %s (htpasswd 640 root:www-data; passwords not uploaded)\n' "$SERVER_HOST"

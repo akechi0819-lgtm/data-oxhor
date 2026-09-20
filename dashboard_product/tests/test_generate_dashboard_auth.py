@@ -50,28 +50,17 @@ class GenerateDashboardAuthTest(unittest.TestCase):
             )
             result = module.generate(dest, password_book=book)
             self.assertEqual(
-                [(row['username'], row['booklet']) for row in result['accounts']],
-                [
-                    ('alice', 'full'),
-                    ('bob', 'online_private'),
-                    ('cara', 'online_platform'),
-                    ('dana', 'offline_market'),
-                ],
+                [(row['username'], row['permission']) for row in result['accounts']],
+                [('alice', 'all'), ('bob', 'all'), ('cara', 'all'), ('dana', 'all')],
             )
             htpasswd = (dest / 'htpasswd').read_text(encoding='utf-8')
-            mapping = (dest / 'user-booklets.map').read_text(encoding='utf-8')
             self.assertIn('alice:$apr1$', htpasswd)
             self.assertNotIn('admin', htpasswd)
             self.assertNotIn('liuxue', htpasswd)
             self.assertNotIn('gaozhong', htpasswd)
-            self.assertNotIn('daxue', mapping)
-            self.assertIn('alice full;', mapping)
-            self.assertIn('bob online_private;', mapping)
-            self.assertIn('cara online_platform;', mapping)
-            self.assertIn('dana offline_market;', mapping)
+            self.assertNotIn('daxue', htpasswd)
             self.assertFalse((dest / 'initial-passwords').exists())
             self.assertEqual(stat.S_IMODE(os.stat(dest / 'htpasswd').st_mode), 0o600)
-            self.assertEqual(stat.S_IMODE(os.stat(dest / 'user-booklets.map').st_mode), 0o600)
             dumped = str(result)
             self.assertNotIn(secret, dumped)
             self.assertNotIn('other-secret-zzz', dumped)
@@ -97,13 +86,11 @@ class GenerateDashboardAuthTest(unittest.TestCase):
             self.assertNotIn(secret, proc.stderr)
             self.assertIn('passwords are not printed', proc.stdout)
 
-    def test_unknown_permission_is_rejected(self):
+    def test_any_password_book_permission_maps_to_full(self):
         module = _load_module()
         with tempfile.TemporaryDirectory() as directory:
             dest = Path(directory) / 'secrets'
             book = Path(directory) / 'book.xlsx'
             _write_book(book, [('alice', 'secret-value', 'intern')])
-            with self.assertRaises(SystemExit) as raised:
-                module.generate(dest, password_book=book)
-            self.assertIn('unknown permission', str(raised.exception))
-            self.assertNotIn('secret-value', str(raised.exception))
+            result = module.generate(dest, password_book=book)
+            self.assertEqual(result['accounts'][0]['permission'], 'all')

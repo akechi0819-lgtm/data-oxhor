@@ -241,7 +241,7 @@ class ProjectContextService:
         observations = []
         patterns = (
             ('dashboard_product/config/saved_queries.json', 'runtime_config', None),
-            ('dashboard_product/refresh.py', 'code_literal', r'''['"]--version['"]\s*,\s*['"](v[0-9]+)['"]'''),
+            ('dashboard_product/refresh.py', 'code_literal', r'''DASHBOARD_QUERY_VERSION\s*=\s*['"](v[0-9]+)['"]'''),
             ('docs/architecture.md', 'document_claim', r'dashboard_actuals/(v[0-9]+)'),
         )
         for path, kind, pattern in patterns:

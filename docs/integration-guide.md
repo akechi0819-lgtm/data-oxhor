@@ -217,8 +217,8 @@ python3 -m interfaces.casebook guide --workspace customers/company_customer
 
 ```bash
 python3 -m dashboard_product.refresh refresh --workspace customers/bi_operations --run-id run_dashboard_<id>
-python3 -m dashboard_product.refresh render --artifact <artifact.json> --all-booklets
+python3 -m dashboard_product.refresh render --artifact <artifact.json>
 python3 -m monitoring_product.notify send --workspace <workspace> --snapshot-id <snapshot_id> --run-id <run_id> --as-of-date <YYYY-MM-DD> --data-through-date <YYYY-MM-DD> --dry-run
 ```
 
-刷新只消费已确认 `dashboard_actuals/v10`。目标区留学预备/高中/大学，同比区青少/初中/高中/大学。全量页另有「市场人员产能」页签。四分册发布和 Nginx 门口见 [`dashboard_product/DEPLOYMENT.md`](../dashboard_product/DEPLOYMENT.md)。Webhook 属于 C 层，不在本接入指南展开。
+刷新只消费已确认 `dashboard_actuals/v12`。目标区留学预备/高中/大学，同比区青少/初中/高中/大学。主页面另有「市场人员产能」页签；线上影子看板作为独立特供入口。主页面发布和 Nginx 门口见 [`dashboard_product/DEPLOYMENT.md`](../dashboard_product/DEPLOYMENT.md)。Webhook 属于 C 层，不在本接入指南展开。

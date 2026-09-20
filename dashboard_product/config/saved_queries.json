@@ -5,7 +5,7 @@
   "queries": [
     {
       "query_id": "dashboard_actuals",
-      "version": "v10",
+      "version": "v12",
       "purpose": "看板当前与上一财年实际：市场总计保留全部有效被动工单和被动新生正向报入现金，项目、团队和人员仅使用严格归属，未归属事实独立标记",
       "parameters": ["start_date", "end_date"],
       "output": "event_date,team_id,business_group,first_channel,second_channel,campaign_name,entry_person,school_name,grade_name,metric,actual_value,student_id",

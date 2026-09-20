@@ -7,7 +7,7 @@ from pathlib import Path
 from dashboard_product.refresh import DASHBOARD_QUERY_COLUMNS, DASHBOARD_SAVED_QUERY, project, render, validate_publish_artifact
 
 
-def _publish_artifact(directory, version='v10', columns=None):
+def _publish_artifact(directory, version='v12', columns=None):
     root = Path(directory)
     receipt_rel = Path('data/query_results/evidence/receipt.json')
     (root / receipt_rel).parent.mkdir(parents=True)
@@ -37,17 +37,17 @@ def _publish_artifact(directory, version='v10', columns=None):
 
 
 class RenderTest(unittest.TestCase):
-    def test_publish_validation_accepts_current_query_and_rejects_v7_artifact(self):
+    def test_publish_validation_accepts_current_query_and_rejects_legacy_artifact(self):
         with tempfile.TemporaryDirectory() as directory:
             current = _publish_artifact(Path(directory) / 'current')
             self.assertEqual(validate_publish_artifact(current)['saved_query'], DASHBOARD_SAVED_QUERY)
 
             legacy = _publish_artifact(
                 Path(directory) / 'legacy',
-                version='v7',
+                version='v10',
                 columns=DASHBOARD_QUERY_COLUMNS[:-1],
             )
-            with self.assertRaisesRegex(ValueError, 'dashboard_actuals/v10'):
+            with self.assertRaisesRegex(ValueError, 'dashboard_actuals/v12'):
                 validate_publish_artifact(legacy)
 
     def test_departed_and_transferred_people_are_hidden_from_dashboard_and_notify(self):

@@ -416,7 +416,7 @@ def render_markdown(digest, png_url, xlsx_url):
         lines.append('- 无人落后时间进度')
     lines.extend(['', f'[下载工单与现金明细]({xlsx_url})'])
     text = '\n'.join(lines)
-    for forbidden in ('full.html', 'online_private.html', 'online_platform.html', 'offline_market.html'):
+    for forbidden in ('full.html', 'online_market_special.html'):
         if forbidden in text:
             raise ValueError(f'markdown must not link booklet {forbidden}')
     return text

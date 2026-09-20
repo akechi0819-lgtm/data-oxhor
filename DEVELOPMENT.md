@@ -14,7 +14,7 @@
 | 数据平台 | `data_platform/` | 已落地 | landing、不可变 Snapshot、schema、quality、受控只读 SQL |
 | 工作区建模 | `workspace_modeling/` | 已落地 | Pack、Bridge、对齐向导、首次部署、Casebook、内测反馈 |
 | 自由分析交付 | 宿主 Agent + `workspace_modeling.delivery` | 已落地 | 分析编排与文件生成由宿主完成，确定性组包由 `workspace_modeling.delivery` 完成；PPT 调用宿主全局 `ppt-master` |
-| 固定看板 | `dashboard_product/` | 已落地/持续增强 | 四分册静态发布、basic auth；人员监控已拆出 |
+| 固定看板 | `dashboard_product/` | 已落地/持续增强 | V12 主页面静态发布、basic auth；人员监控已拆出 |
 | 日常监控 | `monitoring_product/` | 已落地 | 人员进度、落后判断、明细证据与钉钉日报；定时由宿主触发 |
 
 ## 当前主线
@@ -56,7 +56,7 @@ git diff --check
 - 用户授权一次性调整目录，不保留旧目录、转发文档、兼容导入或软链；本次不改变看板公式、SQL 计算、人员归属及业务口径。
 - 删除无功能的 `analysis_product` 占位包；分析组包仍由 `workspace_modeling.delivery` 承担。
 - 当前状态统一在本文件；项目交接和已结束架构计划归 `docs/history/`，看板历史调查与施工文档归 `docs/history/dashboard/`。两份既有王越目标记录完整保留，仍是历史记录。
-- 看板稳定产品边界归模块 README，现行账号与分册操作归 DEPLOYMENT；历史记录里的线上状态、账户配置和快照不被视为本轮实时核查结果。
+- 看板稳定产品边界归模块 README，现行账号与主页面操作归 DEPLOYMENT；历史记录里的线上状态、账户配置和快照不被视为本轮实时核查结果。
 - Grok Bot 的角色合同与自主积累材料隔离到 `grok_workspace/`，不再构成项目根规则；项目级中转、日志与历史运行材料归 `.local/` 并忽略入 Git。客户数据工作区与市场工作面保持原位。
 - Bridge 参考 JSON 迁至 `tests/fixtures/company_bridge/`；测试资产不得充当业务工作区当前口径。现行运行示例要求显式指定已确认的正式 Bridge。
 - 验收：本机 180 项全量回归通过且无跳过，27 份受保护 SQL/计算/规则/既有 BI 文件哈希不变；迁移文件逐项验证，Excel/PPT 内容与外部依赖检查通过。既有只读 MCP 已重载并核对新模块清单。云端已建立自管区、收到结构包；Mac 锁屏阻断界面收尾，最终云端回执仍待核验，未提前声明完成。详见 [本次整理记录](docs/history/structure-cleanup-20260918.md)。此次不恢复已取消的六轮架构扩建。
@@ -172,12 +172,12 @@ git diff --check
 
 - 决定：临时补丁。一级渠道为 `TMK激活-平台`、活动名含 `校代系统资源`、资源描述 `市场人员：` 能命中线下市场花名册的工单，从线上平台改回线下市场后再做个人归属。原生「平台」投放不改。
 - 原因：TMK 激活石仁达小表单校代资源时，`线上线下=线上` 把单划进线上平台；石仁达只在线下大学花名册，个人完成和线下大学合计少算。
-- 影响：刷新在 `refresh.py` 聚合层改 `team_id`；钉钉明细在 `notify_work_orders.sql` / `notify_cash.sql` 同步同一规则。该次 Saved Query 未改（历史记录；当前入口为 `dashboard_actuals/v10`）。云端 A 层 overlay 必须带这三处。SQL 的花名册 `IN` 名单与 `workspace_modeling/operations/people.json` 线下成员耦合，加人时要一起改。
+- 影响：刷新在 `refresh.py` 聚合层改 `team_id`；钉钉明细在 `notify_work_orders.sql` / `notify_cash.sql` 同步同一规则。该次 Saved Query 未改（历史记录；后续已统一到 V12）。云端 A 层 overlay 必须带这三处。SQL 的花名册 `IN` 名单与 `workspace_modeling/operations/people.json` 线下成员耦合，加人时要一起改。
 - 验证：`python3 -m unittest discover -s dashboard_product/tests -v`；`run_dashboard_20260914_172915` 石仁达 9 月工单 42→48，全年 156→163。
 
 ### 2026-09-11：产能页、渠道合计与张艺彤回落（历史记录）
 
-- 决定：当时升级看板查询，增加第 12 列现金 `student_id` 并删除前代运行入口。当前运行版本已统一为 `dashboard_actuals/v10`。全量页并列第五页签「市场人员产能」：全年现金对照统一 80 万标准产能，六维雷达为工单数、签约量、转化率、渠道&校代/TMK/活动贡献，均值按团队算。渠道同期对比增加合计列与总计行。无法判断/空团队且跟进顾问为张艺彤时按留学预备回落。大学钉钉明细表人员进度额外输出现金目标/完成。
+- 决定：当时升级看板查询，增加第 12 列现金 `student_id` 并删除前代运行入口。该历史成果已纳入当前 V12 基线。全量页并列第五页签「市场人员产能」：全年现金对照统一 80 万标准产能，六维雷达为工单数、签约量、转化率、渠道&校代/TMK/活动贡献，均值按团队算。渠道同期对比增加合计列与总计行。无法判断/空团队且跟进顾问为张艺彤时按留学预备回落。大学钉钉明细表人员进度额外输出现金目标/完成。
 - 原因：产能页需要去重人头；张艺彤名下无法判断工单此前被整段丢掉；大学群既看人头也要在明细里对现金。
 - 影响：该次历史部署 overlay 包含当时的 SQL、`capacity.py`、`config/capacity_targets.json`。产能页不进钉钉。平台现金不计入三类贡献轴。
 - 验证：`python3 -m unittest discover -s dashboard_product/tests -v`。
@@ -214,7 +214,7 @@ git diff --check
 - Casebook 新写入使用 delivery 包和 capture.v2，先临时复制闭包再发布 candidate。封存验证不依赖原输出或数仓；四态保持，旧封存不升级重写。Bridge 只读画像独立为 snapshot_quality_profile.v1，CLI quality 输入读取真实查询回执。
 - 新合成端到端回归以正式 Snapshot 和 Bridge 跑实际 CLI 查询→自包含 HTML→组包→capture→verify→删除原输出/数仓→verify；不访问客户数仓、不发布发送。主任务独立验收：`sh tools/run_tests.sh` 176 项全部通过且无跳过（主测试 127、看板 30、监控 19），另有独立查询 5 项、真实 CLI 归档验证和 6 项入口冒烟通过。
 
-- 旧入口清理：运行与操作说明统一 `dashboard_actuals/v10`；旧版本测试改按配置声明核对，保留 SQL 与 manifest 哈希断言，删除无用旧 Casebook fixture。历史记录不再充当旧运行说明。
+- 旧入口清理：运行与操作说明统一到当前查询合同；旧版本测试改按配置声明核对，保留 SQL 与 manifest 哈希断言，删除无用旧 Casebook fixture。历史记录不再充当旧运行说明。
 - 范围核对：看板核心聚合和监控发送/明细计算函数 AST 未变；本轮只接入查询证据读取，当时后置的最终产品改造已在后续需求复核中取消。
 
 
@@ -246,7 +246,8 @@ git diff --check
 
 ### 2026-09-20：看板发布门禁与人员花名册同步
 
-- 当前看板刷新合同唯一为 `dashboard_actuals/v10`，刷新输出必须是 12 列结果并带同一查询回执；发布脚本在渲染前校验 Saved Query、列结构和回执，旧 artifact 会直接阻断，不再允许通过 `ARTIFACT_JSON` 绕过刷新门禁。
+- 当前看板整体口径统一为 V12，刷新合同唯一为 `dashboard_actuals/v12`，刷新输出必须是 12 列结果并带同一查询回执；发布脚本在渲染前校验 Saved Query、列结构和回执，旧 artifact 会直接阻断，不再允许通过 `ARTIFACT_JSON` 绕过刷新门禁。
 - 误用原因：代码主路径早已切到当前查询，但开发决策记录仍把早期版本写成“运行时只保留”，而 `.local/sync/outbox` 还保留旧版本发布包；显式传入旧 artifact 时原脚本没有版本校验。
 - 人员口径以共享 `people.json` 为准：王欣庆、于洋标记离职，李进标记转岗；三人不再展示、不进入监控通道花名册、不再作为线下校代资源的当前归属候选，也清除其当前月度目标。监控 SQL 与看板共用同一隐藏状态边界。
 - 验证：看板和监控单测、全量测试、旧 artifact 发布门禁回归，以及 Git 差异检查均须通过；本地旧版本发布包移出同步中转目录，不作为运行输入。
+- 发布面同步：删除团队分册渲染、路由、权限映射和线上旧语培页；所有账号统一进入 `full.html`，线上影子看板保留为独立入口。

@@ -83,7 +83,7 @@ C 层环境变量只写在 `dashboard_product/.env.server`（mode 600），模�
 
 | 变量 | 用途 |
 |---|---|
-| `SERVER_HOST` / `SERVER_PORT` / `SERVER_USER` / `SERVER_PASSWORD` | 静态分册和钉钉素材 SCP |
+| `SERVER_HOST` / `SERVER_PORT` / `SERVER_USER` / `SERVER_PASSWORD` | 主页面和钉钉素材 SCP |
 | `NOTIFY_PUBLIC_ORIGIN` | 钉钉图片/表格公网前缀 |
 | `DINGTALK_WEBHOOK_<CHANNEL>` / `DINGTALK_SECRET_<CHANNEL>` | 五通道：`ONLINE_PRIVATE`、`ONLINE_PLATFORM`、`OFFLINE_YOUTH`、`OFFLINE_HIGH_SCHOOL`、`OFFLINE_UNIVERSITY` |
 

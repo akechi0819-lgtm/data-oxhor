@@ -91,9 +91,6 @@ tbody th { font-weight: 800; }
 .notice { padding: 11px 13px; border-left: 3px solid #d7a02a; background: #fff9df; color: #66531f; font-size: 12px; }
 .notice + .notice { margin-top: 8px; }
 .grid-two { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(320px, .75fr); gap: 14px; }
-.training-panel { min-height: 640px; }
-.training-panel iframe { display: block; width: 100%; min-height: 900px; border: 1px solid var(--line); background: var(--canvas); }
-.training-fallback { padding: 18px; margin-bottom: 12px; border: 1px dashed #a7d3cc; background: #f4fbf9; }
 .drill-toggle { padding: 5px 9px; border: 1px solid #a7d3cc; border-radius: 5px; background: var(--teal-soft); color: var(--teal); cursor: pointer; font: inherit; font-size: 12px; font-weight: 800; }
 .drill-toggle:hover, .drill-toggle:focus-visible { border-color: var(--teal); }
 .drill-row td { padding: 5px 0 12px; background: #f8fbfa; }
@@ -111,8 +108,7 @@ tbody th { font-weight: 800; }
   <div>
     <small>DATA OXHOR / ONLINE MARKET</small>
     <h1>线上团队特供看板</h1>
-    <p>语培线上与留学线上 · 留学数据使用影子数仓</p>
-    <a class="nav-link" href="online_platform.html">打开原语培线上看板 →</a>
+    <p>留学线上 · 数据使用影子数仓</p>
   </div>
   <div class="meta">影子 Snapshot<br><b id="snapshot"></b><br>数据截至 <b id="through"></b></div>
 </header>
@@ -123,7 +119,6 @@ tbody th { font-weight: 800; }
   <span class="hint">当前按资源主被动=被动统计线上工单；主被动用于清洗审计。现金实际暂未接入。月度目标待确认。</span>
 </section>
 <div id="timeline" class="timeline"></div>
-<nav class="tabs" aria-label="线上看板板块"><button class="active" data-tab="study">留学线上</button><button data-tab="training">语培线上</button></nav>
 <section id="study-view">
   <div id="cards" class="cards"></div>
   <div class="notice">留学线上暂按资源主被动=被动统计：有效工单 ID、团队为空、来源根节点为“网络资源”或“新媒体”。清洗后的主被动只作审计，二级渠道未命中时保留为待确认，不强制归类。</div>
@@ -133,9 +128,6 @@ tbody th { font-weight: 800; }
     <section class="panel"><div class="panel-head"><div><h2>国家与条线</h2><p class="section-kicker">先查看条线，再展开对应国家；不参与当前目标计算。</p></div></div><div id="dimensions"></div></section>
   </div>
 </section>
-<section id="training-view" hidden>
-  <section class="panel training-panel"><div class="panel-head"><div><h2>语培线上</h2><p class="section-kicker">沿用原线上看板页面；原页面数据和计算链路保持不变。</p></div></div><div class="training-fallback"><a href="online_platform.html">如果内嵌页面未加载，点击打开原语培线上看板 →</a></div><iframe title="原语培线上看板" src="online_platform.html" loading="lazy"></iframe></section>
-</section>
 </main>
 <script>
 const D = __PAYLOAD__;
@@ -143,8 +135,6 @@ const S = document.querySelector('#scope');
 const M = document.querySelector('#month');
 const MONTH_CONTROL = document.querySelector('#month-control');
 const G = document.querySelector('#group');
-const STUDY = document.querySelector('#study-view');
-const TRAINING = document.querySelector('#training-view');
 const MONTHS = D.months;
 const PRIOR_MONTHS = D.prior_months;
 const GROUPS = ['网络资源', '新媒体'];
@@ -205,7 +195,6 @@ function renderLineDrilldown() { const current = D.study_abroad.current.lines ||
 function wireDimensionDrills() { document.querySelectorAll('#dimensions .drill-toggle').forEach(button => { button.onclick = () => { const row = document.querySelector('#' + button.dataset.drill); const open = row.hidden; row.hidden = !open; button.textContent = open ? '收起国家' : '展开国家'; button.setAttribute('aria-expanded', String(open)); }; }); }
 function renderDimensions() { document.querySelector('#dimensions').innerHTML = renderLineDrilldown(); wireDimensionDrills(); }
 function renderStudy() { renderTimeline(); renderCards(); renderTargets(); renderPlatforms(); renderDimensions(); }
-document.querySelectorAll('.tabs button').forEach(button => button.addEventListener('click', () => { document.querySelectorAll('.tabs button').forEach(item => item.classList.toggle('active', item === button)); const training = button.dataset.tab === 'training'; STUDY.hidden = training; TRAINING.hidden = !training; }));
 S.addEventListener('change', () => { updateMonthOptions(); renderStudy(); });
 M.addEventListener('change', renderStudy);
 G.addEventListener('change', renderStudy);

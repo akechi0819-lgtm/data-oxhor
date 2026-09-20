@@ -67,11 +67,11 @@ class OnlineMarketRenderTest(unittest.TestCase):
             "study_abroad": {"current": period, "prior": period, "scope": {}},
         }
 
-    def test_page_has_shadow_identity_targets_cash_empty_and_training_link(self):
+    def test_page_has_shadow_identity_targets_cash_empty_and_no_legacy_training_board(self):
         page = render_html(self._artifact())
         self.assertIn("snapshot_online_market_shadow_test", page)
         self.assertIn("线上团队特供看板", page)
-        self.assertIn("online_platform.html", page)
+        self.assertNotIn("online_platform.html", page)
         self.assertIn("现金实际", page)
         self.assertIn("5708", page)
         self.assertIn("6715", page)

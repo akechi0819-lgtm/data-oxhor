@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Install only the anonymous /notify/ locations. Does not touch htpasswd or booklet maps.
+# Install only the anonymous /notify/ locations. Does not touch htpasswd or full-dashboard auth.
 set -euo pipefail
 case "$-" in *x*) echo "refuse to run with xtrace (would leak credentials)" >&2; exit 2 ;; esac
 set +x

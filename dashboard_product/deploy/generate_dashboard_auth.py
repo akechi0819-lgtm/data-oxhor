@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate C-layer htpasswd and user→booklet map from the password book.
+"""Generate the C-layer htpasswd for the single full dashboard.
 
 Passwords are read from the xlsx password book (mode 600). They are never
 printed. Do not commit deploy/secrets/. Do not upload initial-passwords to
@@ -19,8 +19,6 @@ from pathlib import Path
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
-
-from dashboard_product.booklets import PERMISSION_TO_BOOKLET  # noqa: E402
 
 DEFAULT_PASSWORD_BOOK = Path(__file__).resolve().parent / 'secrets' / 'password-book-20260907.xlsx'
 REQUIRED_COLUMNS = ('用户名', '密码', '权限')
@@ -104,17 +102,9 @@ def load_password_book(path: Path) -> list[dict]:
             raise SystemExit(f'password book row {row_number} is incomplete')
         if username in seen:
             raise SystemExit(f'duplicate username in password book: {username}')
-        booklet = PERMISSION_TO_BOOKLET.get(permission)
-        if booklet is None:
-            raise SystemExit(f'unknown permission on password book row {row_number}: {permission}')
         seen.add(username)
         accounts.append(
-            {
-                'username': username,
-                'password': password,
-                'permission': permission,
-                'booklet': booklet,
-            }
+            {'username': username, 'password': password, 'permission': 'all'}
         )
     if not accounts:
         raise SystemExit('password book has no accounts')
@@ -132,22 +122,20 @@ def generate(
     password_book = Path(password_book) if password_book is not None else DEFAULT_PASSWORD_BOOK
     paths = {
         'htpasswd': dest / 'htpasswd',
-        'map': dest / 'user-booklets.map',
         'passwords': dest / 'initial-passwords',
     }
-    existing = [path for path in (paths['htpasswd'], paths['map']) if path.exists()]
+    existing = [path for path in (paths['htpasswd'],) if path.exists()]
     if existing and not force:
         names = ', '.join(path.name for path in existing)
         raise SystemExit(f'secrets already exist ({names}); pass --force to rotate')
 
     accounts = load_password_book(password_book)
     htpasswd_lines = []
-    map_lines = ['# username booklet;  generated from password book, not for git', '']
     password_lines = [
-        '# dashboard booklet passwords copied from the password book. mode 600.',
+        '# dashboard passwords copied from the password book. mode 600.',
         '# do not commit, do not upload, do not paste into chat.',
         f'# generated_at={datetime.now(timezone.utc).isoformat()}',
-        '# columns: username<TAB>booklet<TAB>password',
+        '# columns: username<TAB>permission<TAB>password',
         '',
     ]
     public_rows = []
@@ -156,22 +144,20 @@ def generate(
         public_rows.append(
             {
                 'username': account['username'],
-                'booklet': account['booklet'],
+                'permission': 'all',
                 'permission': account['permission'],
             }
         )
         htpasswd_lines.append(f"{account['username']}:{hashed}")
-        map_lines.append(f"{account['username']} {account['booklet']};")
-        password_lines.append(f"{account['username']}\t{account['booklet']}\t{account['password']}")
+        password_lines.append(f"{account['username']}\tall\t{account['password']}")
 
     _write_private(paths['htpasswd'], '\n'.join(htpasswd_lines) + '\n')
-    _write_private(paths['map'], '\n'.join(map_lines) + '\n')
     if write_initial_passwords:
         _write_private(paths['passwords'], '\n'.join(password_lines) + '\n')
     elif paths['passwords'].exists():
         paths['passwords'].unlink()
 
-    written = ['htpasswd', 'user-booklets.map']
+    written = ['htpasswd']
     if write_initial_passwords:
         written.append('initial-passwords')
     return {
@@ -213,12 +199,11 @@ def main() -> int:
     )
     # Print paths and usernames only — never passwords.
     usernames = ', '.join(item['username'] for item in result['accounts'])
-    booklets = ', '.join(sorted({item['booklet'] for item in result['accounts']}))
     sys.stdout.write(
         f"wrote {', '.join(result['written'])} (mode 600) under {result['directory']}\n"
         f"password book: {result['password_book']}\n"
         f'usernames: {usernames}\n'
-        f'booklets: {booklets}\n'
+        'effective permission: all\n'
         'passwords are not printed\n'
     )
     return 0

@@ -7,7 +7,7 @@ from uuid import uuid4
 from workspace_modeling.operations.personnel import BUSINESS_GROUP_BY_ROSTER_GROUP, PEOPLE_CONFIG_PATH, date_to_perf_month, is_displayable_person, match_person_names
 ROOT=Path(__file__).parent
 DASHBOARD_QUERY_ID='dashboard_actuals'
-DASHBOARD_QUERY_VERSION='v10'
+DASHBOARD_QUERY_VERSION='v12'
 DASHBOARD_SAVED_QUERY=f'{DASHBOARD_QUERY_ID}/{DASHBOARD_QUERY_VERSION}'
 DASHBOARD_QUERY_COLUMNS=(
     'event_date','team_id','business_group','first_channel','second_channel',
@@ -233,35 +233,21 @@ def refresh(workspace,run_id):
  a={'schema_version':'dashboard_artifact.v1','artifact_id':'dashboard_'+uuid4().hex[:12],'run_id':run_id,'snapshot_id':snap,'as_of_date':today.isoformat(),'data_through_date':(today.fromordinal(today.toordinal()-1)).isoformat(),'created_at':datetime.now(timezone.utc).isoformat(),'query_results':[q,p],'errors':[],'dashboard':d}
  path=out/'artifact.json'; path.write_text(json.dumps(a,ensure_ascii=False,indent=2),encoding='utf-8')
  return {'status':'artifact_created','artifact':str(path)}
-def render(artifact, booklet=None, output=None):
+def render(artifact, output=None):
  import sys; sys.path.insert(0,str(ROOT.parent))
  from dashboard_product.render_template import render_html
- from dashboard_product.booklets import booklet_filename, validate_booklet
- booklet=validate_booklet(booklet)
  a=read(artifact); artifact=Path(artifact)
- if output is not None: out=Path(output)
- elif booklet: out=artifact.with_name(booklet_filename(booklet))
- else: out=artifact.with_suffix('.html')
- out.write_text(render_html(a, booklet=booklet),encoding='utf-8'); return {'status':'rendered','output':str(out),'booklet':booklet or 'full'}
-def render_all_booklets(artifact):
- from dashboard_product.booklets import BOOKLET_IDS
- outputs=[render(artifact, booklet=booklet) for booklet in BOOKLET_IDS]
- return {'status':'rendered','outputs':[item['output'] for item in outputs],'booklets':list(BOOKLET_IDS)}
+ out=Path(output) if output is not None else artifact.with_name('full.html')
+ out.write_text(render_html(a),encoding='utf-8'); return {'status':'rendered','output':str(out)}
 def main():
  p=argparse.ArgumentParser(); s=p.add_subparsers(dest='c',required=True)
  r=s.add_parser('refresh'); r.add_argument('--workspace',type=Path,required=True); r.add_argument('--run-id',required=True)
  render_parser=s.add_parser('render'); render_parser.add_argument('--artifact',type=Path,required=True)
  validate_parser=s.add_parser('validate-publish-artifact'); validate_parser.add_argument('--artifact',type=Path,required=True)
- from dashboard_product.booklets import BOOKLET_IDS
- render_parser.add_argument('--booklet',choices=list(BOOKLET_IDS))
- render_parser.add_argument('--all-booklets',action='store_true')
  render_parser.add_argument('--output',type=Path)
  x=p.parse_args()
  if x.c=='refresh': z=refresh(x.workspace,x.run_id)
  elif x.c=='validate-publish-artifact': z=validate_publish_artifact(x.artifact)
- elif x.all_booklets:
-  if x.booklet or x.output: p.error('use --all-booklets without --booklet/--output')
-  z=render_all_booklets(x.artifact)
- else: z=render(x.artifact, booklet=x.booklet, output=x.output)
+ else: z=render(x.artifact, output=x.output)
  print(json.dumps(z,ensure_ascii=False)); return 0
 if __name__=='__main__': raise SystemExit(main())

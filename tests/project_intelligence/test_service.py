@@ -197,7 +197,7 @@ class ContextTests(unittest.TestCase):
         # 未发布版本仅用于合成差异检测，不构成运行入口或兼容支持。
         self.write('docs/architecture.md', 'dashboard_actuals/v1000')
         self.write('dashboard_product/config/saved_queries.json', json.dumps({'queries': [{'query_id': 'dashboard_actuals', 'version': 'v10'}]}))
-        self.write('dashboard_product/refresh.py', "args = ['--version', 'v10']")
+        self.write('dashboard_product/refresh.py', "DASHBOARD_QUERY_VERSION = 'v10'")
         with patch.object(self.service, '_git', return_value={'status': 'unavailable'}):
             result = self.service.get_project_overview()['data']['dashboard_query_versions']
         self.assertTrue(result['different_versions_observed'])
