@@ -56,6 +56,8 @@ h1 { margin: 8px 0 6px; font: 600 38px/1.1 Georgia, "Songti SC", serif; letter-s
 p { margin: 0; color: var(--muted); }
 .meta { min-width: 300px; color: var(--muted); font-size: 12px; line-height: 1.8; text-align: right; }
 .meta b { color: var(--ink); font-weight: 700; }
+.special-board-link { display: inline-block; margin-top: 8px; color: var(--blue); font-size: 12px; font-weight: 800; text-decoration: none; }
+.special-board-link:hover, .special-board-link:focus-visible { text-decoration: underline; }
 .controls { display: flex; align-items: flex-end; gap: 16px; flex-wrap: wrap; padding: 18px 0 12px; }
 .controls label { display: grid; gap: 5px; color: var(--muted); font-size: 12px; font-weight: 700; }
 select, button { font: inherit; }
@@ -158,7 +160,7 @@ footer { margin-top: 20px; padding-top: 14px; border-top: 1px solid var(--line);
 <body>
 <main>
 <header>
-  <div><small>DATA OXHOR / OPERATIONS</small><h1>Cyber Shackles</h1><p>%(period_line)s</p></div>
+  <div><small>DATA OXHOR / OPERATIONS</small><h1>Cyber Shackles</h1><p>%(period_line)s</p>%(special_board_link)s</div>
   <div class="meta">Snapshot<br><b>%(snapshot_id)s</b><br>数据截至 %(data_through_date)s · 刷新 %(created_at)s</div>
 </header>
 <section class="controls"><label>范围<select id="scope"><option value="year">全年 FY27</option><option value="Q1">Q1</option><option value="Q2" selected>Q2</option><option value="Q3">Q3</option><option value="Q4">Q4</option></select></label><span class="hint">范围切换只影响本地汇总与下钻窗口</span></section>
@@ -517,6 +519,7 @@ init();
         '%(run_id)s': run_id,
         '%(page_title)s': chrome['page_title'],
         '%(period_line)s': chrome['period_line'],
+        '%(special_board_link)s': chrome['special_board_link'],
         '%(grade_kicker)s': chrome['grade_kicker'],
         '%(people_group_options)s': chrome['people_group_options'],
         '%(school_grade_groups_json)s': chrome['school_grade_groups_json'],

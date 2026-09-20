@@ -1,0 +1,39 @@
+{
+  "schema_version": "online_market_targets.v1",
+  "fiscal_year": "FY27",
+  "period_type": "annual",
+  "metric": "work_orders",
+  "cash": {
+    "unit": "万元",
+    "groups": {
+      "网络资源": {
+        "annual": 2753.56,
+        "quarters": {"Q1": 688.39, "Q2": 688.39, "Q3": 688.39, "Q4": 688.39}
+      },
+      "新媒体": {
+        "annual": 239.0,
+        "quarters": {"Q1": 59.75, "Q2": 59.75, "Q3": 59.75, "Q4": 59.75}
+      }
+    },
+    "total": {
+      "annual": 2992.56,
+      "quarters": {"Q1": 748.14, "Q2": 748.14, "Q3": 748.14, "Q4": 748.14}
+    }
+  },
+  "groups": {
+    "网络资源": {
+      "work_order_target": 5708,
+      "quarters": {"Q1": 1427, "Q2": 1427, "Q3": 1427, "Q4": 1427}
+    },
+    "新媒体": {
+      "work_order_target": 1007,
+      "quarters": {"Q1": 251.75, "Q2": 251.75, "Q3": 251.75, "Q4": 251.75}
+    }
+  },
+  "total": {
+    "work_order_target": 6715,
+    "quarters": {"Q1": 1678.75, "Q2": 1678.75, "Q3": 1678.75, "Q4": 1678.75}
+  },
+  "platform_targets": {},
+  "note": "截图绿色行录入 FY27 年度工单与毛签目标；毛签单位为万元，四季度均分；现金实际暂不接入。"
+}

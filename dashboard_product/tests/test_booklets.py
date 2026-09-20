@@ -225,6 +225,7 @@ class BookletFilterTest(unittest.TestCase):
 
     def test_team_chrome_keeps_business_groups_and_names_the_board(self):
         chrome = booklet_chrome('online_private')
+        self.assertEqual(chrome['special_board_link'], '')
         self.assertIn('线上私域（虚拟人团队）', chrome['page_title'])
         self.assertIn('线上私域（虚拟人团队）分册', chrome['period_line'])
         self.assertIn('value="留学预备"', chrome['people_group_options'])
@@ -233,6 +234,7 @@ class BookletFilterTest(unittest.TestCase):
         self.assertEqual(json.loads(chrome['school_grade_groups_json']), ['高中', '大学'])
         full = booklet_chrome('full')
         self.assertEqual(full['page_title'], 'Cyber Shackles - 语培完成进度看板')
+        self.assertIn('online_market_special.html', full['special_board_link'])
         self.assertIn('渠道同比和年级同比按青少、初中、高中、大学', full['grade_kicker'])
 
 

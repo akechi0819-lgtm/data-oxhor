@@ -10,6 +10,7 @@
 - 事实查询只能通过 Data Platform `run-saved-query`，当前刷新调用 `dashboard_actuals/v10`。
 - 源码不直接连接 DuckDB、不读取 landing 表、不使用 `latest` 指针。
 - 运行产物只写客户工作区 `Output/Dashboard/<run_id>/`。
+- 线上团队特供看板例外使用显式影子根目录 `Work/ShadowOnlineMarket/<run_id>/`；影子 Snapshot 不写回 `Work/workspace.json` 的 `current_snapshot_id`，新页面只消费显式 `--warehouse` 与 `--snapshot-id`。
 
 ## CLI
 
@@ -20,6 +21,8 @@ python3 -m monitoring_product.notify send --workspace <workspace> --snapshot-id 
 ```
 
 `refresh` 创建不可变 artifact；`render --all-booklets` 只读取显式 artifact 并写出四分册。当前发布由 `deploy/publish_static_dashboard.sh` 完成。钉钉发送是独立命令，不并入日更脚本。
+
+影子看板使用 `online_market_shadow` → `online_market_refresh` → `online_market_render`，按 `资源主被动 = 被动` 统计线上工单，清洗后的 `主被动` 只作审计；现金目标已配置，现金实际明细为空，工单目标包含 FY27 网络资源 5708、新媒体 1007、合计 6715。
 
 ## 当前进度
 
@@ -51,6 +54,6 @@ python3 -m monitoring_product.notify send --workspace <workspace> --snapshot-id 
 ```bash
 python3 -m unittest discover -s dashboard_product/tests -v
 python3 -m interfaces.company_bridge validate \
-  --bridge artifacts/company_bridge/bridges/company_bridge.bi_operations.v1_2_0.json \
+  --bridge /absolute/path/to/confirmed-workspace-bridge.json \
   --pack workspace_modeling/business_pack/packs/education_training_operations_cn/pack.json
 ```

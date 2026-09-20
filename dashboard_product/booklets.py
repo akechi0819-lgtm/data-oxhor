@@ -132,6 +132,7 @@ def booklet_chrome(booklet=None):
         return {
             'page_title': FULL_TITLE,
             'period_line': FULL_PERIOD_LINE,
+            'special_board_link': '<a class="special-board-link" href="online_market_special.html">进入线上团队特供看板 →</a>',
             'grade_kicker': FULL_GRADE_KICKER,
             'people_group_options': FULL_PEOPLE_GROUP_OPTIONS,
             'school_grade_groups_json': json.dumps(list(SCHOOL_DRILL_GROUPS), ensure_ascii=False),
@@ -140,6 +141,7 @@ def booklet_chrome(booklet=None):
     return {
         'page_title': f'{FULL_TITLE}（{team_label}）',
         'period_line': f'{FULL_PERIOD_LINE} · {team_label}分册',
+        'special_board_link': '',
         'grade_kicker': FULL_GRADE_KICKER,
         'people_group_options': FULL_PEOPLE_GROUP_OPTIONS,
         'school_grade_groups_json': json.dumps(list(SCHOOL_DRILL_GROUPS), ensure_ascii=False),
