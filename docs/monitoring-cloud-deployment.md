@@ -20,7 +20,7 @@
 
 ## 代码与验收
 
-- A 层包 `.sync-outbox/20260916-A-monitoring-migration.tgz`：70,698 bytes，31 文件，SHA256 `fb6f54df7d6c58d65afad93ba1d01802d892ae1c5565e803b7a30efa4e52942e`。不含 B/C 层。
+- A 层包 `.local/sync/outbox/20260916-A-monitoring-migration.tgz`：70,698 bytes，31 文件，SHA256 `fb6f54df7d6c58d65afad93ba1d01802d892ae1c5565e803b7a30efa4e52942e`。不含 B/C 层。
 - 监控安装到 `monitor/monitoring_product/`。共享规则与花名册唯一落在 `warehouse/workspace_modeling/operations/`，供看板与监控引用；旧通知和临时兼容软链已删除。
 - 云 refresh 的体积差异来自尚未抽出的共享函数。AST 等价核对后采用包版，SHA256 `e16b88cbfae9f455b74b7aba851c9a6e1541ca75ff74c4fdc58034826ea987c2`。
 - 云 pyproject 保留既有 ppt optional dependency，仅增加监控包和共享配置声明。云文件仅回写 inbox，未覆盖本机其他任务的依赖修改。
@@ -30,6 +30,6 @@
 - 看板真实刷新验证：`run_dashboard_20260916_pkgrefresh_153504`，未发布、未发送通知。
 - 权威任务从实际 automation_status 读回，已核对新入口、时间、通道和唯一性。早期仅修改本地影子配置的遗漏已纠正。
 
-原始回执在 `.writeback-inbox/20260916-monitoring-deploy/`：`deployment-20260916.json` 保留各阶段记录，以最后的 swap/实读字段为准；`ROUTINE_READBACK.json` 是权威实读；`LOCAL_VERIFIED_SUMMARY.json` 为本机核验结论。早期 `ROUTINE_PROMPT_SUGGESTED.txt` 不是运行入口，不得用于重建任务。
+原始回执在 `.local/sync/inbox/20260916-monitoring-deploy/`：`deployment-20260916.json` 保留各阶段记录，以最后的 swap/实读字段为准；`ROUTINE_READBACK.json` 是权威实读；`LOCAL_VERIFIED_SUMMARY.json` 为本机核验结论。早期 `ROUTINE_PROMPT_SUGGESTED.txt` 不是运行入口，不得用于重建任务。
 
 密钥留在原云端位置，正式例行通过显式 env-file 引用，本轮未复制或打印。后续同步继续遵守 SYNC 分层与本机真源约定。

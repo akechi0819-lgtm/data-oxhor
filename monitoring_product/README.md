@@ -29,7 +29,7 @@ python3 -m monitoring_product.notify send \
 - `sql/notify_work_orders.sql`、`notify_cash.sql`、`notify_work_orders_by_ids.sql`：原通知查询原样迁入，保留 TMK 校代资源归属、现金团队兜底与跨月工单回查。
 - `digest.py`：人员归属、工单落后判断、现金和人头计算。原有业务公式保持；通道合计从同一明细按行汇总，不重复累计多人共同归属。
 - `workspace_modeling/operations/personnel.py`：看板和监控共用的绩效月、人员匹配规则。
-- `workspace_modeling/operations/people.json`：现有 BI 运营花名册和人员目标，保持单一来源。SQL 中的线下人员名单仍需随其一起更新；本次未改变该既有耦合。该配置不是跨公司的通用行业 Pack。
+- `workspace_modeling/operations/people.json`：现有 BI 运营花名册和人员目标，保持单一来源。`vacant`、`departed`、`transferred` 不进入当前通道花名册；SQL 中的线下人员名单仍需随可展示花名册一起更新。该配置不是跨公司的通用行业 Pack。
 - `notify_render.py`：图片、表格和正文；`notify.py`：受控查询、统一最终结果和发送编排。
 
 ## 部署与切换

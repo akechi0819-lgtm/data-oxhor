@@ -15,7 +15,7 @@ orders_dim AS (
            AND TRIM(一级渠道) = 'TMK激活-平台'
            AND COALESCE(活动名称, '') LIKE '%校代系统资源%'
            AND NULLIF(regexp_extract(COALESCE(资源描述, ''), '市场人员[[:space:]]*[:：][[:space:]]*([^[:space:],，;；]+)', 1), '')
-               IN ('王昊','马澳','张钦莉','王欣庆','谷志文','刘彬','杨新宇','于洋','孟方明','李进','师顺盈','石仁达','翟昕羽','曹恒玮')
+               IN ('王昊','马澳','张钦莉','谷志文','刘彬','杨新宇','孟方明','师顺盈','石仁达','翟昕羽','曹恒玮')
            THEN 'offline_market'
       WHEN TRIM(线上线下) = '线上' THEN 'online_platform'
     END AS team_id

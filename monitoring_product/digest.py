@@ -7,6 +7,7 @@ from datetime import date, datetime, time, timedelta
 
 from workspace_modeling.operations.personnel import (
     date_to_perf_month,
+    is_displayable_person,
     match_person_names,
 )
 
@@ -61,7 +62,7 @@ def configured_people_for_channel(channel_id, people_config):
         for group in team.get('groups') or []:
             group_business_group = BUSINESS_GROUP_BY_ROSTER_GROUP.get(group.get('display_name'))
             for person in group.get('members') or []:
-                if person.get('status') == 'vacant':
+                if not is_displayable_person(person):
                     continue
                 name = person.get('display_name')
                 person_group = person.get('business_group') or group_business_group

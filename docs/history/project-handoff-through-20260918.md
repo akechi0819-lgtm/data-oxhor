@@ -1,3 +1,5 @@
+> 历史存档：原路径 `docs/handoff.md`，于 2026-09-18 目录整理时归档。以下状态、命令、版本与凭据配置描述仅代表记录当时，不是当前操作入口。当前项目状态见 [DEVELOPMENT.md](../../DEVELOPMENT.md)；看板现行操作见 [看板部署说明](../../dashboard_product/DEPLOYMENT.md)。
+
 # 项目交接状态
 
 > 2026-09-16 模块切换：人员进度与钉钉推送已迁至 `monitoring_product/`，看板不再承担发送。新入口要求 workspace、snapshot-id、run-id、as-of-date、data-through-date；正式发送另需显式 env-file。共享花名册在 `workspace_modeling/operations/people.json`。本地迁移完成不代表云端任务已切换；详见项目根目录 `monitoring_product/README.md`。
@@ -6,7 +8,7 @@
 
 ## 当前状态
 
-2026-09-18 架构演进阶段已结束：公共证据合同及查询 → 自由分析交付 → Casebook 链路完成并验收，正式回归 176 项全部通过。看板保持静态图表定位，原定看板与监控最终产物统一改造已取消；案例提醒、指标关联与 Business MCP 无当前需求，不计为未完成工程。本阶段无待施工任务，正常使用中出现具体问题再另行立项。详见 [阶段计划与验收记录](./Agent_架构演进施工计划.md)。
+2026-09-18 架构演进阶段已结束：公共证据合同及查询 → 自由分析交付 → Casebook 链路完成并验收，正式回归 176 项全部通过。看板保持静态图表定位，原定看板与监控最终产物统一改造已取消；案例提醒、指标关联与 Business MCP 无当前需求，不计为未完成工程。本阶段无待施工任务，正常使用中出现具体问题再另行立项。详见 [阶段计划与验收记录](agent-architecture-plan-20260918.md)。
 
 项目主线已完成 Data Platform、Business Pack、Company Bridge、Bridge 对齐向导、工作区建模、Casebook/内测反馈和双宿主交付验证。业务核心保持宿主无关；调用者按任务选择模块 Agent，分别进入工作区建模、Bridge 对齐、受控分析、案例沉淀、文件交付或看板发布。
 
@@ -24,9 +26,9 @@ doctor -> init -> import-data -> sync -> handoff -> 宿主 Agent 对齐 Bridge
 
 它不负责模型候选生成、自然语言确认、Bridge 问题回答或正式 Bridge finalize；这些仍由宿主原生 Agent 与 `interfaces.bridge_alignment` 完成。
 
-完整输入、输出和错误语义见 [首次部署引导层合同](./onboarding-contract.md)。
+完整输入、输出和错误语义见 [首次部署引导层合同](../onboarding-contract.md)。
 
-Codex 的自然语言入口见 [首次部署自然语言 Skill](../.agents/skills/first-deployment-onboarding/SKILL.md)。用户可以直接说“帮我首次部署”“导入这批数据”或“建立 Bridge”，由 Skill 调用确定性引导 CLI 并在需要时逐步询问。
+Codex 的自然语言入口见 [首次部署自然语言 Skill](../../.agents/skills/first-deployment-onboarding/SKILL.md)。用户可以直接说“帮我首次部署”“导入这批数据”或“建立 Bridge”，由 Skill 调用确定性引导 CLI 并在需要时逐步询问。
 
 - 运行使用显式 `run_id`；查询和恢复使用显式 `snapshot_id`。
 - Data Platform 只负责原始 landing、身份、质量和只读查询，不理解教育业务。
@@ -90,11 +92,11 @@ Codex 的自然语言入口见 [首次部署自然语言 Skill](../.agents/skill
 
 ## 技术依据
 
-- [系统架构](./architecture.md)
-- [接入指南](./integration-guide.md)
-- [Company Bridge v1 合同](./company-bridge-contract.md)
-- [Bridge 对齐向导 v1 合同](./bridge-alignment-wizard-contract.md)
-- [Casebook、内测回收与引导路由合同](./casebook-pilot-contract.md)
+- [系统架构](../architecture.md)
+- [接入指南](../integration-guide.md)
+- [Company Bridge v1 合同](../company-bridge-contract.md)
+- [Bridge 对齐向导 v1 合同](../bridge-alignment-wizard-contract.md)
+- [Casebook、内测回收与引导路由合同](../casebook-pilot-contract.md)
 
 ## BI 日更滚动合并（2026-09-16）
 

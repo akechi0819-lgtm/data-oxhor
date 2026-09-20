@@ -201,4 +201,4 @@ Bridge 对齐向导把这条人工门禁产品化：宿主原生 Agent 的模型
 
 日报明细候选把三件事拆开：`现金收入/报入现金收入/实缴金额` 的正负值用于净现金有符号求和；只有 `退班退费`、`储值账户退费`、`返款退费` 等明确业务形式，或排除“放储值/转班/重报”后的明确原因，才归为退款；`转出`、`转入`、`退班放储值`、转班/退班重报归为 `adjustment`。用户已确认退款规则，且付款人统计沿用学员身份；1500 人头资格门槛仍不进入 Bridge。
 
-当前工作区使用 `artifacts/company_bridge/bridges/company_bridge.bi_operations.v1_2_0.json`，并在 `snapshot_bi_work_order_id_20260904` 上通过兼容性校验；历史候选、旧列序和数值化 ID 不得作为当前事实。
+参考文件已迁至 `tests/fixtures/company_bridge/company_bridge.bi_operations.v1_2_0.json`，仅供测试，不代表当前业务 Bridge。历史上该版本曾在 `snapshot_bi_work_order_id_20260904` 验证；实际运行必须读取显式工作区当前已确认的正式 Bridge 并验证当前 Snapshot，历史候选、旧列序和数值化 ID 不得作为当前事实。

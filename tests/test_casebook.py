@@ -25,7 +25,7 @@ class CasebookTests(unittest.TestCase):
         root = parent / company_id
         (root / "Work" / "Bridge").mkdir(parents=True)
         (root / "Work" / "Pack").mkdir(parents=True)
-        bridge = json.loads(Path("artifacts/company_bridge/bridges/company_bridge.bi_operations.v1_1_0.json").read_text(encoding="utf-8"))
+        bridge = json.loads(Path("tests/fixtures/company_bridge/company_bridge.bi_operations.v1_1_0.json").read_text(encoding="utf-8"))
         bridge["company_id"] = company_id
         (root / "Work" / "Bridge" / "reference.json").write_text(json.dumps(bridge), encoding="utf-8")
         shutil.copyfile("workspace_modeling/business_pack/packs/education_training_operations_cn/pack.json", root / "Work" / "Pack" / "pack.json")

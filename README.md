@@ -10,7 +10,6 @@ Data OXHor 是面向教育运营团队的模块化运营数据中台。它把数
 data_acquisition/    数据来源接入、认证和导入任务
 data_platform/       landing、Snapshot、质量检查和受控只读查询
 workspace_modeling/  Business Pack、Company Bridge、工作区、Casebook 和首次部署
-analysis_product/    自由分析的确定性扩展边界，当前无内置 PPT 实现
 dashboard_product/   固定口径看板的刷新和四分册发布
 monitoring_product/  人员进度监控、受控明细查询和钉钉日报
 market_workspace/    市场日常启动入口：自由分析、导表、程序和临时脚本
@@ -18,7 +17,9 @@ interfaces/          对外 CLI 边界
 project_intelligence/ 项目级只读上下文服务（Python API / CLI / stdio MCP）
 customers/           按公司隔离的 Input/Work/Output 工作区
 agents/              可单独选择的模块 Agent 说明，不含总路由 Agent
-docs/                合同、架构、接入、运维和用户文档
+docs/                现行合同和指南；history/ 保存历史记录
+grok_workspace/      Grok Bot 隔离工作面，角色与自主积累材料不进入核心模块
+.local/              本地日志、同步中转和历史运行材料，不进入 Git
 ```
 
 监控与看板并列运行：`daily_monitor → monitoring_product → Data Platform`，共享业务配置放在 `workspace_modeling/operations/`。
@@ -35,7 +36,7 @@ docs/                合同、架构、接入、运维和用户文档
        ad_hoc_analysis Agent                         dashboard_publisher Agent
        查询、诊断和按需交付                         固定查询、看板刷新和发布
               |                                               |
-       analysis_product / Casebook                    dashboard_product
+       workspace_modeling.delivery / Casebook                    dashboard_product
 ```
 
 ## 如何使用
@@ -62,7 +63,7 @@ docs/                合同、架构、接入、运维和用户文档
 
 ## 阶段状态
 
-本阶段架构演进已结束：查询证据留存、自由分析报告组包和 Casebook 归档验证已完成。看板保持静态图表，监控维持现有产物，不继续为统一格式扩建。没有已排期的后续施工；新问题按实际需求处理。记录见 [施工计划与验收](./docs/Agent_架构演进施工计划.md)。
+本阶段架构演进已结束：查询证据留存、自由分析报告组包和 Casebook 归档验证已完成。看板保持静态图表，监控维持现有产物，不继续为统一格式扩建。没有已排期的后续施工；新问题按实际需求处理。历史记录见 [施工计划与验收](./docs/history/agent-architecture-plan-20260918.md)。
 
 ## 常用入口
 

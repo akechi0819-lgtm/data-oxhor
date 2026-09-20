@@ -125,6 +125,6 @@ class NotifyCliTest(unittest.TestCase):
             self.assertNotIn('杨新宇', youth)
             self.assertIn('现金目标', youth)
             self.assertNotIn('人头目标', youth)
-            self.assertIn('李进', university)
+            self.assertNotIn('李进', university)
             self.assertIn('人头目标', university)
             self.assertNotIn('现金目标', university)

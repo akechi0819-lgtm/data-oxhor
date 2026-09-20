@@ -3,6 +3,10 @@ from pathlib import Path
 
 PEOPLE_CONFIG_PATH = Path(__file__).with_name("people.json")
 BUSINESS_GROUP_BY_ROSTER_GROUP={'青少组':'留学预备','小初提能组':'留学预备','高中组':'高中','高中多途径组':'高中','国际学校择校组':'高中','大学组':'大学'}
+HIDDEN_PERSON_STATUSES = frozenset({'vacant', 'departed', 'transferred'})
+
+def is_displayable_person(person):
+    return bool(person.get('display_name')) and person.get('status') not in HIDDEN_PERSON_STATUSES
 
 def date_to_perf_month(date_str):
     """将日期转换为绩效月（YYYY-MM格式）

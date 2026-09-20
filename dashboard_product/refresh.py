@@ -4,8 +4,16 @@ from pathlib import Path
 from data_platform.query.evidence import read_query_result
 from datetime import datetime,timezone
 from uuid import uuid4
-from workspace_modeling.operations.personnel import BUSINESS_GROUP_BY_ROSTER_GROUP, PEOPLE_CONFIG_PATH, date_to_perf_month, match_person_names
+from workspace_modeling.operations.personnel import BUSINESS_GROUP_BY_ROSTER_GROUP, PEOPLE_CONFIG_PATH, date_to_perf_month, is_displayable_person, match_person_names
 ROOT=Path(__file__).parent
+DASHBOARD_QUERY_ID='dashboard_actuals'
+DASHBOARD_QUERY_VERSION='v10'
+DASHBOARD_SAVED_QUERY=f'{DASHBOARD_QUERY_ID}/{DASHBOARD_QUERY_VERSION}'
+DASHBOARD_QUERY_COLUMNS=(
+    'event_date','team_id','business_group','first_channel','second_channel',
+    'campaign_name','entry_person','school_name','grade_name','metric',
+    'actual_value','student_id',
+)
 TEAMS=[('offline_market','线下市场'),('online_private','线上私域（虚拟人团队）'),('online_platform','线上平台')]
 MONTHS=[f'2026-{m:02d}' for m in range(6,13)]+[f'2027-{m:02d}' for m in range(1,6)]
 PRIOR_MONTHS=[f'2025-{m:02d}' for m in range(6,13)]+[f'2026-{m:02d}' for m in range(1,6)]
@@ -30,8 +38,45 @@ def remap_tmk_school_agent_team(team, first_channel, campaign, entry_person, off
     return team
 
 def read(p): return json.loads(Path(p).read_text(encoding='utf-8'))
+
+def _artifact_receipt_path(artifact_path, query_result):
+ receipt=query_result.get('receipt')
+ if isinstance(receipt,dict): receipt=receipt.get('path')
+ if not receipt: return None
+ path=Path(receipt)
+ if path.is_absolute(): return path
+ root=Path(artifact_path).parent
+ candidates=[root/path]
+ if query_result.get('run_id'):
+  candidates.insert(0,root/query_result['run_id']/path)
+ return next((candidate for candidate in candidates if candidate.is_file()),candidates[0])
+
+def validate_publish_artifact(artifact_path):
+ artifact_path=Path(artifact_path)
+ artifact=read(artifact_path)
+ query_results=artifact.get('query_results') or []
+ if len(query_results)!=2:
+  raise ValueError(f'publish requires two {DASHBOARD_SAVED_QUERY} results; got {len(query_results)}')
+ for index,query_result in enumerate(query_results,1):
+  if query_result.get('status')!='passed':
+   raise ValueError(f'query result {index} is not passed')
+  columns=query_result.get('columns') or (query_result.get('result') or {}).get('columns')
+  if tuple(columns or ())!=DASHBOARD_QUERY_COLUMNS:
+   actual=','.join(columns or ()) or '<missing>'
+   expected=','.join(DASHBOARD_QUERY_COLUMNS)
+   raise ValueError(f'query result {index} is not {DASHBOARD_SAVED_QUERY}; expected columns {expected}, got {actual}')
+  receipt_path=_artifact_receipt_path(artifact_path,query_result)
+  if receipt_path is None or not receipt_path.is_file():
+   raise ValueError(f'query result {index} is missing its query receipt')
+  receipt=read(receipt_path)
+  saved=receipt.get('saved_query_ref') or {}
+  actual=f"{saved.get('query_id')}/{saved.get('version')}"
+  if actual!=DASHBOARD_SAVED_QUERY:
+   raise ValueError(f'query result {index} references {actual}; publish requires {DASHBOARD_SAVED_QUERY}')
+ return {'status':'artifact_validated','artifact':str(artifact_path),'saved_query':DASHBOARD_SAVED_QUERY}
+
 def run(ws,rid,snap,out,a,b):
- c=read(ws/'Work/workspace.json'); z=subprocess.run(['python3','-m','interfaces.data_platform','run-saved-query','--warehouse',str(ws/c['current_warehouse_path']),'--snapshot-id',snap,'--run-id',rid,'--output-root',str(out),'--registry-root',str(ws/'Work/SavedQueries'),'--query-id','dashboard_actuals','--version','v10','--params-json',json.dumps([a,b]),'--max-rows','50000','--max-result-bytes','10000000'],cwd=ROOT.parent,capture_output=True,text=True); r=json.loads(z.stdout or '{}')
+ c=read(ws/'Work/workspace.json'); z=subprocess.run(['python3','-m','interfaces.data_platform','run-saved-query','--warehouse',str(ws/c['current_warehouse_path']),'--snapshot-id',snap,'--run-id',rid,'--output-root',str(out),'--registry-root',str(ws/'Work/SavedQueries'),'--query-id',DASHBOARD_QUERY_ID,'--version',DASHBOARD_QUERY_VERSION,'--params-json',json.dumps([a,b]),'--max-rows','50000','--max-result-bytes','10000000'],cwd=ROOT.parent,capture_output=True,text=True); r=json.loads(z.stdout or '{}')
  if z.returncode != 0 or r.get('status')!='passed': raise ValueError(f"Query failed: {r.get('errors')} | stderr: {z.stderr}")
  r['result'] = read_query_result(r, output_root=out)
  return r
@@ -46,7 +91,7 @@ def project(q,p,tg,people,capacity=None):
    group_business_group=BUSINESS_GROUP_BY_ROSTER_GROUP.get(group_config.get('display_name'))
    for person in group_config.get('members',[]):
     person_name=person.get('display_name')
-    if not person_name or person.get('status') == 'vacant': continue
+    if not is_displayable_person(person): continue
     configured_people.append((team_config['team_id'], person.get('business_group') or group_business_group, person_name))
  offline_names={name for configured_team,_,name in configured_people if configured_team=='offline_market'}
 
@@ -114,7 +159,7 @@ def project(q,p,tg,people,capacity=None):
     for g in t.get('groups',[]):
      for person in g.get('members',[]):
       person_name = person.get('display_name')
-      if person.get('status') == 'vacant':
+      if not is_displayable_person(person):
        continue
       # 添加月度数据
       monthly_cash = [per_monthly.get((tid,person_name,m,'passive_reported_cash'),0) for m in MONTHS]
@@ -205,13 +250,15 @@ def render_all_booklets(artifact):
 def main():
  p=argparse.ArgumentParser(); s=p.add_subparsers(dest='c',required=True)
  r=s.add_parser('refresh'); r.add_argument('--workspace',type=Path,required=True); r.add_argument('--run-id',required=True)
- r=s.add_parser('render'); r.add_argument('--artifact',type=Path,required=True)
+ render_parser=s.add_parser('render'); render_parser.add_argument('--artifact',type=Path,required=True)
+ validate_parser=s.add_parser('validate-publish-artifact'); validate_parser.add_argument('--artifact',type=Path,required=True)
  from dashboard_product.booklets import BOOKLET_IDS
- r.add_argument('--booklet',choices=list(BOOKLET_IDS))
- r.add_argument('--all-booklets',action='store_true')
- r.add_argument('--output',type=Path)
+ render_parser.add_argument('--booklet',choices=list(BOOKLET_IDS))
+ render_parser.add_argument('--all-booklets',action='store_true')
+ render_parser.add_argument('--output',type=Path)
  x=p.parse_args()
  if x.c=='refresh': z=refresh(x.workspace,x.run_id)
+ elif x.c=='validate-publish-artifact': z=validate_publish_artifact(x.artifact)
  elif x.all_booklets:
   if x.booklet or x.output: p.error('use --all-booklets without --booklet/--output')
   z=render_all_booklets(x.artifact)

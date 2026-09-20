@@ -49,8 +49,8 @@ class DigestTest(unittest.TestCase):
     def test_resource_desc_fallback_covers_typo_campaign_and_embedded_name(self):
         from workspace_modeling.operations.personnel import match_person_names
         from monitoring_product.digest import ledger_attributions
-        university = ['李进', '师顺盈', '石仁达', '翟昕羽', '曹恒玮']
-        high_school = ['谷志文', '于洋', '杨新宇']
+        university = ['师顺盈', '石仁达', '翟昕羽', '曹恒玮']
+        high_school = ['谷志文', '杨新宇']
         youth = ['王昊', '马澳', '张钦莉']
         ding = match_person_names(
             university,
@@ -70,11 +70,11 @@ class DigestTest(unittest.TestCase):
             '刘炫麟',
             'TMK激活分配产生的资源；杜晓蕾暂时不需要，发学习资料2026.06.16-HGK-其他-【本地】毛坯-异业渠道L推荐后高考资源-师顺盈-线下渠道推荐 外呼主题：批量导入-TMK汪洋录入20260617加微返打',
         )
-        school_agent = match_person_names(university, '2027财年第4财月91校代系统资源活动', '彭仪静', '市场人员：李进 备注：校代推荐')
+        school_agent = match_person_names(university, '2027财年第4财月91校代系统资源活动', '彭仪静', '市场人员：石仁达 备注：校代推荐')
         self.assertEqual(ding, ['曹恒玮'])
         self.assertEqual(yao, ['曹恒玮'])
         self.assertEqual(liu, [])
-        self.assertEqual(school_agent, ['李进'])
+        self.assertEqual(school_agent, ['石仁达'])
         self.assertEqual(match_person_names(high_school, None, '别人', '市场人员：杨新宇 备注：高中外展'), ['杨新宇'])
         self.assertEqual(match_person_names(youth, '无关活动', '王昊', None), ['王昊'])
         people = [
@@ -253,16 +253,16 @@ class DigestTest(unittest.TestCase):
         cash = {
             'columns': ['归属人', '学员编号', '报入现金收入'],
             'rows': [
-                ['李进', 'S1', '13000'],
-                ['李进', 'S1', '8000'],
-                ['李进、师顺盈', 'S2', '15000'],
+                ['高勃然', 'S1', '13000'],
+                ['高勃然', 'S1', '8000'],
+                ['高勃然、师顺盈', 'S2', '15000'],
                 ['师顺盈', '', '9000'],
                 ['未归属', 'S3', '12000'],
                 ['石仁达、翟昕羽、曹恒玮', 'S4', '11000'],
             ],
         }
         counts = count_heads_by_owner(cash)
-        self.assertEqual(counts['李进'], 1.5)
+        self.assertEqual(counts['高勃然'], 1.5)
         self.assertEqual(counts['师顺盈'], 0.5)
         self.assertNotIn('未归属', counts)
         self.assertAlmostEqual(counts['石仁达'], 1 / 3)
@@ -273,7 +273,7 @@ class DigestTest(unittest.TestCase):
             'remaining_workdays': 10,
             'secondary_metric': 'heads',
             'people': [{
-                'display_name': '李进', 'business_group': '大学',
+                'display_name': '高勃然', 'business_group': '大学',
                 'orders_target': 135, 'orders_actual': 30, 'orders_completion': 30 / 135,
                 'heads_target': 30, 'heads_actual': 0, 'heads_completion': None,
                 'cash_target': 390000, 'cash_actual': 0, 'cash_completion': None,
@@ -282,7 +282,7 @@ class DigestTest(unittest.TestCase):
             }],
             'behind': [],
             'warehouse': {
-                'orders': {'columns': ['归属人', 'ID'], 'rows': [['李进', '1']] * 80},
+                'orders': {'columns': ['归属人', 'ID'], 'rows': [['高勃然', '1']] * 80},
                 'cash': cash,
             },
         }

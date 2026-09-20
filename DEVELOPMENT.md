@@ -19,7 +19,7 @@
 
 ## 当前主线
 
-当前架构演进阶段经用户确认在第 2 轮后结束，没有本阶段待完成施工，已完成查询、自由分析交付与 Casebook 证据链。用户确认现有静态看板和简单对账够用，常见差异多在人工录入或口径，因此取消看板、监控最终产物统一改造；当时案例提醒与指标执行关联均待真实需求验证，不再按固定轮次自动施工。此次用户接受新核查后的有限修复：修正来源提取、补分析结束提醒与纯文字保存说明、统一扩展边界；不恢复原六轮计划，指标执行关联继续不排期。最新安排见 [施工计划](./docs/Agent_架构演进施工计划.md)。看板继续按已确认指标和 SQL 生成静态图表，不在刷新时临时改变业务口径。
+当前架构演进阶段经用户确认在第 2 轮后结束，没有本阶段待完成施工，已完成查询、自由分析交付与 Casebook 证据链。用户确认现有静态看板和简单对账够用，常见差异多在人工录入或口径，因此取消看板、监控最终产物统一改造；当时案例提醒与指标执行关联均待真实需求验证，不再按固定轮次自动施工。此次用户接受新核查后的有限修复：修正来源提取、补分析结束提醒与纯文字保存说明、统一扩展边界；不恢复原六轮计划，指标执行关联继续不排期。原阶段历史见 [施工计划](./docs/history/agent-architecture-plan-20260918.md)。看板继续按已确认指标和 SQL 生成静态图表，不在刷新时临时改变业务口径。
 
 自由分析主线继续使用 `data_platform` 的显式 `run_id`、`snapshot_id` 和受控查询；表格/图表使用宿主原生能力，PPT 由宿主全局 `ppt-master` 按需选择 Quick 或 Default。项目内置 Quick 编排和固定 PPT Master 副本已拆除。
 
@@ -50,6 +50,16 @@ git diff --check
 ```
 
 ## 决策记录
+
+### 2026-09-18：物理目录收口与 Grok 工作面隔离
+
+- 用户授权一次性调整目录，不保留旧目录、转发文档、兼容导入或软链；本次不改变看板公式、SQL 计算、人员归属及业务口径。
+- 删除无功能的 `analysis_product` 占位包；分析组包仍由 `workspace_modeling.delivery` 承担。
+- 当前状态统一在本文件；项目交接和已结束架构计划归 `docs/history/`，看板历史调查与施工文档归 `docs/history/dashboard/`。两份既有王越目标记录完整保留，仍是历史记录。
+- 看板稳定产品边界归模块 README，现行账号与分册操作归 DEPLOYMENT；历史记录里的线上状态、账户配置和快照不被视为本轮实时核查结果。
+- Grok Bot 的角色合同与自主积累材料隔离到 `grok_workspace/`，不再构成项目根规则；项目级中转、日志与历史运行材料归 `.local/` 并忽略入 Git。客户数据工作区与市场工作面保持原位。
+- Bridge 参考 JSON 迁至 `tests/fixtures/company_bridge/`；测试资产不得充当业务工作区当前口径。现行运行示例要求显式指定已确认的正式 Bridge。
+- 验收：本机 180 项全量回归通过且无跳过，27 份受保护 SQL/计算/规则/既有 BI 文件哈希不变；迁移文件逐项验证，Excel/PPT 内容与外部依赖检查通过。既有只读 MCP 已重载并核对新模块清单。云端已建立自管区、收到结构包；Mac 锁屏阻断界面收尾，最终云端回执仍待核验，未提前声明完成。详见 [本次整理记录](docs/history/structure-cleanup-20260918.md)。此次不恢复已取消的六轮架构扩建。
 
 ### 2026-09-18：核查后的最小连接修复
 
@@ -121,7 +131,7 @@ git diff --check
 - 决定：在 `agents/` 下按工作区初始化、自由分析、看板发布和日常监控提供独立 Agent 文件；项目不提供一个负责跨模块分派的主 Agent。
 - 原因：未来运营中台由多个智能体协作或分别运行，模块边界应由调用者选择，而不是再次形成单体路由上下文。
 - 影响：新需求依次评估复用已有模块、扩展已有接口、新增模块、新增 Agent；只有前三者不能满足且职责、权限边界或运行周期确有独立需求时，才评估新增 Agent 说明，不按每个业务需求自动增加 Agent，也不把运行逻辑塞入根目录。
-- 验证：目录结构与 `data_acquisition`、`data_platform`、`workspace_modeling`、`analysis_product`、`dashboard_product` 现有代码边界一致。
+- 当时验证：目录结构与 `data_acquisition`、`data_platform`、`workspace_modeling`、`analysis_product`、`dashboard_product` 当时代码边界一致；空占位 `analysis_product` 已在 2026-09-18 物理整理中删除。
 
 ### 2026-09-07：根目录文档分层
 
@@ -136,11 +146,11 @@ git diff --check
 - 影响：云电脑独立运行必须单独同步 `.env.server`。缺 webhook 的通道跳过。不建设本机↔Grok 双向 MCP。
 - 验证：`python3 -m unittest discover -s dashboard_product/tests -v`；`tests/platform/test_query_service.py` 覆盖 Saved Query 可在另一合法 Snapshot 上运行。
 
-### 2026-09-09：同比四组与现金跨月个人归属
+### 2026-09-09：同比四组与现金跨月个人归属（历史版本记录）
 
-- 决定：刷新改消费 `dashboard_actuals/v7`。目标区仍按留学预备/高中/大学；渠道同比和年级同比拆成青少、初中、高中、大学。现金业务组只看现金表团队。钉钉现金归属按工单 ID 回查全量工单，不限本绩效月。
+- 决定：当时刷新切换到一版新的 `dashboard_actuals` 查询。目标区仍按留学预备/高中/大学；渠道同比和年级同比拆成青少、初中、高中、大学。现金业务组只看现金表团队。钉钉现金归属按工单 ID 回查全量工单，不限本绩效月。该版本已被后续当前合同取代。
 - 原因：签约月和开单月经常错开；留学预备目标不能再混进同比年段。
-- 影响：云端 overlay 必须带 v7 SQL 和 `notify_work_orders_by_ids.sql`。刷新产物必须带 `yoy_groups`，渲染器不再给旧 artifact 补空年段，也不能把留学预备当同比行。
+- 影响：当时云端 overlay 必须同步对应 SQL 和 `notify_work_orders_by_ids.sql`。刷新产物必须带 `yoy_groups`，渲染器不再给旧 artifact 补空年段，也不能把留学预备当同比行。
 - 验证：`python3 -m unittest discover -s dashboard_product/tests -v`。
 
 ### 2026-09-10：大学钉钉人头与线上私域花名册
@@ -150,9 +160,9 @@ git diff --check
 - 影响：云端 A 层 overlay 必须含 `digest.py`、`notify_render.py`、`people.json`。C 层 `.env.server` 必须重新 CopyToBox，否则云电脑发不出虚拟人/大学群。看板 HTML 要等下一次 refresh 才会换名。
 - 验证：`python3 -m unittest discover -s dashboard_product/tests -v`。
 
-### 2026-09-09：删除废弃看板版本与兼容层
+### 2026-09-09：删除废弃看板版本与兼容层（历史版本记录）
 
-- 决定：运行时只保留 `dashboard_actuals/v7`。删除空的 v1–v5 Saved Query 目录、旧业务组分册过滤器和前端空 `yoy_groups` 补丁。`attributed_passive_reported_cash/v1` 仍是现行逐笔底稿。
+- 决定：当时运行时只保留上一条记录中的新查询版本。删除空的旧 Saved Query 目录、旧业务组分册过滤器和前端空 `yoy_groups` 补丁。`attributed_passive_reported_cash/v1` 仍是现行逐笔底稿。该决定只描述当日历史状态。
 - 原因：项目不保留向后兼容；旧目录和兼容层会让下一轮误把 v6 或空年段当成现行合同。
 - 影响：`liuxue` / `gaozhong` / `daxue` 不再有过滤入口。刷新产物缺少 `yoy_groups` 时同比表为空，不会补四个空年段。
 - 验证：`python3 -m unittest discover -s dashboard_product/tests -v`；`python3 -m unittest tests.bridge.test_reviewed_artifact -v`。
@@ -232,3 +242,11 @@ git diff --check
 - 云端最终 39/39 文件哈希与已提交包一致；7 份旧文档在本机审查后按精确处理清单替换，无剩余跳过。分析角色已获知共享合同路径。
 - 云端验收 105 项通过（warehouse 56、监控 19、看板 30），CLI 与导入路径通过；未修改业务 SQL/花名册/例行或 B/C，未进行生产刷新发布发送。
 - 完整证据及限制见 [云端同步验收](docs/evidence-cloud-deployment.md)。本条是同步记录，不恢复先前取消的架构施工。
+
+
+### 2026-09-20：看板发布门禁与人员花名册同步
+
+- 当前看板刷新合同唯一为 `dashboard_actuals/v10`，刷新输出必须是 12 列结果并带同一查询回执；发布脚本在渲染前校验 Saved Query、列结构和回执，旧 artifact 会直接阻断，不再允许通过 `ARTIFACT_JSON` 绕过刷新门禁。
+- 误用原因：代码主路径早已切到当前查询，但开发决策记录仍把早期版本写成“运行时只保留”，而 `.local/sync/outbox` 还保留旧版本发布包；显式传入旧 artifact 时原脚本没有版本校验。
+- 人员口径以共享 `people.json` 为准：王欣庆、于洋标记离职，李进标记转岗；三人不再展示、不进入监控通道花名册、不再作为线下校代资源的当前归属候选，也清除其当前月度目标。监控 SQL 与看板共用同一隐藏状态边界。
+- 验证：看板和监控单测、全量测试、旧 artifact 发布门禁回归，以及 Git 差异检查均须通过；本地旧版本发布包移出同步中转目录，不作为运行输入。

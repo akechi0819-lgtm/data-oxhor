@@ -119,7 +119,7 @@ Data Platform v2 将每个 Sheet 按实际表头名原样落入 landing，并在
 
 ## 6. 输出和交互
 
-自由分析的调用说明位于 `agents/ad_hoc_analysis/AGENT.md`，宿主 Skill `.agents/skills/business-analysis-routing` 提供更细的调用步骤；确定性交付组包已由 `workspace_modeling.delivery` 实现，`analysis_product/` 当前不承载组包或 PPT 实现，不作为另建交付模块的施工要求。Agent 文件是可选择的运行合同，不实现项目内 Agent Loop、Session 或模型路由。
+自由分析的调用说明位于 `agents/ad_hoc_analysis/AGENT.md`，宿主 Skill `.agents/skills/business-analysis-routing` 提供更细的调用步骤；确定性交付组包已由 `workspace_modeling.delivery` 实现；空占位包 `analysis_product/` 已删除，不恢复独立交付占位模块。Agent 文件是可选择的运行合同，不实现项目内 Agent Loop、Session 或模型路由。
 
 Codex、DeepSeek Harness 等宿主已具备 HTML、图表和文件生成/交付能力。表格和可视化先复用宿主能力；PPT 由宿主全局 `ppt-master` 负责方法、路由、模板和质量门禁。PPT 交付不固化教育业务页序，也不在项目中复制全局 Skill。只有出现宿主无法满足的可复现文件正确性问题时，才增加最小确定性工具。当前不建设独立 Renderer 或 Deliverables 平台。
 

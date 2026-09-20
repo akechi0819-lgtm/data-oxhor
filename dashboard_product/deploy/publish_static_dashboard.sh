@@ -38,6 +38,7 @@ fi
 test -s "$artifact"
 # Render team-board booklets from the same full artifact. Do not upload artifact.json.
 cd "$PROJECT_ROOT"
+python3 -m dashboard_product.refresh validate-publish-artifact --artifact "$artifact"
 python3 -m dashboard_product.refresh render --artifact "$artifact" --all-booklets
 
 html_dir="$(cd "$(dirname "$artifact")" && pwd)"

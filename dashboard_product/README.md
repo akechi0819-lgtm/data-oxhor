@@ -25,7 +25,7 @@ python3 -m dashboard_product.online_market_render \
   --artifact <output-dir>/online_market_artifact.json
 ```
 
-刷新消费 `dashboard_actuals/v10`，通过 Data Platform 受控查询读取当前 Snapshot。市场总计保留全部有效事实；项目、团队、渠道、顾问和人员仅使用严格归属。无法映射业务组的事实标记为“业务组暂无法拆分”；工单 ID 为空或无法精确匹配的现金在渠道与顾问下标记为“渠道/顾问暂无法拆分”，两者都不强行分配给团队或个人。生成 `full.html`、`online_private.html`、`online_platform.html`、`offline_market.html`；公网仅托管分册 HTML，不上传全量 artifact。定时仍由外部宿主调用 `deploy/publish_static_dashboard.sh`。
+当前发布基线为 2026-09-20：主看板产品已包含 v10 之后的证据链接入、线上影子看板和发布链更新；主看板事实查询合同仍为 `dashboard_actuals/v10`，不以查询版本号代替产品发布状态。刷新通过 Data Platform 受控查询读取当前 Snapshot。市场总计保留全部有效事实；项目、团队、渠道、顾问和人员仅使用严格归属。无法映射业务组的事实标记为“业务组暂无法拆分”；工单 ID 为空或无法精确匹配的现金在渠道与顾问下标记为“渠道/顾问暂无法拆分”，两者都不强行分配给团队或个人。生成 `full.html`、`online_private.html`、`online_platform.html`、`offline_market.html`；公网仅托管分册 HTML，不上传全量 artifact。定时仍由外部宿主调用 `deploy/publish_static_dashboard.sh`。
 
 ## 配置与边界
 
@@ -55,6 +55,7 @@ python3 -m unittest discover -s dashboard_product/tests -v
 - “工单是否精确匹配”与“业务组是否明确”是不同条件，未归属事实保留在市场总计，不静默丢弃，也不默认分给线上平台。
 - 刷新只消费 `dashboard_actuals/v10`，参数为 `[start_date, end_date]`，第 12 列为 `student_id`。`attributed_passive_reported_cash/v1` 是独立逐笔核对底稿，不替代看板实际归属合同；对账须说明所用查询与口径。
 - 个人归属沿用现有活动名、市场人员、资源描述和录入人规则。`TMK激活-平台`、活动含 `校代系统资源` 且市场人员属于线下花名册的归属规则仍在现有实现中；调整人员时须核对共享花名册及监控 SQL，不能只改文档。
+- 当前人员展示和归属候选统一使用 `personnel.is_displayable_person`；`vacant`、`departed`、`transferred` 不进入看板或监控花名册，监控 SQL 的线下名单必须同步当前可展示花名册。
 - 人员产能使用配置中的标准产能，展示现金、时间进度及六维指标；不因此触发钉钉。看板发布与监控发送权限独立。
 - 人员目标和组织配置以当前 `workspace_modeling/operations/people.json` 为准；历史记录中的人员名单、配置完成度、Webhook 状态不代表当前实查结果。
 - 发现“员工自报 10 条、图表 9 条”等差异，先按明细检查录入、时间与归属口径，再判断是否为实现缺陷。历史接受的金额差异不作为新 Snapshot 的默认豁免。

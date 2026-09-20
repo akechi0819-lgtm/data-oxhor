@@ -1,115 +1,50 @@
-# Data OXHor 同步合同（强制）
+# Data OXHor 同步边界
 
-> 状态：强制合同（阶段 D，2026-09-07）。全员 Bot 必须遵守。  
-> 真源底稿：本机 `/Users/akechi/Desktop/manager -CowH`  
-> 云电脑布局：`/home/box/oxhor/{warehouse,dashboard,analysis,monitor}`  
-> 本文优先于各 ROLE 里过时的「本轮未拷」叙述；冲突时以本文 + 显式 `snapshot_id` 为准。
+本机核心源码是 `/Users/akechi/Desktop/manager -CowH`。同步按明确文件清单与 SHA-256 执行，不将云端角色积累、临时程序或工作数据混入核心代码。
 
----
+## 内容分层
 
-## 1. 分层（禁止混传）
+| 内容 | 存放与同步规则 |
+|---|---|
+| A：已审查核心代码、合同、非密钥配置与正式查询 | 本机明确发布包同步到云端；云端必要核心修复先进入本机 inbox 审查，不直接覆盖源码 |
+| B：客户输入、工作区、Snapshot 和正式成果 | 保留原 customers 身份与目录；例行回写只按明确 workspace、snapshot_id、run_id，禁止 latest/目录时间猜测 |
+| C：密钥、凭据、登录态 | 独立通道和明确授权；不进 Git、常规包、公开仓或聊天。现有生效凭据路径不随本轮调整 |
+| Grok 自管材料 | 存入独立 grok_workspace，Grok 自行维护；不默认当作核心 A 层，不自动回灌核心 checkout |
 
-| 层 | 内容（示例） | 默认同向 | 红线 |
-|---|---|---|---|
-| **A 代码/合同/配置** | `data_*`、`interfaces`、`tools`、`workspace_modeling`、`dashboard_product`、`agents/*/AGENT.md`、`ROLE.md`、`SYNC.md`、saved query、非密钥 config | 双向可同步；云侧改动日更回本机 | 不经公开仓推经营数据 |
-| **B customers 数据** | `customers/*/Work`、`Output`、snapshots、duckdb、采集落地 | **云→本机回写**（日更）；本机→云仅显式迁移/补洞 | 禁 `latest`；冲突以**显式 snapshot_id** 为准 |
-| **C 密钥/登录态** | `.env.server`、cookies、localStorage、browser_profiles、token | **单独通道**；默认不进例行全量包 | 禁贴聊天；禁进公开 `data-oxhor`；禁进私密中转仓除非用户显式授权且短期删除 |
+## 本机物理目录
 
-分层规则：
-- 打包/回写必须分层声明，不得把 C 混进 A/B 常规包。
-- B 层回写按 workspace + 显式 `snapshot_id` / `run_id` 对齐；禁止依赖「当前 latest」语义。
-- A 层改动（含云上 `pyproject.toml` 热修）应回写本机，避免双底稿漂移。
+- `.local/sync/inbox/`：云端回传的 A/B 文件与验收回执，审查前不覆盖核心。
+- `.local/sync/outbox/`：本机发布的明确 A/B 包和清单。
+- `.local/sync/backup/`：同步过程中必要的本机备份，按批次验收后核销。
+- `.local/private/sync/`：按来源分类隔离的历史 C 层中转材料；不随上述目录整体传输。
+- `.local/history/`：从旧 runs/outputs 移入的本地历史成果；正式运行继续使用客户工作区 Output 或市场 Reports/Evidence。
+- `.local/logs/dashboard/`：本机看板发布日志；脚本在所选 PROJECT_ROOT 下采用这一默认路径，显式 LOG_DIR 仍可指定。
+- `grok_workspace/`：本机 Grok 自管工作面，只跟踪 README、AGENTS 和忽略规则；角色、笔记、程序和临时材料不进核心 Git。
 
----
+旧 `.writeback-inbox`、`.sync-outbox`、`.writeback-backup` 不再是入口，不保留软链或自动回退。一次性路径迁移清单放在 `.local/audits/structure-20260918/`，只作人工追溯，不参与运行时路径解析。
 
-## 2. 方向与频率
+## 云端边界
 
-| 方向 | 用途 | 频率 / 触发 |
-|---|---|---|
-| 本机 → 云 | 首次迁移、补洞、代码底稿更新 | 人工 / 赵高派工 |
-| **云 → 本机** | 日更回写（仓产物、合同修订、看板薄包非密钥变更） | **每天 00:00 Asia/Shanghai**（例行挂**牛马力工**；赵高不代挂） |
-| 私密中转仓 | 仅大包搬运缓冲 | 用完即弃语义；**非新真源** |
+现有 `/home/box/oxhor/warehouse`、`dashboard`、`monitor` 保留稳定代码、环境与运行入口；共享模块已有有效软链继续用于单一实现，不属于旧路径兼容。客户数据仍在 warehouse 管理，不为目录整理复制数仓或改变 Snapshot 指针。
 
-冲突裁决：
-1. 数据以**显式 `snapshot_id`**（及对应 `run_id`）为准；禁止用 `latest` /「最新文件夹名」猜。
-2. `workspace.json` 的 `current_snapshot_id` 必须与选定 snapshot 一致后再回写/发布。
-3. 同路径文件冲突：例行回写前比对 mtime/尺寸；不确定则**停手通知用户**，不覆盖本机未知改动。
-4. 本机 Codex 旧定时已停；云侧日更勿双刷。
+Grok 自管工作面采用 `/home/box/oxhor/grok_workspace/`。角色合同、临时脚本、笔记、试验及各自依赖可以在这里自行组织；核心项目不依赖这些临时代码。原岗位 ROLE 等材料收口到该区，由 Grok 自行调整读取路径；不要求与本机逐行一致，不把角色更名当成核心架构变更。
 
-例行回写执行人：牛马力工。首跑或用户另令前**不做全量回写**。
+这属于目录与发布隔离，不宣称同一用户进程受到 OS 硬沙箱限制。核心改动仍须有具体任务、可审查差异与验证结果，不能靠自管脚本静默改变 SQL、公式、人员归属或目标配置。
 
-通道注意：本机 ListMachines / CopyToBox 易被 Clash/VPN/系统代理打断；失败记日志并通知用户，不静默重试到损坏。Clash Party 覆写已把 `Grok Bot` / Helper / `CUGrokBotService` / `sand-op-launcher` 设为 `PROCESS-NAME,DIRECT`（TUN 模式才生效）。
+## 切换与验收
 
----
+1. 先核对实际目录、软链、版本和运行占用，再传明确清单。源文件比对使用 SHA-256；有未知修改先保留到 inbox 评审。
+2. 路径调整同批更新调用方、脚本、文档和例行任务中的对应路径。已有任务时间、业务参数、接收者与凭据授权不因整理改变；不新增重复任务。
+3. 看板 SQL、计算函数、人员规则和目标配置须与迁移前基线一致；移动文件核对字节，测试使用合成 fixture，未经任务要求不运行真实刷新、发布或群发。
+4. 更新后回传实际文件路径/hash、测试命令与结果、导入位置、例行路径实读和未完成项；口头完成不替代回执。
+5. 临时备份只用于本次失败恢复，验收后按明确清单核销，不作为旧版运行入口。历史证据、原始输入和凭据不得因目录名含 tmp/backup 就直接删除。
 
-## 3. 中转与公开仓红线
+Grok 的人员分工由 Grok 自行协调；涉及核心和运行路径的变更须完成上述核对，不建设跨宿主双向 MCP 或总 Agent。网络通道失败时记录并反馈，不静默反复传输；不自行切换系统代理或登录态。
 
-- **允许**：私密仓 `akechi0819-lgtm/oxhor-warehouse-xfer` **仅中转**本机↔云大包。
-- **禁止**：把 `customers/`、经营数据、密钥、登录态推进公开仓 `akechi0819-lgtm/data-oxhor`。
-- **禁止**：把私密中转仓当成新主仓或长期真源。
-- 公开仓只承载可对外的瘦身代码/文档。
+## 已完成记录
 
----
+- [监控模块云端部署](docs/monitoring-cloud-deployment.md)
+- [查询证据与来源修复同步](docs/evidence-cloud-deployment.md)
+- [旧同步合同归档](docs/history/sync-contract-through-20260918.md)
 
-## 4. 角色目录边界
-
-| 目录 | 角色 | 可写 | 只读/禁区 |
-|---|---|---|---|
-| `/home/box/oxhor/warehouse/` | 孙悟空（仓务）+ 牛马力工（环境/迁移） | 仓代码、venv、重建 snapshot、BI 会话写回 | 不发布看板；不改 dashboard `.env.server` |
-| `/home/box/oxhor/dashboard/` | 许家印（日刷）+ 牛马力工（接线） | refresh/render；（授权后）publish；读软链 customers | 不改数仓 snapshot 语义；密钥不外泄 |
-| `/home/box/oxhor/analysis/` | 弗洛伊德 | 分析产物（落地后） | 未迁完前占位；禁臆造因果当结论 |
-| `/home/box/oxhor/monitor/` | 魏忠贤 | 人员监控与既有授权日推，写本次输出 | 只读数仓/看板；不写仓、不发布看板 |
-
-软链约定：`dashboard/customers|interfaces|data_platform` → warehouse 对应路径；看板只读数仓。
-
-日更顺序（已挂）：约 **09:30** 仓重建 → 约 **10:00** 看板 refresh/render/真发。回写本机在 **00:00**，不与上述抢跑。
-
----
-
-## 5. 各 Bot 必须遵守（可贴进角色描述）
-
-1. 真源：本机底稿 ↔ 云 `/home/box/oxhor/`；私密仓只中转；禁推公开 `data-oxhor` 经营数据/密钥。  
-2. 分层传：代码/合同 ≠ customers 数据 ≠ 密钥登录态；C 层不进常规包、不进聊天。  
-3. 数据指认只用显式 `snapshot_id`（+`run_id`）；禁 `latest`。  
-4. 守目录：warehouse / dashboard / analysis / monitor 各管各的；跨界先经赵高。  
-5. 日更：仓→看板顺序固定；云→本机回写默认 00:00 由牛马力工执行，失败必须通知用户。  
-6. 赵高策划验收；牛马力工搬砖接线；不擅自全量回写、不擅自真发（除非已授权例行/派工）。
-
----
-
-## 6. 现状摘要（2026-09-07，便于对账）
-
-- warehouse 已落地 + `.venv` + BI 登录态可用；E2E snapshot=`snapshot_bi_operations_20260907_e2e`。  
-- dashboard 薄包 + `.env.server`(600)；真发成功；公网 `http://dashboard.apinova.cn/`。  
-- analysis / monitor：占位。  
-- 例行：孙悟空仓更新 09:30；许家印看板日更 10:00；牛马力工云→本机回写 00:00（合同已立，全量回写待首跑/另令）。
-
-### 审计黄灯（用户口径：非问题，勿派 P0）
-- 云侧尚未全量回写本机（等 00:00 例行首跑或另令）
-- 云 e2e snapshot 可暂≠本机底稿（回写对齐）
-- 私密 xfer 仓未逐文件核销（中转临时性）
-
-## 7. 派工治理（2026-09-07）
-- 模块内小改：用户可直接与模块主对话并派牛马力工，不必经赵高同意。
-- 跨角色 / SYNC / 大迁移 / 例行体系 / 排期冲突：经赵高。
-
-## 8. 2026-09-10 补丁（看板钉钉与花名册）
-
-- 本机 A 层已含四分册、basic auth 和钉钉人员进度代码。云电脑独立发送钉钉前，必须 C 层同步 `dashboard_product/.env.server`（600）到 `/home/box/oxhor/dashboard/dashboard_product/.env.server`。2026-09-09 的 C 层包不含大学和线上私域密钥，不能复用。
-- 禁止把 webhook 写入公开 `data-oxhor`、禁止贴聊天、禁止建设本机↔Grok 双向 MCP。
-- 2026-09-10 本机已填 `OFFLINE_YOUTH` / `OFFLINE_HIGH_SCHOOL` / `OFFLINE_UNIVERSITY` / `ONLINE_PRIVATE`；`ONLINE_PLATFORM` 仍空，空通道跳过。
-- A 层 overlay 必须带 `digest.py`、`notify_render.py`、`workspace_modeling/operations/people.json` 和对应测试/文档。这次**不要排除 people.json**：小初提能组已由杨玉林换成潘体学（工单 25、现金 50,000）。
-- 钉钉大学通道是工单 + 人头（去重 `学员编号`，不含 1500）；落后仍按工单。不要让 Grok 读业务代码重写。
-
-## 2026-09-16 日常监控模块切换
-
-A 层必须成套同步 `monitoring_product/`、`workspace_modeling/operations/`、`dashboard_product/refresh.py`、`pyproject.toml`、Agent 与运行文档；旧通知代码/SQL/部署脚本和旧花名册路径删除，不保留转发。三份 SQL 和既有人员目标保留本地最新改动。C 层文件不自动搬迁，新命令用 `--env-file` 指向已有凭据。通知宿主改用 `monitoring_product.notify send` 的工作区/Snapshot/运行编号/日期参数，先 dry-run；看板日更命令不变。此记录是部署交接，不表示云端已经同步。完整步骤见 `monitoring_product/README.md`。
-
-## 2026-09-16 监控云端验收完成
-
-监控已部署到 monitor，魏忠贤既有 10:30 四通道日推原位切换。权威 Routine ID `5937c316-103d-5e32-8684-f103cbc82db3`；旧 automation 目录只是本地残影。实读仅一条启用日推。云监控 19 项、看板 27 项测试通过；同 Snapshot 四通道 PNG 与旧版一致；包版 refresh 真仓无发布验证通过。旧通知与临时花名册兼容软链已删除，B/C 不搬迁，本轮未补发。见 `docs/monitoring-cloud-deployment.md`。
-
-
-## 2026-09-18 查询证据链与来源修复同步完成
-
-代码提交 `d09a228` 及前置证据链已按 A 层成套同步，最终 39/39 文件哈希与包一致。7 份旧文档先取回审查，再按精确哈希处理清单替换，剩余跳过为 0。云端查询/Casebook/Bridge 56 项、监控 19 项、看板 30 项测试通过；共享软链和原例行不变。未移动 B/C，未执行生产刷新、发布或发送。分析角色继续读取 warehouse 下的 Agent/Skill，新中性提醒与纯文字答复保存说明已到位。详见 [云端同步验收](docs/evidence-cloud-deployment.md)。
+历史包与回执已迁到本文件定义的新位置；记录里的旧路径只描述当时操作，查找现存文件应使用一次性迁移清单。私密中转仓仅在确有需要且已授权时作搬运缓冲，不成为代码或数据的新真源。

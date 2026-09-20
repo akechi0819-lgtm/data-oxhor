@@ -5,7 +5,7 @@ import re
 
 # Paths are relative to an operator-selected checkout, never supplied by a caller.
 DOCUMENTS = (
-    'AGENTS.md', 'README.md', 'DEVELOPMENT.md', 'SYNC.md', 'ROLE.md',
+    'AGENTS.md', 'README.md', 'DEVELOPMENT.md', 'SYNC.md',
     'pyproject.toml',
     'docs/architecture.md', 'docs/maintainer-guide.md',
     'docs/integration-guide.md', 'docs/company-bridge-contract.md',
@@ -54,7 +54,6 @@ MODULES = {
     'workspace_modeling': 'Pack、Bridge、对齐、Casebook、共享人员规则',
     'dashboard_product': '固定查询、看板渲染与静态发布',
     'monitoring_product': '人员进度、交付物与已授权通知',
-    'analysis_product': '确定性分析扩展边界',
     'market_workspace': '绑定运营工作区的市场工作面',
     'project_intelligence': '本地项目上下文只读服务',
 }

@@ -5,7 +5,7 @@
 ## 发布身份与范围
 
 - 代码提交：`d09a22866f5c5aee097df13cf7e4348afcd69ed6`，包含前置 `730a4ba` 的查询证据链所需文件。
-- A 层包：`.sync-outbox/20260918-A-evidence-d09a228.tgz`，134000 bytes，39 个代码/合同文件。
+- A 层包：`.local/sync/outbox/20260918-A-evidence-d09a228.tgz`，134000 bytes，39 个代码/合同文件。
 - 包 SHA-256：`01190b050edeff3b88cee0c3929db6756d1501ce73d7602da399289e7245941e`。
 - 通过现有 Grok Bot 通道同步，赵高协调，牛马力工实施，Codex 主任务独立核对回执。
 - 范围：查询回执 v2、来源解析修复、自由分析组包、Casebook/Bridge 配套接口、看板与监控的查询读取及相关合同。没有恢复已取消的最终产物统一改造。
@@ -39,6 +39,6 @@ Python 3.13.5，DuckDB 1.5.5。共享代码唯一落在 `/home/box/oxhor/warehou
 
 ## 证据位置
 
-本机 `.writeback-inbox/20260918-evidence-sync/` 保存 PREFLIGHT、FINAL_DEPLOYMENT、FINAL_FILE_HASHES、TEST_RESULTS、IMPORT_PATHS、冲突原文件、处理清单和 `LOCAL_VERIFIED_SUMMARY.json`。早期 DEPLOYMENT/FILE_HASHES 中的 7 项跳过已由 FINAL 回执取代，不能据早期回执误判当前状态。
+本机 `.local/sync/inbox/20260918-evidence-sync/` 保存 PREFLIGHT、FINAL_DEPLOYMENT、FINAL_FILE_HASHES、TEST_RESULTS、IMPORT_PATHS、冲突原文件、处理清单和 `LOCAL_VERIFIED_SUMMARY.json`。早期 DEPLOYMENT/FILE_HASHES 中的 7 项跳过已由 FINAL 回执取代，不能据早期回执误判当前状态。
 
 本记录只证明此次代码与合同同步、合成测试及入口校验；不代表重新核算线上业务数据，也不代替后续例行任务的实际运行回执。

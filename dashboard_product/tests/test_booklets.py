@@ -101,7 +101,7 @@ def _four_team_dashboard():
                 'people': [
                     _person('王昊', '留学预备', '青少组'),
                     _person('杨新宇', '高中', '高中组'),
-                    _person('李进', '大学', '大学组'),
+                    _person('师顺盈', '大学', '大学组'),
                 ],
             },
             {
@@ -258,7 +258,7 @@ class BookletRenderTest(unittest.TestCase):
         _assert_no_foreign_team_payload(platform, 'online_platform')
         self.assertIn('王昊', offline)
         self.assertIn('杨新宇', offline)
-        self.assertIn('李进', offline)
+        self.assertIn('师顺盈', offline)
         self.assertNotIn('潘体学', offline)
         self.assertNotIn('平台同学', offline)
         _assert_no_foreign_team_payload(offline, 'offline_market')
@@ -308,6 +308,7 @@ class BookletDeployConfigTest(unittest.TestCase):
         publish = (root / 'deploy' / 'publish_static_dashboard.sh').read_text(encoding='utf-8')
         example = (root / 'deploy' / 'user-booklets.map.example').read_text(encoding='utf-8')
         self.assertIn('BOOKLETS=(full online_private online_platform offline_market)', publish)
+        self.assertIn('validate-publish-artifact', publish)
         self.assertIn('location ~ ^/(full|online_private|online_platform|offline_market)\\.html$', nginx)
         self.assertIn('try_files $dashboard_booklet_file =403;', nginx)
         self.assertNotIn('$dashboard_booklet_ok', nginx)

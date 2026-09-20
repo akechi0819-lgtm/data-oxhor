@@ -29,7 +29,7 @@ project-intelligence = "project_intelligence.__main__:main"
 project-intelligence-mcp = "project_intelligence.mcp_server:main"
 
 [tool.setuptools.packages.find]
-include = ["workspace_modeling*", "data_platform*", "data_acquisition*", "analysis_product*", "dashboard_product*", "monitoring_product*", "interfaces*", "project_intelligence*"]
+include = ["workspace_modeling*", "data_platform*", "data_acquisition*", "dashboard_product*", "monitoring_product*", "interfaces*", "project_intelligence*"]
 
 [tool.setuptools.package-data]
 "workspace_modeling.business_pack" = ["packs/**/*.json"]

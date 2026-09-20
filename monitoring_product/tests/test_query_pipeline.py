@@ -43,7 +43,7 @@ class QueryPipelineTest(unittest.TestCase):
                     db.execute('CREATE TABLE landing.' + table + '(' + ','.join('"' + c + '" VARCHAR' for c in columns) + ')')
                 for identifier, day in [('current', '2026-09-01'), ('historical', '2026-07-01')]:
                     row = [identifier, serial(day), '线上', '校代', 'TMK激活-平台', '校代系统资源',
-                           '市场人员：李进', '大学', '', '', '大学顾问', '被动', '', identifier]
+                           '市场人员：师顺盈', '大学', '', '', '大学顾问', '被动', '', identifier]
                     db.execute('INSERT INTO landing.br_work_orders__sheet_1f0596db9f25 VALUES (' + ','.join('?' for _ in row) + ')', row)
                 db.execute('INSERT INTO landing.br_cash__sheet_39b8dee2e4b3 VALUES (?,?,?,?,?,?,?,?,?,?)',
                            ['historical', serial('2026-09-02'), '校代系统资源', 'TMK', '大学', '被动', '新生', '200', 'student1', '1'])
@@ -61,7 +61,7 @@ class QueryPipelineTest(unittest.TestCase):
             self.assertEqual(before, hashlib.sha256(warehouse.read_bytes()).hexdigest())
             output = Path(result['output_dir'])
             evidence = json.loads((output / 'evidence.json').read_text())
-            person = next(p for p in evidence['digests'][0]['people'] if p['display_name'] == '李进')
+            person = next(p for p in evidence['digests'][0]['people'] if p['display_name'] == '师顺盈')
             self.assertEqual(person['orders_actual'], 1)
             self.assertEqual(person['cash_actual'], 200)
             self.assertEqual(person['heads_actual'], 1)

@@ -159,7 +159,7 @@ python3 -m interfaces.company_bridge validate-candidates \
   --pack workspace_modeling/business_pack/packs/education_training_operations_cn/pack.json \
   --require-role confirmed_review
 python3 -m interfaces.company_bridge validate \
-  --bridge artifacts/company_bridge/bridges/company_bridge.bi_operations.v1_2_0.json \
+  --bridge /absolute/path/to/confirmed-workspace-bridge.json \
   --pack workspace_modeling/business_pack/packs/education_training_operations_cn/pack.json
 ```
 

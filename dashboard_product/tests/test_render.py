@@ -1,13 +1,94 @@
-from workspace_modeling.operations.personnel import PEOPLE_CONFIG_PATH
+from workspace_modeling.operations.personnel import PEOPLE_CONFIG_PATH, is_displayable_person
 import json
 import tempfile
 import unittest
 from pathlib import Path
 
-from dashboard_product.refresh import project, render
+from dashboard_product.refresh import DASHBOARD_QUERY_COLUMNS, DASHBOARD_SAVED_QUERY, project, render, validate_publish_artifact
+
+
+def _publish_artifact(directory, version='v10', columns=None):
+    root = Path(directory)
+    receipt_rel = Path('data/query_results/evidence/receipt.json')
+    (root / receipt_rel).parent.mkdir(parents=True)
+    (root / receipt_rel).write_text(
+        json.dumps({'saved_query_ref': {'query_id': 'dashboard_actuals', 'version': version}}),
+        encoding='utf-8',
+    )
+    query_columns = list(columns or DASHBOARD_QUERY_COLUMNS)
+    artifact = {
+        'schema_version': 'dashboard_artifact.v1',
+        'query_results': [
+            {
+                'status': 'passed',
+                'columns': query_columns,
+                'receipt': {'path': str(receipt_rel)},
+            },
+            {
+                'status': 'passed',
+                'columns': query_columns,
+                'receipt': {'path': str(receipt_rel)},
+            },
+        ],
+    }
+    path = root / 'artifact.json'
+    path.write_text(json.dumps(artifact), encoding='utf-8')
+    return path
 
 
 class RenderTest(unittest.TestCase):
+    def test_publish_validation_accepts_current_query_and_rejects_v7_artifact(self):
+        with tempfile.TemporaryDirectory() as directory:
+            current = _publish_artifact(Path(directory) / 'current')
+            self.assertEqual(validate_publish_artifact(current)['saved_query'], DASHBOARD_SAVED_QUERY)
+
+            legacy = _publish_artifact(
+                Path(directory) / 'legacy',
+                version='v7',
+                columns=DASHBOARD_QUERY_COLUMNS[:-1],
+            )
+            with self.assertRaisesRegex(ValueError, 'dashboard_actuals/v10'):
+                validate_publish_artifact(legacy)
+
+    def test_departed_and_transferred_people_are_hidden_from_dashboard_and_notify(self):
+        from dashboard_product.refresh import read
+
+        root = Path(__file__).resolve().parents[1]
+        people = read(PEOPLE_CONFIG_PATH)
+        statuses = {
+            person['display_name']: person['status']
+            for team in people['teams']
+            for group in team.get('groups', [])
+            for person in group.get('members', [])
+            if person.get('display_name') in {'于洋', '王欣庆', '李进'}
+        }
+        self.assertEqual(statuses, {'于洋': 'departed', '王欣庆': 'departed', '李进': 'transferred'})
+
+        result = project(
+            {'result': {'rows': []}},
+            {'result': {'rows': []}},
+            read(root / 'config/project_targets.json'),
+            people,
+        )
+        dashboard_names = {
+            person['display_name']
+            for team in result['teams']
+            for person in team.get('people', [])
+        }
+        self.assertNotIn('于洋', dashboard_names)
+        self.assertNotIn('王欣庆', dashboard_names)
+        self.assertNotIn('李进', dashboard_names)
+
+        from monitoring_product.digest import configured_people_for_channel
+        notify_names = {
+            person['display_name']
+            for channel_id in ('offline_high_school', 'offline_youth', 'offline_university')
+            for person in configured_people_for_channel(channel_id, people)
+        }
+        self.assertNotIn('于洋', notify_names)
+        self.assertNotIn('王欣庆', notify_names)
+        self.assertNotIn('李进', notify_names)
+
     def test_projects_people_targets_and_channel_drills(self):
         from dashboard_product.refresh import read
         root = Path(__file__).resolve().parents[1]
@@ -70,7 +151,7 @@ class RenderTest(unittest.TestCase):
             for team in people["teams"] if team["team_id"] == "offline_market"
             for group in team.get("groups", [])
             for person in group.get("members", [])
-            if person.get("display_name") and person.get("status") != "vacant"
+            if is_displayable_person(person)
         }
         self.assertEqual(
             remap_tmk_school_agent_team(
@@ -163,6 +244,8 @@ class RenderTest(unittest.TestCase):
             self.assertIn("校代系统资源", query)
             self.assertIn("石仁达", query)
             self.assertIn("THEN 'offline_market'", query)
+            for hidden_name in ('王欣庆', '于洋', '李进'):
+                self.assertNotIn(hidden_name, query)
 
     def test_renders_projection_and_unconfigured_values(self):
         group = {

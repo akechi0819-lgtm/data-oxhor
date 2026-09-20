@@ -11,7 +11,14 @@ import time
 from typing import Iterable, Protocol
 import zipfile
 
+from dateutil.relativedelta import relativedelta
+
 from data_acquisition.auth.auth_sessions import AuthSessionPaths, write_auth_session
+
+
+def _rolling_default_start_date() -> str:
+    """ISO date = today minus 6 calendar months (export window start)."""
+    return (date.today() - relativedelta(months=6)).isoformat()
 
 
 DEFAULT_ORDER_FILTER_META = {
@@ -48,7 +55,7 @@ class BIExportConfig:
     max_export_attempts: int = 2
     retry_backoff_sec: float = 5.0
     poll_log_interval_sec: float = 30.0
-    default_start_date: str = "2025-06-01"
+    default_start_date: str = field(default_factory=_rolling_default_start_date)
     order_card_id: str = "tb6163fe63c3346039f72bd6"
     order_filter_meta: dict[str, dict] = field(default_factory=lambda: copy.deepcopy(DEFAULT_ORDER_FILTER_META))
     cash_page_id: str = "u9325e10935054279894536e"
@@ -162,11 +169,31 @@ def _task_from_response(target: str, body: dict) -> ExportTask:
     return ExportTask(target=target, task_id=str(response["taskId"]), file_name=str(response["fileName"]))
 
 
+def _payload_reject_reason(payload: bytes) -> str:
+    if not payload:
+        return "empty"
+    head = payload[:120]
+    if head.lstrip().startswith((b"{", b"[")):
+        return f"json head={head!r}"
+    if head.lstrip().startswith((b"<", b"<!")):
+        return f"html head={head!r}"
+    try:
+        with zipfile.ZipFile(io.BytesIO(payload)) as archive:
+            names = archive.namelist()
+            return (
+                f"zip size={len(payload)} testzip={archive.testzip()!r} "
+                f"has_ct={'[Content_Types].xml' in names} names={names[:12]}"
+            )
+    except zipfile.BadZipFile as exc:
+        return f"not_zip size={len(payload)} magic={payload[:16]!r} err={exc}"
+
+
 def _save_b64_file(data: dict, out_dir: Path, prefix: str) -> Path | None:
     if not isinstance(data, dict) or not data.get("isFile") or not data.get("b64"):
         return None
     payload = base64.b64decode(data["b64"])
     if not _is_valid_xlsx_payload(payload):
+        print(f"[BI] rejected {prefix} {_payload_reject_reason(payload)}")
         return None
     out_dir.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -214,14 +241,23 @@ class PlaywrightBIExportClient:
     def open(self, config: BIExportConfig) -> None:
         if self._playwright is None:
             raise RuntimeError("PlaywrightBIExportClient must be used as a context manager")
-        config.browser_profile_dir.mkdir(parents=True, exist_ok=True)
-        self._context = self._playwright.chromium.launch_persistent_context(
-            user_data_dir=str(config.browser_profile_dir),
-            headless=False,
-            accept_downloads=True,
-            **_local_chrome_launch_kwargs(),
-        )
-        self._page = self._context.new_page()
+        import os
+
+        cdp = (os.environ.get("OXHOR_BI_CDP") or "").strip()
+        if cdp:
+            # Attach to the visible box-chrome so cloud-desktop preview shows the QR.
+            browser = self._playwright.chromium.connect_over_cdp(cdp)
+            self._context = browser.contexts[0] if browser.contexts else browser.new_context()
+            self._page = self._context.new_page()
+        else:
+            config.browser_profile_dir.mkdir(parents=True, exist_ok=True)
+            self._context = self._playwright.chromium.launch_persistent_context(
+                user_data_dir=str(config.browser_profile_dir),
+                headless=False,
+                accept_downloads=True,
+                **_local_chrome_launch_kwargs(),
+            )
+            self._page = self._context.new_page()
         self._page.goto(config.page_url, wait_until="domcontentloaded")
         self._page.wait_for_timeout(3000)
         self._wait_for_login()
@@ -257,13 +293,13 @@ class PlaywrightBIExportClient:
         if bi_host in (page.url or "").lower():
             return
         print("BI login required; complete login in the opened browser window.")
-        for index in range(120):
+        for index in range(600):
             page.wait_for_timeout(1000)
             if bi_host in (page.url or "").lower():
                 return
             if index % 15 == 0 and index > 0:
                 print(f"waiting for BI login... {index}s")
-        raise TimeoutError("BI login did not complete within 120 seconds")
+        raise TimeoutError("BI login did not complete within 600 seconds")
 
     def trigger_export(self, request: BIExportRequest) -> ExportTask:
         page = self._require_page()
@@ -343,12 +379,33 @@ class PlaywrightBIExportClient:
         return self._page
 
 
-def _local_chrome_launch_kwargs() -> dict[str, str]:
+def _local_chrome_launch_kwargs() -> dict:
+    # --class=box-chrome: cloud desktop preview only surfaces this WM class.
+    kwargs: dict = {
+        "viewport": {"width": 1280, "height": 800},
+        "args": [
+            "--window-size=1280,800",
+            "--window-position=0,0",
+            "--start-maximized",
+            "--no-sandbox",
+            "--disable-dev-shm-usage",
+            "--class=box-chrome",
+        ],
+    }
     if platform.system() == "Darwin":
-        path = Path("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome")
-        if path.exists():
-            return {"executable_path": str(path)}
-    return {}
+        mac = Path("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome")
+        if mac.exists():
+            kwargs["executable_path"] = str(mac)
+    else:
+        for candidate in (
+            Path("/usr/bin/google-chrome-stable"),
+            Path("/usr/bin/google-chrome"),
+            Path("/usr/bin/chromium"),
+        ):
+            if candidate.exists():
+                kwargs["executable_path"] = str(candidate)
+                break
+    return kwargs
 
 
 def run_bi_download(

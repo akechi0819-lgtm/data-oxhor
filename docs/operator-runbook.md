@@ -55,7 +55,7 @@ python3 -m interfaces.data_platform --help
 python3 -m interfaces.business_pack validate
 python3 -m interfaces.business_pack describe
 python3 -m interfaces.company_bridge validate \
-  --bridge artifacts/company_bridge/bridges/company_bridge.bi_operations.v1_2_0.json \
+  --bridge /absolute/path/to/confirmed-workspace-bridge.json \
   --pack workspace_modeling/business_pack/packs/education_training_operations_cn/pack.json
 python3 -m interfaces.bridge_alignment --help
 python3 -m interfaces.workspace_modeling --help
@@ -119,6 +119,7 @@ DeepSeek Harness 处于 Developer Preview。升级前必须：
 | Snapshot 冲突 | 使用新的 `run_id` 和显式输出目录，不覆盖已发布 Snapshot |
 | 向导 `awaiting_confirmation` / 退出 2 | 宿主向客户展示问题，理解自由回答后把 option、原回答和确认人传给 `answer` |
 | 月度文件更新 | 先完成当前对齐会话；替换 `Input/Data/<source_id>` 当前文件并用新 `snapshot_id` 执行 `sync-data`，向导成功切换后自动删除旧 Snapshot |
+| 留学工单清洗参考 | `customers/bi_operations/Input/Reference/留学-FY26-资源表.xlsx` 由 `data_acquisition.jobs.work_order_cleaning` 在工单合并入仓前使用；当前只清洗 `咨询方式一级渠道` 根节点为网络资源/新媒体的线上工单，渠道合作/市场活动线下工单封存；渠道校正与国家/条线校正分别计算，欧亚总部在线直接归欧亚条线，语培工单原值不改 |
 | `ACTIVE_SESSION_EXISTS` | 先完成当前 Snapshot 的对齐会话，再执行月度刷新 |
 | `sync-data` 返回 cleanup warning | 新 Snapshot 已是当前状态；在确认不再占用旧 Run 后手工清理该目录 |
 | 客户工作区误入 Git | 使用默认忽略的 `customers/`，交付产品时可整体复制该客户工作区 |

@@ -52,15 +52,9 @@
             {
               "person_id": "wang_xinqing",
               "display_name": "王欣庆",
-              "status": "probation_pending",
+              "status": "departed",
               "business_group": "留学预备",
-              "monthly_targets": {
-                "2026-09": {
-                  "orders": 20,
-                  "cash": 50000
-                }
-              },
-              "note": "试用期待定"
+              "note": "离职"
             }
           ]
         },
@@ -117,14 +111,9 @@
             {
               "person_id": "yu_yang",
               "display_name": "于洋",
-              "status": "pending_replacement",
+              "status": "departed",
               "business_group": "高中",
-              "monthly_targets": {
-                "2026-09": {
-                  "orders": 60
-                }
-              },
-              "note": "待替换"
+              "note": "离职"
             },
             {
               "person_id": "meng_fangming",
@@ -149,16 +138,9 @@
             {
               "person_id": "li_jin",
               "display_name": "李进",
-              "status": "active",
+              "status": "transferred",
               "business_group": "大学",
-              "monthly_targets": {
-                "2026-09": {
-                  "orders": 135,
-                  "heads": 30,
-                  "cash": 390000
-                }
-              },
-              "note": "天大"
+              "note": "转岗；天大"
             },
             {
               "person_id": "shi_shunying",

@@ -58,7 +58,7 @@ ONLINE_PLATFORM_HTML=/abs/path/online_platform.html \
 
 ## 每日自动发布
 
-`deploy/publish_static_dashboard.sh` 会在本地依次运行一次 `refresh`、四分册 `render`，再只上传 HTML。凭据从被 Git 忽略且权限为 `600` 的 `.env.server` 读取。跳过 refresh 时设 `ARTIFACT_JSON`。禁止 `bash -x` 运行（会把服务器密码打到终端）。
+`deploy/publish_static_dashboard.sh` 会在本地依次运行一次 `refresh`、校验当前 `dashboard_actuals/v10` artifact、四分册 `render`，再只上传 HTML。凭据从被 Git 忽略且权限为 `600` 的 `.env.server` 读取。跳过 refresh 时可设 `ARTIFACT_JSON`，但旧版本 artifact 会在上传前被拒绝；禁止 `bash -x` 运行（会把服务器密码打到终端）。
 
 已有运行记录为云电脑宿主每天 10:00（Asia/Shanghai）调用上述脚本、本机定时停用；本次没有重新核验远端定时状态。钉钉不在该脚本内。发布日志默认写入项目 `.local/logs/dashboard/`。
 
@@ -99,10 +99,11 @@ python3 dashboard_product/deploy/generate_dashboard_auth.py --force
 
 ```bash
 python3 -m dashboard_product.refresh render --artifact <artifact.json> --all-booklets
+python3 -m dashboard_product.refresh validate-publish-artifact --artifact <artifact.json>
 ARTIFACT_JSON=/abs/path/artifact.json ./dashboard_product/deploy/publish_static_dashboard.sh
 ```
 
-单册使用 `--booklet online_private`；分册与 artifact 位于同一输出目录。验收板块源码中不存在其他团队或 `market_total` 数据。只上传 HTML。
+`ARTIFACT_JSON` 必须来自当前 `dashboard_actuals/v10` 的两次受控查询（当期与同期）；校验会检查 12 列输出、两份查询回执和 Saved Query 版本，因而不会接受早期 artifact。单册使用 `--booklet online_private`；分册与 artifact 位于同一输出目录。验收板块源码中不存在其他团队或 `market_total` 数据。只上传 HTML。
 
 服务器已有四分册后，安装或更新鉴权：
 

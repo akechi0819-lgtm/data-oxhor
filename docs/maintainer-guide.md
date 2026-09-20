@@ -29,9 +29,9 @@
 5. 检查第三方声明、上游固定版本和许可证文件。
 6. 使用 GitHub CLI 提交并推送前，确认目标仓库、分支和提交范围。
 
-## 当前交接
+## 当前状态与历史记录
 
-阶段历史、已完成能力、已知风险和暂挂事项集中记录在 [项目交接状态](./handoff.md)。交接文档可以保留历史事实，但不得被 `AGENTS.md` 或客户使用说明引用为日常操作步骤。
+当前状态、已知限制与本次施工记录统一维护在 [DEVELOPMENT.md](../DEVELOPMENT.md)。[历史交接](history/project-handoff-through-20260918.md) 仅保留过去决策与验收事实，不作为日常操作入口；看板运行以模块 README 和 DEPLOYMENT 为准。
 
 ## Project Intelligence MCP 可选测试
 

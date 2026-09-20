@@ -13,12 +13,14 @@
 | BI 下载、来源接入、重建任务 | `data_acquisition/` | 对应 connector/job；部署与数据更新见 `agents/workspace_setup/AGENT.md` |
 | Snapshot、质量检查、受控查询 | `data_platform/`、`interfaces/data_platform.py` | `docs/integration-guide.md` |
 | 初始化工作区、Pack/Bridge、口径对齐 | `workspace_modeling/` | `agents/workspace_setup/AGENT.md` |
+| Grok 自管角色、笔记与临时程序 | `grok_workspace/` | `grok_workspace/AGENTS.md`；隔离自管内容，不自动回灌核心代码 |
 | 市场自由分析、临时查询、导表与小程序 | `market_workspace/` | `market_workspace/AGENTS.md`；通过 `./oxhor` 只读引用现有数据工作区 |
 | 看板维护、渲染与发布 | `dashboard_product/` | 维护读取对应代码；运行发布见 `agents/dashboard_publisher/AGENT.md` |
 | 日常监控、人员进度与钉钉推送 | `monitoring_product/` | `agents/daily_monitor/AGENT.md`、`monitoring_product/README.md` |
 | 看板与监控共用的人员规则、花名册 | `workspace_modeling/operations/` | `personnel.py`、`people.json`，修改时核对两个消费方 |
 
 - 导航只选择工作范围，不自动执行部署、查询或推送，也不加载其他板块的完整说明。
+- Grok 自管材料归 `grok_workspace/`；项目运行历史、日志和同步中转归 `.local/`。这两处不进入核心打包或自动发布；客户工作区与市场正式证据位置不变。
 - 市场工作启动于 `market_workspace/`；数据仍绑定 `customers/bi_operations/`（原端口 `operations` 不变）。启动目录保存生成程序、临时文件、报告和证据，工作区身份与当前 Snapshot 仍读取原 `Work/workspace.json`。
 - PPT 是按需交付形式：需要制作时再调用宿主全局 `ppt-master`，传入已验证的分析与证据，不把 PPT 制作规则常驻根入口。
 
@@ -73,7 +75,7 @@
 - 开发、测试、发布和文档维护：`docs/maintainer-guide.md`
 - Bridge、Onboarding、Casebook 合同：对应 `docs/*-contract.md`；PPT 执行合同由宿主全局 `ppt-master` Skill 提供
 - 当前开发状态与决策：`DEVELOPMENT.md`
-- 当前完成度与历史交接：`docs/handoff.md`
+- 当前完成度：`DEVELOPMENT.md`；历史交接：`docs/history/project-handoff-through-20260918.md`（只供历史追溯，不作为当前操作入口）
 - 看板发布：`dashboard_product/DEPLOYMENT.md`、`agents/dashboard_publisher/AGENT.md`
 - 日常监控与钉钉：`monitoring_product/README.md`、`agents/daily_monitor/AGENT.md`
 - 云电脑分层同步：`SYNC.md`（A 代码 / B 数据 / C 密钥；不建设双向 MCP）

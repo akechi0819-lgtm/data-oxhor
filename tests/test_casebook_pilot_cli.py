@@ -52,7 +52,7 @@ class CasebookPilotCliTests(unittest.TestCase):
             (root / "Work" / "Bridge").mkdir()
             (root / "Work" / "Pack").mkdir()
             (root / "Work" / "Pack" / "pack.json").write_bytes(Path("workspace_modeling/business_pack/packs/education_training_operations_cn/pack.json").read_bytes())
-            bridge = json.loads(Path("artifacts/company_bridge/bridges/company_bridge.bi_operations.v1_1_0.json").read_text(encoding="utf-8"))
+            bridge = json.loads(Path("tests/fixtures/company_bridge/company_bridge.bi_operations.v1_1_0.json").read_text(encoding="utf-8"))
             bridge["company_id"] = "company_fixture"
             (root / "Work" / "Bridge" / "reference.json").write_text(json.dumps(bridge), encoding="utf-8")
             (root / "Work" / "workspace.json").write_text(json.dumps(config), encoding="utf-8")
@@ -82,7 +82,7 @@ class CasebookPilotCliTests(unittest.TestCase):
             (root / "Work" / "Bridge").mkdir()
             (root / "Work" / "Pack").mkdir()
             (root / "Work" / "Pack" / "pack.json").write_bytes(Path("workspace_modeling/business_pack/packs/education_training_operations_cn/pack.json").read_bytes())
-            bridge = json.loads(Path("artifacts/company_bridge/bridges/company_bridge.bi_operations.v1_1_0.json").read_text(encoding="utf-8"))
+            bridge = json.loads(Path("tests/fixtures/company_bridge/company_bridge.bi_operations.v1_1_0.json").read_text(encoding="utf-8"))
             bridge["company_id"] = "company_fixture"
             (root / "Work" / "Bridge" / "reference.json").write_text(json.dumps(bridge), encoding="utf-8")
             (root / "Work" / "workspace.json").write_text(json.dumps(config), encoding="utf-8")
