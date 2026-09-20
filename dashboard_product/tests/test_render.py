@@ -235,6 +235,9 @@ class RenderTest(unittest.TestCase):
 
     def test_render_template_does_not_fill_empty_yoy_groups(self):
         src = (Path(__file__).resolve().parents[1] / "render_template.py").read_text(encoding="utf-8")
+        self.assertIn('id="month"', src)
+        self.assertIn("const QUARTER_MONTHS", src)
+        self.assertIn("function updateMonthOptions(", src)
         self.assertIn("function yoyGroups(team) {", src)
         self.assertIn("return team.yoy_groups || [];", src)
         self.assertNotIn("Array(12).fill(0)", src)

@@ -163,7 +163,7 @@ footer { margin-top: 20px; padding-top: 14px; border-top: 1px solid var(--line);
   <div><small>DATA OXHOR / OPERATIONS</small><h1>Cyber Shackles</h1><p>%(period_line)s</p>%(special_board_link)s</div>
   <div class="meta">Snapshot<br><b>%(snapshot_id)s</b><br>数据截至 %(data_through_date)s · 刷新 %(created_at)s</div>
 </header>
-<section class="controls"><label>范围<select id="scope"><option value="year">全年 FY27</option><option value="Q1">Q1</option><option value="Q2" selected>Q2</option><option value="Q3">Q3</option><option value="Q4">Q4</option></select></label><span class="hint">范围切换只影响本地汇总与下钻窗口</span></section>
+<section class="controls"><label>范围<select id="scope"><option value="year">全年 FY27</option><option value="Q1">Q1</option><option value="Q2" selected>Q2</option><option value="Q3">Q3</option><option value="Q4">Q4</option></select></label><label id="month-control" hidden>月份<select id="month"></select></label><span class="hint">范围和月份筛选只影响本地汇总与下钻窗口</span></section>
 <div id="timeline" class="timeline"></div>
 <nav id="tabs" class="tabs"></nav>
 <div id="view"></div>
@@ -177,6 +177,8 @@ const D = %(dashboard_json)s;
 const SCHOOL_DRILL_GROUPS = %(school_grade_groups_json)s;
 const TODAY = new Date(D.period.current_date);
 const S = document.querySelector('#scope');
+const M = document.querySelector('#month');
+const MONTH_CONTROL = document.querySelector('#month-control');
 const T = document.querySelector('#tabs');
 const V = document.querySelector('#view');
 const YOY = document.querySelector('#yoy-comparison');
@@ -186,13 +188,16 @@ const YOY_GROUP_NAMES = ['青少', '初中', '高中', '大学'];
 const UNASSIGNED_GROUP = '业务组暂无法拆分';
 const EMPTY_DRILLS = { current: { cash: { channel: {}, school_grade: {} }, orders: { channel: {}, school_grade: {} } }, prior: { cash: { channel: {}, school_grade: {} }, orders: { channel: {}, school_grade: {} } } };
 const DRILLS = D.drilldowns;
+const QUARTER_MONTHS = { Q1: ['2026-06', '2026-07', '2026-08'], Q2: ['2026-09', '2026-10', '2026-11'], Q3: ['2026-12', '2027-01', '2027-02'], Q4: ['2027-03', '2027-04', '2027-05'] };
 function escapeHtml(value) { return String(value == null ? '' : value).replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[character])); }
 function money(value) { return value == null ? '未配置' : Math.round(value).toLocaleString() + ' 元'; }
 function count(value) { return value == null ? '未配置' : Math.round(value).toLocaleString(); }
 function pct(value) { return value == null ? 'N/A' : (value * 100).toFixed(1) + '%'; }
-function target(group, key) { if (S.value === 'year') return group.annual_targets[key]; return (group.quarter_targets[S.value] || {})[key] ?? null; }
+function updateMonthOptions(reset = false) { if (S.value === 'year' || !M) { if (MONTH_CONTROL) MONTH_CONTROL.hidden = true; if (M) M.innerHTML = ''; return; } const previous = M.value; const options = QUARTER_MONTHS[S.value] || []; M.innerHTML = '<option value="all">全部' + S.value + '</option>' + options.map(month => '<option value="' + month + '">' + month + '</option>').join(''); M.value = !reset && options.includes(previous) ? previous : 'all'; MONTH_CONTROL.hidden = false; }
+function selectedPeriodLabel() { return S.value === 'year' ? '全年' : (M?.value && M.value !== 'all' ? M.value : S.value); }
+function target(group, key) { if (S.value === 'year') return group.annual_targets[key]; if (M?.value && M.value !== 'all') return null; return (group.quarter_targets[S.value] || {})[key] ?? null; }
 function totalTarget(team, key) { const values = team.groups.map(group => target(group, key)); return values.some(value => value != null) ? values.reduce((total, value) => total + (value || 0), 0) : null; }
-function range() { if (S.value === 'year') return [0, 12]; return ({ Q1: [0, 3], Q2: [3, 3], Q3: [6, 3], Q4: [9, 3] })[S.value] || [0, 12]; }
+function range() { if (S.value === 'year') return [0, 12]; if (M?.value && M.value !== 'all') { const index = D.months.indexOf(M.value); return index >= 0 ? [index, 1] : [0, 3]; } return ({ Q1: [0, 3], Q2: [3, 3], Q3: [6, 3], Q4: [9, 3] })[S.value] || [0, 12]; }
 function progressBar(value) { if (value == null) return '未配置'; const width = Math.min(100, Math.max(0, value * 100)); return '<span class="completion"><span class="bar"><i style="width:' + width + '%"></i></span>' + pct(value) + '</span>'; }
 function selectedTeam() { return D.teams.find(team => team.team_id === T.querySelector('.active')?.dataset.id) || D.teams[0]; }
 function addDrill(source, months, teamId, groupName, start, length, targetMap) {
@@ -345,8 +350,8 @@ function renderPeople(team, month) {
   container.innerHTML = html + '</tbody></table>'; wireDrills(container);
 }
 function renderTimeline() {
-  const fyStart = new Date('2026-06-01'); const fyEnd = new Date('2027-06-01'); const fyProgress = Math.max(0, Math.min(100, (TODAY - fyStart) / (fyEnd - fyStart) * 100)); const quarterRanges = { Q1: ['2026-06-01', '2026-09-01'], Q2: ['2026-09-01', '2026-12-01'], Q3: ['2026-12-01', '2027-03-01'], Q4: ['2027-03-01', '2027-06-01'] }; const quarter = quarterRanges[S.value]; const quarterProgress = S.value === 'year' ? fyProgress : Math.max(0, Math.min(100, (TODAY - new Date(quarter[0])) / (new Date(quarter[1]) - new Date(quarter[0])) * 100));
-  document.querySelector('#timeline').innerHTML = '<div class="timeline-card"><div class="timeline-label"><span>FY27 年度时间进度</span><strong>' + fyProgress.toFixed(1) + '%</strong></div><div class="progress-track"><div class="progress-fill" style="width:' + fyProgress + '%"></div></div></div><div class="timeline-card"><div class="timeline-label"><span>' + (S.value === 'year' ? '全年' : S.value) + ' 时间进度</span><strong>' + quarterProgress.toFixed(1) + '%</strong></div><div class="progress-track"><div class="progress-fill" style="width:' + quarterProgress + '%"></div></div></div>';
+  const fyStart = new Date('2026-06-01'); const fyEnd = new Date('2027-06-01'); const fyProgress = Math.max(0, Math.min(100, (TODAY - fyStart) / (fyEnd - fyStart) * 100)); const quarterRanges = { Q1: ['2026-06-01', '2026-09-01'], Q2: ['2026-09-01', '2026-12-01'], Q3: ['2026-12-01', '2027-03-01'], Q4: ['2027-03-01', '2027-06-01'] }; const quarter = quarterRanges[S.value]; let periodProgress = fyProgress; if (M?.value && M.value !== 'all') { const monthStart = new Date(M.value + '-01'); const monthEnd = new Date(monthStart); monthEnd.setMonth(monthEnd.getMonth() + 1); periodProgress = Math.max(0, Math.min(100, (TODAY - monthStart) / (monthEnd - monthStart) * 100)); } else if (S.value !== 'year') { periodProgress = Math.max(0, Math.min(100, (TODAY - new Date(quarter[0])) / (new Date(quarter[1]) - new Date(quarter[0])) * 100)); }
+  document.querySelector('#timeline').innerHTML = '<div class="timeline-card"><div class="timeline-label"><span>FY27 年度时间进度</span><strong>' + fyProgress.toFixed(1) + '%</strong></div><div class="progress-track"><div class="progress-fill" style="width:' + fyProgress + '%"></div></div></div><div class="timeline-card"><div class="timeline-label"><span>' + selectedPeriodLabel() + ' 时间进度</span><strong>' + periodProgress.toFixed(1) + '%</strong></div><div class="progress-track"><div class="progress-fill" style="width:' + periodProgress + '%"></div></div></div>';
 }
 
 const CAPACITY_ID = 'staff_capacity';
@@ -444,6 +449,7 @@ function radarSvg(person, average, maxes) {
 function renderCapacityView() {
   S.value = 'year';
   S.disabled = true;
+  updateMonthOptions();
   document.body.classList.add('capacity-mode');
   const hint = document.querySelector('.controls .hint');
   if (hint) hint.textContent = '产能页固定全年 FY27';
@@ -489,11 +495,12 @@ function renderView() {
   if (isCapacityTab()) { renderCapacityView(); return; }
   document.body.classList.remove('capacity-mode');
   S.disabled = false;
+  updateMonthOptions();
   const hint = document.querySelector('.controls .hint');
-  if (hint) hint.textContent = '范围切换只影响本地汇总与下钻窗口';
+  if (hint) hint.textContent = '范围和月份筛选只影响本地汇总与下钻窗口';
 
   const team = selectedTeam(); const [start, length] = range(); const sum = (group, key) => group.monthly_actuals[key].slice(start, start + length).reduce((total, value) => total + value, 0); const priorSum = (group, key) => group.prior_monthly_actuals[key].slice(start, start + length).reduce((total, value) => total + value, 0); const cash = team.groups.reduce((total, group) => total + sum(group, 'cash'), 0); const orders = team.groups.reduce((total, group) => total + sum(group, 'orders'), 0); const priorCash = team.groups.reduce((total, group) => total + priorSum(group, 'cash'), 0); const priorOrders = team.groups.reduce((total, group) => total + priorSum(group, 'orders'), 0); const cashTarget = totalTarget(team, 'cash'); const ordersTarget = totalTarget(team, 'orders'); const yoy = (current, prior) => prior > 0 ? (current - prior) / prior : null; const completion = (current, targetValue) => targetValue > 0 ? current / targetValue : null; const isTotal = team.team_id === 'market_total';
-  const metricCard = (label, current, prior, targetValue, formatter, accent) => '<article class="metric-card" style="border-top-color:' + accent + '"><div class="metric-head"><small>' + label + '</small><span class="metric-scope">' + (S.value === 'year' ? '全年' : S.value) + '</span></div><strong>' + formatter(current) + '</strong><div class="metric-details"><span class="metric-detail"><em>同期</em>' + formatter(prior) + '</span><span class="metric-detail"><em>同比</em>' + pct(yoy(current, prior)) + '</span><span class="metric-detail"><em>目标</em>' + formatter(targetValue) + '</span><span class="metric-detail"><em>完成</em>' + pct(completion(current, targetValue)) + '</span></div></article>';
+  const metricCard = (label, current, prior, targetValue, formatter, accent) => '<article class="metric-card" style="border-top-color:' + accent + '"><div class="metric-head"><small>' + label + '</small><span class="metric-scope">' + selectedPeriodLabel() + '</span></div><strong>' + formatter(current) + '</strong><div class="metric-details"><span class="metric-detail"><em>同期</em>' + formatter(prior) + '</span><span class="metric-detail"><em>同比</em>' + pct(yoy(current, prior)) + '</span><span class="metric-detail"><em>目标</em>' + formatter(targetValue) + '</span><span class="metric-detail"><em>完成</em>' + pct(completion(current, targetValue)) + '</span></div></article>';
   const groupHead = isTotal
     ? '<tr><th>业务组</th><th>现金目标</th><th>现金实际</th><th>现金同期</th><th>现金同比</th><th>现金占比</th><th>工单目标</th><th>工单实际</th><th>工单同期</th><th>工单同比</th><th>工单占比</th><th>下钻</th></tr>'
     : '<tr><th>业务组</th><th>现金目标</th><th>现金实际</th><th>现金完成</th><th>工单目标</th><th>工单实际</th><th>工单完成</th></tr>';
@@ -506,7 +513,7 @@ function renderView() {
   if (!isTotal) { const monthSelect = document.querySelector('#perfMonth'); const groupSelect = document.querySelector('#peopleGroup'); const currentMonth = TODAY.toISOString().slice(0, 7); monthSelect.value = D.months.includes(currentMonth) ? currentMonth : D.months[D.months.length - 1]; renderPeople(team, monthSelect.value); monthSelect.onchange = event => renderPeople(team, event.target.value); groupSelect.onchange = () => renderPeople(team, monthSelect.value); }
   renderComparison(YOY, 'channel'); renderChannelMatrix(); renderComparison(GRADE, 'grade');
 }
-function init() { T.innerHTML = D.teams.map(team => '<button data-id="' + escapeHtml(team.team_id) + '">' + escapeHtml(team.display_name) + '</button>').join('') + '<button data-id="' + CAPACITY_ID + '">市场人员产能</button>'; T.querySelectorAll('button').forEach(button => button.onclick = () => { T.querySelectorAll('button').forEach(item => item.classList.remove('active')); button.classList.add('active'); renderView(); renderTimeline(); }); T.querySelector('button').classList.add('active'); S.onchange = () => { renderView(); renderTimeline(); }; renderView(); renderTimeline(); }
+function init() { T.innerHTML = D.teams.map(team => '<button data-id="' + escapeHtml(team.team_id) + '">' + escapeHtml(team.display_name) + '</button>').join('') + '<button data-id="' + CAPACITY_ID + '">市场人员产能</button>'; T.querySelectorAll('button').forEach(button => button.onclick = () => { T.querySelectorAll('button').forEach(item => item.classList.remove('active')); button.classList.add('active'); renderView(); renderTimeline(); }); T.querySelector('button').classList.add('active'); S.onchange = () => { updateMonthOptions(true); renderView(); renderTimeline(); }; M.onchange = () => { renderView(); renderTimeline(); }; updateMonthOptions(true); renderView(); renderTimeline(); }
 init();
 </script>
 </body>
