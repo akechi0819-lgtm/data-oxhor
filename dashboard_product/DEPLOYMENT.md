@@ -50,10 +50,11 @@ ssh -p 22 root@<server> 'dest=/var/www/dashboard; for f in full.html online_priv
 ```bash
 ARTIFACT_JSON=/abs/path/online_market_artifact.json \
 FULL_HTML=/abs/path/full.html \
+ONLINE_PLATFORM_HTML=/abs/path/online_platform.html \
   ./dashboard_product/deploy/publish_online_market_dashboard.sh
 ```
 
-该脚本只上传 `full.html` 和 `online_market_special.html`，不上传影子 warehouse、工单文件或 artifact；`online_platform.html` 由既有四分册发布链提供，特供页可从总看板和内嵌语培页正常打开。
+该脚本只上传 `full.html`、最新的 `online_platform.html` 和 `online_market_special.html`，不上传影子 warehouse、工单文件或 artifact；特供页可从总看板和内嵌语培页正常打开。
 
 ## 每日自动发布
 
