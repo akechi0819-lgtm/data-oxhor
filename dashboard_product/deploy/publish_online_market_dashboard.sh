@@ -56,7 +56,7 @@ EOF
 
 /usr/bin/expect -f /dev/stdin <<'EOF'
 set timeout 120
-spawn /usr/bin/scp -o StrictHostKeyChecking=yes -o PreferredAuthentications=password -o PubkeyAuthentication=no -o GSSAPIAuthentication=no -P $env(SERVER_PORT) $env(stage)/full.html $env(stage)/online_market_special.html $env(SERVER_USER)@$env(SERVER_HOST):$env(remote_tmp)/
+spawn /usr/bin/scp -O -o StrictHostKeyChecking=yes -o PreferredAuthentications=password -o PubkeyAuthentication=no -o GSSAPIAuthentication=no -P $env(SERVER_PORT) $env(stage)/full.html $env(stage)/online_market_special.html $env(SERVER_USER)@$env(SERVER_HOST):$env(remote_tmp)/
 expect {
   -re {assword:} { send -- "$env(SERVER_PASSWORD)\r"; exp_continue }
   eof { set status [lindex [wait] 3]; exit $status }

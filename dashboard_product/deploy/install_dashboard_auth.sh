@@ -37,9 +37,12 @@ export MAP_SRC="${SECRETS_DIR}/user-booklets.map"
 export NGINX_CONF_SRC
 export REMOTE_HTPASSWD REMOTE_MAP REMOTE_NGINX_CONF
 
-/usr/bin/expect <<'EOF'
+# Password auth must go through an expect PTY. If a normal sandboxed call
+# reports Permission denied for unchanged credentials, invoke this script from
+# the approved elevated execution environment.
+/usr/bin/expect -f /dev/stdin <<'EOF'
 set timeout 60
-spawn /usr/bin/scp -o StrictHostKeyChecking=yes -o PreferredAuthentications=password -o PubkeyAuthentication=no -o GSSAPIAuthentication=no -P $env(SERVER_PORT) $env(HTPASSWD_SRC) $env(MAP_SRC) $env(NGINX_CONF_SRC) $env(SERVER_USER)@$env(SERVER_HOST):/tmp/
+spawn /usr/bin/scp -O -o StrictHostKeyChecking=yes -o PreferredAuthentications=password -o PubkeyAuthentication=no -o GSSAPIAuthentication=no -P $env(SERVER_PORT) $env(HTPASSWD_SRC) $env(MAP_SRC) $env(NGINX_CONF_SRC) $env(SERVER_USER)@$env(SERVER_HOST):/tmp/
 expect {
   -re {assword:} { send -- "$env(SERVER_PASSWORD)\r"; exp_continue }
   eof { set status [lindex [wait] 3]; exit $status }
@@ -47,7 +50,7 @@ expect {
 }
 EOF
 
-/usr/bin/expect <<'EOF'
+/usr/bin/expect -f /dev/stdin <<'EOF'
 set timeout 60
 spawn /usr/bin/ssh -o StrictHostKeyChecking=yes -o PreferredAuthentications=password -o PubkeyAuthentication=no -o GSSAPIAuthentication=no -p $env(SERVER_PORT) $env(SERVER_USER)@$env(SERVER_HOST) {set -euo pipefail
 ht_src=/tmp/htpasswd
