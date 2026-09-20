@@ -55,12 +55,13 @@ expect {
 EOF
 
 /usr/bin/expect -f /dev/stdin <<'EOF'
-set timeout 120
-spawn /usr/bin/scp -O -o StrictHostKeyChecking=yes -o PreferredAuthentications=password -o PubkeyAuthentication=no -o GSSAPIAuthentication=no -P $env(SERVER_PORT) $env(stage)/full.html $env(stage)/online_market_special.html $env(SERVER_USER)@$env(SERVER_HOST):$env(remote_tmp)/
+set timeout 240
+set transfer_cmd "tar -cf - -C '$env(stage)' full.html online_market_special.html | /usr/bin/ssh -o StrictHostKeyChecking=yes -o PreferredAuthentications=password -o PubkeyAuthentication=no -o GSSAPIAuthentication=no -p $env(SERVER_PORT) $env(SERVER_USER)@$env(SERVER_HOST) 'tar -xf - -C $env(remote_tmp)'"
+spawn /bin/sh -c $transfer_cmd
 expect {
   -re {assword:} { send -- "$env(SERVER_PASSWORD)\r"; exp_continue }
   eof { set status [lindex [wait] 3]; exit $status }
-  timeout { puts "SCP timed out"; catch {close}; catch {wait}; exit 124 }
+  timeout { puts "SSH file transfer timed out"; catch {close}; catch {wait}; exit 124 }
 }
 EOF
 
