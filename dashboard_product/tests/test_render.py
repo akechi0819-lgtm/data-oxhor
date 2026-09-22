@@ -352,6 +352,7 @@ class RenderTest(unittest.TestCase):
         self.assertIn("CAPACITY_DIMS = [", src)
         self.assertEqual(src.count("{ key:"), 6)
         self.assertIn("renderChannelMatrix(); renderComparison(GRADE, 'grade')", src)
+        self.assertIn('href="offline_market_special.html"', src)
 
     def test_rejects_missing_identity(self):
         with tempfile.TemporaryDirectory() as directory:

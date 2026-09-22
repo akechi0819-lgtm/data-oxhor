@@ -21,9 +21,9 @@ python3 -m dashboard_product.refresh render --artifact customers/<workspace>/Out
 python3 -m monitoring_product.notify send --workspace <workspace> --snapshot-id <snapshot_id> --run-id <run_id> --as-of-date <YYYY-MM-DD> --data-through-date <YYYY-MM-DD> --dry-run
 ```
 
-`refresh` 创建不可变 artifact；`render` 只读取显式 artifact 并写出 `full.html` 主页面。当前发布由 `deploy/publish_static_dashboard.sh` 完成。线上团队影子看板由独立脚本发布为 `online_market_special.html`。钉钉发送是独立命令，不并入日更脚本。
+`refresh` 创建不可变 artifact；`render` 只读取显式 artifact 并写出 `full.html` 主页面。当前发布由 `deploy/publish_static_dashboard.sh` 完成。线上团队影子看板由独立脚本发布为 `online_market_special.html`；留学线下影子看板发布为 `offline_market_special.html`。钉钉发送是独立命令，不并入日更脚本。
 
-影子看板使用 `online_market_shadow` → `online_market_refresh` → `online_market_render`，按 `资源主被动 = 被动` 统计线上工单，清洗后的 `主被动` 只作审计；现金目标已配置，现金实际明细为空，工单目标包含 FY27 网络资源 5708、新媒体 1007、合计 6715。
+影子看板使用 `online_market_shadow` → `online_market_refresh` → `online_market_render`，按 `资源主被动 = 被动` 统计线上工单，清洗后的 `主被动` 只作审计；现金目标已配置，现金实际明细为空，工单目标包含 FY27 网络资源 5708、新媒体 1007、合计 6715。留学线下影子看板使用 `offline_market_shadow` → `offline_market_refresh` → `offline_market_render`，按 Bridge v1.6.0 统计被动合法三类加新东方市场推荐子集；工单/毛签目标未配置，现金实际待接入。
 
 ## 当前进度
 

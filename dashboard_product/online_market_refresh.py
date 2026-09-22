@@ -25,6 +25,8 @@ PRIOR_MONTHS = [f"2025-{month:02d}" for month in range(6, 13)] + [
 ]
 GROUPS = ("网络资源", "新媒体")
 
+PLATFORM_DISPLAY_ALIASES = {"其他": "ssc"}
+
 
 def _read(path: Path) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
@@ -76,6 +78,7 @@ def _aggregate(rows: list[list], months: list[str]) -> dict:
         _add_series(period["groups"][group], index, passive)
 
         platform = str(second_channel or "").strip() or "二级渠道待确认"
+        platform = PLATFORM_DISPLAY_ALIASES.get(platform, platform)
         platform_info = period["platforms"].setdefault(
             platform,
             {

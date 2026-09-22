@@ -2,7 +2,7 @@
 
 `dashboard_product/` 负责已确认口径的固定查询、看板 artifact、统一主页面和静态发布。人员绩效监控和钉钉日报已迁至 [monitoring_product](../monitoring_product/README.md)，不再由看板入口计算或发送。
 
-线上团队特供看板是独立链路：留学线上工单先进入 `Work/ShadowOnlineMarket/` 下的影子 Snapshot，不更新主工作区当前 Snapshot；现金目标已配置，现金实际暂不接入。V12 主页面只保留特供页入口，不复用或改写留学计算。
+线上团队特供看板是独立链路：留学线上工单先进入 `Work/ShadowOnlineMarket/` 下的影子 Snapshot，不更新主工作区当前 Snapshot；现金目标已配置，现金实际暂不接入。留学线下市场特供同样使用影子 Snapshot（`Work/ShadowOfflineMarket/`），按 Bridge v1.6.0 现算 L1/L2，不改主仓清洗或 V12「线下市场」页计算。V12 主页面只保留特供页入口，不复用或改写留学计算。
 
 ## 运行
 
@@ -23,9 +23,23 @@ python3 -m dashboard_product.online_market_refresh \
   --run-id run_online_market_<id>
 python3 -m dashboard_product.online_market_render \
   --artifact <output-dir>/online_market_artifact.json
+
+# 影子 Snapshot 与留学线下看板
+python3 -m dashboard_product.offline_market_shadow \
+  --workspace customers/bi_operations \
+  --shadow-root customers/bi_operations/Work/ShadowOfflineMarket \
+  --run-id run_offline_market_shadow_<id> \
+  --snapshot-id snapshot_offline_market_shadow_<id>
+python3 -m dashboard_product.offline_market_refresh \
+  --warehouse <shadow-warehouse.duckdb> \
+  --snapshot-id <shadow-snapshot-id> \
+  --output-root <output-dir> \
+  --run-id run_offline_market_<id>
+python3 -m dashboard_product.offline_market_render \
+  --artifact <output-dir>/offline_market_artifact.json
 ```
 
-当前整体发布基线为 V12：纳入线上影子看板和人员规则更新，主看板事实查询合同为 `dashboard_actuals/v12`。刷新通过 Data Platform 受控查询读取当前 Snapshot；线上影子看板继续使用 `online_market_orders/v1`，作为主页面入口后的独立特供页。市场总计保留全部有效事实；项目、团队、渠道、顾问和人员仅使用严格归属。无法映射业务组的事实标记为“业务组暂无法拆分”；工单 ID 为空或无法精确匹配的现金在渠道与顾问下标记为“渠道/顾问暂无法拆分”，两者都不强行分配给团队或个人。公网只托管 `full.html` 主页面和 `online_market_special.html`，不上传全量 artifact。定时仍由外部宿主调用 `deploy/publish_static_dashboard.sh`。
+当前整体发布基线为 V12：纳入线上影子看板和人员规则更新，主看板事实查询合同为 `dashboard_actuals/v12`。刷新通过 Data Platform 受控查询读取当前 Snapshot；线上影子看板继续使用 `online_market_orders/v1`，作为主页面入口后的独立特供页。市场总计保留全部有效事实；项目、团队、渠道、顾问和人员仅使用严格归属。无法映射业务组的事实标记为“业务组暂无法拆分”；工单 ID 为空或无法精确匹配的现金在渠道与顾问下标记为“渠道/顾问暂无法拆分”，两者都不强行分配给团队或个人。公网只托管 `full.html` 主页面、`online_market_special.html` 和 `offline_market_special.html`，不上传全量 artifact。定时仍由外部宿主调用 `deploy/publish_static_dashboard.sh`。
 
 ## 配置与边界
 
@@ -34,6 +48,8 @@ python3 -m dashboard_product.online_market_render \
 - `config/saved_queries.json`：固定查询合同。
 - `config/online_market_targets.json`：留学线上年度/季度网络资源、新媒体工单目标和毛签目标；月度目标、二级渠道目标和现金实际暂不配置。
 - `config/online_market_queries/`：影子 Snapshot 使用的留学线上只读查询合同。
+- `config/offline_market_targets.json`：留学线下工单/毛签目标，当前全部未配置。
+- `config/offline_market_queries/`：影子 Snapshot 使用的留学线下只读查询合同。
 - `workspace_modeling/operations/people.json`：与监控共用的人员组织和目标。
 - `workspace_modeling/operations/personnel.py`：与监控共用的绩效月及人员匹配规则。
 

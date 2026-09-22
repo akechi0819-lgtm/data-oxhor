@@ -1,15 +1,15 @@
 # 静态看板发布
 
-> 当前整体基线为 V12：主看板使用 `dashboard_actuals/v12`，所有账号进入同一份 `full.html`；线上影子看板单独输出 `online_market_special.html`。人员进度和钉钉推送由 `monitoring_product/` 负责。
+> 当前整体基线为 V12：主看板使用 `dashboard_actuals/v12`，所有账号进入同一份 `full.html`；线上影子看板单独输出 `online_market_special.html`，留学线下影子看板单独输出 `offline_market_special.html`。人员进度和钉钉推送由 `monitoring_product/` 负责。
 
 ## 当前数据流
 
-本地保存项目、客户工作区当前 Snapshot、Saved Query registry 和配置；服务器只保存 `full.html` 与线上团队特供 HTML。刷新、计算和 Snapshot 更新全部在本地完成，再通过 SCP 上传：
+本地保存项目、客户工作区当前 Snapshot、Saved Query registry 和配置；服务器只保存 `full.html`、线上团队特供 HTML 与留学线下特供 HTML。刷新、计算和 Snapshot 更新全部在本地完成，再通过 SCP 上传：
 
 1. `refresh` 通过 Data Platform 运行 `dashboard_actuals/v12`，生成一份全量 `artifact.json`。
 2. `render` 只生成 `full.html`，包含全部团队、市场总计和人员产能。
 3. 发布脚本先验证 artifact 的 V12 查询回执，再把 `full.html` 原子替换到服务器，并删除已退役的团队分册。
-4. Nginx 使用 basic auth；所有已认证用户的 `/`、`/full.html` 和 `online_market_special.html` 都进入完整主页面/特供页。
+4. Nginx 使用 basic auth；所有已认证用户的 `/`、`/full.html`、`online_market_special.html` 和 `offline_market_special.html` 都进入完整主页面/特供页。
 
 线上团队特供看板读取显式影子 Snapshot，输出 `online_market_special.html`。它不依赖已退役的 `online_private.html`、`online_platform.html` 或 `offline_market.html`。
 
@@ -43,6 +43,16 @@ FULL_HTML=/abs/path/full.html \
 ```
 
 该脚本只上传 `full.html` 和 `online_market_special.html`，不上传影子 warehouse、工单文件或 artifact，并清理旧团队 HTML。
+
+## 留学线下团队影子看板
+
+```bash
+ARTIFACT_JSON=/abs/path/offline_market_artifact.json \
+FULL_HTML=/abs/path/full.html \
+  ./dashboard_product/deploy/publish_offline_market_dashboard.sh
+```
+
+该脚本只上传 `full.html` 和 `offline_market_special.html`，不上传影子 warehouse、工单文件或 artifact。V12「线下市场」页只加入口链接，不改语培线下计算。
 
 ## 鉴权
 

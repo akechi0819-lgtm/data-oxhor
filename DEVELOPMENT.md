@@ -251,3 +251,18 @@ git diff --check
 - 人员口径以共享 `people.json` 为准：王欣庆、于洋标记离职，李进标记转岗；三人不再展示、不进入监控通道花名册、不再作为线下校代资源的当前归属候选，也清除其当前月度目标。监控 SQL 与看板共用同一隐藏状态边界。
 - 验证：看板和监控单测、全量测试、旧 artifact 发布门禁回归，以及 Git 差异检查均须通过；本地旧版本发布包移出同步中转目录，不作为运行输入。
 - 发布面同步：删除团队分册渲染、路由、权限映射和线上旧语培页；所有账号统一进入 `full.html`，线上影子看板保留为独立入口。
+
+### 2026-09-21：留学线渠道口径写入 Bridge v1.6.0
+
+- 决定：用户确认后，将留学线市场部门的线上/线下渠道映射写入 `bridge_bi_operations` v1.6.0；工作区当前指针 `customers/bi_operations/Work/Bridge/reference.json` 覆盖为 v1.6.0。v1.5.0 只归档在 `customers/bi_operations/Output/Bridge/1.5.0/`，不保留运行兼容或回退层。
+- 口径：留学 = `团队` 空且有效 `ID`。线上/线下与 L1 根节点取 `咨询方式一级渠道` 第一个 `-` 前 token，不用 CRM `一级渠道`/`二级渠道`，也不把线上参考表 `矫正-渠道` 套到线下。`线上运营` / `网络` 归线上 `网络资源`。线上看板只取 `资源主被动=被动`。线下合法三类为市场活动、官方合作高校、渠道合作，被动进渠道看板。官方合作高校 L2 同名；对公整类（分公司对公合作 + 留学监理网）→ 渠道合作/对公渠道（三方）；个人代理不并进三方。`市场活动/市场活动` 归高校活动；`市场活动-高校/个人代理` 跨到渠道合作/个人渠道；校代/合作进其他，不进渠道看板。
+- 新东方边界：`新东方学校推荐` 不再全量进渠道看板。点对点默认非市场；批量推送/导入/取消一律排除。只有锁定规则判定为市场推荐的点对点，才算线下市场贡献，才进渠道看板和后续市场核算。这就是此前口头说的「新东方市场投入 / 小边界」，不再另切一刀。市场推荐优先级：强信号 → 讲座/展会/问卷/会销 → 确认人员（邓睿/杨芸聿/孙伟/王洪霞/吴子玄）；未扩入王衡利、马永鋆。L1/L2 仍挂新东方/部门，不改挂市场活动。
+- 存放位置：规则落在 Company Bridge 的 field_mapping / normalization_rules / overrides，不改 Pack。主仓清洗脚本仍未消费 v1.6.0。留学线下特供看板在影子链路按 v1.6.0 现算，不回写 `Work/workspace.json`。Bridge 不写入窗口计数、工单样例或 SQL。
+- 验证：`validate-candidates` 与 `validate` 均通过；候选集 `review_bridge_bi_operations_160` 共 44 条（旧 32 + 新 12）；计数 source_contracts 2 / field_mappings 21 / enum_mappings 0 / normalization_rules 8 / overrides 12 / unresolved 1。底稿见 `customers/bi_operations/Work/Runs/run_offline_channel_mapping_20260921/`。
+
+### 2026-09-22：留学线下市场特供看板（影子仓）
+
+- 决定：新增独立页 `offline_market_special.html`，对标线上特供的影子 Snapshot 模式；V12 `full.html` 的「线下市场」页签仍是语培线下，只加入口链接，不改其计算。主页面页头同时挂线上、线下两份特供入口。
+- 口径：影子查询消费 Bridge v1.6.0。范围=被动合法三类（市场活动、官方合作高校、渠道合作）+ 新东方市场推荐子集。看板不展示一级渠道，只展示二级渠道、国家/条线和学校（大学以上/大学以下）。目标未配置，现金待接入。被排除的新东方点对点不进页。
+- 实现：`offline_market_shadow` → `Work/ShadowOfflineMarket/` → `offline_market_refresh`（`offline_market_orders/v1`）→ `offline_market_render`。主仓 `work_order_cleaning.py`、`dashboard_actuals/v12`、线上 `online_market_orders/v1` 计算不变。
+- 验证：看板单测 35 项通过；窗口 2026-06-01～2026-09-21 合计 726=655+71。

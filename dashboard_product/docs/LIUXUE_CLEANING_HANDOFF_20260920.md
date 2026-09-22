@@ -2,7 +2,8 @@
 
 更新时间：2026-09-20
 当前 Snapshot：`snapshot_bi_operations_20260920`
-当前 Bridge：`bridge_bi_operations` v1.5.0
+当时 Bridge：`bridge_bi_operations` v1.5.0（交接当日）
+2026-09-21 工作区指针已切到 v1.6.0；本交接的清洗范围仍按当时线上口径，脚本尚未按 v1.6.0 改。
 当前 Snapshot 未因本次交接文档或对照表生成而改写。
 
 ## 1. 本轮目标

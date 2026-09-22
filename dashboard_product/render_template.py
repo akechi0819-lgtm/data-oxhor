@@ -6,9 +6,22 @@ import copy
 from dashboard_product.dashboard_chrome import dashboard_chrome
 
 
-def render_html(artifact_data):
+def render_html(artifact_data, *, lock_team_id=None, chrome_overrides=None):
     dashboard = copy.deepcopy(artifact_data['dashboard'])
+    if lock_team_id is not None:
+        locked = [team for team in dashboard.get('teams') or [] if team.get('team_id') == lock_team_id]
+        if not locked:
+            raise ValueError(f"lock_team_id {lock_team_id!r} not found in artifact dashboard teams")
+        dashboard['teams'] = locked
     chrome = dashboard_chrome()
+    if lock_team_id == 'online_platform':
+        chrome.update({
+            'page_title': '语培完成进度（线上平台 · V12同源）',
+            'period_line': 'FY27 · 同源主看板 artifact，非分册',
+            'special_board_link': '<a class="special-board-link" href="online_market_special.html">← 返回线上特供</a>',
+        })
+    if chrome_overrides:
+        chrome.update(chrome_overrides)
     snapshot_id = artifact_data['snapshot_id']
     run_id = artifact_data['run_id']
     artifact_id = artifact_data['artifact_id']
@@ -58,7 +71,7 @@ h1 { margin: 8px 0 6px; font: 600 38px/1.1 Georgia, "Songti SC", serif; letter-s
 p { margin: 0; color: var(--muted); }
 .meta { min-width: 300px; color: var(--muted); font-size: 12px; line-height: 1.8; text-align: right; }
 .meta b { color: var(--ink); font-weight: 700; }
-.special-board-link { display: inline-block; margin-top: 8px; color: var(--blue); font-size: 12px; font-weight: 800; text-decoration: none; }
+.special-board-link { display: inline-block; margin-top: 8px; margin-right: 12px; color: var(--blue); font-size: 12px; font-weight: 800; text-decoration: none; }
 .special-board-link:hover, .special-board-link:focus-visible { text-decoration: underline; }
 .controls { display: flex; align-items: flex-end; gap: 16px; flex-wrap: wrap; padding: 18px 0 12px; }
 .controls label { display: grid; gap: 5px; color: var(--muted); font-size: 12px; font-weight: 700; }
@@ -506,7 +519,7 @@ function renderView() {
   const groupHead = isTotal
     ? '<tr><th>业务组</th><th>现金目标</th><th>现金实际</th><th>现金同期</th><th>现金同比</th><th>现金占比</th><th>工单目标</th><th>工单实际</th><th>工单同期</th><th>工单同比</th><th>工单占比</th><th>下钻</th></tr>'
     : '<tr><th>业务组</th><th>现金目标</th><th>现金实际</th><th>现金完成</th><th>工单目标</th><th>工单实际</th><th>工单完成</th></tr>';
-  let html = '<section class="cards">' + metricCard('被动报入现金', cash, priorCash, cashTarget, money, 'var(--blue)') + metricCard('被动工单', orders, priorOrders, ordersTarget, count, 'var(--orange)') + '</section><div class="dashboard-grid"><section class="panel"><div class="panel-head"><div><h2>' + (isTotal ? '市场总计 · 现金与工单' : '三大业务组 · 现金与工单') + '</h2><p class="section-kicker">' + (isTotal ? '目标、实际、完成率；展开业务组查看线下、线上平台和虚拟人占比' : '目标、实际与完成率') + '</p></div></div><div class="table-wrap"><table><thead>' + groupHead + '</thead><tbody>';
+  let html = ''; if (team.team_id === 'offline_market') html += '<a class="special-board-link" href="offline_market_special.html">留学线下市场特供看板 →</a>'; html += '<section class="cards">' + metricCard('被动报入现金', cash, priorCash, cashTarget, money, 'var(--blue)') + metricCard('被动工单', orders, priorOrders, ordersTarget, count, 'var(--orange)') + '</section><div class="dashboard-grid"><section class="panel"><div class="panel-head"><div><h2>' + (isTotal ? '市场总计 · 现金与工单' : '三大业务组 · 现金与工单') + '</h2><p class="section-kicker">' + (isTotal ? '目标、实际、完成率；展开业务组查看线下、线上平台和虚拟人占比' : '目标、实际与完成率') + '</p></div></div><div class="table-wrap"><table><thead>' + groupHead + '</thead><tbody>';
   html += renderGroupRows(team, sum, priorSum);
   html += '</tbody></table></div></section>';
   if (!isTotal) html += '<section class="panel people-panel"><div class="panel-head"><div><h2>人员月度贡献</h2><p class="section-kicker">按业务团队、绩效月查看目标、完成与渠道</p></div></div><div class="people-toolbar"><div class="people-filters"><label for="peopleGroup">业务团队</label><select id="peopleGroup">%(people_group_options)s</select></div><label for="perfMonth">绩效月</label><select id="perfMonth">' + D.months.map(month => '<option value="' + month + '">' + month + '</option>').join('') + '</select></div><div id="peopleDetail"></div></section>';

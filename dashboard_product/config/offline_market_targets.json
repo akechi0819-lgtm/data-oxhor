@@ -1,0 +1,43 @@
+{
+  "groups": {
+    "市场活动": {
+      "work_order_target": null
+    },
+    "官方合作高校": {
+      "work_order_target": null
+    },
+    "渠道合作": {
+      "work_order_target": null
+    },
+    "新东方学校推荐": {
+      "work_order_target": null
+    }
+  },
+  "total": {
+    "work_order_target": null
+  },
+  "cash": {
+    "groups": {
+      "市场活动": {
+        "annual": null,
+        "quarters": {}
+      },
+      "官方合作高校": {
+        "annual": null,
+        "quarters": {}
+      },
+      "渠道合作": {
+        "annual": null,
+        "quarters": {}
+      },
+      "新东方学校推荐": {
+        "annual": null,
+        "quarters": {}
+      }
+    },
+    "total": {
+      "annual": null,
+      "quarters": {}
+    }
+  }
+}

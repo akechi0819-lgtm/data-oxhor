@@ -1,0 +1,8 @@
+{
+  "schema_version": "saved_query.v1",
+  "query_id": "offline_market_orders",
+  "version": "v1",
+  "confirmed_by": "dashboard_product.offline_market",
+  "sql_path": "query.sql",
+  "sha256": "d9a1a78e83b8855c9f1621bb4faf41f7cc9344e6ca05edb1a0ca76a40f677808"
+}

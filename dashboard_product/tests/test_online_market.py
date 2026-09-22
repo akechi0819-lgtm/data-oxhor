@@ -33,6 +33,17 @@ class OnlineMarketAggregationTest(unittest.TestCase):
         self.assertEqual(result["lines"]["欧亚条线"]["countries"]["中国香港"]["orders"][0], 1)
 
 
+
+    def test_maps_other_platform_to_ssc(self):
+        rows = [
+            ["2026-06-03", "网络资源", "网络资源", "其他", "英国", "英澳条线", "被动", 1.0, "work_orders"],
+        ]
+        result = _aggregate(rows, ["2026-06"] + ["2026-07"] * 11)
+        self.assertIn("ssc", result["platforms"])
+        self.assertNotIn("其他", result["platforms"])
+        self.assertEqual(result["platforms"]["ssc"]["series"]["orders"][0], 1)
+
+
 class OnlineMarketRenderTest(unittest.TestCase):
     def _artifact(self):
         period = {
@@ -75,12 +86,118 @@ class OnlineMarketRenderTest(unittest.TestCase):
         self.assertIn("现金实际", page)
         self.assertIn("5708", page)
         self.assertIn("6715", page)
-        self.assertIn("2753.56 万元", page)
+        self.assertIn("2992.56 万元", page)
+        self.assertIn('"annual": 2753.56', page)
         self.assertIn('"annual": 2992.56', page)
         self.assertIn("资源主被动=被动", page)
         self.assertIn("被动线上工单数", page)
         self.assertNotIn("其中被动", page)
         self.assertIn("展开国家", page)
+        self.assertNotIn('id="group"', page)
+        self.assertNotIn("<th>一级渠道</th>", page)
+
+    def test_render_aliases_other_platform_label_to_ssc(self):
+        artifact = self._artifact()
+        artifact["study_abroad"]["current"]["platforms"]["其他"] = {
+            "first_channels": ["网络资源"],
+            "series": _series(2),
+            "groups": {"网络资源": _series(2), "新媒体": _series(0)},
+        }
+        page = render_html(artifact)
+        self.assertIn("aliases = {'其他':'ssc'}", page)
+        self.assertIn('"其他"', page)  # legacy artifact key still present
+
+
+
+    def test_training_src_adds_tabs_and_iframe_without_legacy_booklet(self):
+        page = render_html(self._artifact(), training_src="online_market_training.html")
+        self.assertIn("online_market_training.html", page)
+        self.assertIn("语培进度", page)
+        self.assertIn("留学线上", page)
+        self.assertIn('id="training-view"', page)
+        self.assertIn('src="online_market_training.html"', page)
+        self.assertNotIn("online_platform.html", page)
+
+    def test_without_training_src_omits_training_tab(self):
+        page = render_html(self._artifact())
+        self.assertNotIn("语培进度", page)
+        self.assertNotIn("online_market_training.html", page)
+        self.assertNotIn("online_platform.html", page)
+
+
+class LockOnlinePlatformRenderTest(unittest.TestCase):
+    def test_lock_team_id_keeps_only_online_platform(self):
+        from dashboard_product.render_template import render_html as render_dashboard_html
+
+        artifact = {
+            "snapshot_id": "snap_test",
+            "run_id": "run_test",
+            "artifact_id": "art_test",
+            "created_at": "2026-09-21T00:00:00+08:00",
+            "as_of_date": "2026-09-21",
+            "data_through_date": "2026-09-20",
+            "dashboard": {
+                "months": ["2026-06"] + ["2026-07"] * 11,
+                "teams": [
+                    {
+                        "team_id": "offline_market",
+                        "display_name": "线下市场",
+                        "groups": [],
+                        "people": [],
+                        "channels": [],
+                        "grades": [],
+                    },
+                    {
+                        "team_id": "online_platform",
+                        "display_name": "线上平台",
+                        "groups": [
+                            {
+                                "group_id": "g1",
+                                "display_name": "留学预备",
+                                "monthly_actuals": {"cash": [0] * 12, "orders": [0] * 12},
+                                "prior_monthly_actuals": {"cash": [0] * 12, "orders": [0] * 12},
+                                "targets": {"cash": 0, "orders": 0},
+                                "channels": [],
+                                "grades": [],
+                            }
+                        ],
+                        "people": [],
+                        "channels": [],
+                        "grades": [],
+                    },
+                    {
+                        "team_id": "market_total",
+                        "display_name": "市场总计",
+                        "groups": [],
+                        "people": [],
+                        "channels": [],
+                        "grades": [],
+                    },
+                ],
+            },
+        }
+        page = render_dashboard_html(artifact, lock_team_id="online_platform")
+        self.assertIn("语培完成进度（线上平台 · V12同源）", page)
+        self.assertIn("同源主看板 artifact，非分册", page)
+        self.assertIn("online_market_special.html", page)
+        self.assertIn('"team_id": "online_platform"', page)
+        self.assertNotIn('"team_id": "offline_market"', page)
+        self.assertNotIn('"team_id": "market_total"', page)
+
+    def test_lock_team_id_missing_raises(self):
+        from dashboard_product.render_template import render_html as render_dashboard_html
+
+        artifact = {
+            "snapshot_id": "snap_test",
+            "run_id": "run_test",
+            "artifact_id": "art_test",
+            "created_at": "2026-09-21T00:00:00+08:00",
+            "as_of_date": "2026-09-21",
+            "data_through_date": "2026-09-20",
+            "dashboard": {"months": ["2026-06"] * 12, "teams": []},
+        }
+        with self.assertRaises(ValueError):
+            render_dashboard_html(artifact, lock_team_id="online_platform")
 
 
 class OnlineMarketQueryContractTest(unittest.TestCase):

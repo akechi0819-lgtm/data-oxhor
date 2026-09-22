@@ -16,7 +16,7 @@ python3 -m dashboard_product.refresh validate-publish-artifact --artifact <artif
 
 - 只使用已确认的 saved query 和明确 Snapshot。
 - 业务口径变更先完成证据核对和人工确认。
-- 只发布 `full.html` 主页面；不得上传源文件、数仓、全量 artifact 或密钥。
+- 发布 `full.html` 主页面，以及已确认的特供页 `online_market_special.html` / `offline_market_special.html`；不得上传源文件、数仓、全量 artifact 或密钥。
 - 使用已有 `ARTIFACT_JSON` 发布时必须先通过 `validate-publish-artifact`；旧查询版本或缺少受控查询回执的 artifact 直接阻断。
 - 发布前验证文件可打开且内容非空。
 - 与监控共用 `workspace_modeling/operations/` 的绩效月、人员匹配规则及花名册，不复制维护第二份。
