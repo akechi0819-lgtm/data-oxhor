@@ -1,5 +1,9 @@
 WITH params AS (
   SELECT CAST(? AS DATE) AS start_date, CAST(? AS DATE) AS end_date
+), roster AS (
+  SELECT * FROM (VALUES
+    ('孙伟'), ('吴子玄'), ('邓睿'), ('王洪霞'), ('王衡利'), ('杨芸聿'), ('马玥'), ('高书航')
+  ) AS t(person_name)
 ), base AS (
   SELECT
     NULLIF(TRIM(ID), '') AS work_order_id,
@@ -19,6 +23,7 @@ WITH params AS (
     NULLIF(TRIM(资源描述), '') AS resource_description,
     NULLIF(TRIM(资源录入人), '') AS resource_entry_person,
     NULLIF(TRIM(其他转介绍人), '') AS other_referrer,
+    NULLIF(TRIM(转介绍人), '') AS referrer,
     NULLIF(TRIM(意向国家), '') AS intended_country,
     NULLIF(TRIM(矫正条线), '') AS corrected_line,
     NULLIF(TRIM(学生学校名称), '') AS student_school,
@@ -40,63 +45,47 @@ WITH params AS (
     AND source_team IS NULL
     AND event_date >= start_date
     AND event_date < end_date
-), flagged AS (
+), extracted AS (
+  SELECT
+    *,
+    regexp_extract(
+      COALESCE(campaign_name, ''),
+      '(^|[-/])(孙伟|吴子玄|邓睿|王洪霞|王衡利|杨芸聿|马玥|高书航)(雅思|市场|渠道|-|（|$)',
+      2
+    ) AS campaign_owner,
+    regexp_extract(
+      COALESCE(resource_description, ''),
+      '市场人员[[:space:]]*[:：][[:space:]]*(孙伟|吴子玄|邓睿|王洪霞|王衡利|杨芸聿|马玥|高书航)',
+      1
+    ) AS labeled_person,
+    regexp_extract(
+      COALESCE(resource_description, ''),
+      '数据提供方[:：][^/\n]{0,120}?(孙伟|吴子玄|邓睿|王洪霞|王衡利|杨芸聿|马玥|高书航)',
+      1
+    ) AS provider_person,
+    CASE
+      WHEN COALESCE(other_referrer, '') LIKE '%不算新%'
+        OR COALESCE(referrer, '') LIKE '%不算新%'
+      THEN ''
+      ELSE regexp_extract(
+        COALESCE(other_referrer, '') || ' ' || COALESCE(referrer, ''),
+        '(孙伟|吴子玄|邓睿|王洪霞|王衡利|杨芸聿|马玥|高书航)',
+        1
+      )
+    END AS referrer_person
+  FROM scoped
+), attributed AS (
   SELECT
     *,
     CASE
-      WHEN COALESCE(campaign_name, '') LIKE '%市场人员%'
-        OR COALESCE(campaign_name, '') LIKE '%市场双分%'
-        OR COALESCE(resource_description, '') LIKE '%市场人员%'
-        OR COALESCE(resource_description, '') LIKE '%【市场活动】%'
-        OR COALESCE(resource_description, '') LIKE '%【市场人员】%'
-        OR warehouse_l1 = '市场活动'
-      THEN 1 ELSE 0
-    END AS hit_market_strong,
-    CASE
-      WHEN COALESCE(campaign_name, '') LIKE '%讲座%'
-        OR COALESCE(campaign_name, '') LIKE '%展会%'
-        OR COALESCE(campaign_name, '') LIKE '%会销%'
-        OR COALESCE(campaign_name, '') LIKE '%问卷%'
-        OR COALESCE(resource_description, '') LIKE '%讲座%'
-        OR COALESCE(resource_description, '') LIKE '%展会%'
-        OR COALESCE(resource_description, '') LIKE '%会销%'
-        OR COALESCE(resource_description, '') LIKE '%问卷%'
-      THEN 1 ELSE 0
-    END AS hit_lecture_fair_survey,
-    CASE
-      WHEN (
-        COALESCE(campaign_name, '') || ' ' ||
-        COALESCE(resource_description, '') || ' ' ||
-        COALESCE(resource_entry_person, '') || ' ' ||
-        COALESCE(other_referrer, '')
-      ) LIKE '%邓睿%'
-        OR (
-        COALESCE(campaign_name, '') || ' ' ||
-        COALESCE(resource_description, '') || ' ' ||
-        COALESCE(resource_entry_person, '') || ' ' ||
-        COALESCE(other_referrer, '')
-      ) LIKE '%杨芸聿%'
-        OR (
-        COALESCE(campaign_name, '') || ' ' ||
-        COALESCE(resource_description, '') || ' ' ||
-        COALESCE(resource_entry_person, '') || ' ' ||
-        COALESCE(other_referrer, '')
-      ) LIKE '%孙伟%'
-        OR (
-        COALESCE(campaign_name, '') || ' ' ||
-        COALESCE(resource_description, '') || ' ' ||
-        COALESCE(resource_entry_person, '') || ' ' ||
-        COALESCE(other_referrer, '')
-      ) LIKE '%王洪霞%'
-        OR (
-        COALESCE(campaign_name, '') || ' ' ||
-        COALESCE(resource_description, '') || ' ' ||
-        COALESCE(resource_entry_person, '') || ' ' ||
-        COALESCE(other_referrer, '')
-      ) LIKE '%吴子玄%'
-      THEN 1 ELSE 0
-    END AS hit_confirmed_market_person
-  FROM scoped
+      WHEN resource_entry_person IN (SELECT person_name FROM roster) THEN resource_entry_person
+      WHEN campaign_owner <> '' THEN campaign_owner
+      WHEN labeled_person <> '' THEN labeled_person
+      WHEN provider_person <> '' THEN provider_person
+      WHEN referrer_person <> '' THEN referrer_person
+      ELSE NULL
+    END AS mapped_person
+  FROM extracted
 ), mapped AS (
   SELECT
     *,
@@ -131,28 +120,6 @@ WITH params AS (
       ELSE '其他'
     END AS map_l2,
     CASE
-      WHEN path_root <> '新东方学校推荐' THEN '不适用_非新东方'
-      WHEN source_channel IS NULL OR source_channel <> '点对点' THEN '非市场_非点对点'
-      WHEN warehouse_l1 = '市场活动'
-        OR COALESCE(campaign_name, '') LIKE '%市场人员%'
-        OR COALESCE(campaign_name, '') LIKE '%市场双分%'
-        OR COALESCE(resource_description, '') LIKE '%市场人员%'
-        OR COALESCE(resource_description, '') LIKE '%【市场活动】%'
-        OR COALESCE(resource_description, '') LIKE '%【市场人员】%'
-      THEN '市场推荐_强信号'
-      WHEN COALESCE(campaign_name, '') LIKE '%讲座%'
-        OR COALESCE(campaign_name, '') LIKE '%展会%'
-        OR COALESCE(campaign_name, '') LIKE '%会销%'
-        OR COALESCE(campaign_name, '') LIKE '%问卷%'
-        OR COALESCE(resource_description, '') LIKE '%讲座%'
-        OR COALESCE(resource_description, '') LIKE '%展会%'
-        OR COALESCE(resource_description, '') LIKE '%会销%'
-        OR COALESCE(resource_description, '') LIKE '%问卷%'
-      THEN '市场推荐_讲座展会问卷'
-      WHEN hit_confirmed_market_person = 1 THEN '市场推荐_确认市场人员'
-      ELSE '非市场_默认点对点'
-    END AS nd_market_flag,
-    CASE
       WHEN student_school IS NOT NULL AND student_school NOT IN ('其他', '其它', '未知', '无', '1', '0') THEN student_school
       WHEN current_school IS NOT NULL AND current_school NOT IN ('其他', '其它', '未知', '无', '1', '0') THEN current_school
       ELSE '学校待确认'
@@ -164,7 +131,8 @@ WITH params AS (
       COALESCE(current_grade, '') || ' ' ||
       COALESCE(grade_name, '')
     ) AS school_grade_text
-  FROM flagged
+  FROM attributed
+  WHERE mapped_person IS NOT NULL
 ), classified AS (
   SELECT
     *,
@@ -197,15 +165,8 @@ SELECT
   resource_active_type AS active_type,
   school_band,
   school_name,
+  mapped_person,
   1.0 AS actual_value,
   'work_orders' AS metric
 FROM classified
-WHERE (
-    map_l1 IN ('市场活动', '官方合作高校', '渠道合作')
-    AND resource_active_type = '被动'
-  )
-  OR (
-    map_l1 = '新东方学校推荐'
-    AND nd_market_flag LIKE '市场推荐%'
-  )
-ORDER BY event_date, channel_group, second_channel, school_band, school_name;
+ORDER BY event_date, mapped_person, channel_group, second_channel, school_band, school_name;

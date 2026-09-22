@@ -18,8 +18,8 @@ class OnlineMarketAggregationTest(unittest.TestCase):
     def test_aggregates_root_groups_platforms_and_cleaned_dimensions(self):
         rows = [
             ["2026-06-03", "网络资源", "网络资源", "小红书", "英国", "英澳条线", "被动", 1.0, "work_orders"],
-            ["2026-06-04", "新媒体", "新媒体", "大众", "中国香港", "欧亚条线", "主动", 1.0, "work_orders"],
-            ["2026-06-05", "网络资源", "网络资源", None, None, None, "被动", 1.0, "work_orders"],
+            ["2026-06-04", "新媒体", "新媒体", "大众", "中国香港", "欧亚条线", "被动", 1.0, "work_orders"],
+            ["2026-06-05", "网络资源", "网络资源", None, None, None, "主动", 1.0, "work_orders"],
         ]
         result = _aggregate(rows, ["2026-06"] + ["2026-07"] * 11)
         self.assertEqual(result["total"]["orders"][0], 3)
@@ -89,8 +89,8 @@ class OnlineMarketRenderTest(unittest.TestCase):
         self.assertIn("2992.56 万元", page)
         self.assertIn('"annual": 2753.56', page)
         self.assertIn('"annual": 2992.56', page)
-        self.assertIn("资源主被动=被动", page)
-        self.assertIn("被动线上工单数", page)
+        self.assertIn("网络资源计入被动+主动", page)
+        self.assertIn("线上工单数", page)
         self.assertNotIn("其中被动", page)
         self.assertIn("展开国家", page)
         self.assertNotIn('id="group"', page)
@@ -212,4 +212,6 @@ class OnlineMarketQueryContractTest(unittest.TestCase):
         self.assertIn("意向国家", sql)
         self.assertIn("矫正条线", sql)
         self.assertIn("留学渠道清洗状态", sql)
-        self.assertIn("TRIM(资源主被动), '') = '被动'", sql)
+        self.assertIn("(source_root = '网络资源' AND resource_active_type IN ('被动', '主动'))", sql)
+        self.assertIn("(source_root = '新媒体' AND resource_active_type = '被动')", sql)
+        self.assertNotIn("WHERE NULLIF(TRIM(资源主被动), '') = '被动'", sql)

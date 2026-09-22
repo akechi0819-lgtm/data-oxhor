@@ -25,6 +25,11 @@ PRIOR_MONTHS = [f"2025-{month:02d}" for month in range(6, 13)] + [
 ]
 GROUPS = ("市场活动", "官方合作高校", "渠道合作", "新东方学校推荐")
 SCHOOL_BANDS = ("大学以上", "大学以下")
+PEOPLE_CONFIG = Path(__file__).resolve().parent / "config" / "offline_market_people.json"
+PEOPLE = tuple(
+    person["display_name"]
+    for person in json.loads(PEOPLE_CONFIG.read_text(encoding="utf-8"))["people"]
+)
 
 
 def _read(path: Path) -> dict:
@@ -46,6 +51,7 @@ def _empty_period() -> dict:
         "total": _empty_series(),
         "groups": {group: _empty_series() for group in GROUPS},
         "platforms": {},
+        "people": {name: _empty_series() for name in PEOPLE},
         "countries": {},
         "lines": {},
         "schools": {band: {"series": _empty_series(), "schools": {}} for band in SCHOOL_BANDS},
@@ -65,8 +71,8 @@ def _aggregate(rows: list[list], months: list[str]) -> dict:
     period = _empty_period()
     month_index = {month: index for index, month in enumerate(months)}
     for row in rows:
-        if len(row) != 11:
-            raise ValueError(f"unexpected offline-market query row: expected 11 columns, got {len(row)}")
+        if len(row) != 12:
+            raise ValueError(f"unexpected offline-market query row: expected 12 columns, got {len(row)}")
         (
             event_date,
             group,
@@ -77,17 +83,24 @@ def _aggregate(rows: list[list], months: list[str]) -> dict:
             active_type,
             school_band,
             school_name,
+            mapped_person,
             _value,
             metric,
         ) = row
         month = str(event_date)[:7]
         index = month_index.get(month)
-        if index is None or metric != "work_orders" or not group:
+        if index is None or metric != "work_orders" or not mapped_person:
+            continue
+        person = str(mapped_person).strip()
+        if person not in PEOPLE:
             continue
         passive = str(active_type or "").strip() == "被动"
         _add_series(period["total"], index, passive)
-        period["groups"].setdefault(group, _empty_series())
-        _add_series(period["groups"][group], index, passive)
+        period["people"].setdefault(person, _empty_series())
+        _add_series(period["people"][person], index, passive)
+        if group:
+            period["groups"].setdefault(group, _empty_series())
+            _add_series(period["groups"][group], index, passive)
 
         platform = str(second_channel or "").strip() or "二级渠道待确认"
         platform_info = period["platforms"].setdefault(
@@ -230,6 +243,7 @@ def refresh(
             "scope": {
                 "line": "留学线下",
                 "channel_roots": list(GROUPS),
+                "people": list(PEOPLE),
                 "cash": "not_connected",
             },
         },

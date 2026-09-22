@@ -3,27 +3,432 @@
   "target_scope": "project",
   "fiscal_year": "FY27",
   "period_type": "quarter",
-  "source": {"workbook": "Q2收入预算-滚动版(1).xlsx", "worksheet": "语培", "metrics": ["被动现金(净)", "总被动工单"]},
-  "allocation": {"online_platform": 0.55, "offline_market": 0.45, "online_private": 0.06, "online_private_note": "线上私域（虚拟人）为独立加挂目标"},
-  "rounding": {"cash": "round_to_nearest_yuan_after_each_team_allocation", "work_orders": "round_to_nearest_integer_after_each_team_allocation"},
+  "source": {
+    "workbook": "Q2收入预算-滚动版(1).xlsx",
+    "worksheet": "语培",
+    "metrics": [
+      "被动现金(净)",
+      "总被动工单"
+    ],
+    "online_platform_monthly_workbook": "语培目标暂行.xlsx",
+    "online_platform_monthly_worksheet": "FY27目标 / 分渠道月度目标",
+    "online_platform_monthly_note": "语培线上月度目标；表内青少对应看板留学预备。月度合计按暂行表拆分，不等于各季度目标之和。"
+  },
+  "allocation": {
+    "online_platform": 0.55,
+    "offline_market": 0.45,
+    "online_private": 0.06,
+    "online_private_note": "线上私域（虚拟人）为独立加挂目标"
+  },
+  "rounding": {
+    "cash": "round_to_nearest_yuan_after_each_team_allocation",
+    "work_orders": "round_to_nearest_integer_after_each_team_allocation"
+  },
   "business_groups": {
-    "study_abroad_preparation": {"display_name": "留学预备", "quarters": {
-      "Q1": {"online_platform": {"passive_cash_target": 1770001, "work_order_target": 1273}, "offline_market": {"passive_cash_target": 1448183, "work_order_target": 1041}, "online_private": {"passive_cash_target": 193091, "work_order_target": 139}},
-      "Q2": {"online_platform": {"passive_cash_target": 1300750, "work_order_target": 985}, "offline_market": {"passive_cash_target": 1064250, "work_order_target": 806}, "online_private": {"passive_cash_target": 141900, "work_order_target": 108}},
-      "Q3": {"online_platform": {"passive_cash_target": 1073270, "work_order_target": 813}, "offline_market": {"passive_cash_target": 878130, "work_order_target": 665}, "online_private": {"passive_cash_target": 117084, "work_order_target": 89}},
-      "Q4": {"online_platform": {"passive_cash_target": 1206810, "work_order_target": 914}, "offline_market": {"passive_cash_target": 987390, "work_order_target": 748}, "online_private": {"passive_cash_target": 131652, "work_order_target": 100}}
-    }},
-    "high_school": {"display_name": "高中", "quarters": {
-      "Q1": {"online_platform": {"passive_cash_target": 2788112, "work_order_target": 707}, "offline_market": {"passive_cash_target": 2281182, "work_order_target": 578}, "online_private": {"passive_cash_target": 304158, "work_order_target": 77}},
-      "Q2": {"online_platform": {"passive_cash_target": 1718750, "work_order_target": 645}, "offline_market": {"passive_cash_target": 1406250, "work_order_target": 528}, "online_private": {"passive_cash_target": 187500, "work_order_target": 70}},
-      "Q3": {"online_platform": {"passive_cash_target": 1522125, "work_order_target": 571}, "offline_market": {"passive_cash_target": 1245375, "work_order_target": 467}, "online_private": {"passive_cash_target": 166050, "work_order_target": 62}},
-      "Q4": {"online_platform": {"passive_cash_target": 1178375, "work_order_target": 442}, "offline_market": {"passive_cash_target": 964125, "work_order_target": 362}, "online_private": {"passive_cash_target": 128550, "work_order_target": 48}}
-    }},
-    "university": {"display_name": "大学", "quarters": {
-      "Q1": {"online_platform": {"passive_cash_target": 2703215, "work_order_target": 1314}, "offline_market": {"passive_cash_target": 2211721, "work_order_target": 1076}, "online_private": {"passive_cash_target": 294896, "work_order_target": 143}},
-      "Q2": {"online_platform": {"passive_cash_target": 1903176, "work_order_target": 1084}, "offline_market": {"passive_cash_target": 1557144, "work_order_target": 887}, "online_private": {"passive_cash_target": 207619, "work_order_target": 118}},
-      "Q3": {"online_platform": {"passive_cash_target": 1501394, "work_order_target": 855}, "offline_market": {"passive_cash_target": 1228414, "work_order_target": 700}, "online_private": {"passive_cash_target": 163788, "work_order_target": 93}},
-      "Q4": {"online_platform": {"passive_cash_target": 1773654, "work_order_target": 1011}, "offline_market": {"passive_cash_target": 1451172, "work_order_target": 827}, "online_private": {"passive_cash_target": 193490, "work_order_target": 110}}
-    }}
+    "study_abroad_preparation": {
+      "display_name": "留学预备",
+      "quarters": {
+        "Q1": {
+          "online_platform": {
+            "passive_cash_target": 1770001,
+            "work_order_target": 1273
+          },
+          "offline_market": {
+            "passive_cash_target": 1448183,
+            "work_order_target": 1041
+          },
+          "online_private": {
+            "passive_cash_target": 193091,
+            "work_order_target": 139
+          }
+        },
+        "Q2": {
+          "online_platform": {
+            "passive_cash_target": 1300750,
+            "work_order_target": 985
+          },
+          "offline_market": {
+            "passive_cash_target": 1064250,
+            "work_order_target": 806
+          },
+          "online_private": {
+            "passive_cash_target": 141900,
+            "work_order_target": 108
+          }
+        },
+        "Q3": {
+          "online_platform": {
+            "passive_cash_target": 1073270,
+            "work_order_target": 813
+          },
+          "offline_market": {
+            "passive_cash_target": 878130,
+            "work_order_target": 665
+          },
+          "online_private": {
+            "passive_cash_target": 117084,
+            "work_order_target": 89
+          }
+        },
+        "Q4": {
+          "online_platform": {
+            "passive_cash_target": 1206810,
+            "work_order_target": 914
+          },
+          "offline_market": {
+            "passive_cash_target": 987390,
+            "work_order_target": 748
+          },
+          "online_private": {
+            "passive_cash_target": 131652,
+            "work_order_target": 100
+          }
+        }
+      },
+      "months": {
+        "2026-06": {
+          "online_platform": {
+            "passive_cash_target": 351034,
+            "work_order_target": 336
+          }
+        },
+        "2026-07": {
+          "online_platform": {
+            "passive_cash_target": 468045,
+            "work_order_target": 367
+          }
+        },
+        "2026-08": {
+          "online_platform": {
+            "passive_cash_target": 354337,
+            "work_order_target": 207
+          }
+        },
+        "2026-09": {
+          "online_platform": {
+            "passive_cash_target": 431270,
+            "work_order_target": 287
+          }
+        },
+        "2026-10": {
+          "online_platform": {
+            "passive_cash_target": 354337,
+            "work_order_target": 184
+          }
+        },
+        "2026-11": {
+          "online_platform": {
+            "passive_cash_target": 170502,
+            "work_order_target": 175
+          }
+        },
+        "2026-12": {
+          "online_platform": {
+            "passive_cash_target": 240709,
+            "work_order_target": 204
+          }
+        },
+        "2027-01": {
+          "online_platform": {
+            "passive_cash_target": 180532,
+            "work_order_target": 207
+          }
+        },
+        "2027-02": {
+          "online_platform": {
+            "passive_cash_target": 167159,
+            "work_order_target": 109
+          }
+        },
+        "2027-03": {
+          "online_platform": {
+            "passive_cash_target": 324289,
+            "work_order_target": 264
+          }
+        },
+        "2027-04": {
+          "online_platform": {
+            "passive_cash_target": 143757,
+            "work_order_target": 218
+          }
+        },
+        "2027-05": {
+          "online_platform": {
+            "passive_cash_target": 157130,
+            "work_order_target": 313
+          }
+        }
+      }
+    },
+    "high_school": {
+      "display_name": "高中",
+      "quarters": {
+        "Q1": {
+          "online_platform": {
+            "passive_cash_target": 2788112,
+            "work_order_target": 707
+          },
+          "offline_market": {
+            "passive_cash_target": 2281182,
+            "work_order_target": 578
+          },
+          "online_private": {
+            "passive_cash_target": 304158,
+            "work_order_target": 77
+          }
+        },
+        "Q2": {
+          "online_platform": {
+            "passive_cash_target": 1718750,
+            "work_order_target": 645
+          },
+          "offline_market": {
+            "passive_cash_target": 1406250,
+            "work_order_target": 528
+          },
+          "online_private": {
+            "passive_cash_target": 187500,
+            "work_order_target": 70
+          }
+        },
+        "Q3": {
+          "online_platform": {
+            "passive_cash_target": 1522125,
+            "work_order_target": 571
+          },
+          "offline_market": {
+            "passive_cash_target": 1245375,
+            "work_order_target": 467
+          },
+          "online_private": {
+            "passive_cash_target": 166050,
+            "work_order_target": 62
+          }
+        },
+        "Q4": {
+          "online_platform": {
+            "passive_cash_target": 1178375,
+            "work_order_target": 442
+          },
+          "offline_market": {
+            "passive_cash_target": 964125,
+            "work_order_target": 362
+          },
+          "online_private": {
+            "passive_cash_target": 128550,
+            "work_order_target": 48
+          }
+        }
+      },
+      "months": {
+        "2026-06": {
+          "online_platform": {
+            "passive_cash_target": 440810,
+            "work_order_target": 181
+          }
+        },
+        "2026-07": {
+          "online_platform": {
+            "passive_cash_target": 587747,
+            "work_order_target": 198
+          }
+        },
+        "2026-08": {
+          "online_platform": {
+            "passive_cash_target": 445009,
+            "work_order_target": 111
+          }
+        },
+        "2026-09": {
+          "online_platform": {
+            "passive_cash_target": 541567,
+            "work_order_target": 154
+          }
+        },
+        "2026-10": {
+          "online_platform": {
+            "passive_cash_target": 445009,
+            "work_order_target": 99
+          }
+        },
+        "2026-11": {
+          "online_platform": {
+            "passive_cash_target": 214108,
+            "work_order_target": 94
+          }
+        },
+        "2026-12": {
+          "online_platform": {
+            "passive_cash_target": 302270,
+            "work_order_target": 110
+          }
+        },
+        "2027-01": {
+          "online_platform": {
+            "passive_cash_target": 226702,
+            "work_order_target": 111
+          }
+        },
+        "2027-02": {
+          "online_platform": {
+            "passive_cash_target": 209910,
+            "work_order_target": 59
+          }
+        },
+        "2027-03": {
+          "online_platform": {
+            "passive_cash_target": 407225,
+            "work_order_target": 142
+          }
+        },
+        "2027-04": {
+          "online_platform": {
+            "passive_cash_target": 180522,
+            "work_order_target": 117
+          }
+        },
+        "2027-05": {
+          "online_platform": {
+            "passive_cash_target": 197315,
+            "work_order_target": 168
+          }
+        }
+      }
+    },
+    "university": {
+      "display_name": "大学",
+      "quarters": {
+        "Q1": {
+          "online_platform": {
+            "passive_cash_target": 2703215,
+            "work_order_target": 1314
+          },
+          "offline_market": {
+            "passive_cash_target": 2211721,
+            "work_order_target": 1076
+          },
+          "online_private": {
+            "passive_cash_target": 294896,
+            "work_order_target": 143
+          }
+        },
+        "Q2": {
+          "online_platform": {
+            "passive_cash_target": 1903176,
+            "work_order_target": 1084
+          },
+          "offline_market": {
+            "passive_cash_target": 1557144,
+            "work_order_target": 887
+          },
+          "online_private": {
+            "passive_cash_target": 207619,
+            "work_order_target": 118
+          }
+        },
+        "Q3": {
+          "online_platform": {
+            "passive_cash_target": 1501394,
+            "work_order_target": 855
+          },
+          "offline_market": {
+            "passive_cash_target": 1228414,
+            "work_order_target": 700
+          },
+          "online_private": {
+            "passive_cash_target": 163788,
+            "work_order_target": 93
+          }
+        },
+        "Q4": {
+          "online_platform": {
+            "passive_cash_target": 1773654,
+            "work_order_target": 1011
+          },
+          "offline_market": {
+            "passive_cash_target": 1451172,
+            "work_order_target": 827
+          },
+          "online_private": {
+            "passive_cash_target": 193490,
+            "work_order_target": 110
+          }
+        }
+      },
+      "months": {
+        "2026-06": {
+          "online_platform": {
+            "passive_cash_target": 547317,
+            "work_order_target": 326
+          }
+        },
+        "2026-07": {
+          "online_platform": {
+            "passive_cash_target": 729756,
+            "work_order_target": 357
+          }
+        },
+        "2026-08": {
+          "online_platform": {
+            "passive_cash_target": 552530,
+            "work_order_target": 201
+          }
+        },
+        "2026-09": {
+          "online_platform": {
+            "passive_cash_target": 672418,
+            "work_order_target": 279
+          }
+        },
+        "2026-10": {
+          "online_platform": {
+            "passive_cash_target": 552530,
+            "work_order_target": 178
+          }
+        },
+        "2026-11": {
+          "online_platform": {
+            "passive_cash_target": 265840,
+            "work_order_target": 170
+          }
+        },
+        "2026-12": {
+          "online_platform": {
+            "passive_cash_target": 375303,
+            "work_order_target": 198
+          }
+        },
+        "2027-01": {
+          "online_platform": {
+            "passive_cash_target": 281477,
+            "work_order_target": 201
+          }
+        },
+        "2027-02": {
+          "online_platform": {
+            "passive_cash_target": 260627,
+            "work_order_target": 106
+          }
+        },
+        "2027-03": {
+          "online_platform": {
+            "passive_cash_target": 505617,
+            "work_order_target": 256
+          }
+        },
+        "2027-04": {
+          "online_platform": {
+            "passive_cash_target": 224139,
+            "work_order_target": 212
+          }
+        },
+        "2027-05": {
+          "online_platform": {
+            "passive_cash_target": 244990,
+            "work_order_target": 304
+          }
+        }
+      }
+    }
   }
 }

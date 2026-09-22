@@ -353,6 +353,22 @@ class RenderTest(unittest.TestCase):
         self.assertEqual(src.count("{ key:"), 6)
         self.assertIn("renderChannelMatrix(); renderComparison(GRADE, 'grade')", src)
         self.assertIn('href="offline_market_special.html"', src)
+        self.assertIn('group.monthly_targets', src)
+
+
+    def test_online_platform_monthly_targets_from_training_workbook(self):
+        from dashboard_product.refresh import project, read
+        result = project(
+            {'result': {'rows': []}},
+            {'result': {'rows': []}},
+            read(Path(__file__).resolve().parents[1] / 'config/project_targets.json'),
+            read(PEOPLE_CONFIG_PATH),
+        )
+        platform = next(team for team in result['teams'] if team['team_id'] == 'online_platform')
+        prep = next(group for group in platform['groups'] if group['display_name'] == '留学预备')
+        self.assertEqual(prep['monthly_targets']['2026-06']['orders'], 336)
+        self.assertEqual(prep['monthly_targets']['2026-06']['cash'], 351034)
+        self.assertEqual(prep['annual_targets']['orders'], 3985)
 
     def test_rejects_missing_identity(self):
         with tempfile.TemporaryDirectory() as directory:

@@ -1,33 +1,37 @@
 {
+  "source": {
+    "workbook": "留学板块-官方记分卡",
+    "note": "FY27 全年资源数与毛签万元；新东方学校推荐官方记分卡未单列，保持未配置。累计毛签用记分卡 660，不自行加总覆盖。"
+  },
   "groups": {
     "市场活动": {
-      "work_order_target": null
+      "work_order_target": 1800
     },
     "官方合作高校": {
-      "work_order_target": null
+      "work_order_target": 470
     },
     "渠道合作": {
-      "work_order_target": null
+      "work_order_target": 350
     },
     "新东方学校推荐": {
       "work_order_target": null
     }
   },
   "total": {
-    "work_order_target": null
+    "work_order_target": 2620
   },
   "cash": {
     "groups": {
       "市场活动": {
-        "annual": null,
+        "annual": 277.2,
         "quarters": {}
       },
       "官方合作高校": {
-        "annual": null,
+        "annual": 112.2,
         "quarters": {}
       },
       "渠道合作": {
-        "annual": null,
+        "annual": 270.6,
         "quarters": {}
       },
       "新东方学校推荐": {
@@ -36,7 +40,7 @@
       }
     },
     "total": {
-      "annual": null,
+      "annual": 660,
       "quarters": {}
     }
   }

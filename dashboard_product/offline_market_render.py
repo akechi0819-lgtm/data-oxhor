@@ -113,12 +113,13 @@ tbody th { font-weight: 800; }
 <section class="controls" id="study-controls">
   <label>范围<select id="scope"><option value="year">全年 FY27</option><option value="Q1">Q1</option><option value="Q2">Q2</option><option value="Q3">Q3</option><option value="Q4">Q4</option></select></label>
   <label id="month-control" hidden>月份<select id="month"></select></label>
-  <span class="hint">合法三类按资源主被动=被动；新东方只收市场推荐点对点。目标未配置。现金实际暂未接入。月度目标待确认。</span>
+  <span class="hint">部门完成只加留学线下团队映射到的人。孙伟在名单内，当前仓没有 9 月数据时按 0。现金实际暂未接入。月度目标待确认。</span>
 </section>
 <div id="timeline" class="timeline"></div>
   <div id="cards" class="cards"></div>
-  <div class="notice">留学线下渠道看板统计有效工单 ID、团队为空；市场活动、官方合作高校、渠道合作只取被动，新东方学校推荐只取市场推荐子集。渠道按咨询方式路径现算，不使用 CRM 渠道列，也不套用线上矫正-渠道。被排除的新东方点对点不进入本页。看板不展示一级渠道。</div>
-  <section class="panel target-band"><div class="panel-head"><div><h2>目标</h2><p class="section-kicker">工单目标和毛签目标均未配置，先展示当前工单；现金实际待接入。</p></div></div><div id="targets" class="table-wrap"></div></section>
+  <div class="notice">留学线下特供按团队人员加总：有效工单 ID、团队为空，并映射到孙伟、吴子玄、邓睿、王洪霞、王衡利、杨芸聿、马玥、高书航。认人顺序为资源录入人 → 活动主责 → 市场人员/数据提供方 → 转介绍；括号协作和“不算新”不计入。未映射的人不进部门完成。二级渠道、国家、学校仍是这批人的拆解。看板不展示一级渠道。</div>
+  <section class="panel target-band"><div class="panel-head"><div><h2>目标</h2><p class="section-kicker">全年工单 2620、毛签 660 万元按留学官方记分卡累计。月度未拆，现金实际待接入。人员月度目标暂未配置。</p></div></div><div id="targets" class="table-wrap"></div></section>
+  <section class="panel"><div class="panel-head"><div><h2>人员完成</h2><p class="section-kicker">部门完成等于下列人员加总；名单内无人命中时显示 0。人员目标暂未配置。</p></div></div><div id="people" class="table-wrap"></div></section>
   <div class="grid-two">
     <section class="panel"><div class="panel-head"><div><h2>二级渠道进度</h2><p class="section-kicker">按活动类型、同名高校、个人/对公渠道和新东方部门查看当期、同期和同比。</p></div></div><div id="platforms" class="table-wrap"></div></section>
     <section class="panel"><div class="panel-head"><div><h2>国家与条线</h2><p class="section-kicker">先查看条线，再展开对应国家；不参与当前目标计算。</p></div></div><div id="dimensions"></div></section>
@@ -135,6 +136,7 @@ const MONTH_CONTROL = document.querySelector('#month-control');
 const MONTHS = D.months;
 const PRIOR_MONTHS = D.prior_months;
 const SCHOOL_BANDS = ['大学以上', '大学以下'];
+const PEOPLE_ORDER = D.study_abroad?.scope?.people || [];
 const QUARTER_MONTHS = { Q1: ['2026-06', '2026-07', '2026-08'], Q2: ['2026-09', '2026-10', '2026-11'], Q3: ['2026-12', '2027-01', '2027-02'], Q4: ['2027-03', '2027-04', '2027-05'] };
 document.querySelector('#snapshot').textContent = D.shadow_snapshot_id || '未绑定';
 document.querySelector('#through').textContent = D.data_through_date || '未绑定';
@@ -196,7 +198,27 @@ function renderSchoolNameRows(currentValues, priorValues) { const names = [...ne
 function renderSchoolDrilldown() { const current = D.study_abroad.current.schools || {}; const prior = D.study_abroad.prior.schools || {}; const names = SCHOOL_BANDS.filter(name => (current[name] || prior[name])); if (!names.length) return '<div class="empty">暂无学校数据</div>'; let html = '<table><thead><tr><th>学校类别</th><th>工单</th><th>同期</th><th>同比</th><th>下钻</th></tr></thead><tbody>'; names.forEach((name, index) => { const now = sumSeries(current[name]?.series, 'orders'); const old = sumSeries(prior[name]?.series, 'orders'); const change = yoy(now, old); const drillId = 'school-drill-' + index; html += '<tr><th>' + escapeHtml(name) + '</th><td>' + count(now) + '</td><td>' + count(old) + '</td><td class="' + (change != null && change < 0 ? 'negative' : '') + '">' + pct(change) + '</td><td><button class="drill-toggle" data-drill="' + drillId + '" aria-expanded="false">展开学校</button></td></tr><tr id="' + drillId + '" class="drill-row" hidden><td colspan="5">' + renderSchoolNameRows(current[name]?.schools || {}, prior[name]?.schools || {}) + '</td></tr>'; }); return html + '</tbody></table>'; }
 function wireSchoolDrills() { document.querySelectorAll('#schools .drill-toggle').forEach(button => { button.onclick = () => { const row = document.querySelector('#' + button.dataset.drill); const open = row.hidden; row.hidden = !open; button.textContent = open ? '收起学校' : '展开学校'; button.setAttribute('aria-expanded', String(open)); }; }); }
 function renderSchools() { document.querySelector('#schools').innerHTML = renderSchoolDrilldown(); wireSchoolDrills(); }
-function renderStudy() { renderTimeline(); renderCards(); renderTargets(); renderPlatforms(); renderDimensions(); renderSchools(); }
+function renderPeople() {
+  const current = D.study_abroad.current.people || {};
+  const prior = D.study_abroad.prior.people || {};
+  const names = [...new Set([...(PEOPLE_ORDER || []), ...Object.keys(current), ...Object.keys(prior)])];
+  const rows = names.map(name => {
+    const now = sumSeries(current[name], 'orders');
+    const old = sumSeries(prior[name], 'orders');
+    return { name, now, old };
+  });
+  const total = rows.reduce((sum, row) => sum + row.now, 0);
+  let html = '<table><thead><tr><th>市场人员</th><th>当前工单</th><th>同期工单</th><th>同比</th><th>当前占比</th></tr></thead><tbody>';
+  rows.forEach(row => {
+    const change = yoy(row.now, row.old);
+    html += '<tr><th>' + escapeHtml(row.name) + '</th><td>' + count(row.now) + '</td><td>' + count(row.old) + '</td><td class="' + (change != null && change < 0 ? 'negative' : '') + '">' + pct(change) + '</td><td>' + pct(total > 0 ? row.now / total : null) + '</td></tr>';
+  });
+  const priorTotal = rows.reduce((sum, row) => sum + row.old, 0);
+  const totalChange = yoy(total, priorTotal);
+  html += '<tr class="total-row"><th>合计</th><td>' + count(total) + '</td><td>' + count(priorTotal) + '</td><td class="' + (totalChange != null && totalChange < 0 ? 'negative' : '') + '">' + pct(totalChange) + '</td><td>100.0%</td></tr>';
+  document.querySelector('#people').innerHTML = html + '</tbody></table>';
+}
+function renderStudy() { renderTimeline(); renderCards(); renderTargets(); renderPeople(); renderPlatforms(); renderDimensions(); renderSchools(); }
 S.addEventListener('change', () => { updateMonthOptions(); renderStudy(); });
 M.addEventListener('change', renderStudy);
 updateMonthOptions();

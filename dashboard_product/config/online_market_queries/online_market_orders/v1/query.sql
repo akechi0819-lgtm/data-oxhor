@@ -20,7 +20,6 @@ WITH params AS (
       ORDER BY source_row_number
     ) AS rn
   FROM landing.br_work_orders__sheet_1f0596db9f25
-  WHERE NULLIF(TRIM(资源主被动), '') = '被动'
 ), scoped AS (
   SELECT
     *,
@@ -48,6 +47,10 @@ WHERE rn = 1
   AND work_order_id IS NOT NULL
   AND source_team IS NULL
   AND source_root IN ('网络资源', '新媒体')
+  AND (
+    (source_root = '网络资源' AND resource_active_type IN ('被动', '主动'))
+    OR (source_root = '新媒体' AND resource_active_type = '被动')
+  )
   AND event_date >= start_date
   AND event_date < end_date
 ORDER BY event_date, channel_group, second_channel, first_channel;

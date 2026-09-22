@@ -122,14 +122,14 @@ __BOARD_TABS__
 <section class="controls" id="study-controls">
   <label>范围<select id="scope"><option value="year">全年 FY27</option><option value="Q1">Q1</option><option value="Q2">Q2</option><option value="Q3">Q3</option><option value="Q4">Q4</option></select></label>
   <label id="month-control" hidden>月份<select id="month"></select></label>
-  <span class="hint">当前按资源主被动=被动统计线上工单；主被动用于清洗审计。现金实际暂未接入。月度目标待确认。</span>
+  <span class="hint">网络资源计入被动+主动；新媒体只计被动。清洗后的主被动只作审计。现金实际暂未接入。月度目标待确认。</span>
 </section>
 <div id="timeline" class="timeline"></div>
   <div id="cards" class="cards"></div>
-  <div class="notice">留学线上暂按资源主被动=被动统计：有效工单 ID、团队为空、来源根节点为“网络资源”或“新媒体”。清洗后的主被动只作审计，二级渠道未命中时保留为待确认，不强制归类。</div>
+  <div class="notice">留学线上统计有效工单 ID、团队为空、来源根节点为“网络资源”或“新媒体”。网络资源计入资源主被动的被动与主动；新媒体只计被动。清洗后的主被动只作审计，二级渠道未命中时保留为待确认，不强制归类。</div>
   <section class="panel target-band"><div class="panel-head"><div><h2>目标</h2><p class="section-kicker">目标随范围切换显示合计；年度工单 6715、毛签 2992.56 万元，四季度均分，现金实际暂未接入。看板不展示一级渠道。</p></div></div><div id="targets" class="table-wrap"></div></section>
   <div class="grid-two">
-    <section class="panel"><div class="panel-head"><div><h2>二级渠道进度</h2><p class="section-kicker">按平台查看被动线上工单的当期、同期和同比；当前没有小红书、大众等平台目标。</p></div></div><div id="platforms" class="table-wrap"></div></section>
+    <section class="panel"><div class="panel-head"><div><h2>二级渠道进度</h2><p class="section-kicker">按平台查看线上工单的当期、同期和同比；当前没有小红书、大众等平台目标。</p></div></div><div id="platforms" class="table-wrap"></div></section>
     <section class="panel"><div class="panel-head"><div><h2>国家与条线</h2><p class="section-kicker">先查看条线，再展开对应国家；不参与当前目标计算。</p></div></div><div id="dimensions"></div></section>
   </div>
 </section>
@@ -171,7 +171,7 @@ function renderTimeline() {
 function renderCards() {
   const current = selectedSeries(D.study_abroad.current); const prior = selectedSeries(D.study_abroad.prior); const actual = sumSeries(current, 'orders'); const previous = sumSeries(prior, 'orders'); const passive = sumSeries(current, 'passive_orders'); const target = selectedTarget(); const completionValue = completion(actual, target);
   const cards = [
-    ['被动线上工单数', count(actual), '同期 ' + count(previous) + ' · 同比 ' + pct(yoy(actual, previous))],
+    ['线上工单数', count(actual), '同期 ' + count(previous) + ' · 同比 ' + pct(yoy(actual, previous))],
     [S.value === 'year' ? '年度目标完成' : selectedPeriodLabel() + '目标完成', completionValue == null ? (S.value === 'year' ? '—' : (M.value && M.value !== 'all' ? '月度目标待确认' : '—')) : pct(completionValue), target == null ? (S.value === 'year' ? '目标未配置' : (M.value && M.value !== 'all' ? '月度目标待确认' : '目标 ' + count(target) + ' 条')) : '目标 ' + count(target) + ' 条'],
     ['现金实际', '待接入', '现金目标已配置，实际明细待接入']
   ];
@@ -181,7 +181,7 @@ function renderTargets() {
   const total = { label: '合计', target: selectedTarget(), cash: selectedCashTarget(), actual: sumSeries(selectedSeries(D.study_abroad.current), 'orders') };
   const isYear = S.value === 'year'; const period = S.value; const isMonth = M.value && M.value !== 'all'; const workHeader = isYear ? '年度工单目标' : (isMonth ? '月度工单目标' : period + '工单目标'); const cashHeader = isYear ? '年度毛签目标（万元）' : (isMonth ? '月度毛签目标（万元）' : period + '毛签目标（万元）');
   const rate = completion(total.actual, total.target); const cashValue = isYear ? total.cash?.annual : (isMonth ? null : total.cash?.quarters?.[period]);
-  let html = '<table><thead><tr><th></th><th>' + workHeader + '</th><th>当前被动工单</th><th>工单完成率</th><th>' + cashHeader + '</th></tr></thead><tbody>';
+  let html = '<table><thead><tr><th></th><th>' + workHeader + '</th><th>当前工单</th><th>工单完成率</th><th>' + cashHeader + '</th></tr></thead><tbody>';
   html += '<tr class="total-row"><th>合计</th><td>' + (total.target == null ? (isMonth ? '月度目标待确认' : (isYear ? '未配置' : '未拆季度')) : countTarget(total.target)) + '</td><td>' + count(total.actual) + '</td><td>' + progressBar(rate) + '</td><td>' + cashMoney(cashValue) + '</td></tr>';
   document.querySelector('#targets').innerHTML = html + '</tbody></table>';
 }
@@ -189,7 +189,7 @@ function platformSeries(info) { return info.series || { orders: [], passive_orde
 function renderPlatforms() {
   const current = D.study_abroad.current.platforms || {}; const prior = D.study_abroad.prior.platforms || {}; const aliases = {'其他':'ssc'}; const rawNames = [...new Set([...Object.keys(current), ...Object.keys(prior)])]; const bucket = {}; rawNames.forEach(raw => { const name = aliases[raw] || raw; const slot = bucket[name] || (bucket[name] = { name, curKeys: [], priKeys: [] }); if (current[raw]) slot.curKeys.push(raw); if (prior[raw]) slot.priKeys.push(raw); }); const rows = Object.values(bucket).map(slot => { const now = slot.curKeys.reduce((acc, key) => { const s = platformSeries(current[key] || {}); return { orders: acc.orders.map((v,i)=>v+(s.orders[i]||0)), passive_orders: acc.passive_orders.map((v,i)=>v+(s.passive_orders[i]||0)) }; }, {orders:Array(12).fill(0),passive_orders:Array(12).fill(0)}); const old = slot.priKeys.reduce((acc, key) => { const s = platformSeries(prior[key] || {}); return { orders: acc.orders.map((v,i)=>v+(s.orders[i]||0)), passive_orders: acc.passive_orders.map((v,i)=>v+(s.passive_orders[i]||0)) }; }, {orders:Array(12).fill(0),passive_orders:Array(12).fill(0)}); const first = [...new Set(slot.curKeys.concat(slot.priKeys).flatMap(key => ((current[key] || prior[key] || {}).first_channels || [])))]; return { name: slot.name, now: sumSeries(now, 'orders'), old: sumSeries(old, 'orders'), passive: sumSeries(now, 'passive_orders'), first }; }).filter(row => row.now > 0 || row.old > 0).sort((a, b) => b.now - a.now || a.name.localeCompare(b.name, 'zh-CN')); const total = rows.reduce((sum, row) => sum + row.now, 0);
   if (!rows.length) { document.querySelector('#platforms').innerHTML = '<div class="empty">当前范围暂无二级渠道数据</div>'; return; }
-  let html = '<table><thead><tr><th>二级渠道</th><th>当前被动工单</th><th>同期被动工单</th><th>同比</th><th>当前占比</th></tr></thead><tbody>';
+  let html = '<table><thead><tr><th>二级渠道</th><th>当前工单</th><th>同期工单</th><th>同比</th><th>当前占比</th></tr></thead><tbody>';
   rows.forEach(row => { const change = yoy(row.now, row.old); html += '<tr><th>' + escapeHtml(row.name) + '</th><td>' + count(row.now) + '</td><td>' + count(row.old) + '</td><td class="' + (change != null && change < 0 ? 'negative' : '') + '">' + pct(change) + '</td><td>' + pct(total > 0 ? row.now / total : null) + '</td></tr>'; });
   const priorTotal = rows.reduce((sum, row) => sum + row.old, 0); const totalChange = yoy(total, priorTotal);
   html += '<tr class="total-row"><th>合计</th><td>' + count(total) + '</td><td>' + count(priorTotal) + '</td><td class="' + (totalChange != null && totalChange < 0 ? 'negative' : '') + '">' + pct(totalChange) + '</td><td>100.0%</td></tr>';
