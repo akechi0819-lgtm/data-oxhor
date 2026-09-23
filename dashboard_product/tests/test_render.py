@@ -228,10 +228,12 @@ class RenderTest(unittest.TestCase):
         result = project({"result": {"rows": rows}}, {"result": {"rows": []}}, read(root / "config/project_targets.json"), read(PEOPLE_CONFIG_PATH))
         market = next(item for item in result["teams"] if item["team_id"] == "market_total")
         offline = next(item for item in result["teams"] if item["team_id"] == "offline_market")
-        market_groups = {item["display_name"]: item for item in market["groups"]}
+        market_groups = {item["display_name"]: item for item in market["business_group_groups"]}
+        market_teams = {item["display_name"]: item for item in market["groups"]}
         offline_groups = {item["display_name"]: item for item in offline["groups"]}
         self.assertEqual(market_groups["业务组暂无法拆分"]["monthly_actuals"]["orders"][2], 3)
         self.assertEqual(market_groups["高中"]["monthly_actuals"]["cash"][2], 181200)
+        self.assertEqual(market_teams["暂时无法识别团队"]["monthly_actuals"]["cash"][2], 181200)
         self.assertEqual(offline_groups["高中"]["monthly_actuals"]["cash"][2], 0)
         self.assertEqual(offline_groups["高中"]["monthly_actuals"]["orders"][2], 2)
         self.assertIn("2026-08|market_total|高中|渠道/顾问暂无法拆分|渠道/顾问暂无法拆分", result["drilldowns"]["current"]["cash"]["channel"])

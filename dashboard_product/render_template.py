@@ -314,13 +314,20 @@ function renderTeamShareTable(groupName, parentCash, parentOrders, sum) {
   });
   return html + '</tbody></table>';
 }
-function renderMarketRows(groups, sum, priorSum) {
+function businessGroupDrill(groupName) {
+  const rawGroups = groupName === '留学预备' ? ['青少', '初中'] : [groupName];
+  const [start, length] = range();
+  return rawGroups.map(rawGroup => '<div class="market-group-drill"><strong>' + escapeHtml(rawGroup) + ' · 现金渠道</strong>' + channelDrill(rawGroup, 'market_total', start, length, 'cash') + '<strong>' + escapeHtml(rawGroup) + ' · 工单渠道</strong>' + channelDrill(rawGroup, 'market_total', start, length, 'orders') + '</div>').join('');
+}
+function renderMarketRows(groups, sum, priorSum, drillRenderer = null) {
   let html = '';
   groups.forEach(group => {
     const cash = sum(group, 'cash'); const orders = sum(group, 'orders'); const priorCash = priorSum(group, 'cash'); const priorOrders = priorSum(group, 'orders');
     const totalCash = groups.reduce((total, item) => total + sum(item, 'cash'), 0); const totalOrders = groups.reduce((total, item) => total + sum(item, 'orders'), 0);
     const cashYoy = priorCash > 0 ? (cash - priorCash) / priorCash : null; const orderYoy = priorOrders > 0 ? (orders - priorOrders) / priorOrders : null;
-    html += '<tr><th>' + escapeHtml(group.display_name) + '</th><td>' + money(target(group, 'cash')) + '</td><td>' + money(cash) + '</td><td>' + money(priorCash) + '</td><td>' + pct(cashYoy) + '</td><td>' + pct(totalCash > 0 ? cash / totalCash : null) + '</td><td>' + count(target(group, 'orders')) + '</td><td>' + count(orders) + '</td><td>' + count(priorOrders) + '</td><td>' + pct(orderYoy) + '</td><td>' + pct(totalOrders > 0 ? orders / totalOrders : null) + '</td></tr>';
+    const drillId = 'market-group-drill-' + groups.indexOf(group);
+    html += '<tr><th>' + escapeHtml(group.display_name) + '</th><td>' + money(target(group, 'cash')) + '</td><td>' + money(cash) + '</td><td>' + money(priorCash) + '</td><td>' + pct(cashYoy) + '</td><td>' + pct(totalCash > 0 ? cash / totalCash : null) + '</td><td>' + count(target(group, 'orders')) + '</td><td>' + count(orders) + '</td><td>' + count(priorOrders) + '</td><td>' + pct(orderYoy) + '</td><td>' + pct(totalOrders > 0 ? orders / totalOrders : null) + '</td>' + (drillRenderer ? '<td><button class="drill-toggle" data-drill="' + drillId + '">展开团队严格归属渠道</button></td>' : '') + '</tr>';
+    if (drillRenderer) html += '<tr id="' + drillId + '" class="drill-row" hidden><td colspan="12">' + drillRenderer(group) + '</td></tr>';
   });
   return html;
 }
@@ -518,9 +525,9 @@ function renderView() {
   const team = selectedTeam(); const [start, length] = range(); const sum = (group, key) => group.monthly_actuals[key].slice(start, start + length).reduce((total, value) => total + value, 0); const priorSum = (group, key) => group.prior_monthly_actuals[key].slice(start, start + length).reduce((total, value) => total + value, 0); const cash = team.groups.reduce((total, group) => total + sum(group, 'cash'), 0); const orders = team.groups.reduce((total, group) => total + sum(group, 'orders'), 0); const priorCash = team.groups.reduce((total, group) => total + priorSum(group, 'cash'), 0); const priorOrders = team.groups.reduce((total, group) => total + priorSum(group, 'orders'), 0); const cashTarget = totalTarget(team, 'cash'); const ordersTarget = totalTarget(team, 'orders'); const yoy = (current, prior) => prior > 0 ? (current - prior) / prior : null; const completion = (current, targetValue) => targetValue > 0 ? current / targetValue : null; const isTotal = team.team_id === 'market_total';
   const metricCard = (label, current, prior, targetValue, formatter, accent) => '<article class="metric-card" style="border-top-color:' + accent + '"><div class="metric-head"><small>' + label + '</small><span class="metric-scope">' + selectedPeriodLabel() + '</span></div><strong>' + formatter(current) + '</strong><div class="metric-details"><span class="metric-detail"><em>同期</em>' + formatter(prior) + '</span><span class="metric-detail"><em>同比</em>' + pct(yoy(current, prior)) + '</span><span class="metric-detail"><em>目标</em>' + formatter(targetValue) + '</span><span class="metric-detail"><em>完成</em>' + pct(completion(current, targetValue)) + '</span></div></article>';
   const teamHead = '<tr><th>团队</th><th>现金目标</th><th>现金实际</th><th>现金同期</th><th>现金同比</th><th>现金占比</th><th>工单目标</th><th>工单实际</th><th>工单同期</th><th>工单同比</th><th>工单占比</th></tr>';
-  const businessGroupHead = '<tr><th>业务组</th><th>现金目标</th><th>现金实际</th><th>现金同期</th><th>现金同比</th><th>现金占比</th><th>工单目标</th><th>工单实际</th><th>工单同期</th><th>工单同比</th><th>工单占比</th></tr>';
+  const businessGroupHead = '<tr><th>业务组</th><th>现金目标</th><th>现金实际</th><th>现金同期</th><th>现金同比</th><th>现金占比</th><th>工单目标</th><th>工单实际</th><th>工单同期</th><th>工单同比</th><th>工单占比</th><th>下钻</th></tr>';
   const teamPanel = '<section class="panel"><div class="panel-head"><div><h2>市场总计 · 团队</h2><p class="section-kicker">按线下市场、线上市场、虚拟人拆分；暂时无法识别团队单独汇总</p></div></div><div class="table-wrap"><table><thead>' + teamHead + '</thead><tbody>' + renderGroupRows(team, sum, priorSum) + '</tbody></table></div></section>';
-  const businessGroupPanel = '<section class="panel"><div class="panel-head"><div><h2>市场总计 · 业务组</h2><p class="section-kicker">按留学预备、高中、大学和暂时无法拆分业务组汇总</p></div></div><div class="table-wrap"><table><thead>' + businessGroupHead + '</thead><tbody>' + renderMarketRows(team.business_group_groups || [], sum, priorSum) + '</tbody></table></div></section>';
+  const businessGroupPanel = '<section class="panel"><div class="panel-head"><div><h2>市场总计 · 业务组</h2><p class="section-kicker">按留学预备、高中、大学和暂时无法拆分业务组汇总；可展开严格归属渠道</p></div></div><div class="table-wrap"><table><thead>' + businessGroupHead + '</thead><tbody>' + renderMarketRows(team.business_group_groups || [], sum, priorSum, group => businessGroupDrill(group.display_name)) + '</tbody></table></div></section>';
   let html = ''; if (team.team_id === 'offline_market') html += '<a class="special-board-link" href="offline_market_special.html">留学线下市场特供看板 →</a>'; html += '<section class="cards">' + metricCard('被动报入现金', cash, priorCash, cashTarget, money, 'var(--blue)') + metricCard('被动工单', orders, priorOrders, ordersTarget, count, 'var(--orange)') + '</section>';
   if (isTotal) html += '<div class="market-total-panels">' + businessGroupPanel + teamPanel + '</div>';
   else html += '<div class="dashboard-grid"><section class="panel"><div class="panel-head"><div><h2>三大业务组 · 现金与工单</h2><p class="section-kicker">目标、实际与完成率</p></div></div><div class="table-wrap"><table><thead><tr><th>业务组</th><th>现金目标</th><th>现金实际</th><th>现金完成</th><th>工单目标</th><th>工单实际</th><th>工单完成</th></tr></thead><tbody>' + renderGroupRows(team, sum, priorSum) + '</tbody></table></div></section>';
