@@ -236,7 +236,7 @@ class RenderTest(unittest.TestCase):
         self.assertEqual(market_teams["暂时无法识别团队"]["monthly_actuals"]["cash"][2], 181200)
         self.assertEqual(offline_groups["高中"]["monthly_actuals"]["cash"][2], 0)
         self.assertEqual(offline_groups["高中"]["monthly_actuals"]["orders"][2], 2)
-        self.assertIn("2026-08|market_total|高中|渠道/顾问暂无法拆分|渠道/顾问暂无法拆分", result["drilldowns"]["current"]["cash"]["channel"])
+        self.assertIn("2026-08|market_total|高中|暂时无法识别渠道|暂时无法识别渠道", result["drilldowns"]["current"]["cash"]["channel"])
 
     def test_notify_sql_remaps_tmk_school_agent_owned_by_offline_roster(self):
         root = Path(__file__).resolve().parents[1]
