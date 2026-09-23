@@ -5,10 +5,10 @@
   "queries": [
     {
       "query_id": "dashboard_actuals",
-      "version": "v12",
-      "purpose": "看板当前与上一财年实际：市场总计保留全部有效被动工单和被动新生正向报入现金，项目、团队和人员仅使用严格归属，未归属事实独立标记",
+      "version": "v14",
+      "purpose": "看板当前与上一财年实际：市场总计并列提供业务组与团队汇总；现金无工单归属时按已确认的渠道规则和团队兜底映射处理，保留原始渠道与工单主被动字段供审计",
       "parameters": ["start_date", "end_date"],
-      "output": "event_date,team_id,business_group,first_channel,second_channel,campaign_name,entry_person,school_name,grade_name,metric,actual_value,student_id",
+      "output": "event_date,team_id,business_group,first_channel,second_channel,campaign_name,entry_person,school_name,grade_name,metric,actual_value,student_id,cash_channel,work_order_active_type,cash_campaign_name",
       "sql_owner": "customer_workspace_saved_query_registry",
       "consumed_by": "refresh.py"
     },

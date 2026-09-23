@@ -32,11 +32,11 @@ class CapacityBucketTest(unittest.TestCase):
 class CapacityProjectionTest(unittest.TestCase):
     def test_projects_heads_and_six_dim_cash_mix(self):
         rows = [
-            ['2026-09-03', 'offline_market', '青少', '市场活动', '异业渠道', '王昊活动', None, '学校', '一年级', 'work_orders', 10, None],
-            ['2026-09-03', 'offline_market', '青少', '市场活动', '异业渠道', '王昊活动', None, '学校', '一年级', 'passive_reported_cash', 10000, 'S1'],
-            ['2026-09-03', 'offline_market', '青少', 'TMK激活', '入库返打', '王昊活动', None, '学校', '一年级', 'passive_reported_cash', 20000, 'S2'],
-            ['2026-09-03', 'offline_market', '青少', '市场活动', '展会', '王昊活动', None, '学校', '一年级', 'passive_reported_cash', 30000, 'S1'],
-            ['2026-09-03', 'offline_market', '青少', '平台', '大众点评', '王昊活动', None, '学校', '一年级', 'passive_reported_cash', 40000, 'S3'],
+            ['2026-09-03', 'offline_market', '青少', '市场活动', '异业渠道', '王昊活动', None, '学校', '一年级', 'work_orders', 10, None, None, '被动', None],
+            ['2026-09-03', 'offline_market', '青少', '市场活动', '异业渠道', '王昊活动', None, '学校', '一年级', 'passive_reported_cash', 10000, 'S1', '市场资源', '被动', '王昊活动'],
+            ['2026-09-03', 'offline_market', '青少', 'TMK激活', '入库返打', '王昊活动', None, '学校', '一年级', 'passive_reported_cash', 20000, 'S2', 'TMK激活-A类', '被动', '王昊活动'],
+            ['2026-09-03', 'offline_market', '青少', '市场活动', '展会', '王昊活动', None, '学校', '一年级', 'passive_reported_cash', 30000, 'S1', '市场资源', '被动', '王昊活动'],
+            ['2026-09-03', 'offline_market', '青少', '平台', '大众点评', '王昊活动', None, '学校', '一年级', 'passive_reported_cash', 40000, 'S3', '市场资源', '被动', '王昊活动'],
         ]
         result = project(
             {'result': {'rows': rows}},
@@ -71,7 +71,7 @@ class CapacityProjectionTest(unittest.TestCase):
             }]
         }
         rows = [
-            ['2026-09-03', 'offline_market', '青少', '市场活动', '展会', '王昊马澳活动', None, '学校', '一年级', 'passive_reported_cash', 8000, 'S9'],
+            ['2026-09-03', 'offline_market', '青少', '市场活动', '展会', '王昊马澳活动', None, '学校', '一年级', 'passive_reported_cash', 8000, 'S9', '市场资源', '被动', '王昊马澳活动'],
         ]
         result = project(
             {'result': {'rows': rows}},

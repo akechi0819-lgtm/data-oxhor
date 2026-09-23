@@ -7,7 +7,7 @@ from pathlib import Path
 from dashboard_product.refresh import DASHBOARD_QUERY_COLUMNS, DASHBOARD_SAVED_QUERY, project, render, validate_publish_artifact
 
 
-def _publish_artifact(directory, version='v12', columns=None):
+def _publish_artifact(directory, version='v14', columns=None):
     root = Path(directory)
     receipt_rel = Path('data/query_results/evidence/receipt.json')
     (root / receipt_rel).parent.mkdir(parents=True)
@@ -47,7 +47,7 @@ class RenderTest(unittest.TestCase):
                 version='v10',
                 columns=DASHBOARD_QUERY_COLUMNS[:-1],
             )
-            with self.assertRaisesRegex(ValueError, 'dashboard_actuals/v12'):
+            with self.assertRaisesRegex(ValueError, 'dashboard_actuals/v14'):
                 validate_publish_artifact(legacy)
 
     def test_departed_and_transferred_people_are_hidden_from_dashboard_and_notify(self):
@@ -93,8 +93,8 @@ class RenderTest(unittest.TestCase):
         from dashboard_product.refresh import read
         root = Path(__file__).resolve().parents[1]
         rows = [
-            ["2026-09-03", "offline_market", "高中", "TMK", "校园", "杨新宇活动", None, "学校", "高一", "work_orders", 2, None],
-            ["2026-09-03", "offline_market", "高中", "TMK", "校园", "杨新宇活动", None, "学校", "高一", "passive_reported_cash", 26000, None],
+            ["2026-09-03", "offline_market", "高中", "TMK", "校园", "杨新宇活动", None, "学校", "高一", "work_orders", 2, None, None, '被动', None],
+            ["2026-09-03", "offline_market", "高中", "TMK", "校园", "杨新宇活动", None, "学校", "高一", "passive_reported_cash", 26000, None, '市场资源', '被动', '杨新宇活动'],
         ]
         result = project({"result": {"rows": rows}}, {"result": {"rows": []}}, read(root / "config/project_targets.json"), read(PEOPLE_CONFIG_PATH))
         team = next(item for item in result["teams"] if item["team_id"] == "offline_market")
@@ -109,7 +109,7 @@ class RenderTest(unittest.TestCase):
         from dashboard_product.refresh import read
         root = Path(__file__).resolve().parents[1]
         rows = [
-            ["2026-09-03", "offline_market", "大学", "TMK", "校园", "天财豆蔻学姐号微信推广-曹恒为玮-线上雅思行地推", "曹恒玮", "某大学", "大一", "work_orders", 1, None],
+            ["2026-09-03", "offline_market", "大学", "TMK", "校园", "天财豆蔻学姐号微信推广-曹恒为玮-线上雅思行地推", "曹恒玮", "某大学", "大一", "work_orders", 1, None, None, '被动', None],
         ]
         result = project({"result": {"rows": rows}}, {"result": {"rows": []}}, read(root / "config/project_targets.json"), read(PEOPLE_CONFIG_PATH))
         team = next(item for item in result["teams"] if item["team_id"] == "offline_market")
@@ -120,7 +120,7 @@ class RenderTest(unittest.TestCase):
         from dashboard_product.refresh import read
         root = Path(__file__).resolve().parents[1]
         rows = [
-            ["2026-09-03", "offline_market", "大学", "TMK", "校园", None, "曹恒玮", "某大学", "大一", "work_orders", 1, None],
+            ["2026-09-03", "offline_market", "大学", "TMK", "校园", None, "曹恒玮", "某大学", "大一", "work_orders", 1, None, None, '被动', None],
         ]
         result = project({"result": {"rows": rows}}, {"result": {"rows": []}}, read(root / "config/project_targets.json"), read(PEOPLE_CONFIG_PATH))
         team = next(item for item in result["teams"] if item["team_id"] == "offline_market")
@@ -131,9 +131,9 @@ class RenderTest(unittest.TestCase):
         from dashboard_product.refresh import read
         root = Path(__file__).resolve().parents[1]
         rows = [
-            ["2026-09-03", "offline_market", "高中", "TMK", "校园", "马澳高中活动", None, "学校", "高一", "work_orders", 5, None],
-            ["2026-09-03", "offline_market", "青少", "TMK", "校园", "校代系统资源活动", "马澳", "学校", "初三", "work_orders", 3, None],
-            ["2026-09-03", "offline_market", "青少", "TMK", "校园", "校代系统资源活动", "马澳", "学校", "初三", "passive_reported_cash", 39000, None],
+            ["2026-09-03", "offline_market", "高中", "TMK", "校园", "马澳高中活动", None, "学校", "高一", "work_orders", 5, None, None, '被动', None],
+            ["2026-09-03", "offline_market", "青少", "TMK", "校园", "校代系统资源活动", "马澳", "学校", "初三", "work_orders", 3, None, None, '被动', None],
+            ["2026-09-03", "offline_market", "青少", "TMK", "校园", "校代系统资源活动", "马澳", "学校", "初三", "passive_reported_cash", 39000, None, '市场资源', '被动', '校代系统资源活动'],
         ]
         result = project({"result": {"rows": rows}}, {"result": {"rows": []}}, read(root / "config/project_targets.json"), read(PEOPLE_CONFIG_PATH))
         team = next(item for item in result["teams"] if item["team_id"] == "offline_market")
@@ -184,8 +184,8 @@ class RenderTest(unittest.TestCase):
             "online_platform",
         )
         rows = [
-            ["2026-09-12", "online_platform", "大学", "TMK激活-平台", "小表单", "2027财年第4财月91校代系统资源活动", "石仁达", "天津师范大学", "大四", "work_orders", 3, None],
-            ["2026-09-12", "online_platform", "大学", "平台", "抖音来客", "2027财年第4财月抖音来客-新媒体管家", "苗莎莎", "天津大学", "大一", "work_orders", 4, None],
+            ["2026-09-12", "online_platform", "大学", "TMK激活-平台", "小表单", "2027财年第4财月91校代系统资源活动", "石仁达", "天津师范大学", "大四", "work_orders", 3, None, None, '被动', None],
+            ["2026-09-12", "online_platform", "大学", "平台", "抖音来客", "2027财年第4财月抖音来客-新媒体管家", "苗莎莎", "天津大学", "大一", "work_orders", 4, None, None, '被动', None],
         ]
         result = project({"result": {"rows": rows}}, {"result": {"rows": []}}, read(root / "config/project_targets.json"), people)
         offline = next(item for item in result["teams"] if item["team_id"] == "offline_market")
@@ -215,15 +215,15 @@ class RenderTest(unittest.TestCase):
         self.assertNotIn("COALESCE(o.business_group, c.cash_business_group)", query)
         self.assertIn("NULLIF(TRIM(学员编号),'') AS student_id", query)
         self.assertIn("NULL AS student_id", query)
-        self.assertIn("metric, actual_value, student_id FROM orders", query)
+        self.assertIn("metric, actual_value, student_id, cash_channel, work_order_active_type, cash_campaign_name FROM orders", query)
 
     def test_market_total_keeps_unassigned_facts_without_putting_them_in_teams_or_people(self):
         from dashboard_product.refresh import read
         root = Path(__file__).resolve().parents[1]
         rows = [
-            ["2026-08-12", None, "业务组暂无法拆分", "平台", "小红书", "活动", None, None, None, "work_orders", 3, None],
-            ["2026-08-12", None, "高中", "渠道/顾问暂无法拆分", "渠道/顾问暂无法拆分", "现金活动", None, None, None, "passive_reported_cash", 181200, "S1"],
-            ["2026-08-12", "offline_market", "高中", "TMK", "讲座", "杨新宇活动", None, None, None, "work_orders", 2, None],
+            ["2026-08-12", None, "业务组暂无法拆分", "平台", "小红书", "活动", None, None, None, "work_orders", 3, None, None, '被动', None],
+            ["2026-08-12", None, "高中", "渠道/顾问暂无法拆分", "渠道/顾问暂无法拆分", "现金活动", None, None, None, "passive_reported_cash", 181200, "S1", '市场资源', None, '现金活动'],
+            ["2026-08-12", "offline_market", "高中", "TMK", "讲座", "杨新宇活动", None, None, None, "work_orders", 2, None, None, '被动', None],
         ]
         result = project({"result": {"rows": rows}}, {"result": {"rows": []}}, read(root / "config/project_targets.json"), read(PEOPLE_CONFIG_PATH))
         market = next(item for item in result["teams"] if item["team_id"] == "market_total")
@@ -300,9 +300,9 @@ class RenderTest(unittest.TestCase):
         from dashboard_product.refresh import read
         root = Path(__file__).resolve().parents[1]
         rows = [
-            ["2026-09-03", "offline_market", "青少", "TMK", "校园", "王昊活动", None, "学校", "一年级", "passive_reported_cash", 100, None],
-            ["2026-09-03", "offline_market", "初中", "TMK", "校园", "初中活动", None, "学校", "七年级", "passive_reported_cash", 40, None],
-            ["2026-09-03", "offline_market", "高中", "TMK", "校园", "杨新宇活动", None, "学校", "高一", "passive_reported_cash", 20, None],
+            ["2026-09-03", "offline_market", "青少", "TMK", "校园", "王昊活动", None, "学校", "一年级", "passive_reported_cash", 100, None, '市场资源', '被动', '王昊活动'],
+            ["2026-09-03", "offline_market", "初中", "TMK", "校园", "初中活动", None, "学校", "七年级", "passive_reported_cash", 40, None, '市场资源', '被动', '初中活动'],
+            ["2026-09-03", "offline_market", "高中", "TMK", "校园", "杨新宇活动", None, "学校", "高一", "passive_reported_cash", 20, None, '市场资源', '被动', '杨新宇活动'],
         ]
         result = project({"result": {"rows": rows}}, {"result": {"rows": []}}, read(root / "config/project_targets.json"), read(PEOPLE_CONFIG_PATH))
         team = next(item for item in result["teams"] if item["team_id"] == "offline_market")

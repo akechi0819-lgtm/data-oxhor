@@ -1,14 +1,16 @@
 # 静态看板发布
 
-> 当前整体基线为 V12：主看板使用 `dashboard_actuals/v12`，所有账号进入同一份 `full.html`；线上影子看板单独输出 `online_market_special.html`，留学线下影子看板单独输出 `offline_market_special.html`。人员进度和钉钉推送由 `monitoring_product/` 负责。
+> 下一版主看板采用 V14：使用 `dashboard_actuals/v14`，所有账号进入同一份 `full.html`；线上影子看板单独输出 `online_market_special.html`，留学线下影子看板单独输出 `offline_market_special.html`。本地源码更新不会自动更新客户 Saved Query registry 或线上页面。人员进度和钉钉推送由 `monitoring_product/` 负责。
 
 ## 当前数据流
 
 本地保存项目、客户工作区当前 Snapshot、Saved Query registry 和配置；服务器只保存 `full.html`、线上团队特供 HTML 与留学线下特供 HTML。刷新、计算和 Snapshot 更新全部在本地完成，再通过 SCP 上传：
 
-1. `refresh` 通过 Data Platform 运行 `dashboard_actuals/v12`，生成一份全量 `artifact.json`。
+刷新/发布前，需将 `sql/dashboard_actuals.sql` 注册为 `dashboard_actuals/v14`，确保客户工作区 `Work/SavedQueries/` 的 SQL 与本地查询合同一致。
+
+1. `refresh` 通过 Data Platform 运行两次 `dashboard_actuals/v14`（当前与去年同期），生成一份全量 `artifact.json`。
 2. `render` 只生成 `full.html`，包含全部团队、市场总计和人员产能。
-3. 发布脚本先验证 artifact 的 V12 查询回执，再把 `full.html` 原子替换到服务器，并删除已退役的团队分册。
+3. 发布脚本先验证两份查询回执、查询列和 V14 版本，再把 `full.html` 原子替换到服务器，并删除已退役的团队分册。
 4. Nginx 使用 basic auth；所有已认证用户的 `/`、`/full.html`、`online_market_special.html` 和 `offline_market_special.html` 都进入完整主页面/特供页。
 
 线上团队特供看板读取显式影子 Snapshot，输出 `online_market_special.html`。它不依赖已退役的 `online_private.html`、`online_platform.html` 或 `offline_market.html`。
@@ -26,13 +28,13 @@ python3 -m dashboard_product.refresh validate-publish-artifact --artifact custom
 ./dashboard_product/deploy/publish_static_dashboard.sh
 ```
 
-已有 artifact 可跳过 refresh，但仍必须通过 V12 门禁：
+已有 artifact 可跳过 refresh，但仍必须包含 V14 实际查询回执：
 
 ```bash
 ARTIFACT_JSON=/abs/path/artifact.json ./dashboard_product/deploy/publish_static_dashboard.sh
 ```
 
-校验会检查两次受控查询、12 列输出、查询回执和 `dashboard_actuals/v12` 版本；旧 artifact 直接阻断。
+校验会检查两次 `dashboard_actuals/v14` 受控查询、输出列和查询回执；旧 artifact 直接阻断。
 
 ## 线上团队影子看板
 
@@ -52,7 +54,7 @@ FULL_HTML=/abs/path/full.html \
   ./dashboard_product/deploy/publish_offline_market_dashboard.sh
 ```
 
-该脚本只上传 `full.html` 和 `offline_market_special.html`，不上传影子 warehouse、工单文件或 artifact。V12「线下市场」页只加入口链接，不改语培线下计算。
+该脚本只上传 `full.html` 和 `offline_market_special.html`，不上传影子 warehouse、工单文件或 artifact。主页面「线下市场」页只加入口链接，不改语培线下计算。
 
 ## 鉴权
 

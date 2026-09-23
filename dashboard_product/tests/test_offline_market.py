@@ -139,7 +139,7 @@ class OfflineMarketQueryContractTest(unittest.TestCase):
 
 
 class OfflineMarketMainBoardLinkTest(unittest.TestCase):
-    def test_v12_offline_tab_links_to_special_board_without_rewriting_team_id(self):
+    def test_v14_offline_tab_links_to_special_board_without_rewriting_team_id(self):
         src = (ROOT / "render_template.py").read_text(encoding="utf-8")
         self.assertIn('href="offline_market_special.html"', src)
         self.assertIn("team.team_id === 'offline_market'", src)

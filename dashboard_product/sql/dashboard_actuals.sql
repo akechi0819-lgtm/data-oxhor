@@ -50,17 +50,18 @@ orders_raw AS (
  END AS business_group
  FROM orders_raw
 ), orders_dim AS (
- SELECT work_order_id, business_group, online_offline, second_channel, first_channel, campaign_name, school_name, grade_name, entry_person,
+ SELECT work_order_id, business_group, active_type, online_offline, second_channel, first_channel, campaign_name, school_name, grade_name, entry_person,
  CASE WHEN online_offline='线下' THEN 'offline_market'
       WHEN second_channel='虚拟人' THEN 'online_private'
       WHEN online_offline='线上' THEN 'online_platform' END AS team_id
  FROM mapped_orders WHERE rn=1 AND work_order_id IS NOT NULL
 ), orders AS (
  SELECT event_date, COALESCE(r.business_group, '业务组暂无法拆分') AS business_group,
- CASE WHEN r.business_group IS NOT NULL THEN o.team_id END AS team_id,
+ o.team_id AS team_id,
  r.first_channel, r.second_channel, r.campaign_name, r.school_name, r.grade_name,
- CASE WHEN r.business_group IS NOT NULL THEN r.entry_person END AS entry_person,
- COUNT(*)::DOUBLE actual_value, 'work_orders' metric, NULL AS student_id
+ r.entry_person AS entry_person,
+ COUNT(*)::DOUBLE actual_value, 'work_orders' metric, NULL AS student_id,
+ NULL AS cash_channel, r.active_type AS work_order_active_type, NULL AS cash_campaign_name
  FROM mapped_orders r
  JOIN orders_dim o ON r.work_order_id = o.work_order_id
  CROSS JOIN params
@@ -88,7 +89,7 @@ orders_raw AS (
  GROUP BY ALL
 ), cash_matched AS (
  SELECT c.cash_date AS event_date,
- CASE WHEN o.work_order_id IS NOT NULL AND c.cash_business_group IS NOT NULL THEN o.team_id END AS team_id,
+ o.team_id AS team_id,
  COALESCE(c.cash_business_group, '业务组暂无法拆分') AS business_group,
  CASE
   WHEN o.work_order_id IS NOT NULL THEN COALESCE(o.first_channel, '暂无归属')
@@ -104,12 +105,15 @@ orders_raw AS (
  c.grade_name,
  c.cash_amount AS actual_value,
  'passive_reported_cash' AS metric,
- c.student_id
+ c.student_id,
+ c.channel AS cash_channel,
+ o.active_type AS work_order_active_type,
+ c.cash_campaign_name AS cash_campaign_name
  FROM cash_raw c
  LEFT JOIN orders_dim o
  ON c.work_order_id = o.work_order_id
 )
-SELECT event_date, team_id, business_group, first_channel, second_channel, campaign_name, entry_person, school_name, grade_name, metric, actual_value, student_id FROM orders
+SELECT event_date, team_id, business_group, first_channel, second_channel, campaign_name, entry_person, school_name, grade_name, metric, actual_value, student_id, cash_channel, work_order_active_type, cash_campaign_name FROM orders
 UNION ALL
-SELECT event_date, team_id, business_group, first_channel, second_channel, campaign_name, entry_person, school_name, grade_name, metric, actual_value, student_id FROM cash_matched
+SELECT event_date, team_id, business_group, first_channel, second_channel, campaign_name, entry_person, school_name, grade_name, metric, actual_value, student_id, cash_channel, work_order_active_type, cash_campaign_name FROM cash_matched
 ORDER BY event_date, team_id, business_group, metric, campaign_name;

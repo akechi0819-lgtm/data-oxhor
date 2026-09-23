@@ -2,7 +2,7 @@
 
 ## 负责范围
 
-运行已确认的固定查询 `dashboard_actuals/v12`，刷新看板 artifact、渲染主页面 HTML 并发布。不得在刷新时改变业务口径。
+运行已确认的固定查询 `dashboard_actuals/v14`，刷新看板 artifact、渲染主页面 HTML 并发布。不得在刷新时改变业务口径。
 
 ```bash
 python3 -m dashboard_product.refresh refresh --workspace <workspace> --run-id <run_id>

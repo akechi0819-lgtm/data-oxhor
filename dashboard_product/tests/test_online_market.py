@@ -177,7 +177,7 @@ class LockOnlinePlatformRenderTest(unittest.TestCase):
             },
         }
         page = render_dashboard_html(artifact, lock_team_id="online_platform")
-        self.assertIn("语培完成进度（线上平台 · V12同源）", page)
+        self.assertIn("语培完成进度（线上平台 · V14同源）", page)
         self.assertIn("同源主看板 artifact，非分册", page)
         self.assertIn("online_market_special.html", page)
         self.assertIn('"team_id": "online_platform"', page)
