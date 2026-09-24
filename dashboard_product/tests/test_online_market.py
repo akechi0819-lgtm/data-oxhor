@@ -68,8 +68,11 @@ class OnlineMarketRenderTest(unittest.TestCase):
             "prior_months": ["2025-06"] + ["2025-07"] * 11,
             "cash": {"status": "not_connected", "label": "现金数据待接入", "actual": None, "target": None},
             "targets": {
-                "groups": {"网络资源": {"work_order_target": 5708}, "新媒体": {"work_order_target": 1007}},
-                "total": {"work_order_target": 6715},
+                "study_abroad": {"resource_target": {
+                    "annual": 5315,
+                    "quarters": {"Q1": 1327, "Q2": 1424, "Q3": 1161, "Q4": 1403},
+                    "months": {"2026-06": 502, "2026-07": 370},
+                }},
                 "cash": {
                     "groups": {"网络资源": {"annual": 2753.56, "quarters": {"Q1": 688.39}}, "新媒体": {"annual": 239.0, "quarters": {"Q1": 59.75}}},
                     "total": {"annual": 2992.56, "quarters": {"Q1": 748.14}}
@@ -84,8 +87,10 @@ class OnlineMarketRenderTest(unittest.TestCase):
         self.assertIn("线上团队特供看板", page)
         self.assertNotIn("online_platform.html", page)
         self.assertIn("现金实际", page)
-        self.assertIn("5708", page)
-        self.assertIn("6715", page)
+        self.assertIn("5315", page)
+        self.assertIn('"2026-06": 502', page)
+        self.assertIn("年度资源目标", page)
+        self.assertIn("月度资源目标", page)
         self.assertIn("2992.56 万元", page)
         self.assertIn('"annual": 2753.56', page)
         self.assertIn('"annual": 2992.56', page)

@@ -46,7 +46,7 @@ python3 -m dashboard_product.offline_market_render \
 - `config/project_targets.json`：语培团队与业务组目标；线上平台另有《语培目标暂行》月度目标。
 - `config/capacity_targets.json`：人员标准产能。
 - `config/saved_queries.json`：固定查询合同。
-- `config/online_market_targets.json`：留学线上年度/季度网络资源、新媒体工单目标和毛签目标；月度目标、二级渠道目标和现金实际暂不配置。
+- `config/online_market_targets.json`：FY27 留学合计资源年度及月度目标（年度 5315 条，季度按月度加总），毛签目标；二级渠道目标和现金实际暂不配置。
 - `config/online_market_queries/`：影子 Snapshot 使用的留学线上只读查询合同。
 - `config/offline_market_targets.json`：留学线下全年工单/毛签目标，按官方记分卡累计 2620 / 660 万元。
 - `config/offline_market_people.json`：留学线下团队人员名单；部门完成只加这些映射到的人。
@@ -78,7 +78,7 @@ python3 -m unittest discover -s dashboard_product/tests -v
 - 人员目标和组织配置以当前 `workspace_modeling/operations/people.json` 为准；历史记录中的人员名单、配置完成度、Webhook 状态不代表当前实查结果。
 - 发现“员工自报 10 条、图表 9 条”等差异，先按明细检查录入、时间与归属口径，再判断是否为实现缺陷。历史接受的金额差异不作为新 Snapshot 的默认豁免。
 - 负向现金按数据事实描述，原因须业务确认；不自动解释为退款。
-- 留学线上影子看板：网络资源计入 `资源主被动` 的被动与主动，新媒体只计被动；清洗后的 `主被动` 只作审计。现金目标已配置，现金实际明细仍显示“待接入”。
+- 留学线上影子看板：网络资源计入 `资源主被动` 的被动与主动，新媒体只计被动；清洗后的 `主被动` 只作审计。FY27 留学合计资源目标按月配置，季度目标为对应月份加总；现金目标已配置，现金实际明细仍显示“待接入”。
 - 留学线下影子看板：有效工单 ID、团队为空，并映射到 `offline_market_people.json` 名单后才计入部门完成；人员完成按个人加总。现金实际待接入。
 
 本次目录整理只移动材料与调整入口，不修改 SQL、公式或归属计算。过去施工与调查见 [历史目录](../docs/history/dashboard/)；历史文档不是现行操作入口。

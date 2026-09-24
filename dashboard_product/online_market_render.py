@@ -122,12 +122,12 @@ __BOARD_TABS__
 <section class="controls" id="study-controls">
   <label>范围<select id="scope"><option value="year">全年 FY27</option><option value="Q1">Q1</option><option value="Q2">Q2</option><option value="Q3">Q3</option><option value="Q4">Q4</option></select></label>
   <label id="month-control" hidden>月份<select id="month"></select></label>
-  <span class="hint">网络资源计入被动+主动；新媒体只计被动。清洗后的主被动只作审计。现金实际暂未接入。月度目标待确认。</span>
+  <span class="hint">网络资源计入被动+主动；新媒体只计被动。清洗后的主被动只作审计。留学月度资源目标已配置；现金实际暂未接入。</span>
 </section>
 <div id="timeline" class="timeline"></div>
   <div id="cards" class="cards"></div>
   <div class="notice">留学线上统计有效工单 ID、团队为空、来源根节点为“网络资源”或“新媒体”。网络资源计入资源主被动的被动与主动；新媒体只计被动。清洗后的主被动只作审计，二级渠道未命中时保留为待确认，不强制归类。</div>
-  <section class="panel target-band"><div class="panel-head"><div><h2>目标</h2><p class="section-kicker">目标随范围切换显示合计；年度工单 6715、毛签 2992.56 万元，四季度均分，现金实际暂未接入。看板不展示一级渠道。</p></div></div><div id="targets" class="table-wrap"></div></section>
+  <section class="panel target-band"><div class="panel-head"><div><h2>目标</h2><p class="section-kicker">留学资源年度目标 5315 条，月度目标来自 FY27 资源目标表，季度目标由对应月份加总；毛签目标 2992.56 万元，现金实际暂未接入。看板不展示一级渠道。</p></div></div><div id="targets" class="table-wrap"></div></section>
   <div class="grid-two">
     <section class="panel"><div class="panel-head"><div><h2>二级渠道进度</h2><p class="section-kicker">按平台查看线上工单的当期、同期和同比；当前没有小红书、大众等平台目标。</p></div></div><div id="platforms" class="table-wrap"></div></section>
     <section class="panel"><div class="panel-head"><div><h2>国家与条线</h2><p class="section-kicker">先查看条线，再展开对应国家；不参与当前目标计算。</p></div></div><div id="dimensions"></div></section>
@@ -154,9 +154,7 @@ function selectedPeriodLabel() { return S.value === 'year' ? '全年' : (M.value
 function periodRange() { if (S.value === 'year') return [0, 12]; if (M.value && M.value !== 'all') { const index = MONTHS.indexOf(M.value); return index >= 0 ? [index, 1] : [0, 3]; } return ({ Q1: [0, 3], Q2: [3, 3], Q3: [6, 3], Q4: [9, 3] })[S.value] || [0, 12]; }
 function sumSeries(series, key) { const [start, length] = periodRange(); return (series?.[key] || []).slice(start, start + length).reduce((sum, value) => sum + (value || 0), 0); }
 function selectedSeries(period) { return period.total; }
-function targetFor(group) { if (group === 'total') return D.targets.total?.work_order_target || null; return D.targets.groups?.[group]?.work_order_target || null; }
-function workTargetFor(group) { if (S.value === 'year') return targetFor(group); if (M.value && M.value !== 'all') return null; return group === 'total' ? (D.targets.total?.quarters?.[S.value] || null) : (D.targets.groups?.[group]?.quarters?.[S.value] || null); }
-function selectedTarget() { return workTargetFor('total'); }
+function selectedTarget() { const target = D.targets.study_abroad?.resource_target; if (S.value === 'year') return target?.annual ?? null; if (M.value && M.value !== 'all') return target?.months?.[M.value] ?? null; return target?.quarters?.[S.value] ?? null; }
 function cashTargetFor(group) { if (group === 'total') return D.targets.cash?.total || null; return D.targets.cash?.groups?.[group] || null; }
 function selectedCashTarget() { return cashTargetFor('total'); }
 function countTarget(value) { return Number(value).toLocaleString(undefined, {minimumFractionDigits: Number(value) % 1 ? 2 : 0, maximumFractionDigits: 2}); }
@@ -172,17 +170,17 @@ function renderCards() {
   const current = selectedSeries(D.study_abroad.current); const prior = selectedSeries(D.study_abroad.prior); const actual = sumSeries(current, 'orders'); const previous = sumSeries(prior, 'orders'); const passive = sumSeries(current, 'passive_orders'); const target = selectedTarget(); const completionValue = completion(actual, target);
   const cards = [
     ['线上工单数', count(actual), '同期 ' + count(previous) + ' · 同比 ' + pct(yoy(actual, previous))],
-    [S.value === 'year' ? '年度目标完成' : selectedPeriodLabel() + '目标完成', completionValue == null ? (S.value === 'year' ? '—' : (M.value && M.value !== 'all' ? '月度目标待确认' : '—')) : pct(completionValue), target == null ? (S.value === 'year' ? '目标未配置' : (M.value && M.value !== 'all' ? '月度目标待确认' : '目标 ' + count(target) + ' 条')) : '目标 ' + count(target) + ' 条'],
+    [S.value === 'year' ? '年度资源目标完成' : selectedPeriodLabel() + '资源目标完成', completionValue == null ? (S.value === 'year' ? '—' : (M.value && M.value !== 'all' ? '月度资源目标待确认' : '—')) : pct(completionValue), target == null ? (S.value === 'year' ? '资源目标未配置' : (M.value && M.value !== 'all' ? '月度资源目标待确认' : '资源目标 ' + count(target) + ' 条')) : '资源目标 ' + count(target) + ' 条'],
     ['现金实际', '待接入', '现金目标已配置，实际明细待接入']
   ];
   document.querySelector('#cards').innerHTML = cards.map(item => '<article class="metric-card"><div class="metric-head"><span>' + item[0] + '</span><span class="metric-scope">' + (S.value === 'year' ? 'FY27' : selectedPeriodLabel()) + '</span></div><strong>' + item[1] + '</strong><div class="metric-note">' + item[2] + '</div></article>').join('');
 }
 function renderTargets() {
   const total = { label: '合计', target: selectedTarget(), cash: selectedCashTarget(), actual: sumSeries(selectedSeries(D.study_abroad.current), 'orders') };
-  const isYear = S.value === 'year'; const period = S.value; const isMonth = M.value && M.value !== 'all'; const workHeader = isYear ? '年度工单目标' : (isMonth ? '月度工单目标' : period + '工单目标'); const cashHeader = isYear ? '年度毛签目标（万元）' : (isMonth ? '月度毛签目标（万元）' : period + '毛签目标（万元）');
+  const isYear = S.value === 'year'; const period = S.value; const isMonth = M.value && M.value !== 'all'; const resourceHeader = isYear ? '年度资源目标' : (isMonth ? '月度资源目标' : period + '资源目标'); const cashHeader = isYear ? '年度毛签目标（万元）' : (isMonth ? '月度毛签目标（万元）' : period + '毛签目标（万元）');
   const rate = completion(total.actual, total.target); const cashValue = isYear ? total.cash?.annual : (isMonth ? null : total.cash?.quarters?.[period]);
-  let html = '<table><thead><tr><th></th><th>' + workHeader + '</th><th>当前工单</th><th>工单完成率</th><th>' + cashHeader + '</th></tr></thead><tbody>';
-  html += '<tr class="total-row"><th>合计</th><td>' + (total.target == null ? (isMonth ? '月度目标待确认' : (isYear ? '未配置' : '未拆季度')) : countTarget(total.target)) + '</td><td>' + count(total.actual) + '</td><td>' + progressBar(rate) + '</td><td>' + cashMoney(cashValue) + '</td></tr>';
+  let html = '<table><thead><tr><th></th><th>' + resourceHeader + '</th><th>当前工单</th><th>资源完成率</th><th>' + cashHeader + '</th></tr></thead><tbody>';
+  html += '<tr class="total-row"><th>留学合计</th><td>' + (total.target == null ? (isMonth ? '月度资源目标待确认' : (isYear ? '未配置' : '未拆季度')) : countTarget(total.target)) + '</td><td>' + count(total.actual) + '</td><td>' + progressBar(rate) + '</td><td>' + cashMoney(cashValue) + '</td></tr>';
   document.querySelector('#targets').innerHTML = html + '</tbody></table>';
 }
 function platformSeries(info) { return info.series || { orders: [], passive_orders: [] }; }
