@@ -152,6 +152,12 @@
                   "orders": 125,
                   "heads": 40,
                   "cash": 520000
+                },
+                "2026-10": {
+                  "orders": 80,
+                  "study_abroad_orders": 16,
+                  "heads": 20,
+                  "virtual_person_additions": 100
                 }
               },
               "note": "南大"
@@ -166,6 +172,12 @@
                   "orders": 80,
                   "heads": 10,
                   "cash": 130000
+                },
+                "2026-10": {
+                  "orders": 85,
+                  "study_abroad_orders": 17,
+                  "heads": 20,
+                  "virtual_person_additions": 100
                 }
               },
               "note": "大学城"
@@ -180,6 +192,12 @@
                   "orders": 100,
                   "heads": 13,
                   "cash": 169000
+                },
+                "2026-10": {
+                  "orders": 70,
+                  "study_abroad_orders": 14,
+                  "heads": 15,
+                  "virtual_person_additions": 100
                 }
               },
               "note": "南大仁爱"
@@ -194,6 +212,12 @@
                   "orders": 64,
                   "heads": 8,
                   "cash": 104000
+                },
+                "2026-10": {
+                  "orders": 50,
+                  "study_abroad_orders": 10,
+                  "heads": 8,
+                  "virtual_person_additions": 100
                 }
               },
               "note": "财科大；试用期"
@@ -225,6 +249,10 @@
                 "2026-09": {
                   "orders": 25,
                   "cash": 50000
+                },
+                "2026-10": {
+                  "orders": 40,
+                  "cash": 80000
                 }
               }
             }
@@ -242,6 +270,10 @@
                 "2026-09": {
                   "orders": 15,
                   "cash": 30000
+                },
+                "2026-10": {
+                  "orders": 40,
+                  "cash": 80000
                 }
               }
             },
@@ -265,7 +297,13 @@
             {
               "person_id": "gao_boran",
               "display_name": "高勃然",
-              "status": "active"
+              "status": "active",
+              "monthly_targets": {
+                "2026-10": {
+                  "orders": 50,
+                  "cash": 80000
+                }
+              }
             }
           ]
         }

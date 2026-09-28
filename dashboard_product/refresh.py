@@ -144,7 +144,7 @@ def project(q,p,tg,people,capacity=None):
   for person_name in people_hit:
    if is_current:
     per[(team,person_name,metric)]=per.get((team,person_name,metric),0)+value
-    perf_month=date_to_perf_month(dt)
+    perf_month=str(dt)[:7] if team in ('online_private','online_platform') else date_to_perf_month(dt)
     if perf_month: per_monthly[(team,person_name,perf_month,metric)]=per_monthly.get((team,person_name,perf_month,metric),0)+value
     if perf_month:
      drill_key=(team,person_name,perf_month,metric,str(first_ch or '未归类'),str(second_ch or '未细分'))

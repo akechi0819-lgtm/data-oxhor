@@ -155,8 +155,8 @@ h2 {{ margin:18px 0 8px; font:600 16px/1.3 "Songti SC", Georgia, serif; }}
 <section class="people-panel">
   <div class="eyebrow">DATA OXHOR / 人员月度贡献</div>
   <h1>{escape(digest['display_name'])}</h1>
-  <p class="meta">数据截止 {escape(digest['data_through_date'])} · 绩效月 {escape(digest['perf_month'])}（{escape(digest['window_start'])} 至 {escape(digest['window_end'])}） · 剩余工作日 {digest['remaining_workdays']}</p>
-  <div class="period-progress"><span>绩效月时间进度</span><span class="bar"><i style="width:{progress:.1f}%"></i></span><strong>{progress:.1f}%</strong></div>
+  <p class="meta">数据截止 {escape(digest['data_through_date'])} · {escape(digest.get('month_label', '绩效月'))} {escape(digest['perf_month'])}（{escape(digest['window_start'])} 至 {escape(digest['window_end'])}） · 剩余工作日 {digest['remaining_workdays']}</p>
+  <div class="period-progress"><span>{escape(digest.get('month_label', '绩效月'))}时间进度</span><span class="bar"><i style="width:{progress:.1f}%"></i></span><strong>{progress:.1f}%</strong></div>
   <table>
     <thead><tr><th>人员</th><th>业务团队</th><th>工单目标</th><th>工单完成</th><th>工单完成率</th><th>应完成</th><th>日均需完成</th><th>{escape(secondary_headers[0])}</th><th>{escape(secondary_headers[1])}</th><th>{escape(secondary_headers[2])}</th></tr></thead>
     <tbody>
@@ -201,12 +201,12 @@ def render_people_png(digest, path):
     draw.text((pad, 32), 'DATA OXHOR / 人员月度贡献', font=_font(12, bold=True), fill='#2d6cdf')
     draw.text((pad, 54), digest['display_name'], font=title_font, fill='#182230')
     meta = (
-        f"数据截止 {digest['data_through_date']}  ·  绩效月 {digest['perf_month']}"
+        f"数据截止 {digest['data_through_date']}  ·  {digest.get('month_label', '绩效月')} {digest['perf_month']}"
         f"（{digest['window_start']} 至 {digest['window_end']}）  ·  剩余工作日 {digest['remaining_workdays']}"
     )
     draw.text((pad, 96), meta, font=meta_font, fill='#687587')
     progress = digest['time_progress'] * 100
-    draw.text((pad, 128), '绩效月时间进度', font=meta_font, fill='#687587')
+    draw.text((pad, 128), f"{digest.get('month_label', '绩效月')}时间进度", font=meta_font, fill='#687587')
     bar_x, bar_y, bar_w, bar_h = 210, 132, 980, 10
     draw.rounded_rectangle([bar_x, bar_y, bar_x + bar_w, bar_y + bar_h], radius=6, fill='#e8edf3')
     fill_w = max(0, min(bar_w, int(bar_w * digest['time_progress'])))
@@ -395,7 +395,7 @@ def write_details_xlsx(digest, path):
 def render_markdown(digest, png_url, xlsx_url):
     progress = digest['time_progress'] * 100
     lines = [
-        f"## {digest['display_name']} {digest['perf_month']}绩效月人员进度",
+        f"## {digest['display_name']} {digest['perf_month']}{digest.get('month_label', '绩效月')}人员进度",
         '',
         f"数据截止 {digest['data_through_date']}",
         f"时间进度 {progress:.1f}%（{digest['window_start']} 至 {digest['window_end']}）",

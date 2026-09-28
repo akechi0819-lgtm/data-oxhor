@@ -40,7 +40,7 @@ python3 -m monitoring_product.notify send --workspace <workspace> --snapshot-id 
 
 个人实际归属先按工单团队和业务组筛选，再匹配人员。顺序：活动名含花名册姓名 → SQL 已抽进 `entry_person` 的「市场人员：」或资源录入人 → Python 侧再用「姓名市场资源」和去掉旧活动串后的资源描述正文。现金用工单 ID 对全量工单数仓连，不限本绩效月；连上继承该工单归属，连不上再使用独立的团队/渠道兜底规则；兜底分配不自动落到个人。
 
-人员对象可包含 `business_group`、`monthly_targets`、`monthly_drilldowns`、`heads_actual`、`annual_cash_capacity`、`line` 和 `cash_contributions`。产能页全员标准产能为 80 万，不进钉钉。人员目标按绩效月保存，现金或工单目标缺失时显示“未配置”；大学人头目标折算后的现金目标由配置直接登记，看板 HTML 仍展示现金。钉钉大学通道播报图改展示人头完成，不把 1500 校区门槛套进来；明细表人员进度额外带现金目标/完成。钉钉花名册以 `workspace_modeling/operations/people.json` 覆盖 artifact；2026-09-10 线上私域小初提能组为潘体学（工单 25、现金 50,000）。`monthly_drilldowns` 按绩效月和指标保存一级/二级渠道完成值；现金下钻优先用工单一级/二级渠道，缺少组合时用已确认的标准映射，仍无法识别则单列渠道暂无法识别。现金表原始渠道仅作为规则输入，不直接当作标准渠道展示。`vacant`、`departed`、`transferred` 人员保留在配置中用于状态追踪，但不写入展示 artifact，也不进入当前监控名单。
+人员对象可包含 `business_group`、`monthly_targets`、`monthly_drilldowns`、`heads_actual`、`annual_cash_capacity`、`line` 和 `cash_contributions`。产能页全员标准产能为 80 万，不进钉钉。线下人员目标与明细按绩效月保存，线上私域和线上平台按自然月保存；现金或工单目标缺失时显示“未配置”。大学人头目标折算后的现金目标由配置直接登记，看板 HTML 仍展示现金。钉钉大学通道播报图改展示人头完成，不把 1500 校区门槛套进来；明细表人员进度额外带现金目标/完成。钉钉花名册以 `workspace_modeling/operations/people.json` 覆盖 artifact；2026-09-10 线上私域小初提能组为潘体学（工单 25、现金 50,000）。`monthly_drilldowns` 按各团队月份口径和指标保存一级/二级渠道完成值；现金下钻优先用工单一级/二级渠道，缺少组合时用已确认的标准映射，仍无法识别则单列渠道暂无法识别。现金表原始渠道仅作为规则输入，不直接当作标准渠道展示。`vacant`、`departed`、`transferred` 人员保留在配置中用于状态追踪，但不写入展示 artifact，也不进入当前监控名单。
 
 ## Saved Query 与业务口径
 

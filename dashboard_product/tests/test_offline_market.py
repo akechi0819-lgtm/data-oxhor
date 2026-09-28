@@ -16,6 +16,14 @@ def _series(value):
 
 
 class OfflineMarketAggregationTest(unittest.TestCase):
+    def test_october_performance_month_starts_september_26(self):
+        rows = [
+            ["2026-09-25", "市场活动", "市场活动", "高校活动", "英国", "英澳条线", "被动", "大学以上", "南开大学", "孙伟", 1.0, "work_orders"],
+            ["2026-09-26", "市场活动", "市场活动", "高校活动", "英国", "英澳条线", "被动", "大学以上", "南开大学", "孙伟", 1.0, "work_orders"],
+        ]
+        result = _aggregate(rows, ["2026-09", "2026-10"])
+        self.assertEqual(result["total"]["orders"][:2], [1.0, 1.0])
+
     def test_aggregates_l1_l2_schools_and_line_dimensions(self):
         rows = [
             ["2026-06-03", "市场活动", "市场活动", "高校活动", "英国", "英澳条线", "被动", "大学以上", "南开大学", "邓睿", 1.0, "work_orders"],
@@ -171,6 +179,15 @@ class OfflineMarketMainBoardLinkTest(unittest.TestCase):
 
 
 class OfflineMarketTargetConfigTest(unittest.TestCase):
+    def test_october_department_and_person_targets_remain_distinct(self):
+        cfg = json.loads((ROOT / "config" / "offline_market_targets.json").read_text(encoding="utf-8"))
+        people = json.loads((ROOT / "config" / "offline_market_people.json").read_text(encoding="utf-8"))["people"]
+        assigned = [person["monthly_targets"]["2026-10"] for person in people if "monthly_targets" in person]
+        self.assertEqual(cfg["total"]["months"]["2026-10"], 360)
+        self.assertEqual(cfg["cash"]["total"]["months"]["2026-10"], 45)
+        self.assertEqual(sum(person["orders"] for person in assigned), 420)
+        self.assertEqual(sum(person["cash"] for person in assigned), 520000)
+
     def test_official_scorecard_annual_targets_are_configured(self):
         cfg = json.loads((ROOT / "config" / "offline_market_targets.json").read_text(encoding="utf-8"))
         self.assertEqual(cfg["total"]["work_order_target"], 2620)

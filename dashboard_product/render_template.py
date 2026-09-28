@@ -350,18 +350,19 @@ function renderComparison(container, mode) {
   container.innerHTML = html + '</tbody></table>'; wireDrills(container);
 }
 function performanceMonthProgress(month) { const [year, monthNumber] = month.split('-').map(Number); const end = new Date(year, monthNumber - 1, 25, 23, 59, 59); const start = new Date(year, monthNumber - 2, 26); return Math.max(0, Math.min(100, (TODAY - start) / (end - start) * 100)); }
+function naturalMonthProgress(month) { const [year, monthNumber] = month.split('-').map(Number); const start = new Date(year, monthNumber - 1, 1); const end = new Date(year, monthNumber, 1); return Math.max(0, Math.min(100, (TODAY - start) / (end - start) * 100)); }
 function personTarget(person, month, metric) { return person.monthly_targets?.[month]?.[metric] ?? null; }
 function personChannelDetail(person, month, metric) {
   const values = person.monthly_drilldowns?.[month]?.[metric] || {};
   const keys = Object.keys(values).sort((a, b) => (values[b] || 0) - (values[a] || 0));
-  if (!keys.length) return '<div class="empty-drill">当前绩效月暂无渠道明细</div>';
+  if (!keys.length) return '<div class="empty-drill">当前月份暂无渠道明细</div>';
   const formatter = metric === 'cash' ? money : count;
   return '<table class="drill-table"><thead><tr><th>一级渠道</th><th>二级渠道</th><th>完成</th></tr></thead><tbody>' + keys.map(key => { const parts = key.split('||'); return '<tr><td>' + escapeHtml(parts[0]) + '</td><td>' + escapeHtml(parts[1]) + '</td><td>' + formatter(values[key]) + '</td></tr>'; }).join('') + '</tbody></table>';
 }
 function renderPeople(team, month) {
-  const container = document.querySelector('#peopleDetail'); const index = D.months.indexOf(month); const progress = performanceMonthProgress(month); const selectedGroup = document.querySelector('#peopleGroup')?.value || 'all';
+  const container = document.querySelector('#peopleDetail'); const index = D.months.indexOf(month); const online = team.team_id === 'online_private' || team.team_id === 'online_platform'; const progress = online ? naturalMonthProgress(month) : performanceMonthProgress(month); const selectedGroup = document.querySelector('#peopleGroup')?.value || 'all';
   const allRows = (team.people || []).filter(person => person.business_group && (selectedGroup === 'all' || person.business_group === selectedGroup)).map(person => ({ person, cash: person.monthly_actuals?.cash?.[index] || 0, orders: person.monthly_actuals?.orders?.[index] || 0 }));
-  let html = '<div class="period-progress"><span>绩效月时间进度</span><span class="bar"><i style="width:' + progress.toFixed(1) + '%"></i></span><strong>' + progress.toFixed(1) + '%</strong></div><table><thead><tr><th>人员</th><th>业务团队</th><th>工单目标</th><th>工单完成</th><th>工单完成率</th><th>现金目标</th><th>现金完成</th><th>现金完成率</th><th>工单渠道</th><th>现金渠道</th></tr></thead><tbody>';
+  let html = '<div class="period-progress"><span>' + (online ? '自然月' : '绩效月') + '时间进度</span><span class="bar"><i style="width:' + progress.toFixed(1) + '%"></i></span><strong>' + progress.toFixed(1) + '%</strong></div><table><thead><tr><th>人员</th><th>业务团队</th><th>工单目标</th><th>工单完成</th><th>工单完成率</th><th>现金目标</th><th>现金完成</th><th>现金完成率</th><th>工单渠道</th><th>现金渠道</th></tr></thead><tbody>';
   allRows.forEach((row, rowIndex) => {
     const orderTarget = personTarget(row.person, month, 'orders'); const cashTarget = personTarget(row.person, month, 'cash'); const orderCompletion = orderTarget > 0 ? row.orders / orderTarget : null; const cashCompletion = cashTarget > 0 ? row.cash / cashTarget : null; const orderDrillId = 'person-orders-' + rowIndex; const cashDrillId = 'person-cash-' + rowIndex;
     const drillButton = (id, label) => '<button class="drill-toggle" data-drill="' + id + '">' + label + '</button>';
@@ -531,7 +532,7 @@ function renderView() {
   let html = ''; if (team.team_id === 'offline_market') html += '<a class="special-board-link" href="offline_market_special.html">留学线下市场特供看板 →</a>'; html += '<section class="cards">' + metricCard('被动报入现金', cash, priorCash, cashTarget, money, 'var(--blue)') + metricCard('被动工单', orders, priorOrders, ordersTarget, count, 'var(--orange)') + '</section>';
   if (isTotal) html += '<div class="market-total-panels">' + businessGroupPanel + teamPanel + '</div>';
   else html += '<div class="dashboard-grid"><section class="panel"><div class="panel-head"><div><h2>三大业务组 · 现金与工单</h2><p class="section-kicker">目标、实际与完成率</p></div></div><div class="table-wrap"><table><thead><tr><th>业务组</th><th>现金目标</th><th>现金实际</th><th>现金完成</th><th>工单目标</th><th>工单实际</th><th>工单完成</th></tr></thead><tbody>' + renderGroupRows(team, sum, priorSum) + '</tbody></table></div></section>';
-  if (!isTotal) html += '<section class="panel people-panel"><div class="panel-head"><div><h2>人员月度贡献</h2><p class="section-kicker">按业务团队、绩效月查看目标、完成与渠道</p></div></div><div class="people-toolbar"><div class="people-filters"><label for="peopleGroup">业务团队</label><select id="peopleGroup">%(people_group_options)s</select></div><label for="perfMonth">绩效月</label><select id="perfMonth">' + D.months.map(month => '<option value="' + month + '">' + month + '</option>').join('') + '</select></div><div id="peopleDetail"></div></section>';
+  if (!isTotal) html += '<section class="panel people-panel"><div class="panel-head"><div><h2>人员月度贡献</h2><p class="section-kicker">按业务团队、月份查看目标、完成与渠道；线上团队用自然月，线下团队用绩效月</p></div></div><div class="people-toolbar"><div class="people-filters"><label for="peopleGroup">业务团队</label><select id="peopleGroup">%(people_group_options)s</select></div><label for="perfMonth">月份</label><select id="perfMonth">' + D.months.map(month => '<option value="' + month + '">' + month + '</option>').join('') + '</select></div><div id="peopleDetail"></div></section>';
   V.innerHTML = isTotal ? html : html + '</div>';
   if (isTotal) wireDrills(V);
   if (!isTotal) { const monthSelect = document.querySelector('#perfMonth'); const groupSelect = document.querySelector('#peopleGroup'); const currentMonth = TODAY.toISOString().slice(0, 7); monthSelect.value = D.months.includes(currentMonth) ? currentMonth : D.months[D.months.length - 1]; renderPeople(team, monthSelect.value); monthSelect.onchange = event => renderPeople(team, event.target.value); groupSelect.onchange = () => renderPeople(team, monthSelect.value); }

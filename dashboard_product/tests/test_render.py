@@ -37,6 +37,18 @@ def _publish_artifact(directory, version='v14', columns=None):
 
 
 class RenderTest(unittest.TestCase):
+    def test_online_person_actuals_follow_natural_month(self):
+        from dashboard_product.refresh import read
+        root = Path(__file__).resolve().parents[1]
+        rows = [
+            [day, "online_private", "青少", "市场活动", "虚拟人", "潘体学活动", None, "学校", "年级", "work_orders", 1, None, None, "被动", None]
+            for day in ("2026-09-26", "2026-10-01")
+        ]
+        result = project({"result": {"rows": rows}}, {"result": {"rows": []}}, read(root / "config/project_targets.json"), read(PEOPLE_CONFIG_PATH))
+        team = next(team for team in result["teams"] if team["team_id"] == "online_private")
+        person = next(person for person in team["people"] if person["display_name"] == "潘体学")
+        self.assertEqual(person["monthly_actuals"]["orders"][3:5], [1, 1])
+
     def test_publish_validation_accepts_current_query_and_rejects_legacy_artifact(self):
         with tempfile.TemporaryDirectory() as directory:
             current = _publish_artifact(Path(directory) / 'current')

@@ -9,6 +9,14 @@ from monitoring_product.digest import build_digest, ensure_roster, apply_warehou
 
 
 class MonitoringContractTest(unittest.TestCase):
+    def test_online_channels_use_natural_month(self):
+        context = {'as_of_date': '2026-09-26', 'data_through_date': '2026-09-25'}
+        for channel_id in ('online_private', 'online_platform'):
+            digest = build_digest(context, channel_id)
+            self.assertEqual(digest['perf_month'], '2026-09')
+            self.assertEqual(digest['month_label'], '自然月')
+            self.assertEqual((digest['window_start'], digest['window_end']), ('2026-09-01', '2026-09-30'))
+
     def test_workspace_identity_and_path_are_enforced(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

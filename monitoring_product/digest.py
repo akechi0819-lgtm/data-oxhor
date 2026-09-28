@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections import Counter, defaultdict
 from datetime import date, datetime, time, timedelta
+from calendar import monthrange
 
 from workspace_modeling.operations.personnel import (
     date_to_perf_month,
@@ -118,6 +119,19 @@ def performance_month_window(month):
     else:
         start = date(year, month_n - 1, 26)
     return start, end
+
+
+def natural_month_window(month):
+    year, month_n = map(int, month.split('-'))
+    return date(year, month_n, 1), date(year, month_n, monthrange(year, month_n)[1])
+
+
+def window_progress(start, end, as_of):
+    start_dt = datetime.combine(start, time.min)
+    end_dt = datetime.combine(end, time(23, 59, 59))
+    as_of_dt = datetime.combine(as_of, time.min)
+    span = (end_dt - start_dt).total_seconds()
+    return max(0.0, min(1.0, (as_of_dt - start_dt).total_seconds() / span)) if span > 0 else 0.0
 
 
 def performance_month_progress(month, as_of):
@@ -449,8 +463,9 @@ def build_people_rows(people, months, month, time_progress, workdays):
 def build_digest(context, channel_id):
     channel = NOTIFY_CHANNELS[channel_id]
     as_of = parse_iso_date(context['as_of_date'])
-    perf_month = date_to_perf_month(as_of.isoformat())
-    start, end = performance_month_window(perf_month)
+    natural_month = channel_id in ('online_private', 'online_platform')
+    perf_month = as_of.strftime('%Y-%m') if natural_month else date_to_perf_month(as_of.isoformat())
+    start, end = natural_month_window(perf_month) if natural_month else performance_month_window(perf_month)
     return {
         **context,
         'team_id': channel_id,
@@ -458,8 +473,9 @@ def build_digest(context, channel_id):
         'business_group': channel['business_group'],
         'display_name': channel['display_name'],
         'perf_month': perf_month,
+        'month_label': '自然月' if natural_month else '绩效月',
         'window_start': start.isoformat(), 'window_end': end.isoformat(),
-        'time_progress': performance_month_progress(perf_month, as_of),
+        'time_progress': window_progress(start, end, as_of),
         'remaining_workdays': remaining_workdays(as_of, end),
         'secondary_metric': channel_secondary_metric(channel_id),
         'people': [], 'behind': [],

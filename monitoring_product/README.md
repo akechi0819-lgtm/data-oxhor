@@ -16,7 +16,7 @@ python3 -m monitoring_product.notify send \
   --team offline_market --dry-run
 ```
 
-日期格式为 YYYY-MM-DD，数据截止日期由操作者按已完成的数据同步核验后明确传入，不从文件名或修改时间推测。日期标签不改变既有绩效月 SQL 筛选；SQL 仍查询上月 26 日至本月 25 日。`--team` 可重复；省略则选择五通道。`offline_market` 展开为线下青少、高中、大学；其余为 `online_private`、`online_platform`。
+日期格式为 YYYY-MM-DD，数据截止日期由操作者按已完成的数据同步核验后明确传入，不从文件名或修改时间推测。线下通道按绩效月查询上月 26 日至本月 25 日；线上私域和线上平台按自然月查询当月 1 日至月末。`--team` 可重复；省略则选择五通道。`offline_market` 展开为线下青少、高中、大学；其余为 `online_private`、`online_platform`。
 
 正式发送去掉 `--dry-run`，增加 `--env-file <C层凭据文件>`。现有凭据可保持原位置并显式传入，模块不自动寻找或复制密钥。缺 webhook 的通道标为 skipped，整体 partial、非零退出。
 

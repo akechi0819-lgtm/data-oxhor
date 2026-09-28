@@ -11,6 +11,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from data_platform.query.evidence import read_query_result
+from workspace_modeling.operations.personnel import date_to_perf_month
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -87,7 +88,7 @@ def _aggregate(rows: list[list], months: list[str]) -> dict:
             _value,
             metric,
         ) = row
-        month = str(event_date)[:7]
+        month = date_to_perf_month(event_date)
         index = month_index.get(month)
         if index is None or metric != "work_orders" or not mapped_person:
             continue
@@ -197,8 +198,8 @@ def refresh(
     output_root = output_root.resolve()
     output_root.mkdir(parents=True, exist_ok=True)
     today = as_of_date or date.today()
-    current_start = date(2026, 6, 1)
-    prior_start = date(2025, 6, 1)
+    current_start = date(2026, 5, 26)
+    prior_start = date(2025, 5, 26)
     current_end = today.isoformat()
     prior_end = (prior_start + (today - current_start)).isoformat()
 
@@ -236,7 +237,10 @@ def refresh(
             "actual": None,
             "target": None,
         },
-        "targets": _read(Path(__file__).resolve().parent / "config" / "offline_market_targets.json"),
+        "targets": {
+            **_read(Path(__file__).resolve().parent / "config" / "offline_market_targets.json"),
+            "people": _read(PEOPLE_CONFIG)["people"],
+        },
         "study_abroad": {
             "current": _aggregate(current["result"]["rows"], MONTHS),
             "prior": _aggregate(prior["result"]["rows"], PRIOR_MONTHS),

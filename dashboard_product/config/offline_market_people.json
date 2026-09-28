@@ -3,22 +3,28 @@
   "display_name": "留学线下市场",
   "people": [
     {
-      "display_name": "孙伟"
+      "display_name": "孙伟",
+      "monthly_targets": {"2026-10": {"orders": 70, "cash": 80000}}
     },
     {
-      "display_name": "吴子玄"
+      "display_name": "吴子玄",
+      "monthly_targets": {"2026-10": {"orders": 70, "cash": 80000}}
     },
     {
-      "display_name": "邓睿"
+      "display_name": "邓睿",
+      "monthly_targets": {"2026-10": {"orders": 70, "cash": 100000}}
     },
     {
-      "display_name": "王洪霞"
+      "display_name": "王洪霞",
+      "monthly_targets": {"2026-10": {"orders": 70, "cash": 100000}}
     },
     {
-      "display_name": "王衡利"
+      "display_name": "王衡利",
+      "monthly_targets": {"2026-10": {"orders": 70, "cash": 80000}}
     },
     {
-      "display_name": "杨芸聿"
+      "display_name": "杨芸聿",
+      "monthly_targets": {"2026-10": {"orders": 70, "cash": 80000}}
     },
     {
       "display_name": "马玥"

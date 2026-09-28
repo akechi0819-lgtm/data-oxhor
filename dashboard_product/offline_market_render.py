@@ -113,13 +113,13 @@ tbody th { font-weight: 800; }
 <section class="controls" id="study-controls">
   <label>范围<select id="scope"><option value="year">全年 FY27</option><option value="Q1">Q1</option><option value="Q2">Q2</option><option value="Q3">Q3</option><option value="Q4">Q4</option></select></label>
   <label id="month-control" hidden>月份<select id="month"></select></label>
-  <span class="hint">部门完成只加留学线下团队映射到的人。孙伟在名单内，当前仓没有 9 月数据时按 0。现金实际暂未接入。月度目标待确认。</span>
+  <span class="hint">部门完成只加留学线下团队映射到的人。绩效月为上月 26 日至本月 25 日。现金实际暂未接入。</span>
 </section>
 <div id="timeline" class="timeline"></div>
   <div id="cards" class="cards"></div>
   <div class="notice">留学线下特供按团队人员加总：有效工单 ID、团队为空，并映射到孙伟、吴子玄、邓睿、王洪霞、王衡利、杨芸聿、马玥、高书航。认人顺序为资源录入人 → 活动主责 → 市场人员/数据提供方 → 转介绍；括号协作和“不算新”不计入。未映射的人不进部门完成。二级渠道、国家、学校仍是这批人的拆解。看板不展示一级渠道。</div>
-  <section class="panel target-band"><div class="panel-head"><div><h2>目标</h2><p class="section-kicker">全年工单 2620、毛签 660 万元按留学官方记分卡累计。月度未拆，现金实际待接入。人员月度目标暂未配置。</p></div></div><div id="targets" class="table-wrap"></div></section>
-  <section class="panel"><div class="panel-head"><div><h2>人员完成</h2><p class="section-kicker">部门完成等于下列人员加总；名单内无人命中时显示 0。人员目标暂未配置。</p></div></div><div id="people" class="table-wrap"></div></section>
+  <section class="panel target-band"><div class="panel-head"><div><h2>目标</h2><p class="section-kicker">全年工单 2620、毛签 660 万元按留学官方记分卡累计；2026-10 部门目标单独登记。现金实际待接入。</p></div></div><div id="targets" class="table-wrap"></div></section>
+  <section class="panel"><div class="panel-head"><div><h2>人员完成</h2><p class="section-kicker">部门完成等于下列人员加总；名单内无人命中时显示 0。2026-10 个人目标与部门目标分别登记。</p></div></div><div id="people" class="table-wrap"></div></section>
   <div class="grid-two">
     <section class="panel"><div class="panel-head"><div><h2>二级渠道进度</h2><p class="section-kicker">按活动类型、同名高校、个人/对公渠道和新东方部门查看当期、同期和同比。</p></div></div><div id="platforms" class="table-wrap"></div></section>
     <section class="panel"><div class="panel-head"><div><h2>国家与条线</h2><p class="section-kicker">先查看条线，再展开对应国家；不参与当前目标计算。</p></div></div><div id="dimensions"></div></section>
@@ -150,7 +150,7 @@ function periodRange() { if (S.value === 'year') return [0, 12]; if (M.value && 
 function sumSeries(series, key) { const [start, length] = periodRange(); return (series?.[key] || []).slice(start, start + length).reduce((sum, value) => sum + (value || 0), 0); }
 function selectedSeries(period) { return period.total; }
 function targetFor(group) { if (group === 'total') return D.targets.total?.work_order_target || null; return D.targets.groups?.[group]?.work_order_target || null; }
-function workTargetFor(group) { if (S.value === 'year') return targetFor(group); if (M.value && M.value !== 'all') return null; return group === 'total' ? (D.targets.total?.quarters?.[S.value] || null) : (D.targets.groups?.[group]?.quarters?.[S.value] || null); }
+function workTargetFor(group) { if (S.value === 'year') return targetFor(group); const target = group === 'total' ? D.targets.total : D.targets.groups?.[group]; if (M.value && M.value !== 'all') return target?.months?.[M.value] ?? null; return target?.quarters?.[S.value] ?? null; }
 function selectedTarget() { return workTargetFor('total'); }
 function cashTargetFor(group) { if (group === 'total') return D.targets.cash?.total || null; return D.targets.cash?.groups?.[group] || null; }
 function selectedCashTarget() { return cashTargetFor('total'); }
@@ -159,8 +159,8 @@ function cashMoney(value) { return value == null ? (M.value && M.value !== 'all'
 function completion(actual, target) { return target > 0 ? actual / target : null; }
 function progressBar(value) { if (value == null) return '<span class="muted-cell">' + (M.value && M.value !== 'all' ? '月度目标待确认' : (S.value === 'year' ? '未配置' : '未拆季度')) + '</span>'; const width = Math.max(0, Math.min(100, value * 100)); return '<span class="completion"><span class="bar"><i style="width:' + width + '%"></i></span>' + pct(value) + '</span>'; }
 function renderTimeline() {
-  const fyStart = new Date('2026-06-01'); const fyEnd = new Date('2027-06-01'); const today = new Date(D.as_of_date); const fy = Math.max(0, Math.min(100, (today - fyStart) / (fyEnd - fyStart) * 100));
-  const [start, length] = periodRange(); const starts = [new Date('2026-06-01'), new Date('2026-09-01'), new Date('2026-12-01'), new Date('2027-03-01')]; const ends = [new Date('2026-09-01'), new Date('2026-12-01'), new Date('2027-03-01'), new Date('2027-06-01')]; let periodProgress = fy; if (M.value && M.value !== 'all') { const monthStart = new Date(M.value + '-01'); const monthEnd = new Date(monthStart); monthEnd.setMonth(monthEnd.getMonth() + 1); periodProgress = Math.max(0, Math.min(100, (today - monthStart) / (monthEnd - monthStart) * 100)); } else if (S.value !== 'year') { periodProgress = Math.max(0, Math.min(100, (today - starts[start / 3]) / (ends[start / 3] - starts[start / 3]) * 100)); }
+  const fyStart = new Date('2026-05-26'); const fyEnd = new Date('2027-05-26'); const today = new Date(D.as_of_date); const fy = Math.max(0, Math.min(100, (today - fyStart) / (fyEnd - fyStart) * 100));
+  const [start, length] = periodRange(); const starts = [new Date('2026-05-26'), new Date('2026-08-26'), new Date('2026-11-26'), new Date('2027-02-26')]; const ends = [new Date('2026-08-26'), new Date('2026-11-26'), new Date('2027-02-26'), new Date('2027-05-26')]; let periodProgress = fy; if (M.value && M.value !== 'all') { const monthStart = new Date(M.value + '-26'); monthStart.setMonth(monthStart.getMonth() - 1); const monthEnd = new Date(M.value + '-26'); periodProgress = Math.max(0, Math.min(100, (today - monthStart) / (monthEnd - monthStart) * 100)); } else if (S.value !== 'year') { periodProgress = Math.max(0, Math.min(100, (today - starts[start / 3]) / (ends[start / 3] - starts[start / 3]) * 100)); }
   document.querySelector('#timeline').innerHTML = '<div class="timeline-card"><div class="timeline-label"><span>FY27 时间进度</span><strong>' + fy.toFixed(1) + '%</strong></div><div class="progress-track"><span class="progress-fill" style="width:' + fy + '%"></span></div></div><div class="timeline-card"><div class="timeline-label"><span>' + selectedPeriodLabel() + ' 时间进度</span><strong>' + periodProgress.toFixed(1) + '%</strong></div><div class="progress-track"><span class="progress-fill" style="width:' + periodProgress + '%"></span></div></div>';
 }
 function renderCards() {
@@ -168,14 +168,14 @@ function renderCards() {
   const cards = [
     ['留学线下工单数', count(actual), '同期 ' + count(previous) + ' · 同比 ' + pct(yoy(actual, previous))],
     [S.value === 'year' ? '年度目标完成' : selectedPeriodLabel() + '目标完成', completionValue == null ? (M.value && M.value !== 'all' ? '月度目标待确认' : '—') : pct(completionValue), target == null ? (M.value && M.value !== 'all' ? '月度目标待确认' : '目标未配置') : '目标 ' + count(target) + ' 条'],
-    ['现金实际', '待接入', '现金目标未配置，实际明细待接入']
+    ['现金实际', '待接入', '实际明细待接入']
   ];
   document.querySelector('#cards').innerHTML = cards.map(item => '<article class="metric-card"><div class="metric-head"><span>' + item[0] + '</span><span class="metric-scope">' + (S.value === 'year' ? 'FY27' : selectedPeriodLabel()) + '</span></div><strong>' + item[1] + '</strong><div class="metric-note">' + item[2] + '</div></article>').join('');
 }
 function renderTargets() {
   const total = { target: selectedTarget(), cash: selectedCashTarget(), actual: sumSeries(selectedSeries(D.study_abroad.current), 'orders') };
   const isYear = S.value === 'year'; const period = S.value; const isMonth = M.value && M.value !== 'all'; const workHeader = isYear ? '年度工单目标' : (isMonth ? '月度工单目标' : period + '工单目标'); const cashHeader = isYear ? '年度毛签目标（万元）' : (isMonth ? '月度毛签目标（万元）' : period + '毛签目标（万元）');
-  const rate = completion(total.actual, total.target); const cashValue = isYear ? total.cash?.annual : (isMonth ? null : total.cash?.quarters?.[period]);
+  const rate = completion(total.actual, total.target); const cashValue = isYear ? total.cash?.annual : (isMonth ? total.cash?.months?.[M.value] : total.cash?.quarters?.[period]);
   let html = '<table><thead><tr><th></th><th>' + workHeader + '</th><th>当前工单</th><th>工单完成率</th><th>' + cashHeader + '</th></tr></thead><tbody>';
   html += '<tr class="total-row"><th>合计</th><td>' + (total.target == null ? (isMonth ? '月度目标待确认' : (isYear ? '未配置' : '未拆季度')) : countTarget(total.target)) + '</td><td>' + count(total.actual) + '</td><td>' + progressBar(rate) + '</td><td>' + cashMoney(cashValue) + '</td></tr>';
   document.querySelector('#targets').innerHTML = html + '</tbody></table>';
@@ -202,20 +202,23 @@ function renderPeople() {
   const current = D.study_abroad.current.people || {};
   const prior = D.study_abroad.prior.people || {};
   const names = [...new Set([...(PEOPLE_ORDER || []), ...Object.keys(current), ...Object.keys(prior)])];
+  const selectedMonth = M.value && M.value !== 'all' ? M.value : null;
+  const peopleTargets = Object.fromEntries((D.targets.people || []).map(person => [person.display_name, person.monthly_targets || {}]));
   const rows = names.map(name => {
     const now = sumSeries(current[name], 'orders');
     const old = sumSeries(prior[name], 'orders');
-    return { name, now, old };
+    const targets = selectedMonth ? peopleTargets[name]?.[selectedMonth] : null;
+    return { name, now, old, targets };
   });
   const total = rows.reduce((sum, row) => sum + row.now, 0);
-  let html = '<table><thead><tr><th>市场人员</th><th>当前工单</th><th>同期工单</th><th>同比</th><th>当前占比</th></tr></thead><tbody>';
+  let html = '<table><thead><tr><th>市场人员</th><th>工单目标</th><th>签约目标</th><th>当前工单</th><th>同期工单</th><th>同比</th><th>当前占比</th></tr></thead><tbody>';
   rows.forEach(row => {
     const change = yoy(row.now, row.old);
-    html += '<tr><th>' + escapeHtml(row.name) + '</th><td>' + count(row.now) + '</td><td>' + count(row.old) + '</td><td class="' + (change != null && change < 0 ? 'negative' : '') + '">' + pct(change) + '</td><td>' + pct(total > 0 ? row.now / total : null) + '</td></tr>';
+    html += '<tr><th>' + escapeHtml(row.name) + '</th><td>' + (row.targets?.orders ?? '未配置') + '</td><td>' + (row.targets?.cash == null ? '未配置' : cashMoney(row.targets.cash / 10000)) + '</td><td>' + count(row.now) + '</td><td>' + count(row.old) + '</td><td class="' + (change != null && change < 0 ? 'negative' : '') + '">' + pct(change) + '</td><td>' + pct(total > 0 ? row.now / total : null) + '</td></tr>';
   });
   const priorTotal = rows.reduce((sum, row) => sum + row.old, 0);
   const totalChange = yoy(total, priorTotal);
-  html += '<tr class="total-row"><th>合计</th><td>' + count(total) + '</td><td>' + count(priorTotal) + '</td><td class="' + (totalChange != null && totalChange < 0 ? 'negative' : '') + '">' + pct(totalChange) + '</td><td>100.0%</td></tr>';
+  html += '<tr class="total-row"><th>合计</th><td>—</td><td>—</td><td>' + count(total) + '</td><td>' + count(priorTotal) + '</td><td class="' + (totalChange != null && totalChange < 0 ? 'negative' : '') + '">' + pct(totalChange) + '</td><td>100.0%</td></tr>';
   document.querySelector('#people').innerHTML = html + '</tbody></table>';
 }
 function renderStudy() { renderTimeline(); renderCards(); renderTargets(); renderPeople(); renderPlatforms(); renderDimensions(); renderSchools(); }
