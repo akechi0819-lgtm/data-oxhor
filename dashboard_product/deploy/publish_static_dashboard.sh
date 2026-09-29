@@ -23,14 +23,15 @@ done
 mkdir -p "$LOG_DIR"
 stamp="$(TZ="${TZ:-Asia/Shanghai}" date +%Y%m%d_%H%M%S)"
 run_id="run_dashboard_${stamp}"
+data_workspace="$(python3 -c 'from pathlib import Path; import sys; print((Path(sys.argv[1])/sys.argv[2]).resolve())' "$PROJECT_ROOT" "$WORKSPACE")"
 
 if [[ -n "${ARTIFACT_JSON:-}" ]]; then
   artifact="${ARTIFACT_JSON}"
   test -s "$artifact" || { echo "ARTIFACT_JSON is missing or empty: $artifact" >&2; exit 2; }
 else
-  artifact="${PROJECT_ROOT}/${WORKSPACE}/Output/Dashboard/${run_id}/artifact.json"
+  artifact="${data_workspace}/Output/Dashboard/${run_id}/artifact.json"
   cd "$PROJECT_ROOT"
-  python3 -m dashboard_product.refresh refresh --workspace "$WORKSPACE" --run-id "$run_id"
+  python3 -m dashboard_product.refresh refresh --workspace "$data_workspace" --run-id "$run_id"
 fi
 
 test -s "$artifact"
@@ -38,6 +39,18 @@ test -s "$artifact"
 cd "$PROJECT_ROOT"
 python3 -m dashboard_product.refresh validate-publish-artifact --artifact "$artifact"
 python3 -m dashboard_product.refresh render --artifact "$artifact"
+
+# The accepted online-team page follows the same explicit Snapshot in this daily run.
+snapshot_id="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["snapshot_id"])' "$artifact")"
+online_run_id="run_online_team_${stamp}"
+online_output="${data_workspace}/Output/DashboardOnline/${online_run_id}"
+python3 -m dashboard_product.online_team.build \
+  --workspace "$data_workspace" --snapshot-id "$snapshot_id" \
+  --run-id "$online_run_id" --output-dir "$online_output" \
+  --as-of-date "$(TZ=Asia/Shanghai date +%F)"
+python3 -m dashboard_product.online_team.export \
+  --site-dir "${online_output}/site" --output "${online_output}/online_market_special.html"
+online_sha="$(python3 -c 'import hashlib,sys; print(hashlib.sha256(open(sys.argv[1],"rb").read()).hexdigest())' "${online_output}/online_market_special.html")"
 
 html_dir="$(cd "$(dirname "$artifact")" && pwd)"
 stage="$(mktemp -d "${TMPDIR:-/tmp}/dashboard-publish.XXXXXX")"
@@ -47,10 +60,11 @@ src="${html_dir}/full.html"
 test -s "$src" || { echo "missing dashboard $src" >&2; exit 2; }
 grep -qi '<!doctype html>' "$src" || { echo "refusing to publish non-HTML $src" >&2; exit 2; }
 cp -p "$src" "${stage}/full.html"
+cp -p "${online_output}/online_market_special.html" "${stage}/online_market_special.html"
 test ! -e "${stage}/artifact.json"
 
 remote_tmp="/tmp/dashboard-publish-${stamp}"
-export SERVER_HOST SERVER_PORT SERVER_USER SERVER_PASSWORD stage remote_tmp
+export SERVER_HOST SERVER_PORT SERVER_USER SERVER_PASSWORD stage remote_tmp online_sha
 
 # Password auth must go through an expect PTY. If a normal sandboxed call
 # reports Permission denied for unchanged credentials, invoke this script from
@@ -67,7 +81,7 @@ EOF
 
 /usr/bin/expect -f /dev/stdin <<'EOF'
 set timeout 180
-spawn /usr/bin/scp -O -o StrictHostKeyChecking=yes -o PreferredAuthentications=password -o PubkeyAuthentication=no -o GSSAPIAuthentication=no -P $env(SERVER_PORT) $env(stage)/full.html $env(SERVER_USER)@$env(SERVER_HOST):$env(remote_tmp)/
+spawn /usr/bin/scp -O -o StrictHostKeyChecking=yes -o PreferredAuthentications=password -o PubkeyAuthentication=no -o GSSAPIAuthentication=no -P $env(SERVER_PORT) $env(stage)/full.html $env(stage)/online_market_special.html $env(SERVER_USER)@$env(SERVER_HOST):$env(remote_tmp)/
 expect {
   -re {assword:} { send -- "$env(SERVER_PASSWORD)\r"; exp_continue }
   eof { set status [lindex [wait] 3]; exit $status }
@@ -78,7 +92,7 @@ EOF
 # Install the full dashboard to .tmp first; only then mv. A failed publish leaves the live page untouched.
 /usr/bin/expect -f /dev/stdin <<'EOF'
 set timeout 60
-spawn /usr/bin/ssh -o StrictHostKeyChecking=yes -o PreferredAuthentications=password -o PubkeyAuthentication=no -o GSSAPIAuthentication=no -p $env(SERVER_PORT) $env(SERVER_USER)@$env(SERVER_HOST) "set -euo pipefail; src='$env(remote_tmp)'; dest=/var/www/dashboard; install -d -m 0755 \"\$dest\"; test -s \"\$src/full.html\"; grep -qi '<!doctype html>' \"\$src/full.html\"; install -m 0644 \"\$src/full.html\" \"\$dest/.full.html.tmp\"; mv -f \"\$dest/.full.html.tmp\" \"\$dest/full.html\"; rm -f \"\$dest/online_private.html\" \"\$dest/online_platform.html\" \"\$dest/offline_market.html\" \"\$dest/liuxue.html\" \"\$dest/gaozhong.html\" \"\$dest/daxue.html\"; rm -rf \"\$src\"; curl -fsS -o /dev/null -H 'Host: dashboard.apinova.cn' http://127.0.0.1/healthz"
+spawn /usr/bin/ssh -o StrictHostKeyChecking=yes -o PreferredAuthentications=password -o PubkeyAuthentication=no -o GSSAPIAuthentication=no -p $env(SERVER_PORT) $env(SERVER_USER)@$env(SERVER_HOST) "set -euo pipefail; src='$env(remote_tmp)'; dest=/var/www/dashboard; install -d -m 0755 \"\$dest\"; test -s \"\$src/full.html\"; grep -qi '<!doctype html>' \"\$src/full.html\"; echo '$env(online_sha)  $env(remote_tmp)/online_market_special.html' | sha256sum -c -; install -m 0644 \"\$src/full.html\" \"\$dest/.full.html.tmp\"; install -m 0644 \"\$src/online_market_special.html\" \"\$dest/.online_market_special.html.tmp\"; mv -f \"\$dest/.online_market_special.html.tmp\" \"\$dest/online_market_special.html\"; mv -f \"\$dest/.full.html.tmp\" \"\$dest/full.html\"; sha256sum \"\$dest/online_market_special.html\"; rm -f \"\$dest/online_private.html\" \"\$dest/online_platform.html\" \"\$dest/offline_market.html\" \"\$dest/online_market_training.html\" \"\$dest/liuxue.html\" \"\$dest/gaozhong.html\" \"\$dest/daxue.html\"; rm -rf \"\$src\"; curl -fsS -o /dev/null -H 'Host: dashboard.apinova.cn' http://127.0.0.1/healthz"
 expect {
   -re {assword:} { send -- "$env(SERVER_PASSWORD)\r"; exp_continue }
   eof { set status [lindex [wait] 3]; exit $status }

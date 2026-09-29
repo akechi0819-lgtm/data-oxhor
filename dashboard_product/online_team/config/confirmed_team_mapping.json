@@ -1,0 +1,242 @@
+{
+  "schema_version": "confirmed_team_mapping.v1",
+  "business_confirmation": "用户确认：空团队59名已核对顾问中，徐奕凡、田宝蕊归入“留学预备”；其余57名归入“留学”。仅在原团队为空、工单ID非空且顾问名称逐字匹配时应用；已有非空团队和名单外顾问保留原值。",
+  "mappings": [
+    {
+      "source_adviser": "王新源",
+      "labeled_team": "留学"
+    },
+    {
+      "source_adviser": "李佳泽",
+      "labeled_team": "留学"
+    },
+    {
+      "source_adviser": "赵云鹏",
+      "labeled_team": "留学"
+    },
+    {
+      "source_adviser": "周洁",
+      "labeled_team": "留学"
+    },
+    {
+      "source_adviser": "陶明月",
+      "labeled_team": "留学"
+    },
+    {
+      "source_adviser": "高彬",
+      "labeled_team": "留学"
+    },
+    {
+      "source_adviser": "孙秀娟",
+      "labeled_team": "留学"
+    },
+    {
+      "source_adviser": "任湧",
+      "labeled_team": "留学"
+    },
+    {
+      "source_adviser": "孔杨斌",
+      "labeled_team": "留学"
+    },
+    {
+      "source_adviser": "闫姝含",
+      "labeled_team": "留学"
+    },
+    {
+      "source_adviser": "费丽莎",
+      "labeled_team": "留学"
+    },
+    {
+      "source_adviser": "冯海侠",
+      "labeled_team": "留学"
+    },
+    {
+      "source_adviser": "张晓颖",
+      "labeled_team": "留学"
+    },
+    {
+      "source_adviser": "刘倬含",
+      "labeled_team": "留学"
+    },
+    {
+      "source_adviser": "李彦呈",
+      "labeled_team": "留学"
+    },
+    {
+      "source_adviser": "李怡洁",
+      "labeled_team": "留学"
+    },
+    {
+      "source_adviser": "马晓君",
+      "labeled_team": "留学"
+    },
+    {
+      "source_adviser": "王垚",
+      "labeled_team": "留学"
+    },
+    {
+      "source_adviser": "李燕丹",
+      "labeled_team": "留学"
+    },
+    {
+      "source_adviser": "叶怡妍",
+      "labeled_team": "留学"
+    },
+    {
+      "source_adviser": "杜顺秋",
+      "labeled_team": "留学"
+    },
+    {
+      "source_adviser": "许慧卿",
+      "labeled_team": "留学"
+    },
+    {
+      "source_adviser": "康晨阳",
+      "labeled_team": "留学"
+    },
+    {
+      "source_adviser": "付凯琳",
+      "labeled_team": "留学"
+    },
+    {
+      "source_adviser": "孟晓旭",
+      "labeled_team": "留学"
+    },
+    {
+      "source_adviser": "张琢",
+      "labeled_team": "留学"
+    },
+    {
+      "source_adviser": "秦海娜",
+      "labeled_team": "留学"
+    },
+    {
+      "source_adviser": "陈俣彤(离职)",
+      "labeled_team": "留学"
+    },
+    {
+      "source_adviser": "崔双双",
+      "labeled_team": "留学"
+    },
+    {
+      "source_adviser": "王璐琪6",
+      "labeled_team": "留学"
+    },
+    {
+      "source_adviser": "张鸣",
+      "labeled_team": "留学"
+    },
+    {
+      "source_adviser": "韩馥阳",
+      "labeled_team": "留学"
+    },
+    {
+      "source_adviser": "田曼萍",
+      "labeled_team": "留学"
+    },
+    {
+      "source_adviser": "靳琳",
+      "labeled_team": "留学"
+    },
+    {
+      "source_adviser": "刘馨阳",
+      "labeled_team": "留学"
+    },
+    {
+      "source_adviser": "王春昊",
+      "labeled_team": "留学"
+    },
+    {
+      "source_adviser": "钟瑞童",
+      "labeled_team": "留学"
+    },
+    {
+      "source_adviser": "杨雨晴",
+      "labeled_team": "留学"
+    },
+    {
+      "source_adviser": "刘兴琦(离职)",
+      "labeled_team": "留学"
+    },
+    {
+      "source_adviser": "张莉",
+      "labeled_team": "留学"
+    },
+    {
+      "source_adviser": "何梦雅",
+      "labeled_team": "留学"
+    },
+    {
+      "source_adviser": "宋佳霖",
+      "labeled_team": "留学"
+    },
+    {
+      "source_adviser": "王雨",
+      "labeled_team": "留学"
+    },
+    {
+      "source_adviser": "天津公海池管理员",
+      "labeled_team": "留学"
+    },
+    {
+      "source_adviser": "董郓泾",
+      "labeled_team": "留学"
+    },
+    {
+      "source_adviser": "刘翔宇",
+      "labeled_team": "留学"
+    },
+    {
+      "source_adviser": "高超(离职)",
+      "labeled_team": "留学"
+    },
+    {
+      "source_adviser": "黄闰琪(离职)",
+      "labeled_team": "留学"
+    },
+    {
+      "source_adviser": "魏洪颖(离职)",
+      "labeled_team": "留学"
+    },
+    {
+      "source_adviser": "战艺鑫(离职)",
+      "labeled_team": "留学"
+    },
+    {
+      "source_adviser": "王川(离职)",
+      "labeled_team": "留学"
+    },
+    {
+      "source_adviser": "杨晓琳(离职)",
+      "labeled_team": "留学"
+    },
+    {
+      "source_adviser": "梅宇杰(离职)",
+      "labeled_team": "留学"
+    },
+    {
+      "source_adviser": "徐奕凡(离职)",
+      "labeled_team": "留学预备"
+    },
+    {
+      "source_adviser": "徐蕊(离职)",
+      "labeled_team": "留学"
+    },
+    {
+      "source_adviser": "天津留学管理员",
+      "labeled_team": "留学"
+    },
+    {
+      "source_adviser": "田宝蕊(离职)",
+      "labeled_team": "留学预备"
+    },
+    {
+      "source_adviser": "李峥(离职)",
+      "labeled_team": "留学"
+    },
+    {
+      "source_adviser": "宋珊珊",
+      "labeled_team": "留学"
+    }
+  ]
+}

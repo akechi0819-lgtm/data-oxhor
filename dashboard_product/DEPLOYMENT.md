@@ -1,6 +1,6 @@
 # 静态看板发布
 
-> 下一版主看板采用 V14：使用 `dashboard_actuals/v14`，所有账号进入同一份 `full.html`；线上影子看板单独输出 `online_market_special.html`，留学线下影子看板单独输出 `offline_market_special.html`。本地源码更新不会自动更新客户 Saved Query registry 或线上页面。人员进度和钉钉推送由 `monitoring_product/` 负责。
+> 主看板使用 `dashboard_actuals/v14`，所有账号进入 `full.html`；已验收的线上融合看板由 `online_team/` 生成自包含 `online_market_special.html`，留学线下仍输出 `offline_market_special.html`。本地源码更新不会自动更新远端页面。此次线上网页替换不改变钉钉运行链路；完整刷新及云端接入见 [上线说明](../docs/online-team-release.md)。
 
 ## 当前数据流
 
@@ -10,10 +10,10 @@
 
 1. `refresh` 通过 Data Platform 运行两次 `dashboard_actuals/v14`（当前与去年同期），生成一份全量 `artifact.json`。
 2. `render` 只生成 `full.html`，包含全部团队、市场总计和人员产能。
-3. 发布脚本先验证两份查询回执、查询列和 V14 版本，再把 `full.html` 原子替换到服务器，并删除已退役的团队分册。
+3. 发布脚本验证主看板回执后，使用同一显式 Snapshot 生成新版线上页，嵌入其 CSS/JS/展示数据。两份本地产物都成功后，再上传 `full.html` 与 `online_market_special.html`，校验线上页哈希并逐文件原子替换。
 4. Nginx 使用 basic auth；所有已认证用户的 `/`、`/full.html`、`online_market_special.html` 和 `offline_market_special.html` 都进入完整主页面/特供页。
 
-线上团队特供看板读取显式影子 Snapshot，输出 `online_market_special.html`。它不依赖已退役的 `online_private.html`、`online_platform.html` 或 `offline_market.html`。
+新版线上团队融合看板直接读取主 Snapshot，按已确认规则归类和重洗留学渠道，不需要影子 Snapshot。正式文件仍是 `online_market_special.html`，不依赖旧语培 iframe 页面；主页面入口文字更新为“进入线上团队融合看板”。
 
 **不要**把 `artifact.json` 放到 `/var/www/dashboard/` 或任何公网目录。服务器不接触 DuckDB、`Input/`、`Work/Runs/`、客户凭据或整个 `customers/` 目录。
 
@@ -36,15 +36,14 @@ ARTIFACT_JSON=/abs/path/artifact.json ./dashboard_product/deploy/publish_static_
 
 校验会检查两次 `dashboard_actuals/v14` 受控查询、输出列和查询回执；旧 artifact 直接阻断。
 
-## 线上团队影子看板
+## 线上团队融合看板单独发布
 
 ```bash
-ARTIFACT_JSON=/abs/path/online_market_artifact.json \
-FULL_HTML=/abs/path/full.html \
+SITE_HTML=/abs/path/online_market_special.html \
   ./dashboard_product/deploy/publish_online_market_dashboard.sh
 ```
 
-该脚本只上传 `full.html` 和 `online_market_special.html`，不上传影子 warehouse、工单文件或 artifact，并清理旧团队 HTML。
+先按上线说明运行 `online_team.build` 和 `online_team.export`。该脚本只上传自包含线上 HTML；`--dry-run` 只校验不上传、不读凭据。现行日更通过 `publish_static_dashboard.sh` 已包含新版线上页，不再重复调用旧影子网页发布。共享结果、明细和查询回执留在 Output，不能上传。
 
 ## 留学线下团队影子看板
 

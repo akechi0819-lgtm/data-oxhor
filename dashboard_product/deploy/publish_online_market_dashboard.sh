@@ -1,119 +1,62 @@
 #!/usr/bin/env bash
 set -euo pipefail
-
-# Publish the independent shadow-data board and the full-dashboard navigation.
-case "$-" in *x*) echo "refuse to run with xtrace (would leak SERVER_PASSWORD)" >&2; exit 2 ;; esac
+# Publish only the accepted, self-contained online-team page.
+case "$-" in *x*) echo "refuse to run with xtrace" >&2; exit 2 ;; esac
 set +x
-
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 DASHBOARD_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 PROJECT_ROOT="${PROJECT_ROOT:-$(cd "${DASHBOARD_ROOT}/.." && pwd)}"
 ENV_FILE="${ENV_FILE:-${DASHBOARD_ROOT}/.env.server}"
-ARTIFACT_JSON="${ARTIFACT_JSON:-}"
-FULL_HTML="${FULL_HTML:-}"
-DASHBOARD_ARTIFACT="${DASHBOARD_ARTIFACT:-}"
-
+SITE_HTML="${SITE_HTML:-}"
+test -s "$SITE_HTML" || { echo "SITE_HTML is missing or empty" >&2; exit 2; }
+cd "$PROJECT_ROOT"
+python3 -m dashboard_product.online_team.export --validate-html "$SITE_HTML"
+if [[ "${1:-}" == "--dry-run" ]]; then
+  echo "validated only; no credentials loaded, no upload"
+  exit 0
+fi
+[[ $# -eq 0 ]] || { echo "usage: SITE_HTML=... $0 [--dry-run]" >&2; exit 2; }
 test -r "$ENV_FILE"
-test -s "$ARTIFACT_JSON" || { echo "ARTIFACT_JSON is missing or empty" >&2; exit 2; }
-test -s "$FULL_HTML" || { echo "FULL_HTML is missing or empty" >&2; exit 2; }
-
 set -a
 . "$ENV_FILE"
 set +a
-
-required=(SERVER_HOST SERVER_PORT SERVER_USER SERVER_PASSWORD)
-for name in "${required[@]}"; do
-  test -n "${!name:-}" || { echo "missing $name in $ENV_FILE" >&2; exit 2; }
+for name in SERVER_HOST SERVER_PORT SERVER_USER SERVER_PASSWORD; do
+  test -n "${!name:-}" || { echo "missing $name" >&2; exit 2; }
 done
-
-# Prefer explicit DASHBOARD_ARTIFACT; else sibling artifact.json next to FULL_HTML.
-if [[ -z "${DASHBOARD_ARTIFACT}" ]]; then
-  candidate="$(cd "$(dirname "$FULL_HTML")" && pwd)/artifact.json"
-  if [[ -s "$candidate" ]]; then
-    DASHBOARD_ARTIFACT="$candidate"
-  fi
-fi
-
-cd "$PROJECT_ROOT"
-render_cmd=(python3 -m dashboard_product.online_market_render --artifact "$ARTIFACT_JSON")
-if [[ -n "${DASHBOARD_ARTIFACT}" ]]; then
-  test -s "$DASHBOARD_ARTIFACT" || { echo "DASHBOARD_ARTIFACT is missing or empty" >&2; exit 2; }
-  render_cmd+=(--dashboard-artifact "$DASHBOARD_ARTIFACT")
-fi
-"${render_cmd[@]}"
-
-html_dir="$(cd "$(dirname "$ARTIFACT_JSON")" && pwd)"
-src="${html_dir}/online_market_special.html"
-training_src="${html_dir}/online_market_training.html"
-test -s "$src"
-grep -qi '<!doctype html>' "$src"
-grep -qi '<!doctype html>' "$FULL_HTML"
-
-stage="$(mktemp -d "${TMPDIR:-/tmp}/online-market-dashboard.XXXXXX")"
+stage="$(mktemp -d "${TMPDIR:-/tmp}/online-team-publish.XXXXXX")"
 cleanup() { rm -rf "$stage"; }
 trap cleanup EXIT
-cp -p "$src" "${stage}/online_market_special.html"
-cp -p "$FULL_HTML" "${stage}/full.html"
-transfer_files=(full.html online_market_special.html)
-install_files=(full.html online_market_special.html)
-if [[ -s "$training_src" ]]; then
-  cp -p "$training_src" "${stage}/online_market_training.html"
-  transfer_files+=(online_market_training.html)
-  install_files+=(online_market_training.html)
-fi
-
-# Compress for slow links; remote install unzips back to html names.
-(
-  cd "$stage"
-  for f in "${transfer_files[@]}"; do
-    gzip -9 -c "$f" > "${f}.gz"
-  done
-)
-gz_list=""
-for f in "${transfer_files[@]}"; do
-  gz_list+=" ${f}.gz"
-done
-gz_list="${gz_list# }"
-
-stamp="$(TZ="${TZ:-Asia/Shanghai}" date +%Y%m%d_%H%M%S)"
-remote_tmp="/tmp/online-market-dashboard-${stamp}"
-install_list="${install_files[*]}"
-export SERVER_HOST SERVER_PORT SERVER_USER SERVER_PASSWORD stage remote_tmp install_list gz_list
-
-/usr/bin/expect -f /dev/stdin <<'EXPECT_EOF'
+cp "$SITE_HTML" "$stage/online_market_special.html"
+expected_sha="$(python3 -c 'import hashlib,sys; print(hashlib.sha256(open(sys.argv[1],"rb").read()).hexdigest())' "$stage/online_market_special.html")"
+gzip -9 -c "$stage/online_market_special.html" > "$stage/online_market_special.html.gz"
+stamp="$(TZ=Asia/Shanghai date +%Y%m%d_%H%M%S)"
+remote_tmp="/tmp/online-team-${stamp}-$$"
+export SERVER_HOST SERVER_PORT SERVER_USER SERVER_PASSWORD stage remote_tmp expected_sha
+/usr/bin/expect -f /dev/stdin <<'EXPECT_MKDIR'
 set timeout 60
 spawn /usr/bin/ssh -o StrictHostKeyChecking=yes -o PreferredAuthentications=password -o PubkeyAuthentication=no -o GSSAPIAuthentication=no -p $env(SERVER_PORT) $env(SERVER_USER)@$env(SERVER_HOST) "mkdir -p $env(remote_tmp) && chmod 700 $env(remote_tmp)"
 expect {
   -re {assword:} { send -- "$env(SERVER_PASSWORD)\r"; exp_continue }
-  eof { set status [lindex [wait] 3]; exit $status }
-  timeout { puts "SSH mkdir timed out"; catch {close}; catch {wait}; exit 124 }
+  eof { exit [lindex [wait] 3] }
+  timeout { puts "SSH mkdir timed out"; exit 124 }
 }
-EXPECT_EOF
-
-/usr/bin/expect -f /dev/stdin <<'EXPECT_EOF'
+EXPECT_MKDIR
+/usr/bin/expect -f /dev/stdin <<'EXPECT_UPLOAD'
 set timeout 900
-set transfer_cmd "scp -O -o StrictHostKeyChecking=yes -o PreferredAuthentications=password -o PubkeyAuthentication=no -o GSSAPIAuthentication=no -P $env(SERVER_PORT)"
-foreach f [split $env(gz_list)] {
-  append transfer_cmd " '$env(stage)/$f'"
-}
-append transfer_cmd " $env(SERVER_USER)@$env(SERVER_HOST):$env(remote_tmp)/"
-spawn /bin/sh -c $transfer_cmd
+spawn /usr/bin/scp -O -o StrictHostKeyChecking=yes -o PreferredAuthentications=password -o PubkeyAuthentication=no -o GSSAPIAuthentication=no -P $env(SERVER_PORT) $env(stage)/online_market_special.html.gz $env(SERVER_USER)@$env(SERVER_HOST):$env(remote_tmp)/
 expect {
   -re {assword:} { send -- "$env(SERVER_PASSWORD)\r"; exp_continue }
-  eof { set status [lindex [wait] 3]; exit $status }
-  timeout { puts "SSH file transfer timed out"; catch {close}; catch {wait}; exit 124 }
+  eof { exit [lindex [wait] 3] }
+  timeout { puts "SCP timed out"; exit 124 }
 }
-EXPECT_EOF
-
-/usr/bin/expect -f /dev/stdin <<'EXPECT_EOF'
+EXPECT_UPLOAD
+/usr/bin/expect -f /dev/stdin <<'EXPECT_INSTALL'
 set timeout 120
-spawn /usr/bin/ssh -o StrictHostKeyChecking=yes -o PreferredAuthentications=password -o PubkeyAuthentication=no -o GSSAPIAuthentication=no -p $env(SERVER_PORT) $env(SERVER_USER)@$env(SERVER_HOST) "set -euo pipefail; src='$env(remote_tmp)'; dest=/var/www/dashboard; for f in $env(install_list); do test -s \"\$src/\$f.gz\"; gzip -dc \"\$src/\$f.gz\" > \"\$src/\$f\"; test -s \"\$src/\$f\"; install -m 0644 \"\$src/\$f\" \"\$dest/.\$f.tmp\"; done; for f in $env(install_list); do mv -f \"\$dest/.\$f.tmp\" \"\$dest/\$f\"; done; rm -f \"\$dest/online_private.html\" \"\$dest/online_platform.html\" \"\$dest/offline_market.html\"; rm -rf '$env(remote_tmp)'; curl -fsS -o /dev/null -H 'Host: dashboard.apinova.cn' http://127.0.0.1/healthz"
+spawn /usr/bin/ssh -o StrictHostKeyChecking=yes -o PreferredAuthentications=password -o PubkeyAuthentication=no -o GSSAPIAuthentication=no -p $env(SERVER_PORT) $env(SERVER_USER)@$env(SERVER_HOST) "set -eu; src='$env(remote_tmp)'; dest='/var/www/dashboard'; gzip -dc \"\$src/online_market_special.html.gz\" > \"\$src/online_market_special.html\"; echo '$env(expected_sha)  $env(remote_tmp)/online_market_special.html' | sha256sum -c -; install -m 0644 \"\$src/online_market_special.html\" \"\$dest/.online_market_special.html.tmp\"; mv -f \"\$dest/.online_market_special.html.tmp\" \"\$dest/online_market_special.html\"; sha256sum \"\$dest/online_market_special.html\"; rm -rf \"\$src\"; curl -fsS -o /dev/null -H 'Host: dashboard.apinova.cn' http://127.0.0.1/healthz"
 expect {
   -re {assword:} { send -- "$env(SERVER_PASSWORD)\r"; exp_continue }
-  eof { set status [lindex [wait] 3]; exit $status }
-  timeout { puts "SSH publish timed out"; catch {close}; catch {wait}; exit 124 }
+  eof { exit [lindex [wait] 3] }
+  timeout { puts "SSH install timed out"; exit 124 }
 }
-EXPECT_EOF
-
-published="${install_files[*]}"
-printf 'published %s from %s at %s\n' "$published" "$src" "$(date -Iseconds)"
+EXPECT_INSTALL
+printf 'published online_market_special.html sha256=%s\n' "$expected_sha"

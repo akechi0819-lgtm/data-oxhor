@@ -1,0 +1,770 @@
+"use strict";
+
+(() => {
+  const LINE_IDS = ["training", "abroad"];
+  const LINE_COLORS = { training: "#2e6fb1", abroad: "#087e80" };
+  const LINE_CLASSES = { training: "training", abroad: "abroad" };
+  const LINE_TAG_CLASSES = { training: "training-text", abroad: "abroad-text" };
+  const STATUS_LABELS = {
+    matched: "一致",
+    difference: "有差异",
+    unavailable: "不可用",
+  };
+  const byId = (id) => document.getElementById(id);
+  const state = {
+    data: null,
+    periodId: null,
+    lineFilter: "all",
+    channelQuery: "",
+    channelSort: "orders",
+    channelLineFilter: "all",
+    includeSSC: false,
+  };
+
+  const ui = {
+    periodSelect: byId("period-select"),
+    lineSelect: byId("line-select"),
+    pageTitle: byId("page-title"),
+    periodCaption: byId("period-caption"),
+    freshness: byId("freshness"),
+    freshnessLabel: byId("freshness-label"),
+    freshnessDate: byId("freshness-date"),
+    loadMessage: byId("load-message"),
+    periodNotice: byId("period-notice"),
+    lineCards: byId("line-cards"),
+    scopeNote: byId("scope-note"),
+    dailyChart: byId("daily-chart"),
+    trendLegend: byId("trend-legend"),
+    trendPeriodNote: byId("trend-period-note"),
+    channelSearch: byId("channel-search"),
+    channelLineSelect: byId("channel-line-select"),
+    channelSort: byId("channel-sort"),
+    channelCount: byId("channel-count"),
+    channelBody: byId("channel-body"),
+    groupBody: byId("group-body"),
+    groupNote: byId("group-note"),
+    dimensionList: byId("dimension-list"),
+    dimensionNote: byId("dimension-note"),
+    metadataGrid: byId("metadata-grid"),
+    noteList: byId("note-list"),
+    reconSummary: byId("reconciliation-summary"),
+    reconciliationBody: byId("reconciliation-body"),
+    reconciliationNotes: byId("reconciliation-notes"),
+  };
+
+  function escapeHTML(value) {
+    return String(value ?? "").replace(/[&<>"']/g, (char) => ({
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      '"': "&quot;",
+      "'": "&#39;",
+    })[char]);
+  }
+
+  function cleanString(value) {
+    if (value === null || value === undefined) return "";
+    if (typeof value === "string") return value.trim();
+    if (typeof value === "number" || typeof value === "boolean") return String(value);
+    return "";
+  }
+
+  function isNumber(value) {
+    return typeof value === "number" && Number.isFinite(value);
+  }
+
+  function numberText(value) {
+    if (!isNumber(value)) return value === null || value === undefined ? "—" : escapeHTML(value);
+    return new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 20 }).format(value);
+  }
+
+  function metricUnit(metric, fallback) {
+    const unit = cleanString(metric && metric.unit);
+    return unit || fallback || "";
+  }
+
+  function valueWithUnit(value, unit) {
+    if (value === null || value === undefined) return "—";
+    const number = numberText(value);
+    return unit ? `${number} ${escapeHTML(unit)}` : number;
+  }
+
+  function percentText(value) {
+    if (value === null || value === undefined) return "—";
+    if (!isNumber(value)) return escapeHTML(value);
+    return new Intl.NumberFormat("zh-CN", { style: "percent", maximumFractionDigits: 1 }).format(value);
+  }
+
+  function safeArray(value) {
+    return Array.isArray(value) ? value : [];
+  }
+
+  function formatDate(value) {
+    const match = typeof value === "string" && value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!match) return cleanString(value) || "日期未提供";
+    return `${match[1]}年${Number(match[2])}月${Number(match[3])}日`;
+  }
+
+  function formatDateShort(value) {
+    if (typeof value !== "string") return "";
+    const match = value.match(/^\d{4}-(\d{2})-(\d{2})$/);
+    return match ? `${match[1]}-${match[2]}` : value;
+  }
+
+  function getPeriod() {
+    return safeArray(state.data && state.data.periods).find((period) => period.id === state.periodId) || null;
+  }
+
+  function activeLineIds() {
+    return state.lineFilter === "all" ? LINE_IDS : [state.lineFilter];
+  }
+
+  function visibleChannelLineIds() {
+    return activeLineIds().filter((lineId) => state.channelLineFilter === "all" || state.channelLineFilter === lineId);
+  }
+
+  function getBaseLine(period, lineId) {
+    return period && period.lines && period.lines[lineId] ? period.lines[lineId] : null;
+  }
+
+  function getLine(period, lineId) {
+    const line = getBaseLine(period, lineId);
+    if (lineId === "abroad") {
+      return line && line.views ? line.views[state.includeSSC ? "including_ssc" : "excluding_ssc"] || null : null;
+    }
+    return line;
+  }
+
+  function actualValue(value) {
+    if (value && typeof value === "object" && !Array.isArray(value)) return value.actual ?? null;
+    return value ?? null;
+  }
+
+  function statusMessage(status, periodStatus, metric) {
+    if (periodStatus === "future" || (metric && metric.status === "future")) {
+      return "该期间尚未开始，实际值不显示为零。";
+    }
+    if (status === "not_connected") return "待接入 · 当前没有可展示的实际值。";
+    if (metric && metric.actual === null) return "暂无实际值 · 空值不代表业务为零。";
+    if (!metric) return "该指标尚无可展示结果。";
+    return "该指标暂不可用。";
+  }
+
+  function statusClass(status, periodStatus) {
+    if (periodStatus === "future" || status === "future") return "future";
+    if (status === "not_connected") return "not-connected";
+    return "";
+  }
+
+  function renderDifference(value, unit, kind) {
+    if (value === null || value === undefined) return { text: "—", tone: "" };
+    const tone = isNumber(value) ? (value < 0 ? "negative" : value > 0 ? "positive" : "") : "";
+    const interpretation = !isNumber(value)
+      ? ""
+      : kind === "gap"
+        ? value < 0 ? " · 未达目标" : value > 0 ? " · 超出目标" : " · 与目标持平"
+        : value < 0 ? " · 慢于进度" : value > 0 ? " · 快于进度" : " · 与进度持平";
+    return { text: `${valueWithUnit(value, unit)}${interpretation}`, tone };
+  }
+
+  function renderFootItem(label, text, tone = "") {
+    return `<div class="metric-foot-item">${escapeHTML(label)}<strong class="${tone}">${text}</strong></div>`;
+  }
+
+  function renderMetricBlock(label, metric, period, fallbackUnit) {
+    const isFuture = period.status === "future" || (metric && metric.status === "future");
+    const status = metric && metric.status;
+    const isReady = metric && metric.actual !== null && metric.actual !== undefined && !isFuture && status !== "not_connected";
+    const unit = metricUnit(metric, fallbackUnit);
+    const actual = isFuture ? null : metric && metric.actual;
+    const target = metric && metric.target;
+    const completion = isFuture ? null : metric && metric.completion;
+    const yoy = isFuture ? null : metric && metric.yoy;
+    const gap = isFuture ? null : metric && metric.gap;
+    const timeGap = isFuture ? null : metric && metric.time_gap;
+    const fallbackStatus = statusMessage(status, period.status, metric);
+    const note = cleanString(metric && metric.note);
+    const yoyTone = isNumber(yoy) ? (yoy < 0 ? "negative" : yoy > 0 ? "positive" : "") : "";
+    let mainMarkup;
+
+    if (isReady) {
+      const progressWidth = isNumber(completion) ? Math.max(0, Math.min(100, completion * 100)) : null;
+      const timeProgressWidth = isNumber(period.time_progress) ? Math.max(0, Math.min(100, period.time_progress * 100)) : null;
+      const completionText = completion === null || completion === undefined ? "未配置" : percentText(completion);
+      const gapDisplay = target === null || target === undefined ? { text: "未配置", tone: "" } : renderDifference(gap, unit, "gap");
+      const timeDisplay = target === null || target === undefined ? { text: "未配置", tone: "" } : renderDifference(timeGap, unit, "time");
+      mainMarkup = `
+        <div class="metric-core">
+          <div class="metric-actual">${valueWithUnit(actual, unit)}</div>
+          <div class="metric-target">目标<strong>${valueWithUnit(target, unit)}</strong></div>
+        </div>
+        ${progressWidth === null ? "" : `<div class="progress-track" role="img" aria-label="目标完成 ${escapeHTML(percentText(completion))}${timeProgressWidth === null ? "" : `；时间进度 ${escapeHTML(percentText(period.time_progress))}`} "><div class="progress-fill" style="width:${progressWidth}%"></div>${timeProgressWidth === null ? "" : `<span class="progress-marker" style="left:${timeProgressWidth}%" title="时间进度 ${escapeHTML(percentText(period.time_progress))}"></span>`}</div>`}
+        <div class="metric-foot">
+          ${renderFootItem("完成率", escapeHTML(completionText))}
+          ${renderFootItem("差额（负数未达）", escapeHTML(gapDisplay.text), gapDisplay.tone)}
+          ${renderFootItem("时间差额（负数落后）", escapeHTML(timeDisplay.text), timeDisplay.tone)}
+        </div>`;
+    } else {
+      const targetText = target === null || target === undefined ? "未配置" : valueWithUnit(target, unit);
+      mainMarkup = `<div class="metric-status ${statusClass(status, period.status)}">${escapeHTML(fallbackStatus)}</div><div class="metric-target standalone-target">目标<strong>${targetText}</strong></div>`;
+    }
+
+    return `<div class="metric-block">
+      <div class="metric-topline"><span class="metric-label">${escapeHTML(label)}</span><span class="metric-yoy ${yoyTone}">同比<strong>${escapeHTML(percentText(yoy))}</strong></span></div>
+      ${mainMarkup}
+      ${note ? `<p class="metric-note">${escapeHTML(note)}</p>` : ""}
+    </div>`;
+  }
+
+  function renderLineCard(lineId, line, period) {
+    const lineLabel = cleanString(line.label) || (lineId === "training" ? "语培" : "留学");
+    const lineClass = LINE_CLASSES[lineId];
+    const includeSwitch = lineId === "abroad" ? `<label class="ssc-switch">
+      <input class="ssc-switch-input" type="checkbox" role="switch" data-include-ssc aria-label="包含 SSC" ${state.includeSSC ? "checked" : ""}>
+      <span class="ssc-switch-track" aria-hidden="true"><i></i></span><span class="ssc-switch-label">包含 SSC</span>
+    </label>` : "";
+    return `<article class="line-card ${lineClass}">
+      <div class="line-card-head">
+        <div><div class="line-title"><span class="line-symbol" aria-hidden="true"></span><h3>${escapeHTML(lineLabel)}</h3></div><p class="line-scope">${escapeHTML(cleanString(line.scope) || "按当前结果口径")}</p></div>
+        <div class="line-card-head-actions"><span class="line-badge">${lineId === "training" ? "语培业务线" : "留学业务线"}</span>${includeSwitch}</div>
+      </div>
+      ${renderMetricBlock("工单资源", line.orders, period, "单")}
+      ${renderMetricBlock("现金业绩", line.cash, period, "元")}
+    </article>`;
+  }
+
+  function updatePeriodHeader(period) {
+    const metadata = state.data.metadata || {};
+    const start = period.start_date ? formatDate(period.start_date) : "起始日期未提供";
+    const end = period.end_date ? formatDate(period.end_date) : "结束日期未提供";
+    const through = period.through_date || metadata.data_through;
+    const title = cleanString(metadata.title) || "线上团队 · 经营进度";
+    ui.pageTitle.textContent = title;
+    ui.periodCaption.textContent = period.status === "future"
+      ? `${period.label || period.id} · ${start}至${end} · 该期间尚未开始`
+      : `${period.label || period.id} · ${start}至${end} · 数据截至${formatDate(through)}`;
+    ui.freshness.classList.toggle("is-ready", period.status !== "future" && period.status === "available");
+    ui.freshness.classList.toggle("is-future", period.status === "future");
+    ui.freshness.classList.remove("is-error");
+    ui.freshnessLabel.textContent = period.status === "future" ? "未到统计期" : period.status === "available" ? "数据已更新" : "数据状态";
+    ui.freshnessDate.textContent = period.status === "future" ? `统计期间 ${period.label || period.id}` : `数据截止 ${formatDate(metadata.data_through || through)}`;
+    ui.trendPeriodNote.textContent = period.status === "future" ? "尚未开始" : `${formatDate(period.start_date)} — ${formatDate(through)}`;
+    ui.scopeNote.textContent = period.status === "future"
+      ? "本期时间进度 尚未开始"
+      : `本期时间进度 ${percentText(period.time_progress)}`;
+  }
+
+  function metricAndGroupNotes(period) {
+    const notes = [];
+    const add = (label, value) => {
+      const text = cleanString(value);
+      if (text) notes.push(label ? `${label}：${text}` : text);
+    };
+    safeArray(period.notes).forEach((note) => add("期间说明", note));
+    LINE_IDS.forEach((lineId) => {
+      const line = getLine(period, lineId);
+      if (!line) return;
+      const lineName = cleanString(line.label) || (lineId === "training" ? "语培" : "留学");
+      safeArray(line.notices).forEach((notice) => add(`${lineName}提示`, notice));
+      add(`${lineName}工单资源`, line.orders && line.orders.note);
+      add(`${lineName}现金`, line.cash && line.cash.note);
+      safeArray(line.groups).forEach((group) => {
+        const groupName = cleanString(group.name) || "未命名业务组";
+        add(`${groupName}工单`, group.orders && group.orders.note);
+        add(`${groupName}现金`, group.cash && group.cash.note);
+      });
+    });
+    return [...new Set(notes)];
+  }
+
+  function renderPeriodNotice(period) {
+    const notes = [...new Set(activeLineIds().flatMap((lineId) => safeArray(getLine(period, lineId) && getLine(period, lineId).notices).map(cleanString).filter(Boolean)))];
+    ui.periodNotice.hidden = notes.length === 0;
+    if (!notes.length) {
+      ui.periodNotice.replaceChildren();
+      return;
+    }
+    ui.periodNotice.innerHTML = `<strong>本期口径提示</strong><ul>${notes.map((note) => `<li>${escapeHTML(note)}</li>`).join("")}</ul>`;
+  }
+
+  function renderLineCards(period) {
+    const ids = activeLineIds();
+    const cards = ids.map((lineId) => {
+      const line = getLine(period, lineId);
+      return line ? renderLineCard(lineId, line, period) : "";
+    }).filter(Boolean);
+    ui.lineCards.innerHTML = cards.length ? cards.join("") : `<div class="empty-panel">所选业务线在本期没有展示结果。</div>`;
+    ui.lineCards.classList.toggle("single-line", ids.length === 1);
+  }
+
+  function drawTextElement(svg, x, y, text, className, anchor = "start") {
+    const label = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    label.setAttribute("x", String(x));
+    label.setAttribute("y", String(y));
+    label.setAttribute("class", className);
+    label.setAttribute("text-anchor", anchor);
+    label.textContent = text;
+    svg.appendChild(label);
+  }
+
+  function drawLineElement(svg, x1, y1, x2, y2, className) {
+    const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+    line.setAttribute("x1", String(x1));
+    line.setAttribute("y1", String(y1));
+    line.setAttribute("x2", String(x2));
+    line.setAttribute("y2", String(y2));
+    line.setAttribute("class", className);
+    svg.appendChild(line);
+  }
+
+  function niceAxis(maxValue) {
+    const rawStep = Math.max(maxValue / 4, 1);
+    const power = Math.pow(10, Math.floor(Math.log10(rawStep)));
+    const step = Math.ceil(rawStep / power) * power;
+    return { step, max: step * 4 };
+  }
+
+  function renderTrend(period) {
+    const daily = safeArray(period.daily).slice().sort((a, b) => String(a.date || "").localeCompare(String(b.date || "")));
+    let series = activeLineIds().flatMap((lineId) => {
+      const line = getLine(period, lineId);
+      if (!line) return [];
+      const isTraining = lineId === "training";
+      return [{
+        id: lineId,
+        field: isTraining ? "training_orders" : state.includeSSC ? "abroad_orders" : "abroad_platform_orders",
+        label: cleanString(line.label) || (isTraining ? "语培" : "留学"),
+        color: LINE_COLORS[lineId],
+      }];
+    });
+
+    if (period.status === "future") {
+      ui.trendLegend.innerHTML = series.map((item) => `<span class="legend-item"><i class="legend-line" style="--legend-color:${item.color}" aria-hidden="true"></i>${escapeHTML(item.label)}</span>`).join("");
+      ui.dailyChart.innerHTML = `<div class="empty-chart">该期间尚未开始，暂无每日新增数据</div>`;
+      return;
+    }
+
+    series = series.filter((item) => daily.some((day) => isNumber(day[item.field])));
+    ui.trendLegend.innerHTML = series.map((item) => `<span class="legend-item"><i class="legend-line" style="--legend-color:${item.color}" aria-hidden="true"></i>${escapeHTML(item.label)}</span>`).join("");
+    const points = series.flatMap((item) => daily.map((day) => day[item.field]).filter(isNumber));
+    if (!daily.length || !points.length) {
+      ui.dailyChart.innerHTML = `<div class="empty-chart">当前期间暂无可展示的趋势数据</div>`;
+      return;
+    }
+
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("viewBox", "0 0 720 230");
+    svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
+    svg.setAttribute("class", "daily-svg");
+    svg.setAttribute("role", "img");
+    const lineNames = series.map((item) => item.label).join("、");
+    svg.setAttribute("aria-label", `每日新增工单趋势，${lineNames}分别展示`);
+    const title = document.createElementNS("http://www.w3.org/2000/svg", "title");
+    title.textContent = `每日新增工单趋势 · ${period.label || period.id}`;
+    svg.appendChild(title);
+
+    const chart = { left: 43, right: 704, top: 12, bottom: 196 };
+    const maxValue = Math.max(0, ...points);
+    const axis = niceAxis(maxValue);
+    for (let tick = 0; tick <= 4; tick += 1) {
+      const value = axis.step * tick;
+      const y = chart.bottom - (value / axis.max) * (chart.bottom - chart.top);
+      drawLineElement(svg, chart.left, y, chart.right, y, "chart-gridline");
+      drawTextElement(svg, chart.left - 8, y + 3, numberText(value), "chart-axis-label", "end");
+    }
+
+    const xAt = (index) => daily.length <= 1
+      ? (chart.left + chart.right) / 2
+      : chart.left + (index / (daily.length - 1)) * (chart.right - chart.left);
+    const yAt = (value) => chart.bottom - (value / axis.max) * (chart.bottom - chart.top);
+    const labelIndexes = [...new Set([0, Math.floor((daily.length - 1) / 2), daily.length - 1])];
+    labelIndexes.forEach((index) => drawTextElement(svg, xAt(index), 218, formatDateShort(daily[index].date), "chart-axis-label", index === 0 ? "start" : index === daily.length - 1 ? "end" : "middle"));
+
+    series.forEach((item) => {
+      let pathData = "";
+      let drawing = false;
+      let lastPoint = null;
+      daily.forEach((day, index) => {
+        const value = day[item.field];
+        if (!isNumber(value)) {
+          drawing = false;
+          return;
+        }
+        const x = xAt(index);
+        const y = yAt(value);
+        pathData += `${drawing ? " L" : " M"}${x.toFixed(2)} ${y.toFixed(2)}`;
+        drawing = true;
+        lastPoint = { x, y };
+      });
+      if (pathData) {
+        const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+        path.setAttribute("d", pathData.trim());
+        path.setAttribute("class", "chart-series");
+        path.setAttribute("style", `--series-color:${item.color}`);
+        svg.appendChild(path);
+      }
+      if (lastPoint) {
+        const dot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+        dot.setAttribute("cx", String(lastPoint.x));
+        dot.setAttribute("cy", String(lastPoint.y));
+        dot.setAttribute("r", "3.4");
+        dot.setAttribute("class", "chart-dot");
+        dot.setAttribute("style", `--series-color:${item.color}`);
+        svg.appendChild(dot);
+      }
+    });
+
+    ui.dailyChart.replaceChildren(svg);
+  }
+
+  function numericForSort(value) {
+    if (value && typeof value === "object") value = actualValue(value);
+    return isNumber(value) ? value : Number.NEGATIVE_INFINITY;
+  }
+
+  function channelCashText(row, line) {
+    if (row.cash === null || row.cash === undefined) {
+      if (line && line.cash && line.cash.status === "not_connected") return "待接入";
+      return "—";
+    }
+    const metric = line && line.cash;
+    return valueWithUnit(row.cash, metricUnit(metric, "元"));
+  }
+
+  function channelRows(period, lineId) {
+    const line = getLine(period, lineId);
+    const sourceChannels = safeArray(line && line.channels);
+    const query = state.channelQuery.toLocaleLowerCase("zh-CN");
+    const filtered = sourceChannels.filter((channel) => {
+      const first = Array.isArray(channel.first_channels) ? channel.first_channels.join(" ") : cleanString(channel.first_channels);
+      const scopeLabel = channel.completion_scope === "ssc" ? "SSC" : channel.completion_scope === "platform" ? "线上平台" : "归属待确认";
+      const lineLabel = lineId === "training" ? "语培" : "留学";
+      return `${lineLabel} ${scopeLabel} ${cleanString(channel.name)} ${first}`.toLocaleLowerCase("zh-CN").includes(query);
+    });
+    const sortField = { orders: "orders", share: "share", yoy: "orders_yoy" }[state.channelSort];
+    filtered.sort((a, b) => {
+      if (state.channelSort === "name") return cleanString(a.name).localeCompare(cleanString(b.name), "zh-CN");
+      return numericForSort(b[sortField]) - numericForSort(a[sortField]);
+    });
+    return { lineId, line, channels: filtered, sourceCount: sourceChannels.length };
+  }
+
+  function channelGroups(period) {
+    return visibleChannelLineIds().map((lineId) => {
+      const sorted = channelRows(period, lineId);
+      return {
+        lineId,
+        line: sorted.line,
+        title: cleanString(sorted.line && sorted.line.label) || (lineId === "training" ? "语培" : "留学"),
+        styleClass: LINE_CLASSES[lineId],
+        channels: sorted.channels,
+        sourceCount: sorted.sourceCount,
+      };
+    });
+  }
+
+  function renderChannels(period) {
+    if (period.status === "future") {
+      ui.channelCount.textContent = "尚未开始";
+      ui.channelBody.innerHTML = `<tr><td colspan="7" class="table-empty">该期间尚未开始，渠道数据不会显示为零。</td></tr>`;
+      return;
+    }
+    const groups = channelGroups(period);
+    if (!groups.length) {
+      ui.channelCount.textContent = "0 个渠道";
+      ui.channelBody.innerHTML = `<tr><td colspan="7" class="table-empty">当前筛选下没有可显示的业务线。</td></tr>`;
+      return;
+    }
+    const totalCount = groups.reduce((total, group) => total + group.channels.length, 0);
+    const hasSourceChannels = groups.some((group) => group.sourceCount > 0);
+    ui.channelCount.textContent = `${totalCount} 个渠道`;
+    const noRowsMessage = state.channelQuery && hasSourceChannels ? "没有匹配的渠道。" : "当前期间暂无渠道结果。";
+    ui.channelBody.innerHTML = groups.map(({ lineId, line, title, styleClass, channels, sourceCount }) => {
+      const lineLabel = lineId === "training" ? cleanString(line && line.label) || "语培" : "留学";
+      const rowMarkup = channels.length ? channels.map((channel) => {
+        const first = Array.isArray(channel.first_channels) ? channel.first_channels.join(" / ") : cleanString(channel.first_channels);
+        const orders = actualValue(channel.orders);
+        const yoy = channel.orders_yoy ?? (channel.orders && channel.orders.yoy);
+        const share = channel.share;
+        const today = channel.today_orders;
+        const name = cleanString(channel.name) || "未命名渠道";
+        return `<tr>
+          <td><span class="line-chip ${LINE_TAG_CLASSES[lineId]}">${escapeHTML(lineLabel)}</span></td>
+          <td><span class="channel-name">${escapeHTML(name)}</span>${first ? `<span class="channel-sub">一级渠道：${escapeHTML(first)}</span>` : ""}</td>
+          <td class="numeric">${orders === null ? "—" : `${numberText(orders)} 单`}</td>
+          <td class="numeric">${escapeHTML(percentText(yoy))}</td>
+          <td class="numeric">${escapeHTML(percentText(share))}</td>
+          <td class="numeric">${today === null || today === undefined ? "—" : `${numberText(today)} 单`}</td>
+          <td class="numeric">${escapeHTML(channelCashText(channel, line))}</td>
+        </tr>`;
+      }).join("") : `<tr><td colspan="7" class="table-empty group-empty">${escapeHTML(state.channelQuery && sourceCount ? "没有匹配的渠道。" : "当前期间暂无渠道结果。")}</td></tr>`;
+      return `<tr class="channel-group-row ${escapeHTML(styleClass || LINE_CLASSES[lineId])}"><th scope="rowgroup" colspan="7"><span>${escapeHTML(title || lineLabel)}</span><span class="channel-group-count">${channels.length} 个渠道</span></th></tr>${rowMarkup}`;
+    }).join("");
+  }
+
+  function renderGroups(period) {
+    const panel = ui.groupBody.closest(".breakdown-panel");
+    const visible = state.lineFilter !== "abroad";
+    panel.hidden = !visible;
+    panel.parentElement.classList.toggle("single-breakdown", state.lineFilter !== "all");
+    ui.groupNote.hidden = true;
+    if (!visible) return;
+    const line = getLine(period, "training");
+    const groups = safeArray(line && line.groups);
+    if (period.status === "future") {
+      ui.groupBody.innerHTML = `<tr><td colspan="5" class="table-empty">该期间尚未开始，业务组数据不会显示为零。</td></tr>`;
+      return;
+    }
+    if (!groups.length) {
+      ui.groupBody.innerHTML = `<tr><td colspan="5" class="table-empty">当前期间暂无业务组拆解。</td></tr>`;
+      return;
+    }
+    ui.groupBody.innerHTML = groups.map((group) => {
+      const orderMetric = group.orders;
+      const cashMetric = group.cash;
+      const orderUnit = metricUnit(orderMetric, "单");
+      const cashUnit = metricUnit(cashMetric, "元");
+      const actual = actualValue(orderMetric);
+      const target = orderMetric && typeof orderMetric === "object" ? orderMetric.target : null;
+      const gap = orderMetric && typeof orderMetric === "object" ? orderMetric.gap : null;
+      const groupCash = actualValue(cashMetric);
+      const isGroupFuture = period.status === "future" || (orderMetric && orderMetric.status === "future");
+      const orderText = isGroupFuture ? "尚未开始" : actual === null ? orderMetric && orderMetric.status === "not_connected" ? "待接入" : "—" : valueWithUnit(actual, orderUnit);
+      const targetText = isGroupFuture && target === null ? "—" : target === null || target === undefined ? "未配置" : valueWithUnit(target, orderUnit);
+      const gapText = isGroupFuture || target === null || target === undefined ? "—" : renderDifference(gap, orderUnit, "gap").text;
+      const cashText = isGroupFuture ? "尚未开始" : groupCash === null ? cashMetric && cashMetric.status === "not_connected" ? "待接入" : "—" : valueWithUnit(groupCash, cashUnit);
+      return `<tr><td>${escapeHTML(cleanString(group.name) || "未命名业务组")}</td><td>${escapeHTML(orderText)}</td><td>${escapeHTML(targetText)}</td><td>${escapeHTML(gapText)}</td><td>${escapeHTML(cashText)}</td></tr>`;
+    }).join("");
+  }
+
+  function dimensionValueText(value, unit) {
+    const actual = actualValue(value);
+    return actual === null ? "—" : valueWithUnit(actual, unit);
+  }
+
+  function renderDimensionNode(dimension, depth = 0) {
+    const children = safeArray(dimension.children);
+    const name = cleanString(dimension.name) || "未命名条线";
+    const orderValue = dimensionValueText(dimension.orders, "单");
+    const yoy = dimension.yoy ?? (dimension.orders && dimension.orders.yoy);
+    const prior = actualValue(dimension.prior_orders);
+    const priorText = prior === null ? "" : `<span>同期 <strong>${valueWithUnit(prior, "单")}</strong></span>`;
+    const classes = `dimension-item${depth ? " nested" : ""}`;
+    const contents = `<span class="dimension-name">${escapeHTML(name)}</span><span class="dimension-summary-values"><span>工单 <strong>${escapeHTML(orderValue)}</strong></span>${priorText}<span>同比 <strong>${escapeHTML(percentText(yoy))}</strong></span></span>`;
+    if (!children.length) return `<div class="${classes} dimension-leaf"><div class="dimension-row">${contents}</div></div>`;
+    return `<details class="${classes}"><summary><span class="dimension-chevron" aria-hidden="true"></span>${contents}</summary><div class="dimension-children">${children.map((child) => renderDimensionNode(child, depth + 1)).join("")}</div></details>`;
+  }
+
+  function renderDimensions(period) {
+    const panel = ui.dimensionList.closest(".breakdown-panel");
+    const visible = state.lineFilter !== "training";
+    panel.hidden = !visible;
+    ui.dimensionNote.hidden = true;
+    if (!visible) return;
+    const line = getLine(period, "abroad");
+    const dimensions = safeArray(line && line.dimensions);
+    if (period.status === "future") {
+      ui.dimensionList.innerHTML = `<div class="dimension-empty">该期间尚未开始，条线与国家数据不会显示为零。</div>`;
+      return;
+    }
+    if (!dimensions.length) {
+      ui.dimensionList.innerHTML = `<div class="dimension-empty">当前期间暂无条线或国家拆解。</div>`;
+      return;
+    }
+    ui.dimensionList.innerHTML = dimensions.map((dimension) => renderDimensionNode(dimension)).join("");
+  }
+
+  function metadataItem(label, value) {
+    return `<div class="metadata-item"><span>${escapeHTML(label)}</span><strong>${escapeHTML(cleanString(value) || "未提供")}</strong></div>`;
+  }
+
+  function allDataNotes(period) {
+    const notes = [];
+    const add = (label, value) => {
+      const text = cleanString(value);
+      if (text) notes.push(label ? `${label}：${text}` : text);
+    };
+    add("口径", "工单与资源数值为数仓核算结果；官方记分卡覆盖的指标以记分卡为准，数仓用于明细、拆解和对账。");
+    safeArray(state.data.metadata && state.data.metadata.notes).forEach((note) => add("数据说明", note));
+    metricAndGroupNotes(period).forEach((note) => add("本期", note));
+    return [...new Set(notes)];
+  }
+
+  function reconciliationUnit(cell) {
+    const line = getBaseLine(getPeriod(), cell.line_id);
+    const metric = line && (cell.metric.includes("cash") ? line.cash : line.orders);
+    return metricUnit(metric, cell.metric.includes("cash") ? "元" : "单");
+  }
+
+  function renderReconciliation(period) {
+    const reconciliation = state.data.reconciliation || {};
+    ui.reconSummary.textContent = cleanString(reconciliation.summary) || "本批次未提供对数摘要。";
+    const selectedScope = state.includeSSC ? "including_ssc" : "excluding_ssc";
+    const periodCells = safeArray(reconciliation.cells).filter((cell) => cell.period_id === period.id && cell.status === "difference" && (cell.line_id !== "abroad" || cell.scope === selectedScope));
+    if (!periodCells.length) {
+      ui.reconciliationBody.innerHTML = `<tr><td colspan="7" class="table-empty">本期间没有标记差异的对数项。</td></tr>`;
+    } else {
+      ui.reconciliationBody.innerHTML = periodCells.map((cell) => {
+        const unit = reconciliationUnit(cell);
+        const line = getBaseLine(period, cell.line_id);
+        const lineLabel = cell.line_id === "abroad"
+          ? cell.scope === "excluding_ssc" ? "留学线上平台（不含 SSC）" : cell.scope === "including_ssc" ? "留学大团队（含 SSC）" : "留学对数口径"
+          : cleanString(line && line.label) || (cell.line_id === "training" ? "语培" : cleanString(cell.line_id));
+        const metricLabel = ({ orders: "工单资源", cash: "现金", target_orders: "工单目标", target_cash: "现金目标", prior_orders: "去年同期工单", prior_cash: "去年同期现金", platform_orders: "平台工单（不含 SSC）" })[cell.metric] || cleanString(cell.metric);
+        const status = cleanString(cell.status);
+        const reason = cleanString(cell.reason);
+        const renderCellValue = (value) => value === null || value === undefined ? "—" : valueWithUnit(value, unit);
+        return `<tr>
+          <td>${escapeHTML(period.label || period.id)}</td><td>${escapeHTML(lineLabel)}</td><td>${escapeHTML(metricLabel)}</td>
+          <td class="numeric">${escapeHTML(renderCellValue(cell.baseline))}<span class="recon-reason">${escapeHTML(cleanString(cell.baseline_label))}</span></td><td class="numeric">${escapeHTML(renderCellValue(cell.current))}</td><td class="numeric">${escapeHTML(renderCellValue(cell.delta))}</td>
+          <td class="status-cell status-${escapeHTML(status)}">${escapeHTML(STATUS_LABELS[status] || status || "未提供")}${reason ? `<span class="recon-reason">${escapeHTML(reason)}</span>` : ""}</td>
+        </tr>`;
+      }).join("");
+    }
+    const notes = safeArray(reconciliation.notes);
+    ui.reconciliationNotes.innerHTML = notes.map((note) => `<li>${escapeHTML(cleanString(note))}</li>`).join("");
+    if (!notes.length) ui.reconciliationNotes.replaceChildren();
+  }
+
+  function renderNotes(period) {
+    const metadata = state.data.metadata || {};
+    ui.metadataGrid.innerHTML = [
+      metadataItem("运行批次", metadata.run_id),
+      metadataItem("Snapshot", metadata.snapshot_id),
+      metadataItem("数据截止日", metadata.data_through),
+      metadataItem("结果生成时间", metadata.created_at),
+    ].join("");
+    const notes = allDataNotes(period);
+    ui.noteList.innerHTML = notes.length ? notes.map((note) => `<li>${escapeHTML(note)}</li>`).join("") : "<li>本次结果未附加额外口径说明。</li>";
+    renderReconciliation(period);
+  }
+
+  function renderAll() {
+    const period = getPeriod();
+    if (!period) {
+      showError("没有可用的统计期间，请检查本期看板数据准备状态。");
+      return;
+    }
+    updatePeriodHeader(period);
+    renderPeriodNotice(period);
+    renderLineCards(period);
+    renderTrend(period);
+    renderChannels(period);
+    renderGroups(period);
+    renderDimensions(period);
+    renderNotes(period);
+    ui.loadMessage.classList.remove("is-visible", "is-error");
+    ui.loadMessage.textContent = "";
+  }
+
+  function setupPeriods(data) {
+    const periods = safeArray(data.periods);
+    ui.periodSelect.replaceChildren();
+    periods.forEach((period) => {
+      const option = document.createElement("option");
+      option.value = cleanString(period.id);
+      option.textContent = cleanString(period.label) || cleanString(period.id);
+      ui.periodSelect.appendChild(option);
+    });
+    const preferred = cleanString(data.metadata && data.metadata.default_period);
+    state.periodId = periods.some((period) => period.id === preferred)
+      ? preferred
+      : (periods.find((period) => period.status === "available") || periods[0] || {}).id || null;
+    if (state.periodId) ui.periodSelect.value = state.periodId;
+    ui.periodSelect.disabled = periods.length === 0;
+    ui.lineSelect.disabled = false;
+    ui.channelSearch.disabled = false;
+    ui.channelLineSelect.disabled = false;
+    ui.channelSort.disabled = false;
+    syncChannelLineOptions();
+  }
+
+  function syncChannelLineOptions() {
+    [...ui.channelLineSelect.options].forEach((option) => {
+      option.disabled = option.value !== "all" && state.lineFilter !== "all" && option.value !== state.lineFilter;
+    });
+    ui.channelLineSelect.value = state.channelLineFilter;
+  }
+
+  function showError(message) {
+    ui.loadMessage.textContent = message;
+    ui.loadMessage.classList.add("is-visible", "is-error");
+    ui.freshness.classList.add("is-error");
+    ui.freshness.classList.remove("is-ready", "is-future");
+    ui.freshnessLabel.textContent = "数据未就绪";
+    ui.freshnessDate.textContent = "未载入本次结果";
+  }
+
+  function setNavigationObserver() {
+    if (!("IntersectionObserver" in window)) return;
+    const links = [...document.querySelectorAll(".nav-link")];
+    const targets = links.map((link) => document.querySelector(link.getAttribute("href"))).filter(Boolean);
+    const observer = new IntersectionObserver((entries) => {
+      const visible = entries.filter((entry) => entry.isIntersecting).sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+      if (!visible) return;
+      links.forEach((link) => link.classList.toggle("is-current", link.getAttribute("href") === `#${visible.target.id}`));
+    }, { rootMargin: "-18% 0px -65% 0px", threshold: [0, .2, .5] });
+    targets.forEach((target) => observer.observe(target));
+  }
+
+  ui.periodSelect.addEventListener("change", () => {
+    state.periodId = ui.periodSelect.value;
+    renderAll();
+  });
+  ui.lineSelect.addEventListener("change", () => {
+    state.lineFilter = ["all", ...LINE_IDS].includes(ui.lineSelect.value) ? ui.lineSelect.value : "all";
+    state.channelLineFilter = "all";
+    syncChannelLineOptions();
+    renderAll();
+  });
+  ui.channelLineSelect.addEventListener("change", () => {
+    const candidate = ui.channelLineSelect.value;
+    state.channelLineFilter = candidate === "all" || activeLineIds().includes(candidate) ? candidate : "all";
+    ui.channelLineSelect.value = state.channelLineFilter;
+    const period = getPeriod();
+    if (period) renderChannels(period);
+  });
+  ui.channelSearch.addEventListener("input", () => {
+    state.channelQuery = ui.channelSearch.value.trim();
+    const period = getPeriod();
+    if (period) renderChannels(period);
+  });
+  ui.channelSort.addEventListener("change", () => {
+    state.channelSort = ui.channelSort.value;
+    const period = getPeriod();
+    if (period) renderChannels(period);
+  });
+  ui.lineCards.addEventListener("change", (event) => {
+    const toggle = event.target.closest("[data-include-ssc]");
+    if (!toggle) return;
+    state.includeSSC = toggle.checked;
+    renderAll();
+    ui.lineCards.querySelector("[data-include-ssc]")?.focus({ preventScroll: true });
+  });
+
+  const embeddedData = document.getElementById("dashboard-data");
+  const dataReady = embeddedData
+    ? Promise.resolve().then(() => JSON.parse(embeddedData.textContent))
+    : fetch("./data.json", { cache: "no-store" }).then((response) => {
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      return response.json();
+    });
+  dataReady
+    .then((data) => {
+      if (!data || data.schema_version !== "dashboard_rebuild.v1" || !Array.isArray(data.periods) || !data.periods.length) {
+        throw new Error("展示数据结构不符合 dashboard_rebuild.v1 或没有期间数据");
+      }
+      const hasSSCViews = data.periods.every((period) => {
+        const views = period.lines && period.lines.abroad && period.lines.abroad.views;
+        return views && views.including_ssc && views.excluding_ssc;
+      });
+      if (!hasSSCViews) throw new Error("每个期间都需要提供包含与不含 SSC 的留学视图");
+      state.data = data;
+      setupPeriods(data);
+      renderAll();
+      setNavigationObserver();
+    })
+    .catch(() => {
+      showError("看板数据尚未准备好或内容不完整，请在数据准备完成后重新打开。");
+    });
+})();
