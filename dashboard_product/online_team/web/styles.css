@@ -207,13 +207,6 @@ h1 { margin-bottom: 7px; color: #163447; font-size: clamp(24px, 2.2vw, 31px); fo
 .line-scope { max-width: 100%; margin: 6px 0 0 18px; overflow-wrap: anywhere; color: #819098; font-size: 10px; line-height: 1.5; }
 .line-badge { flex: 0 0 auto; padding: 4px 8px; border-radius: 4px; color: var(--line-accent); background: var(--line-tint); font-size: 10px; font-weight: 650; }
 .line-card-head-actions { display: flex; flex: 0 0 auto; flex-direction: column; align-items: flex-end; gap: 6px; }
-.ssc-switch { position: relative; display: inline-flex; min-height: 23px; align-items: center; gap: 6px; color: #526a75; font-size: 9px; font-weight: 600; cursor: pointer; white-space: nowrap; }
-.ssc-switch-input { position: absolute; width: 1px; height: 1px; opacity: 0; }
-.ssc-switch-track { display: inline-flex; width: 28px; height: 16px; align-items: center; padding: 2px; border-radius: 10px; background: #cfdad9; transition: background-color .15s ease; }
-.ssc-switch-track i { width: 12px; height: 12px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(20, 45, 55, .2); transition: transform .15s ease; }
-.ssc-switch-input:checked + .ssc-switch-track { background: var(--abroad); }
-.ssc-switch-input:checked + .ssc-switch-track i { transform: translateX(12px); }
-.ssc-switch-input:focus-visible + .ssc-switch-track { outline: 3px solid rgba(42, 126, 147, .35); outline-offset: 2px; }
 .metric-block { padding: 14px 18px 15px 20px; }
 .metric-block + .metric-block { border-top: 1px solid #edf1f1; }
 .metric-topline { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 7px; }

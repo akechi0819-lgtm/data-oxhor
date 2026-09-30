@@ -8,6 +8,7 @@ from tempfile import TemporaryDirectory
 import unittest
 
 from dashboard_product.online_team import build
+from data_acquisition.jobs.work_order_cleaning import WorkOrderReference
 
 
 class ClassificationTests(unittest.TestCase):
@@ -46,12 +47,11 @@ class PeriodAndTargetTests(unittest.TestCase):
         self.assertEqual(allocation['2026-09'], 531)
         self.assertEqual(sum(allocation[m] for m in ('2026-06', '2026-07', '2026-08')), 1676)
 
-    def test_platform_target_retains_original_scope_when_ssc_is_excluded(self):
-        config = {'study_abroad': {'resource_target': {'annual': 6715, 'allocation_basis': {
-            'annual': 5315, 'months': {'2026-06': 502, '2026-07': 370, '2026-08': 455, '2026-09': 420}}}}}
-        self.assertEqual(build.platform_resource_target(config, {'kind': 'year', 'id': 'FY27'}), 5315)
-        self.assertEqual(build.platform_resource_target(config, {'kind': 'month', 'id': '2026-09'}), 420)
-        self.assertEqual(build.platform_resource_target(config, {'kind': 'quarter', 'id': 'Q1'}), 1327)
+    def test_study_abroad_target_uses_6715_with_original_month_weights(self):
+        config = build.read(build.HERE / 'config/study_abroad_targets.json')
+        self.assertEqual(build.study_target(config, {'kind': 'year', 'id': 'FY27'}, 'orders'), 6715)
+        self.assertEqual(build.study_target(config, {'kind': 'month', 'id': '2026-09'}, 'orders'), 531)
+        self.assertEqual(build.study_target(config, {'kind': 'quarter', 'id': 'Q1'}, 'orders'), 1676)
 
     def test_fy_q2_and_month_periods_use_real_inclusive_calendar_edges(self):
         periods = {p["id"]: p for p in build.periods(date(2026, 9, 28))}
@@ -128,6 +128,46 @@ class AggregationTests(unittest.TestCase):
         self.assertTrue(build.is_ssc(' SSC '))
         self.assertFalse(build.is_ssc('SSC合作'))
         self.assertFalse(build.is_ssc(None))
+
+    def test_study_facts_exclude_confirmed_ssc_bucket_but_keep_small_language(self):
+        reference = WorkOrderReference(
+            path_to_first_channel={
+                '新媒体-小语种': '新媒体',
+                '网络资源-其他来源': '网络资源',
+            },
+            path_channel_to_corrected_channel={
+                ('新媒体-小语种', 'raw'): '小语种',
+                ('网络资源-其他来源', 'raw'): '其他',
+            },
+            country_to_line={},
+            path_channel_counts={},
+            country_line_counts={},
+        )
+        def row(work_order_id, source_path):
+            return {
+                'work_order_id': work_order_id,
+                'source_team': '',
+                'adviser': '确认顾问',
+                'main_active_type': '被动',
+                'resource_active_type': '被动',
+                'source_path': source_path,
+                'source_channel': 'raw',
+                'first_channel': '',
+                'second_channel': '',
+                'intended_country_source': '日本',
+                'resource_description': '',
+                'source_row_number': 1,
+                'event_date': '2026-09-28',
+            }
+
+        rows = [row('ssc-1', '新媒体-其他'), row('lang-1', '新媒体-小语种'), row('other-1', '网络资源-其他来源')]
+        current, legacy, labels = build.study_facts(rows, {'确认顾问': '留学'}, reference)
+
+        self.assertEqual(len(legacy), 3)  # old-scope reconciliation baseline
+        self.assertEqual([fact['second_channel'] for fact in current], ['小语种'])
+        self.assertEqual([fact['second_channel'] for fact in legacy], ['SSC', '小语种', 'SSC'])
+        self.assertEqual(labels, {'留学': 3})  # existing source-team normalization diagnostic
+        self.assertTrue(all('completion_scope' not in fact for fact in current))
 
     def test_money_and_total_keep_cent_precision(self):
         self.assertEqual(build.money("12.346"), 12.35)

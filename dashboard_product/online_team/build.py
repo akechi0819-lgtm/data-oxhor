@@ -206,21 +206,23 @@ def study_facts(rows, mapping, reference):
         if not abroad_eligible(root, text(r['resource_active_type'])):
             continue
         channel = source['二级渠道'] if source.get('留学渠道清洗状态') == '已命中' else '当前规则未命中'
+        # Preserve the accepted dashboard's SSC bucket mapping. 小语种 remains
+        # its own corrected channel and is not filtered with 其他.
         channel = {'其他': 'ssc'}.get(channel, channel)
-        scope = 'ssc' if is_ssc(channel) else 'platform'
-        if scope == 'ssc':
+        if is_ssc(channel):
             channel = 'SSC'
         fact = {'line_id': 'abroad', 'metric': 'orders', 'value': 1, 'event_date': r['event_date'],
                 'source_row_number': r['source_row_number'], 'work_order_id': r['work_order_id'],
                 'adviser': r['adviser'], 'original_team': r['source_team'], 'labeled_team': labeled,
                 'main_active_type': original_active, 'resource_active_type': r['resource_active_type'],
                 'first_channel': source.get('一级渠道') or root, 'second_channel': channel,
-                'completion_scope': scope,
                 'source_path': r['source_path'], 'original_first_channel': r['first_channel'],
                 'original_second_channel': r['second_channel'], 'business_group': root,
                 'country': source.get('意向国家') or '国家待确认', 'line': source.get('矫正条线') or '条线待确认'}
+        # Keep old-scope rows only as reconciliation baselines. New facts,
+        # details, channels, and public rollups exclude the confirmed SSC bucket.
         legacy.append(fact)
-        if labeled == '留学':
+        if labeled == '留学' and not is_ssc(channel):
             current.append(fact)
     return current, legacy, dict(labels)
 
@@ -263,17 +265,6 @@ def study_target(config, period, kind):
     return None if value is None else money(Decimal(str(value)) * (10000 if kind == 'cash' else 1))
 
 
-def platform_resource_target(config, period):
-    basis = config['study_abroad']['resource_target']['allocation_basis']
-    if period['kind'] == 'year':
-        return basis['annual']
-    if period['kind'] == 'month':
-        return basis['months'][period['id']]
-    quarter = int(period['id'][1:]) - 1
-    months = sorted(basis['months'])[quarter * 3:quarter * 3 + 3]
-    return sum(basis['months'][m] for m in months)
-
-
 def channel_rows(now, prior, line_id, through, period):
     names = sorted({r['second_channel'] for r in now + prior})
     denominator = total(now, 'orders')
@@ -288,7 +279,6 @@ def channel_rows(now, prior, line_id, through, period):
                        'share': orders / denominator if denominator else None,
                        'today_orders': total([r for r in a if r['event_date'] == through], 'orders') if period['through_date'] == through else None,
                        'cash': cash, 'prior_cash': prior_cash,
-                       'completion_scope': ('ssc' if is_ssc(name) else 'platform') if line_id == 'abroad' else 'training',
                        'cash_yoy': cash / prior_cash - 1 if cash is not None and prior_cash else None})
     return sorted(result, key=lambda r: (-r['orders'], r['name']))
 
@@ -388,9 +378,9 @@ def build(args):
         p['lines'], p['notes'] = {}, []
         for line_id in ('training', 'abroad'):
             a, b = now[line_id], prior[line_id]
-            line = {'label': '语培' if line_id == 'training' else '留学大团队（含 SSC）',
-                    'scope': '被动工单 / 被动新生正向报入现金' if line_id == 'training' else '大团队含 SSC；线上平台完成单独排除 SSC',
-                    'groups': [], 'dimensions': []}
+            line = {'label': '语培' if line_id == 'training' else '留学',
+                    'scope': '被动工单 / 被动新生正向报入现金' if line_id == 'training' else '线上留学工单按清洗后渠道统计',
+                    'notices': [], 'groups': [], 'dimensions': []}
             for kind, unit in [('orders', '条'), ('cash', '元')]:
                 target = training_target(training_config, p, kind) if line_id == 'training' else study_target(abroad_config, p, kind)
                 status = 'future' if p['status'] == 'future' else 'not_connected' if line_id == 'abroad' and kind == 'cash' else 'available'
@@ -413,33 +403,18 @@ def build(args):
             else:
                 if p['status'] != 'future':
                     line['dimensions'] = dimensions(a, b)
-                pa = [r for r in a if r['completion_scope'] == 'platform']
-                pb = [r for r in b if r['completion_scope'] == 'platform']
-                inclusive = {k: line[k] for k in ('orders', 'cash', 'channels', 'groups', 'dimensions')}
-                inclusive.update(label='留学', scope='大团队口径 · 包含 SSC', notices=[])
-                exclusive = {'label': '留学', 'scope': '线上平台口径 · 不含 SSC', 'notices': [], 'groups': [],
-                    'orders': metric(total(pa, 'orders'), total(pb, 'orders'), platform_resource_target(abroad_config, p),
-                                     p['time_progress'], '条', p['status'], '年度目标5,315条，月度沿用原配置；SSC不计平台完成。'),
-                    'cash': metric(None, None, None, p['time_progress'], '元', 'future' if p['status'] == 'future' else 'not_connected',
-                                   '留学现金实际待接入；未提供不含SSC的现金目标。'),
-                    'channels': channel_rows(pa, pb, line_id, through.isoformat(), p) if p['status'] != 'future' else [],
-                    'dimensions': dimensions(pa, pb) if p['status'] != 'future' else []}
-                line['views'] = {'including_ssc': inclusive, 'excluding_ssc': exclusive}
             p['lines'][line_id] = line
         p['daily'] = []
         if p['status'] != 'future':
-            counts = {k: Counter() for k in ('training', 'abroad', 'abroad_platform', 'ssc')}
+            counts = {k: Counter() for k in ('training', 'abroad')}
             for k in ('training', 'abroad'):
                 for r in now[k]:
                     if r['metric'] == 'orders':
                         counts[k][r['event_date']] += r['value']
-                        if k == 'abroad':
-                            counts['ssc' if r['completion_scope'] == 'ssc' else 'abroad_platform'][r['event_date']] += r['value']
             day, last = date.fromisoformat(p['start_date']), date.fromisoformat(p['through_date'])
             while day <= last:
                 s = day.isoformat()
-                p['daily'].append({'date': s, 'training_orders': counts['training'][s], 'abroad_orders': counts['abroad'][s],
-                                   'abroad_platform_orders': counts['abroad_platform'][s], 'ssc_orders': counts['ssc'][s]})
+                p['daily'].append({'date': s, 'training_orders': counts['training'][s], 'abroad_orders': counts['abroad'][s]})
                 day += timedelta(days=1)
             for line_id, old in [('training', old_training), ('abroad', old_abroad)]:
                 for kind in ('orders', 'cash') if line_id == 'training' else ('orders',):
@@ -448,20 +423,17 @@ def build(args):
                         old_value = total(records, kind)
                         current = p['lines'][line_id][kind]['prior' if is_prior else 'actual']
                         reason = '原规则在同一主Snapshot、同窗复算。'
+                        if line_id == 'abroad' and current != old_value:
+                            reason = '本版留学统计统一排除 SSC 渠道；旧基线保留原统计范围，差异用于说明口径变化。'
                         if is_prior and current != old_value and kind == 'orders' and line_id == 'training':
                             reason = '两位语培顾问的历史空团队记录恢复归留学预备，改变同期基数；当前完成未因此增加。'
                         cells.append(compare_cell(p['id'], line_id, ('prior_' if is_prior else '') + kind, old_value, current, reason))
-            platform_orders = p['lines']['abroad']['views']['excluding_ssc']['orders']['actual']
-            cells.append(compare_cell(p['id'], 'abroad', 'platform_orders', total(select(old_abroad, p['start_date'], p['through_date']), 'orders'),
-                         platform_orders, '用户确认 SSC 不计线上平台完成；大团队仍保留，差额是范围拆分而非记录丢失。', '旧留学线上页（含 SSC）'))
         if p['id'] == 'Q1' and scorecard is not None:
             actual = p['lines']['abroad']['orders']['actual']
-            p['lines']['abroad']['views']['including_ssc']['notices'].append(f'留学大团队Q1官方完成为 {official_q1} 条，本页数仓拆解为 {actual} 条；官方完成以记分卡为准，差异单独待核。')
+            p['lines']['abroad']['notices'].append(f'留学Q1官方完成为 {official_q1} 条，本页数仓拆解为 {actual} 条；官方完成以记分卡为准，差异单独待核。')
             cells.append(compare_cell(p['id'], 'abroad', 'orders', official_q1, actual, '官方记分卡与数仓口径存在既有差异，本页数仓拆解不替代官方完成。', '官方记分卡'))
         if p['id'] == 'FY27' and scorecard is not None:
             cells.append(compare_cell(p['id'], 'abroad', 'target_orders', official_target['资源数'], p['lines']['abroad']['orders']['target'], '用户确认全年采用6715，原5315仅保留为月度分配权重。', '官方年度目标'))
-        if p['id'] == 'FY27':
-            cells.append(compare_cell(p['id'], 'abroad', 'target_orders', allocation_basis['annual'], p['lines']['abroad']['orders']['target'], '用户已确认：大团队全年6715，按原5315精细比例拆月。', '原目标月拆合计'))
         if p['id'] == 'FY27' and scorecard is not None:
             cells.append(compare_cell(p['id'], 'abroad', 'target_cash', official_target['毛签万元'] * 10000,
                                      p['lines']['abroad']['cash']['target'],
@@ -475,16 +447,12 @@ def build(args):
              f'本页展示主仓受控查询的数仓口径；{scorecard_note}',
              f'空团队中未命中已确认顾问名单的记录数：{unclassified_count}；这些记录不计入语培或留学归属。',
              '语培现金沿用原V14资格和渠道归属；留学工单渠道重洗不回灌改变语培现金归属。',
-             '包含SSC时，大团队年度资源目标6715，按原5315月度比例放大并取整；不含SSC时，平台年度目标5315，月度沿用原配置。',
-             '同批结果预计算含SSC/不含SSC两份视图；开关同时选择实际、目标、同比、渠道与日增，不在前端重算业务。',
+             '留学统计统一排除原确认的 SSC 桶（包含清洗后“其他”映射）；小语种作为独立渠道保留。年度目标为6715，按原5315月度比例分配。',
              '完整明细和查询回执保留本地，不包含在网页发布目录。']
-    for cell in cells:
-        if cell['line_id'] == 'abroad':
-            cell['scope'] = 'excluding_ssc' if cell['metric'] == 'platform_orders' else 'including_ssc'
     actual_differences = [c for c in cells if c['baseline_label'] == '旧看板同源复算'
                           and c['metric'] in ('orders', 'cash') and c['status'] == 'difference']
     actual_note = (f'同源同窗当前完成对比有 {len(actual_differences)} 项差异，见对数表。' if actual_differences
-                   else '语培与留学大团队（含SSC）的同窗当前完成未发现差异；平台排除SSC及同期基数变化单列。')
+                   else '语培与留学同窗当前完成未发现差异。')
     reconciliation = {'summary': '与同源同窗旧看板复算对数；如已载入官方记分卡则单列历史差异。', 'cells': cells,
                       'notes': [actual_note,
                                 '此处旧看板指现行源码同窗复算，不代表已实查线上部署；历史页面截止日可能不同，不能直接相减。',

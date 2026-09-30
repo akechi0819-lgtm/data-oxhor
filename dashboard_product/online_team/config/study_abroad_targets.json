@@ -22,7 +22,7 @@
         "2027-04": 648,
         "2027-05": 503
       },
-      "scope": "study_abroad_team_including_ssc",
+      "scope": "线上留学工单目标；统计排除 SSC 渠道",
       "allocation_method": "按原5315个月拆权重比例分配6715，最大余数法分配尾差，同余数按月份先后",
       "allocation_basis": {
         "annual": 5315,
@@ -40,16 +40,9 @@
           "2027-04": 513,
           "2027-05": 398
         },
-        "scope": "原线上平台目标月拆，不含SSC"
+        "scope": "原5315月度目标拆分比例"
       },
-      "confirmed_by": "用户本对话确认：6715用于全年；5315用于精细月度比例；大团队含SSC，线上平台完成排除SSC"
-    },
-    "completion_scopes": {
-      "team_includes_ssc": true,
-      "platform_excludes_second_channels_case_insensitive": [
-        "ssc"
-      ],
-      "subscope_targets": "用户后续选择主卡开关：含SSC用6715及放大月拆；不含SSC用5315原月拆。SSC不另分配独立目标。"
+      "confirmed_by": "用户确认：全年目标6715，按原5315的精细月度比例分配；整体留学统计排除 SSC 渠道，小语种渠道保留"
     }
   },
   "cash": {

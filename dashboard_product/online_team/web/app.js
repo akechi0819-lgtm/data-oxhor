@@ -18,7 +18,6 @@
     channelQuery: "",
     channelSort: "orders",
     channelLineFilter: "all",
-    includeSSC: false,
   };
 
   const ui = {
@@ -128,11 +127,7 @@
   }
 
   function getLine(period, lineId) {
-    const line = getBaseLine(period, lineId);
-    if (lineId === "abroad") {
-      return line && line.views ? line.views[state.includeSSC ? "including_ssc" : "excluding_ssc"] || null : null;
-    }
-    return line;
+    return getBaseLine(period, lineId);
   }
 
   function actualValue(value) {
@@ -219,14 +214,10 @@
   function renderLineCard(lineId, line, period) {
     const lineLabel = cleanString(line.label) || (lineId === "training" ? "语培" : "留学");
     const lineClass = LINE_CLASSES[lineId];
-    const includeSwitch = lineId === "abroad" ? `<label class="ssc-switch">
-      <input class="ssc-switch-input" type="checkbox" role="switch" data-include-ssc aria-label="包含 SSC" ${state.includeSSC ? "checked" : ""}>
-      <span class="ssc-switch-track" aria-hidden="true"><i></i></span><span class="ssc-switch-label">包含 SSC</span>
-    </label>` : "";
     return `<article class="line-card ${lineClass}">
       <div class="line-card-head">
         <div><div class="line-title"><span class="line-symbol" aria-hidden="true"></span><h3>${escapeHTML(lineLabel)}</h3></div><p class="line-scope">${escapeHTML(cleanString(line.scope) || "按当前结果口径")}</p></div>
-        <div class="line-card-head-actions"><span class="line-badge">${lineId === "training" ? "语培业务线" : "留学业务线"}</span>${includeSwitch}</div>
+        <div class="line-card-head-actions"><span class="line-badge">${lineId === "training" ? "语培业务线" : "留学业务线"}</span></div>
       </div>
       ${renderMetricBlock("工单资源", line.orders, period, "单")}
       ${renderMetricBlock("现金业绩", line.cash, period, "元")}
@@ -332,7 +323,7 @@
       const isTraining = lineId === "training";
       return [{
         id: lineId,
-        field: isTraining ? "training_orders" : state.includeSSC ? "abroad_orders" : "abroad_platform_orders",
+        field: isTraining ? "training_orders" : "abroad_orders",
         label: cleanString(line.label) || (isTraining ? "语培" : "留学"),
         color: LINE_COLORS[lineId],
       }];
@@ -437,9 +428,8 @@
     const query = state.channelQuery.toLocaleLowerCase("zh-CN");
     const filtered = sourceChannels.filter((channel) => {
       const first = Array.isArray(channel.first_channels) ? channel.first_channels.join(" ") : cleanString(channel.first_channels);
-      const scopeLabel = channel.completion_scope === "ssc" ? "SSC" : channel.completion_scope === "platform" ? "线上平台" : "归属待确认";
       const lineLabel = lineId === "training" ? "语培" : "留学";
-      return `${lineLabel} ${scopeLabel} ${cleanString(channel.name)} ${first}`.toLocaleLowerCase("zh-CN").includes(query);
+      return `${lineLabel} ${cleanString(channel.name)} ${first}`.toLocaleLowerCase("zh-CN").includes(query);
     });
     const sortField = { orders: "orders", share: "share", yoy: "orders_yoy" }[state.channelSort];
     filtered.sort((a, b) => {
@@ -599,18 +589,15 @@
   function renderReconciliation(period) {
     const reconciliation = state.data.reconciliation || {};
     ui.reconSummary.textContent = cleanString(reconciliation.summary) || "本批次未提供对数摘要。";
-    const selectedScope = state.includeSSC ? "including_ssc" : "excluding_ssc";
-    const periodCells = safeArray(reconciliation.cells).filter((cell) => cell.period_id === period.id && cell.status === "difference" && (cell.line_id !== "abroad" || cell.scope === selectedScope));
+    const periodCells = safeArray(reconciliation.cells).filter((cell) => cell.period_id === period.id && cell.status === "difference");
     if (!periodCells.length) {
       ui.reconciliationBody.innerHTML = `<tr><td colspan="7" class="table-empty">本期间没有标记差异的对数项。</td></tr>`;
     } else {
       ui.reconciliationBody.innerHTML = periodCells.map((cell) => {
         const unit = reconciliationUnit(cell);
         const line = getBaseLine(period, cell.line_id);
-        const lineLabel = cell.line_id === "abroad"
-          ? cell.scope === "excluding_ssc" ? "留学线上平台（不含 SSC）" : cell.scope === "including_ssc" ? "留学大团队（含 SSC）" : "留学对数口径"
-          : cleanString(line && line.label) || (cell.line_id === "training" ? "语培" : cleanString(cell.line_id));
-        const metricLabel = ({ orders: "工单资源", cash: "现金", target_orders: "工单目标", target_cash: "现金目标", prior_orders: "去年同期工单", prior_cash: "去年同期现金", platform_orders: "平台工单（不含 SSC）" })[cell.metric] || cleanString(cell.metric);
+        const lineLabel = cleanString(line && line.label) || (cell.line_id === "training" ? "语培" : cleanString(cell.line_id));
+        const metricLabel = ({ orders: "工单资源", cash: "现金", target_orders: "工单目标", target_cash: "现金目标", prior_orders: "去年同期工单", prior_cash: "去年同期现金" })[cell.metric] || cleanString(cell.metric);
         const status = cleanString(cell.status);
         const reason = cleanString(cell.reason);
         const renderCellValue = (value) => value === null || value === undefined ? "—" : valueWithUnit(value, unit);
@@ -734,14 +721,6 @@
     const period = getPeriod();
     if (period) renderChannels(period);
   });
-  ui.lineCards.addEventListener("change", (event) => {
-    const toggle = event.target.closest("[data-include-ssc]");
-    if (!toggle) return;
-    state.includeSSC = toggle.checked;
-    renderAll();
-    ui.lineCards.querySelector("[data-include-ssc]")?.focus({ preventScroll: true });
-  });
-
   const embeddedData = document.getElementById("dashboard-data");
   const dataReady = embeddedData
     ? Promise.resolve().then(() => JSON.parse(embeddedData.textContent))
@@ -754,11 +733,8 @@
       if (!data || data.schema_version !== "dashboard_rebuild.v1" || !Array.isArray(data.periods) || !data.periods.length) {
         throw new Error("展示数据结构不符合 dashboard_rebuild.v1 或没有期间数据");
       }
-      const hasSSCViews = data.periods.every((period) => {
-        const views = period.lines && period.lines.abroad && period.lines.abroad.views;
-        return views && views.including_ssc && views.excluding_ssc;
-      });
-      if (!hasSSCViews) throw new Error("每个期间都需要提供包含与不含 SSC 的留学视图");
+      const hasLineData = data.periods.every((period) => period.lines && period.lines.training && period.lines.abroad);
+      if (!hasLineData) throw new Error("看板期间缺少业务线结果");
       state.data = data;
       setupPeriods(data);
       renderAll();
