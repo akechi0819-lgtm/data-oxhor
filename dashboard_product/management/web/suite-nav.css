@@ -1,0 +1,23 @@
+#suite-navigation { display:flex; gap:26px; align-items:center; min-height:48px; padding:0 24px; background:#17334e; color:#edf5fc; box-sizing:border-box; font:14px/1.4 -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif; }
+#suite-navigation .suite-brand { color:white; font-size:20px; font-weight:720; text-decoration:none; white-space:nowrap; }
+#suite-navigation nav { display:flex; align-items:stretch; align-self:stretch; gap:8px; overflow-x:auto; }
+#suite-navigation nav a { display:flex; align-items:center; padding:0 13px; color:#c8d8e7; text-decoration:none; white-space:nowrap; border-bottom:3px solid transparent; }
+#suite-navigation nav a.active { color:white; border-bottom-color:#58b6cd; background:#234560; }
+#suite-navigation a:focus-visible { outline:2px solid #9bd8f1; outline-offset:-3px; }
+.board-heading .period-filter { margin-left:12px; color:var(--ink) !important; }
+.board-heading .freshness { margin-left:auto; }
+.suite-online .sidebar { position:static; width:auto; height:auto; min-height:36px; padding:0 24px; display:flex; flex-direction:row; border:0; }
+.suite-online .sidebar .brand,.suite-online .sidebar .sidebar-foot { display:none; }
+.suite-online .sidebar .section-nav { display:flex; gap:14px; }
+.suite-online .main-content { margin-left:0; }
+.suite-online .topbar { position:static; }
+@media(max-width:700px) { #suite-navigation { flex-wrap:wrap; gap:4px; padding:8px 10px 0; } #suite-navigation nav { width:100%; min-height:37px; } #suite-navigation nav a { padding:0 9px; } .board-heading .period-filter { margin:0; } }
+
+@media(min-width:1000px) { .board-heading { min-height:50px; } }
+.app-shell,.board-shell { min-height:calc(100vh - 48px); }
+@media(min-width:1000px){
+  .main-content { min-height:calc(100vh - 48px); }
+  [data-page="overview"] .freshness { padding:6px 10px; }
+  [data-page="overview"] .freshness > span:last-child { display:flex; align-items:center; gap:8px; }
+  [data-page="overview"] .freshness strong,[data-page="overview"] .freshness small { display:inline; margin:0; font-size:12px; }
+}

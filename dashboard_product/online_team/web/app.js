@@ -5,11 +5,6 @@
   const LINE_COLORS = { training: "#2e6fb1", abroad: "#087e80" };
   const LINE_CLASSES = { training: "training", abroad: "abroad" };
   const LINE_TAG_CLASSES = { training: "training-text", abroad: "abroad-text" };
-  const STATUS_LABELS = {
-    matched: "一致",
-    difference: "有差异",
-    unavailable: "不可用",
-  };
   const byId = (id) => document.getElementById(id);
   const state = {
     data: null,
@@ -29,7 +24,6 @@
     freshnessLabel: byId("freshness-label"),
     freshnessDate: byId("freshness-date"),
     loadMessage: byId("load-message"),
-    periodNotice: byId("period-notice"),
     lineCards: byId("line-cards"),
     scopeNote: byId("scope-note"),
     dailyChart: byId("daily-chart"),
@@ -44,11 +38,6 @@
     groupNote: byId("group-note"),
     dimensionList: byId("dimension-list"),
     dimensionNote: byId("dimension-note"),
-    metadataGrid: byId("metadata-grid"),
-    noteList: byId("note-list"),
-    reconSummary: byId("reconciliation-summary"),
-    reconciliationBody: byId("reconciliation-body"),
-    reconciliationNotes: byId("reconciliation-notes"),
   };
 
   function escapeHTML(value) {
@@ -243,39 +232,6 @@
     ui.scopeNote.textContent = period.status === "future"
       ? "本期时间进度 尚未开始"
       : `本期时间进度 ${percentText(period.time_progress)}`;
-  }
-
-  function metricAndGroupNotes(period) {
-    const notes = [];
-    const add = (label, value) => {
-      const text = cleanString(value);
-      if (text) notes.push(label ? `${label}：${text}` : text);
-    };
-    safeArray(period.notes).forEach((note) => add("期间说明", note));
-    LINE_IDS.forEach((lineId) => {
-      const line = getLine(period, lineId);
-      if (!line) return;
-      const lineName = cleanString(line.label) || (lineId === "training" ? "语培" : "留学");
-      safeArray(line.notices).forEach((notice) => add(`${lineName}提示`, notice));
-      add(`${lineName}工单资源`, line.orders && line.orders.note);
-      add(`${lineName}现金`, line.cash && line.cash.note);
-      safeArray(line.groups).forEach((group) => {
-        const groupName = cleanString(group.name) || "未命名业务组";
-        add(`${groupName}工单`, group.orders && group.orders.note);
-        add(`${groupName}现金`, group.cash && group.cash.note);
-      });
-    });
-    return [...new Set(notes)];
-  }
-
-  function renderPeriodNotice(period) {
-    const notes = [...new Set(activeLineIds().flatMap((lineId) => safeArray(getLine(period, lineId) && getLine(period, lineId).notices).map(cleanString).filter(Boolean)))];
-    ui.periodNotice.hidden = notes.length === 0;
-    if (!notes.length) {
-      ui.periodNotice.replaceChildren();
-      return;
-    }
-    ui.periodNotice.innerHTML = `<strong>本期口径提示</strong><ul>${notes.map((note) => `<li>${escapeHTML(note)}</li>`).join("")}</ul>`;
   }
 
   function renderLineCards(period) {
@@ -564,68 +520,6 @@
     ui.dimensionList.innerHTML = dimensions.map((dimension) => renderDimensionNode(dimension)).join("");
   }
 
-  function metadataItem(label, value) {
-    return `<div class="metadata-item"><span>${escapeHTML(label)}</span><strong>${escapeHTML(cleanString(value) || "未提供")}</strong></div>`;
-  }
-
-  function allDataNotes(period) {
-    const notes = [];
-    const add = (label, value) => {
-      const text = cleanString(value);
-      if (text) notes.push(label ? `${label}：${text}` : text);
-    };
-    add("口径", "工单与资源数值为数仓核算结果；官方记分卡覆盖的指标以记分卡为准，数仓用于明细、拆解和对账。");
-    safeArray(state.data.metadata && state.data.metadata.notes).forEach((note) => add("数据说明", note));
-    metricAndGroupNotes(period).forEach((note) => add("本期", note));
-    return [...new Set(notes)];
-  }
-
-  function reconciliationUnit(cell) {
-    const line = getBaseLine(getPeriod(), cell.line_id);
-    const metric = line && (cell.metric.includes("cash") ? line.cash : line.orders);
-    return metricUnit(metric, cell.metric.includes("cash") ? "元" : "单");
-  }
-
-  function renderReconciliation(period) {
-    const reconciliation = state.data.reconciliation || {};
-    ui.reconSummary.textContent = cleanString(reconciliation.summary) || "本批次未提供对数摘要。";
-    const periodCells = safeArray(reconciliation.cells).filter((cell) => cell.period_id === period.id && cell.status === "difference");
-    if (!periodCells.length) {
-      ui.reconciliationBody.innerHTML = `<tr><td colspan="7" class="table-empty">本期间没有标记差异的对数项。</td></tr>`;
-    } else {
-      ui.reconciliationBody.innerHTML = periodCells.map((cell) => {
-        const unit = reconciliationUnit(cell);
-        const line = getBaseLine(period, cell.line_id);
-        const lineLabel = cleanString(line && line.label) || (cell.line_id === "training" ? "语培" : cleanString(cell.line_id));
-        const metricLabel = ({ orders: "工单资源", cash: "现金", target_orders: "工单目标", target_cash: "现金目标", prior_orders: "去年同期工单", prior_cash: "去年同期现金" })[cell.metric] || cleanString(cell.metric);
-        const status = cleanString(cell.status);
-        const reason = cleanString(cell.reason);
-        const renderCellValue = (value) => value === null || value === undefined ? "—" : valueWithUnit(value, unit);
-        return `<tr>
-          <td>${escapeHTML(period.label || period.id)}</td><td>${escapeHTML(lineLabel)}</td><td>${escapeHTML(metricLabel)}</td>
-          <td class="numeric">${escapeHTML(renderCellValue(cell.baseline))}<span class="recon-reason">${escapeHTML(cleanString(cell.baseline_label))}</span></td><td class="numeric">${escapeHTML(renderCellValue(cell.current))}</td><td class="numeric">${escapeHTML(renderCellValue(cell.delta))}</td>
-          <td class="status-cell status-${escapeHTML(status)}">${escapeHTML(STATUS_LABELS[status] || status || "未提供")}${reason ? `<span class="recon-reason">${escapeHTML(reason)}</span>` : ""}</td>
-        </tr>`;
-      }).join("");
-    }
-    const notes = safeArray(reconciliation.notes);
-    ui.reconciliationNotes.innerHTML = notes.map((note) => `<li>${escapeHTML(cleanString(note))}</li>`).join("");
-    if (!notes.length) ui.reconciliationNotes.replaceChildren();
-  }
-
-  function renderNotes(period) {
-    const metadata = state.data.metadata || {};
-    ui.metadataGrid.innerHTML = [
-      metadataItem("运行批次", metadata.run_id),
-      metadataItem("Snapshot", metadata.snapshot_id),
-      metadataItem("数据截止日", metadata.data_through),
-      metadataItem("结果生成时间", metadata.created_at),
-    ].join("");
-    const notes = allDataNotes(period);
-    ui.noteList.innerHTML = notes.length ? notes.map((note) => `<li>${escapeHTML(note)}</li>`).join("") : "<li>本次结果未附加额外口径说明。</li>";
-    renderReconciliation(period);
-  }
-
   function renderAll() {
     const period = getPeriod();
     if (!period) {
@@ -633,13 +527,11 @@
       return;
     }
     updatePeriodHeader(period);
-    renderPeriodNotice(period);
     renderLineCards(period);
     renderTrend(period);
     renderChannels(period);
     renderGroups(period);
     renderDimensions(period);
-    renderNotes(period);
     ui.loadMessage.classList.remove("is-visible", "is-error");
     ui.loadMessage.textContent = "";
   }

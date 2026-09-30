@@ -37,6 +37,10 @@ def remap_tmk_school_agent_team(team, first_channel, campaign, entry_person, off
     if SCHOOL_AGENT_RESOURCE_MARK not in str(campaign or ''):
         return team
     name=str(entry_person or '').strip()
+    note_positions=[position for marker in ('备注:', '备注：')
+                    if (position := name.find(marker)) >= 0]
+    if note_positions:
+        name=name[:min(note_positions)].strip()
     if name and name in offline_names:
         return 'offline_market'
     return team

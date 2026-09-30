@@ -175,6 +175,28 @@ class RenderTest(unittest.TestCase):
             ),
             "offline_market",
         )
+        for person_name in ("刘彬", "马澳", "石仁达"):
+            for note_label in ("备注:", "备注："):
+                self.assertEqual(
+                    remap_tmk_school_agent_team(
+                        "online_platform",
+                        "TMK激活-平台",
+                        "2027财年第4财月91校代系统资源活动",
+                        f"{person_name}{note_label}联系人刘彬",
+                        offline_names,
+                    ),
+                    "offline_market",
+                )
+        self.assertEqual(
+            remap_tmk_school_agent_team(
+                "online_platform",
+                "TMK激活-平台",
+                "2027财年第4财月91校代系统资源活动",
+                "无名人员备注：石仁达",
+                offline_names,
+            ),
+            "online_platform",
+        )
         self.assertEqual(
             remap_tmk_school_agent_team(
                 "online_platform",

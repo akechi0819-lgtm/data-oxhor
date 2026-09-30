@@ -1,0 +1,1 @@
+"""Isolated management fact normalization."""

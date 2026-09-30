@@ -68,3 +68,81 @@ class QueryPipelineTest(unittest.TestCase):
             self.assertTrue((output / '_query' / 'run_monitor_fixture_offline_university_orders_by_id').is_dir())
             self.assertGreater((output / 'offline_university' / 'people.png').stat().st_size, 0)
             self.assertGreater((output / 'offline_university' / 'details.xlsx').stat().st_size, 0)
+
+    def test_school_agent_note_boundary_routes_orders_and_cash_consistently(self):
+        root = Path(__file__).resolve().parents[2]
+        sql_dir = root / 'monitoring_product' / 'sql'
+        order_columns = [
+            'ID', '分配时间', '线上线下', '二级渠道', '一级渠道', '活动名称',
+            '资源描述', '团队', '跟进顾问', '年级校正', '顾问归属', '主被动',
+            '资源录入人', 'source_row_number',
+        ]
+        cash_columns = [
+            '工单ID', '业务日期', '市场活动名称', '渠道', '团队', '渠道属性',
+            '新老生类型', '报入现金收入', '学员编号', 'source_row_number',
+        ]
+        serial = lambda day: str((date.fromisoformat(day) - date(1899, 12, 30)).days)
+        people = [
+            ('liu', '刘彬', '高中', '高中顾问', '高中', '备注：校代备注提到石仁达'),
+            ('ma', '马澳', '青少', '青少顾问', '青少', '备注:备注里提到刘彬'),
+            ('shi', '石仁达', '大学', '大学顾问', '大学', '备注：备注里提到刘彬'),
+        ]
+        order_rows = []
+        cash_rows = []
+        for identifier, person_name, source_team, adviser, cash_team, suffix in people:
+            order_rows.append([
+                identifier, serial('2026-09-01'), '线上', '校代', 'TMK激活-平台',
+                '2027财年第4财月91校代系统资源活动',
+                f'市场人员：{person_name}{suffix}', source_team, '', '', adviser,
+                '被动', '', identifier,
+            ])
+            cash_rows.append([
+                identifier, serial('2026-09-01'), '校代系统资源活动', 'TMK', cash_team,
+                '被动', '新生', '100', f'student_{identifier}', identifier,
+            ])
+
+        negatives = [
+            ('note_other', '未知人员备注：石仁达', 'TMK激活-平台', '校代系统资源活动', '大学', '大学顾问', '大学'),
+            ('no_tmk', '市场人员：刘彬备注：保留线上', '平台', '校代系统资源活动', '高中', '高中顾问', '高中'),
+            ('no_school_agent', '市场人员：马澳备注：保留线上', 'TMK激活-平台', '普通活动', '青少', '青少顾问', '青少'),
+        ]
+        for identifier, description, first_channel, campaign, source_team, adviser, cash_team in negatives:
+            order_rows.append([
+                identifier, serial('2026-09-01'), '线上', '校代', first_channel, campaign,
+                description, source_team, '', '', adviser, '被动', '', identifier,
+            ])
+            cash_rows.append([
+                identifier, serial('2026-09-01'), campaign, 'TMK', cash_team,
+                '被动', '新生', '100', f'student_{identifier}', identifier,
+            ])
+
+        with duckdb.connect() as db:
+            db.execute('CREATE SCHEMA landing')
+            for table, columns, rows in (
+                ('br_work_orders__sheet_1f0596db9f25', order_columns, order_rows),
+                ('br_cash__sheet_39b8dee2e4b3', cash_columns, cash_rows),
+            ):
+                db.execute(
+                    'CREATE TABLE landing.' + table + '(' +
+                    ','.join('"' + column + '" VARCHAR' for column in columns) + ')'
+                )
+                db.executemany(
+                    'INSERT INTO landing.' + table + ' VALUES (' +
+                    ','.join('?' for _ in columns) + ')', rows,
+                )
+
+            def selected_ids(filename, team_id, business_group):
+                params = ['2026-09-01', '2026-09-02', team_id, business_group]
+                cursor = db.execute((sql_dir / filename).read_text(encoding='utf-8'), params)
+                names = [column[0] for column in cursor.description]
+                id_column = 'ID' if filename == 'notify_work_orders.sql' else '工单ID'
+                return {row[names.index(id_column)] for row in cursor.fetchall()}
+
+            for name, group in (('liu', '高中'), ('ma', '留学预备'), ('shi', '大学')):
+                expected = {name}
+                self.assertEqual(selected_ids('notify_work_orders.sql', 'offline_market', group), expected)
+                self.assertEqual(selected_ids('notify_cash.sql', 'offline_market', group), expected)
+
+            expected_online = {'note_other', 'no_tmk', 'no_school_agent'}
+            self.assertEqual(selected_ids('notify_work_orders.sql', 'online_platform', None), expected_online)
+            self.assertEqual(selected_ids('notify_cash.sql', 'online_platform', None), expected_online)
