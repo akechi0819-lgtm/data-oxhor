@@ -15,21 +15,25 @@ def training_person(name, group, targets=None):
     }
 
 
-def inputs(*groups):
-    return {
-        'teams': [{
+def inputs(*groups, virtual=()):
+    teams = [{
             'team_id': 'offline_market',
             'groups': [
                 {'display_name': '大学组', 'members': list(groups[0])},
                 {'display_name': '高中组', 'members': list(groups[1])},
             ],
         }]
-    }
+    if virtual:
+        teams.append({
+            'team_id': 'online_private',
+            'groups': [{'display_name': '大学组', 'members': list(virtual)}],
+        })
+    return {'teams': teams}
 
 
 def fact(fid, metric, line, day, value, *, group=None, team='offline_market',
          owners=(), student=None, campaign=None, country=None, business_line_name=None,
-         acquisition_mode=None):
+         acquisition_mode=None, offline_channel_eligible=False):
     return {
         'fact_id': fid,
         'metric': metric,
@@ -47,6 +51,7 @@ def fact(fid, metric, line, day, value, *, group=None, team='offline_market',
         'line': business_line_name,
         'owners': list(owners),
         'acquisition_mode': acquisition_mode,
+        'offline_channel_eligible': offline_channel_eligible,
     }
 
 
@@ -304,7 +309,8 @@ class ManagementAggregateTest(unittest.TestCase):
 
     def test_university_ownership_does_not_change_online_acquisition(self):
         rows = [fact('owned-online', 'orders', 'abroad', '2026-09-01', 1,
-                     group='大学', owners=['孙伟'], acquisition_mode='online', country='日本')]
+                     group='大学', owners=['孙伟'], acquisition_mode='online', country='日本',
+                     offline_channel_eligible=True)]
         result = build(rows, inputs([], []))
         month = next(p for p in result['periods'] if p['id'] == '2026-09')
         university = by_team(month, 'university')
@@ -312,6 +318,21 @@ class ManagementAggregateTest(unittest.TestCase):
         self.assertEqual(university['countries'][0]['online'], 1)
         self.assertEqual(university['countries'][0]['offline'], 0)
         self.assertEqual(by_team(month, 'online')['lines']['abroad']['orders']['actual'], 0)
+
+    def test_university_rollup_uses_channel_flag_without_roster_or_owner_claim(self):
+        rows = [
+            fact('unclaimed-offline', 'orders', 'abroad', '2026-09-01', 1,
+                 team=None, owners=[], country='英国', acquisition_mode='offline',
+                 offline_channel_eligible=True),
+            fact('owner-only', 'orders', 'abroad', '2026-09-02', 1,
+                 group='大学', owners=['孙伟'], country='日本', acquisition_mode='offline'),
+        ]
+        result = build(rows, inputs([], []), abroad={'people': []})
+        september = next(period for period in result['periods'] if period['id'] == '2026-09')
+        university = by_team(september, 'university')
+        self.assertEqual(university['lines']['abroad']['orders']['actual'], 1)
+        self.assertEqual([row['country'] for row in university['countries']], ['英国'])
+        self.assertEqual(by_team(september, 'total')['lines']['abroad']['orders']['actual'], 2)
 
     def test_incomplete_quarter_personal_target_is_not_partial_sum(self):
         people = inputs([training_person('石仁达', '大学', {'2026-10': {'orders': 85}})], [])
@@ -329,6 +350,47 @@ class ManagementAggregateTest(unittest.TestCase):
         team=by_team(october,'university'); person=by_person(team,'石仁达')
         self.assertAlmostEqual(team['person_progress'],.1)
         self.assertEqual(person['cash_actual']['time_gap'],1000)
+
+    def test_virtual_combined_orders_count_roster_owned_abroad_once_without_new_target(self):
+        people = inputs(
+            [training_person('大学同事', '大学')], [],
+            virtual=[training_person('虚拟甲', '大学'), training_person('虚拟乙', '大学')],
+        )
+        rows = [
+            fact('virtual-training', 'orders', 'training', '2026-09-20', 1,
+                 team='online_private', group='大学', owners=['虚拟甲']),
+            fact('shared-abroad', 'orders', 'abroad', '2026-09-20', 1,
+                 owners=['虚拟甲', '虚拟乙']),
+            fact('other-training', 'orders', 'training', '2026-09-20', 1,
+                 group='大学', owners=['大学同事']),
+            fact('unowned-abroad', 'orders', 'abroad', '2026-09-20', 1,
+                 owners=[], offline_channel_eligible=True),
+        ]
+        result = build(rows, people, abroad={'people': []})
+        september = next(period for period in result['periods'] if period['id'] == '2026-09')
+        virtual = by_team(september, 'virtual')
+        virtual_people = {person['name']: person for person in virtual['people']}
+        virtual_calendar = {person['name']: person for person in virtual['person_calendar']['people']}
+
+        self.assertEqual(virtual['lines']['training']['orders']['actual'], 1)
+        self.assertEqual(virtual['combined_orders']['actual'], 2)
+        self.assertIsNone(virtual['combined_orders']['target'])
+        self.assertIn('多人共同工单', virtual['combined_orders']['note'])
+        self.assertEqual(virtual_people['虚拟甲']['combined_actual'], 2)
+        self.assertIsNone(virtual_people['虚拟甲']['combined_target'])
+        self.assertEqual(virtual_people['虚拟乙']['combined_actual'], 1)
+        self.assertEqual(virtual_calendar['虚拟甲']['combined_actual'], 2)
+        self.assertIsNone(virtual_calendar['虚拟甲']['combined_target'])
+        october = next(period for period in result['periods'] if period['id'] == '2026-10')
+        self.assertIsNone(by_team(october, 'virtual')['combined_orders']['actual'])
+        future_calendar = by_team(october, 'virtual')['person_calendar']
+        self.assertIsNone(by_person(future_calendar, '虚拟甲')['combined_actual'])
+
+        # Existing source ownership and totals stay as they were before the virtual rollup.
+        self.assertEqual(by_team(september, 'total')['lines']['training']['orders']['actual'], 2)
+        self.assertEqual(by_team(september, 'total')['lines']['abroad']['orders']['actual'], 2)
+        self.assertEqual(by_team(september, 'university')['lines']['training']['orders']['actual'], 1)
+        self.assertEqual(by_team(september, 'university')['lines']['abroad']['orders']['actual'], 1)
 
 
 if __name__ == '__main__':

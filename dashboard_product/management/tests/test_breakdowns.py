@@ -9,7 +9,7 @@ class BreakdownTests(unittest.TestCase):
         for ident, group, student in [('a','青少','s1'),('b','初中','s1')]:
             base=dict(fact_id=ident,event_date='2026-09-01',business_line='training',business_group='留学预备',comparison_group=group,team_id='offline_market',work_order_id=ident,owners=[],first_channel='市场活动',second_channel='校代',school_name='学校A',grade_name=group,student_id=student)
             facts += [dict(base,metric='orders',value=1),dict(base,fact_id=ident+'cash',metric='cash',value=100)]
-        facts.append(dict(fact_id='foreign',event_date='2026-09-01',business_line='abroad',business_group='大学',team_id='offline_market',work_order_id='c',owners=['孙伟'],metric='orders',value=1,first_channel='市场活动',second_channel='讲座',country='英国',line='英澳条线',acquisition_mode='online'))
+        facts.append(dict(fact_id='foreign',event_date='2026-09-01',business_line='abroad',business_group='大学',team_id='offline_market',work_order_id='c',owners=['孙伟'],metric='orders',value=1,first_channel='市场活动',second_channel='讲座',country='英国',line='英澳条线',acquisition_mode='online',offline_channel_eligible=True))
         people={'teams':[]};abroad={'people':[{'display_name':'孙伟'}]};targets={'business_groups':{'prep':{'display_name':'留学预备','months':{'2026-09':{'offline_market':{'work_order_target':20,'passive_cash_target':1000}}}}}}
         data=aggregate(facts,people,abroad,targets,{}, {},date(2026,9,28))
         enrich_periods(data['periods'],facts,targets,{}, {})

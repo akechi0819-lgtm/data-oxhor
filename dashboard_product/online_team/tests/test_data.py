@@ -169,6 +169,86 @@ class AggregationTests(unittest.TestCase):
         self.assertEqual(labels, {'留学': 3})  # existing source-team normalization diagnostic
         self.assertTrue(all('completion_scope' not in fact for fact in current))
 
+    def test_deleted_and_recalled_orders_leave_current_but_remain_in_legacy(self):
+        reference = WorkOrderReference(
+            path_to_first_channel={'新媒体-小语种': '新媒体'},
+            path_channel_to_corrected_channel={('新媒体-小语种', 'raw'): '小语种'},
+            country_to_line={}, path_channel_counts={}, country_line_counts={},
+        )
+
+        def row(work_order_id, status):
+            return {
+                'work_order_id': work_order_id, 'source_team': '', 'adviser': '确认顾问',
+                'main_active_type': '被动', 'resource_active_type': '被动',
+                'source_path': '新媒体-小语种', 'source_channel': 'raw', 'first_channel': '',
+                'second_channel': '', 'intended_country_source': '日本', 'resource_description': '',
+                'source_row_number': 1, 'event_date': '2026-09-28', 'order_status': status,
+            }
+
+        current, legacy, _ = build.study_facts(
+            [row('active', '签约'), row('deleted', '删除'), row('recalled', '回收')],
+            {'确认顾问': '留学'}, reference,
+        )
+
+        self.assertEqual([fact['work_order_id'] for fact in current], ['active'])
+        self.assertEqual({fact['work_order_id'] for fact in legacy}, {'active', 'deleted', 'recalled'})
+        by_id = {fact['work_order_id']: fact for fact in legacy}
+        self.assertFalse(by_id['deleted']['counts_toward_completion'])
+        self.assertFalse(by_id['recalled']['counts_toward_completion'])
+
+    def test_training_facts_exclude_deleted_orders_but_keep_cash_linked_to_them(self):
+        people = {'teams': []}
+        common = {
+            'team_id': 'online_platform', 'business_group': '大学',
+            'first_channel': '网络资源', 'second_channel': '搜索',
+            'campaign_name': '活动A', 'entry_person': None,
+            'work_order_active_type': '被动',
+        }
+        rows = [
+            {**common, 'metric': 'work_orders', 'actual_value': 1,
+             'work_order_id': 'deleted', 'order_status': '删除', 'event_date': '2026-09-10'},
+            {**common, 'metric': 'work_orders', 'actual_value': 1,
+             'work_order_id': 'active', 'order_status': '签约', 'event_date': '2026-09-10'},
+            {**common, 'metric': 'passive_reported_cash', 'actual_value': '500.00',
+             'work_order_id': 'deleted', 'order_status': '删除', 'event_date': '2026-09-11',
+             'student_id': 'S1', 'cash_channel': '网络资源', 'cash_campaign_name': '活动A'},
+        ]
+
+        facts = build.training_facts(rows, people)
+
+        self.assertEqual([(fact['metric'], fact.get('work_order_id')) for fact in facts],
+                         [('orders', 'active'), ('cash', 'deleted')])
+        self.assertTrue(facts[1]['counts_toward_completion'])
+        self.assertEqual(facts[1]['order_status'], '删除')
+
+    def test_confirmed_offline_order_leaves_current_but_stays_in_legacy_and_unknown_ids(self):
+        reference = WorkOrderReference(
+            path_to_first_channel={'新媒体-小语种': '新媒体'},
+            path_channel_to_corrected_channel={('新媒体-小语种', 'raw'): '小语种'},
+            country_to_line={}, path_channel_counts={}, country_line_counts={},
+        )
+
+        def row(work_order_id, source_path='新媒体-小语种'):
+            return {
+                'work_order_id': work_order_id, 'source_team': '', 'adviser': '确认顾问',
+                'main_active_type': '被动', 'resource_active_type': '被动',
+                'source_path': source_path, 'source_channel': 'raw', 'first_channel': '',
+                'second_channel': '', 'intended_country_source': '日本', 'resource_description': '',
+                'source_row_number': 1, 'event_date': '2026-06-28',
+            }
+
+        rows = [row('33436045'), row('unknown-id'), row('ssc-row', '新媒体-其他')]
+        current, legacy, labels = build.study_facts(
+            rows, {'确认顾问': '留学'}, reference,
+            exclude_current_work_order_ids=['33436045'],
+        )
+
+        self.assertEqual([fact['work_order_id'] for fact in current], ['unknown-id'])
+        self.assertEqual(len(legacy), 3)
+        self.assertIn('33436045', {fact['work_order_id'] for fact in legacy})
+        self.assertEqual([fact['second_channel'] for fact in current], ['小语种'])
+        self.assertEqual(labels, {'留学': 3})
+
     def test_money_and_total_keep_cent_precision(self):
         self.assertEqual(build.money("12.346"), 12.35)
         self.assertEqual(build.money("12.344"), 12.34)

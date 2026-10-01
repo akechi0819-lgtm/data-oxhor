@@ -1,12 +1,18 @@
 -- V14派生逐笔事实；仅团队确认标签和保留ID/源行，不改变现金资格、金额精度或既有渠道归属。
-WITH normalized_orders AS (
+WITH params AS (SELECT CAST(? AS DATE) AS start_date, CAST(? AS DATE) AS end_date,
+  CAST(? AS DATE) AS attachment_start),
+normalized_orders AS (
  SELECT * REPLACE (
   CASE WHEN NULLIF(TRIM(团队),'') IS NULL AND NULLIF(TRIM(ID),'') IS NOT NULL
     AND TRIM(跟进顾问) IN ('王新源', '李佳泽', '赵云鹏', '周洁', '陶明月', '高彬', '孙秀娟', '任湧', '孔杨斌', '闫姝含', '费丽莎', '冯海侠', '张晓颖', '刘倬含', '李彦呈', '李怡洁', '马晓君', '王垚', '李燕丹', '叶怡妍', '杜顺秋', '许慧卿', '康晨阳', '付凯琳', '孟晓旭', '张琢', '秦海娜', '陈俣彤(离职)', '崔双双', '王璐琪6', '张鸣', '韩馥阳', '田曼萍', '靳琳', '刘馨阳', '王春昊', '钟瑞童', '杨雨晴', '刘兴琦(离职)', '张莉', '何梦雅', '宋佳霖', '王雨', '天津公海池管理员', '董郓泾', '刘翔宇', '高超(离职)', '黄闰琪(离职)', '魏洪颖(离职)', '战艺鑫(离职)', '王川(离职)', '杨晓琳(离职)', '梅宇杰(离职)', '徐奕凡(离职)', '徐蕊(离职)', '天津留学管理员', '田宝蕊(离职)', '李峥(离职)', '宋珊珊')
   THEN CASE WHEN TRIM(跟进顾问) IN ('徐奕凡(离职)','田宝蕊(离职)') THEN '留学预备' ELSE '留学' END
   ELSE 团队 END AS 团队
- ) FROM landing.br_work_orders__sheet_1f0596db9f25
-), params AS (SELECT CAST(? AS DATE) AS start_date, CAST(? AS DATE) AS end_date),
+ ),
+ NULLIF(TRIM(src.工单状态),'') AS order_status,
+ CASE WHEN DATE '1899-12-30'+CAST(TRY_CAST(src.分配时间 AS DOUBLE) AS INTEGER)
+   >= (SELECT attachment_start FROM params) THEN to_json(src) END AS source_record
+ FROM landing.br_work_orders__sheet_1f0596db9f25 AS src
+),
 orders_raw AS (
  SELECT source_row_number AS work_order_row_number, NULLIF(TRIM(ID),'') AS work_order_id,
  DATE '1899-12-30'+CAST(TRY_CAST(分配时间 AS DOUBLE) AS INTEGER) AS event_date,
@@ -20,6 +26,8 @@ orders_raw AS (
    NULLIF(regexp_extract(COALESCE(资源描述, ''), '市场人员[[:space:]]*[:：][[:space:]]*([^[:space:],，;；]+)', 1), ''),
    资源录入人
  )),'') AS entry_person,
+ order_status,
+ source_record,
  ROW_NUMBER() OVER(PARTITION BY NULLIF(TRIM(ID),'') ORDER BY source_row_number) rn
  FROM normalized_orders
 ), mapped_orders AS (
@@ -58,7 +66,7 @@ orders_raw AS (
  END AS business_group
  FROM orders_raw
 ), orders_dim AS (
- SELECT work_order_id, business_group, active_type, online_offline, second_channel, first_channel, campaign_name, school_name, grade_name, entry_person,
+ SELECT work_order_id, business_group, active_type, online_offline, second_channel, first_channel, campaign_name, school_name, grade_name, entry_person, order_status,
  CASE WHEN online_offline='线下' THEN 'offline_market'
       WHEN second_channel='虚拟人' THEN 'online_private'
       WHEN online_offline='线上' THEN 'online_platform' END AS team_id
@@ -69,31 +77,34 @@ orders_raw AS (
  r.first_channel, r.second_channel, r.campaign_name, r.campaign_name AS work_order_campaign_name, r.school_name, r.grade_name,
  r.entry_person AS entry_person,
  1.0::DOUBLE actual_value, 'work_orders' metric, NULL AS student_id,
- NULL AS cash_channel, r.active_type AS work_order_active_type, NULL AS cash_campaign_name
+ NULL AS cash_channel, r.active_type AS work_order_active_type, NULL AS cash_campaign_name,
+ r.order_status, r.source_record, NULL AS cash_source_record
  FROM mapped_orders r
  JOIN orders_dim o ON r.work_order_id = o.work_order_id
  CROSS JOIN params
  WHERE r.rn=1 AND r.work_order_id IS NOT NULL AND r.active_type='被动' AND event_date>=start_date AND event_date<end_date
 
 ), cash_raw AS (
- SELECT source_row_number AS cash_row_number, NULLIF(TRIM(工单ID),'') AS work_order_id,
- DATE '1899-12-30'+CAST(TRY_CAST(业务日期 AS DOUBLE) AS INTEGER) AS cash_date,
- CASE WHEN TRIM(团队)='青少' THEN '青少'
-      WHEN TRIM(团队) IN ('初中','初中国际学科') THEN '初中'
-      WHEN TRIM(团队) IN ('高中','ICC','国际学科') THEN '高中'
-      WHEN TRIM(团队)='大学' THEN '大学' END AS cash_business_group,
- TRIM(渠道) AS channel,
- 市场活动名称 AS cash_campaign_name,
- NULLIF(TRIM(生源校),'') AS school_name,
- NULLIF(TRIM(学员年级),'') AS grade_name,
- NULLIF(TRIM(学员编号),'') AS student_id,
- TRY_CAST(REPLACE(REPLACE(TRIM(报入现金收入),',',''),'￥','') AS DECIMAL(38,2)) AS cash_amount
- FROM landing.br_cash__sheet_39b8dee2e4b3, params
- WHERE TRIM(渠道属性)='被动'
- AND TRIM(新老生类型)='新生'
- AND TRY_CAST(REPLACE(REPLACE(TRIM(报入现金收入),',',''),'￥','') AS DECIMAL(38,2))>0
- AND DATE '1899-12-30'+CAST(TRY_CAST(业务日期 AS DOUBLE) AS INTEGER)>=start_date
- AND DATE '1899-12-30'+CAST(TRY_CAST(业务日期 AS DOUBLE) AS INTEGER)<end_date
+ SELECT src.source_row_number AS cash_row_number, NULLIF(TRIM(src.工单ID),'') AS work_order_id,
+ DATE '1899-12-30'+CAST(TRY_CAST(src.业务日期 AS DOUBLE) AS INTEGER) AS cash_date,
+ CASE WHEN TRIM(src.团队)='青少' THEN '青少'
+      WHEN TRIM(src.团队) IN ('初中','初中国际学科') THEN '初中'
+      WHEN TRIM(src.团队) IN ('高中','ICC','国际学科') THEN '高中'
+      WHEN TRIM(src.团队)='大学' THEN '大学' END AS cash_business_group,
+ TRIM(src.渠道) AS channel,
+ src.市场活动名称 AS cash_campaign_name,
+ NULLIF(TRIM(src.生源校),'') AS school_name,
+ NULLIF(TRIM(src.学员年级),'') AS grade_name,
+ NULLIF(TRIM(src.学员编号),'') AS student_id,
+ TRY_CAST(REPLACE(REPLACE(TRIM(src.报入现金收入),',',''),'￥','') AS DECIMAL(38,2)) AS cash_amount,
+ CASE WHEN DATE '1899-12-30'+CAST(TRY_CAST(src.业务日期 AS DOUBLE) AS INTEGER)
+   >= params.attachment_start THEN to_json(src) END AS cash_source_record
+ FROM landing.br_cash__sheet_39b8dee2e4b3 AS src CROSS JOIN params
+ WHERE TRIM(src.渠道属性)='被动'
+ AND TRIM(src.新老生类型)='新生'
+ AND TRY_CAST(REPLACE(REPLACE(TRIM(src.报入现金收入),',',''),'￥','') AS DECIMAL(38,2))>0
+ AND DATE '1899-12-30'+CAST(TRY_CAST(src.业务日期 AS DOUBLE) AS INTEGER)>=params.start_date
+ AND DATE '1899-12-30'+CAST(TRY_CAST(src.业务日期 AS DOUBLE) AS INTEGER)<params.end_date
 
 ), cash_matched AS (
  SELECT c.cash_row_number AS source_row_number, c.work_order_id, c.cash_date AS event_date,
@@ -117,12 +128,13 @@ orders_raw AS (
  c.student_id,
  c.channel AS cash_channel,
  o.active_type AS work_order_active_type,
- c.cash_campaign_name AS cash_campaign_name
+ c.cash_campaign_name AS cash_campaign_name,
+ o.order_status, NULL AS source_record, c.cash_source_record
  FROM cash_raw c
  LEFT JOIN orders_dim o
  ON c.work_order_id = o.work_order_id
 )
-SELECT source_row_number, work_order_id, event_date, team_id, business_group, first_channel, second_channel, campaign_name, work_order_campaign_name, entry_person, school_name, grade_name, metric, actual_value, student_id, cash_channel, work_order_active_type, cash_campaign_name FROM orders
+SELECT source_row_number, work_order_id, event_date, team_id, business_group, first_channel, second_channel, campaign_name, work_order_campaign_name, entry_person, school_name, grade_name, metric, actual_value, student_id, cash_channel, work_order_active_type, cash_campaign_name, order_status, source_record, cash_source_record FROM orders
 UNION ALL
-SELECT source_row_number, work_order_id, event_date, team_id, business_group, first_channel, second_channel, campaign_name, work_order_campaign_name, entry_person, school_name, grade_name, metric, actual_value, student_id, cash_channel, work_order_active_type, cash_campaign_name FROM cash_matched
+SELECT source_row_number, work_order_id, event_date, team_id, business_group, first_channel, second_channel, campaign_name, work_order_campaign_name, entry_person, school_name, grade_name, metric, actual_value, student_id, cash_channel, work_order_active_type, cash_campaign_name, order_status, source_record, cash_source_record FROM cash_matched
 ORDER BY event_date, team_id, business_group, metric, campaign_name;

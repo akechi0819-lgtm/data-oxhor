@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from collections import Counter
 from decimal import Decimal
+import json
 import re
 from typing import Any
 
@@ -29,6 +30,10 @@ TRAINING_GROUPS = {
     **TARGET_GROUP,
 }
 OFFLINE_ROOTS = frozenset({"渠道合作", "市场活动", "官方合作高校", "新东方学校推荐"})
+OFFLINE_DEPARTMENT_CHANNELS = frozenset({"渠道合作", "市场活动", "官方合作高校"})
+NEWDONGFANG_STRONG_SIGNALS = ("市场人员", "市场双分", "【市场活动】", "【市场人员】")
+NEWDONGFANG_EVENT_SIGNALS = ("讲座", "展会", "会销", "问卷")
+NEWDONGFANG_CONFIRMED_PEOPLE = ("邓睿", "杨芸聿", "孙伟", "王洪霞", "吴子玄")
 ONLINE_ROOTS = frozenset({"网络资源", "新媒体"})
 TEAM_IDS = frozenset({"offline_market", "online_private", "online_platform"})
 PARENTHESES_RE = re.compile(r"（[^）]*）|\([^)]*\)")
@@ -40,6 +45,10 @@ COUNTRY_TAIL_FIELD_RE = re.compile(
 COUNTRY_LABEL_RE = re.compile(r"^(?:意向国家(?:/地区|或地区)?|国家(?:/地区|或地区)?)\s*[:：]\s*")
 COUNTRY_SEPARATORS_RE = re.compile(r"[,，、/]+")
 UNKNOWN_COUNTRIES = frozenset({"其他", "其它", "未知", "无", "none", "null", "0", "1"})
+NON_COMPLETION_ORDER_STATUSES = {
+    "删除": "order_status_deleted",
+    "回收": "order_status_recalled",
+}
 
 
 def _text(value: Any) -> str:
@@ -57,9 +66,46 @@ def _value(value: Any, metric: str) -> int | float:
     return float(Decimal(str(value)).quantize(Decimal("0.01")))
 
 
+def _cash_team_override(row: dict[str, Any], config: Any) -> dict[str, Any] | None:
+    """Find a confirmed cash-team correction by its stable business fields."""
+    if not isinstance(config, dict):
+        return None
+    event_date = _source_date(row.get("event_date"))
+    work_order_id = _text(row.get("work_order_id"))
+    for override in config.get("overrides", []):
+        if not isinstance(override, dict):
+            continue
+        if (_text(override.get("work_order_id")) != work_order_id
+                or _source_date(override.get("event_date")) != event_date
+                or _text(override.get("team_id")) not in TEAM_IDS):
+            continue
+        try:
+            override_amount = Decimal(str(override.get("amount"))).quantize(Decimal("0.01"))
+            row_amount = Decimal(str(row.get("actual_value"))).quantize(Decimal("0.01"))
+        except (TypeError, ValueError, ArithmeticError):
+            continue
+        if override_amount == row_amount:
+            return override
+    return None
+
+
 def _source_date(value: Any) -> str | None:
     text = _text(value)
     return text[:10] if text else None
+
+
+def _source_record(value: Any) -> Any:
+    """Decode the optional JSON row returned by the controlled query."""
+    if isinstance(value, str):
+        try:
+            return json.loads(value)
+        except (TypeError, ValueError):
+            return value
+    return value
+
+
+def _completion_exclusion(order_status: Any) -> str | None:
+    return NON_COMPLETION_ORDER_STATUSES.get(_text(order_status))
 
 
 def _safe_country(value: Any) -> tuple[str | None, bool]:
@@ -165,6 +211,27 @@ def _offline_claim(row: dict[str, Any], roster: list[str]) -> str | None:
     return None
 
 
+def _newdongfang_market_eligible(row: dict[str, Any]) -> bool:
+    """Match the confirmed point-to-point market-recommended subset."""
+    if _root(row.get("source_path")) != "新东方学校推荐" or _text(row.get("source_channel")) != "点对点":
+        return False
+
+    campaign = _text(row.get("campaign_name"))
+    description = _text(row.get("resource_description"))
+    if _text(row.get("first_channel")) == "市场活动" or any(
+        signal in campaign or signal in description for signal in NEWDONGFANG_STRONG_SIGNALS
+    ):
+        return True
+    if any(signal in campaign or signal in description for signal in NEWDONGFANG_EVENT_SIGNALS):
+        return True
+
+    people_text = " ".join(
+        _text(row.get(field))
+        for field in ("campaign_name", "resource_description", "resource_entry_person", "other_referrer")
+    )
+    return any(name in people_text for name in NEWDONGFANG_CONFIRMED_PEOPLE)
+
+
 def _explicit_team(row: dict[str, Any]) -> str | None:
     online_offline = _text(row.get("online_offline"))
     second_channel = _text(row.get("second_channel"))
@@ -205,6 +272,7 @@ def normalize_facts(
     abroad_people_config: dict[str, Any],
     adviser_mapping: Any,
     reference: Any,
+    cash_team_overrides: Any = None,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     """Return V14 training facts and confirmed study-abroad order facts.
 
@@ -217,6 +285,11 @@ def normalize_facts(
     )
     seen_ids: set[str] = set()
     offline_roster = _offline_names(abroad_people_config)
+    confirmed_offline_order_ids = {
+        _text(work_order_id)
+        for work_order_id in abroad_people_config.get("confirmed_offline_work_order_ids", [])
+        if _text(work_order_id)
+    }
     known_people = list(dict.fromkeys(_people(people_config) + offline_roster))
     adviser_to_team = _mapping(adviser_mapping)
     orders_by_id = {
@@ -262,6 +335,7 @@ def normalize_facts(
         campaign = _valid_campaign(linked_campaign) or _valid_campaign(cash_campaign)
 
         team_inferred = False
+        cash_override = None
         if metric == "cash":
             # Match P1's pure fallback contract: the raw cash activity is the
             # primary fallback evidence for channel inference.
@@ -281,6 +355,11 @@ def normalize_facts(
             team_id = remap_tmk_school_agent_team(
                 team_id, first, campaign, row.get("entry_person"), offline_training_names
             )
+            cash_override = _cash_team_override(row, cash_team_overrides)
+            if cash_override:
+                team_before_override = team_id
+                team_id = _text(cash_override.get("team_id"))
+                team_inferred = False
         elif team_id in TEAM_IDS:
             team_id = remap_tmk_school_agent_team(
                 team_id, first, campaign, row.get("entry_person"), offline_training_names
@@ -330,13 +409,22 @@ def normalize_facts(
         entry_person = row.get("entry_person") or order_source.get("resource_entry_person")
         description = order_source.get("resource_description")
         row_people = match_person_names(known_people, campaign, entry_person, description)
-        facts.append({
+        order_status = _text(row.get("order_status") or order_source.get("order_status")) or None
+        exclusion_reason = _completion_exclusion(order_status) if metric == "orders" else None
+        source_record = (row.get("source_record") or order_source.get("source_record")
+                         if metric == "orders" else
+                         row.get("cash_source_record") or row.get("source_record"))
+        fact = {
             "fact_id": fact_id,
             "metric": metric,
             "business_line": "training",
             "event_date": _source_date(row.get("event_date")),
             "value": _value(row.get("actual_value"), metric),
             "work_order_id": work_order_id,
+            "order_status": order_status,
+            "counts_toward_completion": exclusion_reason is None,
+            "exclusion_reason": exclusion_reason,
+            "source_record": _source_record(source_record),
             "student_id": _text(row.get("student_id")) or None,
             "team_id": team_id if team_id in TEAM_IDS else None,
             "business_group": business_group,
@@ -354,7 +442,11 @@ def normalize_facts(
             "source_row_number": source_row_number,
             "acquisition_mode": None,
             "team_inferred": team_inferred,
-        })
+        }
+        if cash_override:
+            fact["team_before_override"] = team_before_override
+            fact["team_override_reason"] = _text(cash_override.get("note")) or None
+        facts.append(fact)
 
     for row in order_rows:
         work_order_id = _text(row.get("work_order_id"))
@@ -367,6 +459,8 @@ def normalize_facts(
             continue
 
         source_team = _text(row.get("source_team"))
+        order_status = _text(row.get("order_status")) or None
+        exclusion_reason = _completion_exclusion(order_status)
         adviser = _text(row.get("adviser") or row.get("follow_adviser"))
         labeled_team = source_team or adviser_to_team.get(adviser, "")
         if labeled_team != "留学":
@@ -376,8 +470,14 @@ def normalize_facts(
         root = _root(row.get("source_path"))
         campaign = _valid_campaign(row.get("campaign_name"))
         strict_offline_owner = _offline_claim(row, offline_roster)
+        confirmed_offline = work_order_id in confirmed_offline_order_ids
         online = root in ONLINE_ROOTS and _abroad_online_eligible(root, row.get("resource_active_type"))
-        offline = root in OFFLINE_ROOTS or strict_offline_owner is not None
+        offline_first, offline_second = _offline_channels(row)
+        offline_channel_eligible = confirmed_offline or (
+            offline_first in OFFLINE_DEPARTMENT_CHANNELS
+            and _text(row.get("resource_active_type")) == "被动"
+        ) or _newdongfang_market_eligible(row)
+        offline = root in OFFLINE_ROOTS or strict_offline_owner is not None or confirmed_offline
         if not online and not offline:
             diagnostics["abroad_path_or_active_out_of_scope"] += 1
             continue
@@ -389,16 +489,23 @@ def normalize_facts(
             row.get("resource_entry_person"),
             owner_description,
         )
-        # A study-abroad department owner must be a strict eight-person claim.
-        # Other roster matches remain useful for cross-line capacity, while
-        # broad campaign/description text cannot grant them abroad performance.
+        # Keep strict offline claims for personal attribution; department scope
+        # is carried separately by offline_channel_eligible.
         owners = [name for name in matched_owners if name not in offline_roster]
         if strict_offline_owner and strict_offline_owner not in owners:
             owners.insert(0, strict_offline_owner)
-        team_id = "offline_market" if strict_offline_owner else (
-            "online_platform" if online else _explicit_team(row)
-        )
-        business_group = "大学" if strict_offline_owner else None
+        if offline_channel_eligible:
+            team_id = "offline_market"
+            business_group = "大学"
+        elif online:
+            team_id = "online_platform"
+            business_group = None
+        elif strict_offline_owner:
+            team_id = "offline_market"
+            business_group = "大学"
+        else:
+            team_id = _explicit_team(row)
+            business_group = None
 
         cleaned = _clean_online_order(row, reference)
         raw_country, _ = _extract_country_with_source({
@@ -424,7 +531,7 @@ def normalize_facts(
             if _text(second) == "其他":
                 second = "SSC"
         else:
-            first, second = _offline_channels(row)
+            first, second = offline_first, offline_second
 
         if _text(second).casefold() == "ssc":
             diagnostics["ssc_excluded"] += 1
@@ -446,6 +553,10 @@ def normalize_facts(
             "event_date": _source_date(row.get("event_date")),
             "value": 1,
             "work_order_id": work_order_id,
+            "order_status": order_status,
+            "counts_toward_completion": exclusion_reason is None,
+            "exclusion_reason": exclusion_reason,
+            "source_record": _source_record(row.get("source_record")),
             "student_id": None,
             "team_id": team_id if team_id in TEAM_IDS else None,
             "business_group": business_group,
@@ -464,7 +575,9 @@ def normalize_facts(
             "line": line,
             "owners": owners,
             "source_row_number": row.get("source_row_number"),
-            "acquisition_mode": "online" if root in ONLINE_ROOTS else "offline",
+            "offline_channel_eligible": offline_channel_eligible,
+            "acquisition_mode": ("offline" if confirmed_offline
+                                 else "online" if root in ONLINE_ROOTS else "offline"),
             "team_inferred": False,
         })
 

@@ -1,0 +1,26 @@
+{
+  "confirmation_date": "2026-10-01",
+  "overrides": [
+    {
+      "work_order_id": "35385878",
+      "event_date": "2026-09-28",
+      "amount": "21200.00",
+      "team_id": "online_platform",
+      "note": "用户于2026-10-01确认归属online_platform"
+    },
+    {
+      "work_order_id": "34886362",
+      "event_date": "2026-09-26",
+      "amount": "53600.00",
+      "team_id": "online_platform",
+      "note": "用户于2026-10-01确认归属online_platform"
+    },
+    {
+      "work_order_id": "34886362",
+      "event_date": "2026-09-26",
+      "amount": "40800.00",
+      "team_id": "online_platform",
+      "note": "用户于2026-10-01确认归属online_platform"
+    }
+  ]
+}

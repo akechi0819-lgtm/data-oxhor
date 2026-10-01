@@ -1,5 +1,7 @@
 # 日常监控
 
+当前封存版本使用共同结果和只读预览；Bot发送/云端接线已按用户要求跳过，后续另做dot迁移。见[封存交接](../docs/dashboard-dot-handoff-20261001.md)。下文旧发送链路仅说明原模块，不表示新版本已启用发送。
+
 2026-09-16 云端迁移已验收，角色、排期和回执见 [云端部署验收](../docs/monitoring-cloud-deployment.md)。下文部署步骤中的待切换说明是迁移过程记录，实际状态以验收记录为准。
 
 首个场景为人员绩效进度监控。模块从当前 Snapshot 受控取数，生成工单/现金/人头进度、落后名单、PNG、Excel 和钉钉正文。无须先刷新看板。
@@ -48,3 +50,21 @@ python3 -m unittest discover -s monitoring_product/tests -v
 python3 -m unittest discover -s dashboard_product/tests -v
 python3 -m monitoring_product.notify send --help
 ```
+
+## 新版共同结果预览（P3，本地验收阶段）
+
+新版预览从管理共同结果读取，不查询数仓、不上传、不发送；原生产入口和外部调度尚未切换。
+
+```bash
+python3 -m dashboard_product.management.build \
+  --workspace customers/bi_operations --snapshot-id <显式当前Snapshot> \
+  --run-id <本次运行编号> --as-of-date <运行日期>
+python3 -m monitoring_product.shared_preview \
+  --shared-result <本次输出目录>/shared_result.json \
+  --output-dir <本次输出目录>/notify_preview \
+  --dashboard-base-url <已确认的看板地址或本地预览地址>
+```
+
+入口校验notifications_ref哈希与Snapshot、run_id、截止日身份；7条消息中大学语培/留学共享原offline_university通道、分两条。人员图文只播报个人进度和落后提醒，附件只有个人进度和相关工单/现金流水；线上平台无个人指标，使用简短团队进度、二级渠道平台列表及同范围流水；平台同名跨一级合并，不展示一级渠道。其他渠道等管理分析只通过看板链接查看。
+
+删除/回收工单不计完成但在相关流水中保留；现金不因关联工单状态自动扣除。所有实际、目标、窗口、人头、落后和日均指标由management/notifications.py及共同聚合层确定，渲染只排版。历史数据只生成明确标注的本地预览；上线发送仍须保留新鲜度门禁，先核验实际调度避免旧入口重复发送。

@@ -11,6 +11,7 @@
   };
   const LINES = {
     training: { label: "语培", className: "training" },
+    mixed: { label: "虚拟人", className: "training" },
     abroad: { label: "留学", className: "abroad" },
   };
   const METRICS = [
@@ -250,7 +251,11 @@
       ui.lineCards.innerHTML = '<div class="empty-panel">当前期间没有所选管理单元的数据。页面不会合并其他单元来补值。</div>';
       return;
     }
-    ui.lineCards.innerHTML = ["training", "abroad"].map((lineId) => renderLineCard(lineId, team, period)).join("");
+    const mixed = team.id === "virtual";
+    byId("progress-title").textContent = mixed ? "团队进度" : "语培与留学进度";
+    ui.lineCards.style.gridTemplateColumns = mixed ? "1fr" : "";
+    const displayTeam = mixed ? {...team, lines:{...team.lines, mixed:{...team.lines.training, orders:team.combined_orders}}} : team;
+    ui.lineCards.innerHTML = (mixed ? ["mixed"] : ["training", "abroad"]).map((lineId) => renderLineCard(lineId, displayTeam, period)).join("");
   }
 
   function goalValue(value) {
@@ -275,6 +280,9 @@
   }
 
   function renderPeople(team, period) {
+    const mixed = team?.id === "virtual";
+    const headers = mixed ? ["人员", "工单目标", "工单完成", "完成率", "现金目标（元）", "现金完成（元）", "现金完成率", "人头"] : ["人员", "语培目标", "语培完成", "留学目标", "留学完成", "现金目标（元）", "现金完成（元）", "现金完成率", "人头"];
+    ui.peopleBody.closest("table").querySelector("thead").innerHTML = `<tr>${headers.map(label=>`<th scope="col">${label}</th>`).join("")}</tr>`;
     if (!period) {
       ui.personPeriod.textContent = "个人绩效区间：没有可展示的统计期间";
       ui.peopleCount.textContent = "—";
@@ -302,6 +310,9 @@
       const name = cleanString(person && person.name) || "未提供姓名";
       const personLine = cleanString(person && person.business_line);
       const personGroup = cleanString(person && person.home_group) || "业务组未提供";
+      if (mixed) return `<tr><th scope="row" class="person-name">${escapeHTML(name)}</th>
+        <td>${goalValue(person.combined_target)}</td><td>${personActual(person.combined_actual, team)}</td><td>${formatPercent(person.combined_completion)}</td>
+        <td>${goalValue(person.cash_actual?.target)}</td><td>${personActual(person.cash_actual, team)}</td><td>${formatPercent(person.cash_actual?.completion)}</td><td>${personActual(person.heads_actual, team)}</td></tr>`;
       return `<tr>
         <th scope="row" class="person-name"><span>${escapeHTML(name)}</span><small class="person-identity">${escapeHTML(personGroup)} · ${escapeHTML(lineLabel(personLine))}</small></th>
         <td>${goalValue(person.training_target)}</td>
@@ -492,7 +503,7 @@
     ui.freshnessDate.textContent = `截至 ${through}`;
     ui.freshness.classList.remove("is-error");
     ui.loadMessage.classList.remove("is-visible", "is-error");
-    ui.footerRun.textContent = `数据截止 ${through} · 金额单位：元`;
+    ui.footerRun.textContent = `数据截止 ${through} · 金额单位：元 · 工单完成不含删除、回收`;
   }
 
   function setView(viewId, focusTab = false) {
@@ -618,6 +629,8 @@
     }
     if (!isObject(data.metadata)) throw new Error("看板缺少数据截止信息");
     state.data = data;
+    const requestedUnit = new URLSearchParams(location.search).get("unit");
+    if (["total", "virtual", "online"].includes(requestedUnit)) state.unitId = requestedUnit;
     setupControls(data);
     renderAll();
     setView(["capacity","activities"].includes(location.hash.slice(1)) ? location.hash.slice(1) : "overview");

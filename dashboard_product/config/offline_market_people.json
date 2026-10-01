@@ -1,6 +1,8 @@
 {
   "team_id": "study_abroad_offline",
   "display_name": "留学线下市场",
+  "confirmed_offline_work_order_ids": ["33436045"],
+  "confirmed_offline_work_order_ids_note": "经用户确认，工单33436045（2026-06-28，邓睿）归线下；仅调整该工单的当前线上统计归属与来源模式，保留原始渠道证据，不扩展到其他线上来源工单。",
   "people": [
     {
       "display_name": "孙伟",

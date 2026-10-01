@@ -28,6 +28,7 @@ from data_acquisition.jobs.work_order_cleaning import clean_work_order_rows, loa
 DEFAULT_WORKSPACE = ROOT / 'customers/bi_operations'
 MAPPING = HERE / 'config/confirmed_team_mapping.json'
 GROUPS = ['留学预备', '高中', '大学']
+NON_COMPLETION_ORDER_STATUSES = {'删除': 'order_status_deleted', '回收': 'order_status_recalled'}
 
 
 def read(path):
@@ -170,6 +171,10 @@ def training_facts(rows, people):
         team, group = r['team_id'], r['business_group']
         first, second = r['first_channel'], r['second_channel']
         kind = 'cash' if r['metric'] == 'passive_reported_cash' else 'orders'
+        order_status = text(r.get('order_status')) or None
+        exclusion_reason = NON_COMPLETION_ORDER_STATUSES.get(order_status) if kind == 'orders' else None
+        if exclusion_reason:
+            continue
         if kind == 'cash':
             channel = resolve_cash_channel(r['cash_channel'], r['cash_campaign_name'] or r['campaign_name'],
                                            first, second, r['work_order_active_type'])
@@ -183,13 +188,16 @@ def training_facts(rows, people):
         facts.append({'line_id': 'training', 'metric': kind, 'event_date': r['event_date'],
                       'value': money(r['actual_value']) if kind == 'cash' else int(r['actual_value']),
                       'source_row_number': r.get('source_row_number'), 'work_order_id': r.get('work_order_id'),
+                      'order_status': order_status, 'counts_toward_completion': True,
+                      'exclusion_reason': None,
                       'student_id': r.get('student_id'), 'business_group': TARGET_GROUP[group],
                       'first_channel': first or '一级渠道待确认', 'second_channel': second or '二级渠道待确认',
                       'campaign_name': r.get('campaign_name'), 'team_id': team})
     return facts
 
 
-def study_facts(rows, mapping, reference):
+def study_facts(rows, mapping, reference, exclude_current_work_order_ids=()):
+    excluded_current_ids = {text(work_order_id) for work_order_id in exclude_current_work_order_ids}
     current, legacy, labels = [], [], Counter()
     for r in rows:
         labeled = classify_team(r['source_team'], r['adviser'], mapping)
@@ -213,6 +221,9 @@ def study_facts(rows, mapping, reference):
             channel = 'SSC'
         fact = {'line_id': 'abroad', 'metric': 'orders', 'value': 1, 'event_date': r['event_date'],
                 'source_row_number': r['source_row_number'], 'work_order_id': r['work_order_id'],
+                'order_status': text(r.get('order_status')) or None,
+                'counts_toward_completion': text(r.get('order_status')) not in NON_COMPLETION_ORDER_STATUSES,
+                'exclusion_reason': NON_COMPLETION_ORDER_STATUSES.get(text(r.get('order_status'))),
                 'adviser': r['adviser'], 'original_team': r['source_team'], 'labeled_team': labeled,
                 'main_active_type': original_active, 'resource_active_type': r['resource_active_type'],
                 'first_channel': source.get('一级渠道') or root, 'second_channel': channel,
@@ -222,7 +233,8 @@ def study_facts(rows, mapping, reference):
         # Keep old-scope rows only as reconciliation baselines. New facts,
         # details, channels, and public rollups exclude the confirmed SSC bucket.
         legacy.append(fact)
-        if labeled == '留学' and not is_ssc(channel):
+        if (labeled == '留学' and fact['counts_toward_completion'] and not is_ssc(channel)
+                and text(r['work_order_id']) not in excluded_current_ids):
             current.append(fact)
     return current, legacy, dict(labels)
 
@@ -352,7 +364,13 @@ def build(args):
     reference_path = workspace / 'Input/Reference/留学-FY26-资源表.xlsx'
     if not reference_path.is_file():
         raise FileNotFoundError(f'missing study-abroad channel reference workbook: {reference_path}')
-    abroad, old_abroad, label_counts = study_facts(raw_abroad, mapping, load_work_order_reference(reference_path))
+    offline_people_path = ROOT / 'dashboard_product/config/offline_market_people.json'
+    offline_people_config = read(offline_people_path)
+    confirmed_offline_ids = offline_people_config.get('confirmed_offline_work_order_ids', [])
+    abroad, old_abroad, label_counts = study_facts(
+        raw_abroad, mapping, load_work_order_reference(reference_path),
+        exclude_current_work_order_ids=confirmed_offline_ids,
+    )
     training_target_path = ROOT / 'dashboard_product/config/project_targets.json'
     training_config = read(training_target_path)
     abroad_config = read(HERE / 'config/study_abroad_targets.json')
@@ -464,6 +482,7 @@ def build(args):
     bridge_path = workspace / 'Work/Bridge/reference.json'
     config_files = [training_target_path, HERE / 'config/study_abroad_targets.json', MAPPING, reference_path,
                     ROOT / 'workspace_modeling/operations/people.json', ROOT / 'dashboard_product/config/cash_channel_fallback_rules.json',
+                    offline_people_path,
                     bridge_path]
     if scorecard is not None:
         config_files.append(scorecard_path)

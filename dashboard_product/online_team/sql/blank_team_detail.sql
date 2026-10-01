@@ -5,6 +5,7 @@ WITH params AS (
     NULLIF(TRIM(ID), '') AS work_order_id,
     source_row_number,
     DATE '1899-12-30' + CAST(TRY_CAST(分配时间 AS DOUBLE) AS INTEGER) AS event_date,
+    NULLIF(TRIM(工单状态), '') AS order_status,
     NULLIF(TRIM(团队), '') AS source_team,
     NULLIF(TRIM(跟进顾问), '') AS adviser,
     NULLIF(TRIM(主被动), '') AS main_active_type,
@@ -34,7 +35,7 @@ WITH params AS (
   FROM landing.br_work_orders__sheet_1f0596db9f25
 )
 SELECT
-  work_order_id, source_row_number, event_date, source_team, adviser,
+  work_order_id, source_row_number, event_date, source_team, adviser, order_status,
   main_active_type, resource_active_type, online_offline,
   first_channel, second_channel, source_path, source_channel,
   intended_country_source, intended_country_existing, corrected_line_existing,

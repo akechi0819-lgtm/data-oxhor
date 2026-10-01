@@ -61,7 +61,7 @@ def export_department(out, public, page, team_ids):
     return export_site(package, out / f'{page}.html')
 
 
-def reconciliation(result, old_rows, people, training_targets):
+def reconciliation(result, old_rows, people, training_targets, facts):
     """Independent current V14 and accepted P1 calculations, same window/identity."""
     from dashboard_product.refresh import project, DASHBOARD_QUERY_COLUMNS
     columns = list(DASHBOARD_QUERY_COLUMNS)
@@ -90,13 +90,25 @@ def reconciliation(result, old_rows, people, training_targets):
                 before = round(sum(g['monthly_actuals'][kind][i] for g in groups for i in indexes), 2)
                 after = team['lines']['training'][kind]['actual']
                 difference = None if after is None else round(after-before, 2)
+                confirmed_delta = 0
+                if kind == 'cash':
+                    for fact in facts:
+                        if (fact.get('team_override_reason') and fact['metric'] == 'cash'
+                                and period['start_date'] <= fact['event_date'] <= period['through_date']
+                                and (group is None or fact.get('business_group') == group)):
+                            confirmed_delta += fact['value'] * (
+                                int(fact.get('team_id') == tid) - int(fact.get('team_before_override') == tid))
+                confirmed_delta = round(confirmed_delta, 2)
+                status = ('matched' if difference == 0 else 'confirmed_change'
+                          if confirmed_delta != 0 and difference == confirmed_delta else 'difference')
                 rows.append({'label': f"{period['label']} · {team['name']} · 语培{'工单' if kind == 'orders' else '现金'}",
                              'baseline': before, 'current': after, 'difference': difference,
-                             'status': 'matched' if difference == 0 else 'difference'})
+                             'status': status,
+                             'reason': '用户确认的逐笔现金团队归属调整' if status == 'confirmed_change' else ''})
     return {'rows': rows, 'notes': [
         '基线为同一Snapshot、同一截止日按现有V14 SQL和现有归属代码复算，不是抓取公网旧页。',
         '空团队顾问标签修正、跨部门产能独立展示等变化应逐项解释，不要求无条件强行对齐。',
-        '大学留学按已确认八人贡献归属；与官方记分卡范围/截止日不一致的完成值不得互相覆盖。',
+        '线下留学按已确认渠道范围汇总，不以在职人员名单限制历史完成；官方历史与当前范围不可直接互相覆盖。',
         '个人贡献允许多人共同归属，因此人员合计不能用来替代部门去重总量。',
     ]}
 
@@ -131,10 +143,15 @@ def build(args):
     if not date(2026, 6, 1) <= through <= date(2027, 5, 31):
         raise ValueError('this dashboard covers FY27')
     coverage_start = min(date.fromisoformat(coverage[k]) for k in ('orders_start', 'cash_start'))
+    # Full source columns are needed only for the current notification windows.
+    from workspace_modeling.operations.personnel import date_to_perf_month
+    from dashboard_product.management.aggregate import _calendar_month_window
+    personal_start, _ = _calendar_month_window({'kind': 'month', 'id': date_to_perf_month(through.isoformat())})
+    attachment_start = min(through.replace(day=1), personal_start).isoformat()
     training_rows, order_rows = [], []
     for i, (start, end) in enumerate(yearly_windows(coverage_start, through + timedelta(days=1))):
-        training_rows.extend(fetch(HERE / 'sql/training_details.sql', [start, end], f'training_{i}'))
-        order_rows.extend(fetch(HERE / 'sql/orders.sql', [start, end], f'orders_{i}'))
+        training_rows.extend(fetch(HERE / 'sql/training_details.sql', [start, end, attachment_start], f'training_{i}'))
+        order_rows.extend(fetch(HERE / 'sql/orders.sql', [start, end, attachment_start], f'orders_{i}'))
     people_path = ROOT / 'workspace_modeling/operations/people.json'
     abroad_people_path = ROOT / 'dashboard_product/config/offline_market_people.json'
     training_target_path = ROOT / 'dashboard_product/config/project_targets.json'
@@ -145,7 +162,9 @@ def build(args):
     people, abroad_people = read(people_path), read(abroad_people_path)
     mapping = {r['source_adviser']: r['labeled_team'] for r in read(MAPPING)['mappings']}
     reference = load_work_order_reference(reference_path)
-    facts, diagnostics = normalize_facts(training_rows, order_rows, people, abroad_people, mapping, reference)
+    cash_override_path = ROOT / 'dashboard_product/config/confirmed_cash_team_overrides.json'
+    facts, diagnostics = normalize_facts(training_rows, order_rows, people, abroad_people, mapping, reference,
+                                         cash_team_overrides=read(cash_override_path))
     ids = [r['fact_id'] for r in facts]
     if len(ids) != len(set(ids)):
         raise ValueError('duplicate normalized fact identity')
@@ -167,7 +186,8 @@ def build(args):
         '留学现金及人头未接入；活动回收倍数仅以已接入的语培现金计算，不是利润率。',
         f"活动按当前Snapshot可用历史累计；工单起于{coverage['orders_start']}，现金起于{coverage['cash_start']}，均截至{through}，不保证覆盖活动完整生命周期。",
         '已确认SSC渠道统一排除；小语种不因目标差额被排除。',
-        '已确认留学八人名单统一从JSON维护表读取，未识别人员的记录保留为待归属，不按学生年级猜团队。',
+        '删除、回收工单不计任何完成指标，但保留在本地推送明细；现金资格不因关联工单状态自动改变。',
+        '留学人员名单仅用于个人展示；线下部门完成按原渠道范围，不因离职或未识别人员而减少。',
     ]
     public = {'schema_version': 'dashboard_rebuild.v1', 'metadata': {
         'title': '市场经营 · 管理融合看板', 'snapshot_id': args.snapshot_id, 'run_id': args.run_id,
@@ -175,25 +195,30 @@ def build(args):
         'capacity_start': '2026-06-01', 'orders_coverage_start': coverage['orders_start'],
         'cash_coverage_start': coverage['cash_start'],
         'created_at': datetime.now(timezone.utc).isoformat(), 'notes': notes}, **body}
-    old_rows = fetch(ROOT / 'dashboard_product/online_team/baseline/dashboard_actuals_v14.sql',
+    old_rows = fetch(HERE / 'sql/baseline_training.sql',
                      ['2025-06-01', (through + timedelta(days=1)).isoformat()], 'baseline')
-    public['reconciliation'] = reconciliation(public, old_rows, people, targets)
+    public['reconciliation'] = reconciliation(public, old_rows, people, targets, facts)
+    confirmed_offline_ids = abroad_people.get('confirmed_offline_work_order_ids', [])
     public['reconciliation']['notes'].extend([
-        '同一留学工单同时满足线上渠道和大学八人认领时，部门优先归大学留学；来源仍记线上，不重复计入线上平台部门。',
-        '八人归属中的括号协作不作为主责认领；旧SQL可能抓取括号内姓名，相关差异需业务验收。',
+        '线下留学部门采用原渠道范围；线上工单仅按明确线下确认名单改归，不以当前人员名单争抢部门归属。',
+        f"工单{', '.join(map(str, confirmed_offline_ids))}已按用户确认从当前P1线上对照剔除，并在P2来源模式记线下；原始渠道和旧范围基线保留。" if confirmed_offline_ids else '',
+        '个人认领继续使用明确主责规则；该个人名单不再作为部门总量门槛。',
     ])
-    p1_abroad, _, _ = study_facts([r for r in order_rows if not r.get('source_team')], mapping, reference)
+    p1_abroad, _, _ = study_facts(
+        [r for r in order_rows if not r.get('source_team')], mapping, reference,
+        exclude_current_work_order_ids=confirmed_offline_ids,
+    )
     for period in public['periods']:
         if not period.get('through_date'):
             continue
         before = sum(r['value'] for r in p1_abroad if period['start_date'] <= r['event_date'] <= period['through_date'])
         after = next(t for t in period['teams'] if t['id'] == 'online')['lines']['abroad']['orders']['actual']
         public['reconciliation']['rows'].append({
-            'label': f"{period['label']} · 线上留学 · 已验收P1口径（排除SSC）",
+            'label': f"{period['label']} · 线上留学 · 已确认P1当前口径（排除SSC及确认归线下工单）",
             'baseline': before, 'current': after, 'difference': None if after is None else after-before,
             'status': 'matched' if before == after else 'difference'})
-    old_offline = fetch(HERE / 'sql/baseline_offline.sql',
-                        ['2025-06-01', (through + timedelta(days=1)).isoformat()], 'baseline_offline')
+    old_offline = fetch(HERE / 'sql/baseline_offline_channels.sql',
+                        ['2025-06-01', (through + timedelta(days=1)).isoformat(), ','.join(map(str, confirmed_offline_ids))], 'baseline_offline_channels')
     for period in public['periods']:
         if period['status'] == 'future':
             continue
@@ -201,7 +226,7 @@ def build(args):
                      if period['start_date'] <= r['event_date'] <= period['through_date'])
         after = next(t for t in period['teams'] if t['id'] == 'university')['lines']['abroad']['orders']['actual']
         public['reconciliation']['rows'].append({
-            'label': f"{period['label']} · 大学留学 · 原八人线下口径",
+            'label': f"{period['label']} · 线下留学 · 已确认原渠道口径",
             'baseline': before, 'current': after, 'difference': None if after is None else after-before,
             'status': 'matched' if before == after else 'difference'})
     scorecard_path = ws / 'Input/Reference/留学板块-官方记分卡.json'
@@ -212,27 +237,42 @@ def build(args):
         for scope, team_id in [('online', 'online'), ('offline', 'university')]:
             official = next(r for r in scorecard[scope]['rows'] if r['period'] == 'FY27-Q1')['累计']['资源数']
             actual = next(t for t in q1['teams'] if t['id'] == team_id)['lines']['abroad']['orders']['actual']
-            public['reconciliation']['rows'].append({'label': f'Q1 {scope} 留学 · 官方完成对照（范围可能不同）',
+            scope_note = ('官方为网络资源/新媒体历史汇总，未提供逐单SSC及人员范围，财年日历边界亦未注明；当前按6—8月、排SSC及线下认领核算。'
+                          if scope == 'online' else
+                          '官方为三渠道历史汇总；当前为三类被动渠道加新东方市场推荐子集和明确归线下工单，且官方日期/明细未提供，算术差额不代表漏单。')
+            public['reconciliation']['rows'].append({'label': f'Q1 {scope} 留学 · 官方历史参考（非同口径对数）',
                 'baseline': official, 'current': actual, 'difference': None if actual is None else actual-official,
-                'status': 'matched' if actual == official else 'difference'})
+                'status': 'not_comparable', 'scope_note': scope_note})
     validate_public_data(public)
-    sources = [Path(__file__), HERE / 'facts.py', HERE / 'aggregate.py', HERE / 'breakdowns.py', HERE / 'enhancements.py',
+    sources = [Path(__file__), HERE / 'facts.py', HERE / 'aggregate.py', HERE / 'breakdowns.py', HERE / 'enhancements.py', HERE / 'notifications.py', HERE / 'online_view.py',
                ROOT / 'dashboard_product/refresh.py', ROOT / 'workspace_modeling/operations/personnel.py', people_path, abroad_people_path,
-               training_target_path, abroad_target_path, online_target_path, capacity_target_path, MAPPING, reference_path,
+               training_target_path, abroad_target_path, online_target_path, capacity_target_path, cash_override_path, MAPPING, reference_path,
                ws / 'Work/Bridge/reference.json',
-               *sorted((HERE / 'web').glob('*')), *sorted((HERE / 'sql').glob('*.sql'))]
+               *sorted((HERE / 'web').glob('*')),
+               *sorted((ROOT / 'dashboard_product/online_team/web').glob('*')), *sorted((HERE / 'sql').glob('*.sql'))]
     if scorecard_path.exists():
         sources.append(scorecard_path)
+    from dashboard_product.management.notifications import build_notifications
+    from dashboard_product.management.online_view import online_view
+    notifications = build_notifications(public, facts, people, abroad_people)
+    notifications['metadata'] = {**public['metadata'], 'as_of_date': as_of,
+                                 'preview_only': True}
+    write(out / 'notifications.json', notifications)
+    online_data = online_view(public, facts, read(online_target_path))
+    write(out / 'online_shared_result.json', online_data)
     private = {'schema_version': 'management_details.v1', 'metadata': public['metadata'], 'records': facts,
                'query_receipts': receipts, 'diagnostics': diagnostics}
     write(out / 'details.json', private)
     write(out / 'shared_result.json', {**public, 'prep_high_selections': segments, 'query_receipts': receipts, 'diagnostics': diagnostics,
         'source_hashes': {source_label(p, ws): sha(p) for p in sources},
+        'notifications_ref': {'path': 'notifications.json', 'sha256': sha(out / 'notifications.json')},
+        'online_ref': {'path': 'online_shared_result.json', 'sha256': sha(out / 'online_shared_result.json')},
         'details_ref': {'path': 'details.json', 'sha256': sha(out / 'details.json'), 'record_count': len(facts)}})
     write(out / 'reconciliation.json', public['reconciliation'])
     report = ['# P2 同窗对数', '', f'Snapshot：{args.snapshot_id}；截止：{through}', '',
-              '| 项目 | 旧值 | 新值 | 差异 |', '| --- | ---: | ---: | ---: |']
-    report.extend(f"| {r['label']} | {r['baseline']} | {r['current']} | {r['difference']} |" for r in public['reconciliation']['rows'] if r['status'] != 'matched')
+              '| 项目 | 参考值 | 当前值 | 算术差额 | 状态 |', '| --- | ---: | ---: | ---: | --- |']
+    report.extend(f"| {r['label']} | {r['baseline']} | {r['current']} | {r['difference']} | {'非同口径，不代表漏单' if r['status'] == 'not_comparable' else '已确认归属调整' if r['status'] == 'confirmed_change' else '待核差异'} |" for r in public['reconciliation']['rows'] if r['status'] != 'matched')
+    report.extend(['', *[r['scope_note'] for r in public['reconciliation']['rows'] if r.get('scope_note')]])
     report.extend(['', *public['reconciliation']['notes'], '', *notes])
     (out / 'reconciliation.md').write_text('\n'.join(report)+'\n', encoding='utf-8')
     view_data = presentation_data({key: value for key, value in public.items() if key != 'reconciliation'})
@@ -271,20 +311,21 @@ def build(args):
     departments.append(export_department(out, full_prep, 'prep_high', {'prep_high'}))
     # Local multi-file preview loads only the chosen precomputed selection.
     write_site_json(out / 'site/prep_high.data.json', segment_payloads['7'])
-    from dashboard_product.online_team.build import build as build_online
-    online_id = args.run_id + '_online'
-    online_result = build_online(argparse.Namespace(workspace=ws, snapshot_id=args.snapshot_id,
-                                  run_id=online_id, as_of_date=as_of, output_dir=None))
-    online_dir = Path(online_result['output_dir'])
-    export_site(online_dir / 'site', online_dir / 'online_market_special.html')
-    online_html = (online_dir / 'online_market_special.html').read_text(encoding='utf-8')
+    online_dir = out / 'packages/online'
+    online_dir.mkdir(parents=True, exist_ok=True)
+    online_web = ROOT / 'dashboard_product/online_team/web'
+    for asset in ('index.html', 'styles.css', 'app.js'):
+        shutil.copy2(online_web / asset, online_dir / asset)
+    write_site_json(online_dir / 'data.json', online_data)
+    export_site(online_dir, out / 'online.html')
+    online_html = (out / 'online.html').read_text(encoding='utf-8')
     online_html = online_html.replace('<body>', '<body data-page="online">', 1)
     online_html = online_html.replace('</head>', '<style>' + nav_css + '</style></head>', 1)
     online_html = online_html.replace('</body>', '<script>' + nav_js + '</script></body>', 1)
     (out / 'site/online.html').write_text(online_html, encoding='utf-8')
     (out / 'online.html').write_text(online_html, encoding='utf-8')
-    write(out / 'online_reference.json', {'run_id': online_id, 'snapshot_id': args.snapshot_id,
-          'data_through': online_result['data_through'], 'sha256': sha(out / 'online.html')})
+    write(out / 'online_reference.json', {'run_id': args.run_id, 'snapshot_id': args.snapshot_id,
+          'data_through': through.isoformat(), 'source': 'same_management_batch', 'sha256': sha(out / 'online.html')})
     return {'status': 'built', 'output_dir': str(out), 'snapshot_id': args.snapshot_id,
             'data_through': through.isoformat(), 'facts': len(facts), 'periods': len(public['periods']),
             'activities': len(public['activities']), 'diagnostics': diagnostics, 'html': exported,

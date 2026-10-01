@@ -82,18 +82,6 @@ def _measure(facts, line, kind, predicate, period, team_id, target=None):
     return _metric_with_status(actual, prior, target, period, kind)
 
 
-def _person_abroad_names(period):
-    names = set()
-    for team in period.get('teams', []):
-        for person in team.get('people', []):
-            business_line = str(person.get('business_line') or '')
-            if 'abroad' in business_line and person.get('home_group') == '大学':
-                name = str(person.get('name') or '').strip()
-                if name:
-                    names.add(name)
-    return names
-
-
 def _source_group(fact):
     source = str(fact.get('comparison_group') or '').strip()
     if source in COMPARISON_GROUPS:
@@ -146,8 +134,8 @@ def _has_facts(facts, line, start, through, predicate):
                and predicate(fact) for fact in facts)
 
 
-def _business_groups(facts, team_id, period, abroad_people_names, training_targets):
-    scope = _aggregate._team_fact_filter(team_id, 'training', abroad_people_names)
+def _business_groups(facts, team_id, period, training_targets):
+    scope = _aggregate._team_fact_filter(team_id, 'training')
     bounds = _period_bounds(period)
     names = [_aggregate.GROUP_BY_TEAM[team_id]] if team_id in _aggregate.GROUP_BY_TEAM else list(BUSINESS_GROUPS)
     if bounds:
@@ -173,8 +161,8 @@ def _business_groups(facts, team_id, period, abroad_people_names, training_targe
     return rows
 
 
-def _yoy_groups(facts, team_id, period, abroad_people_names):
-    scope = _aggregate._team_fact_filter(team_id, 'training', abroad_people_names)
+def _yoy_groups(facts, team_id, period):
+    scope = _aggregate._team_fact_filter(team_id, 'training')
     rows = []
     names = {'prep': ('青少','初中'), 'high': ('高中',), 'university': ('大学',)}.get(team_id, COMPARISON_GROUPS)
     for name in names:
@@ -202,14 +190,14 @@ def _channel_identity(fact):
     )
 
 
-def _channels(facts, team, period, abroad_people_names):
+def _channels(facts, team, period):
     team_id = team['id']
     bounds = _period_bounds(period)
     output = []
     if bounds is None:
         return output
     for line in ('training', 'abroad'):
-        scope = _aggregate._team_fact_filter(team_id, line, abroad_people_names)
+        scope = _aggregate._team_fact_filter(team_id, line)
         in_scope = lambda fact: scope(fact) and fact.get('business_line') == line
         current = [fact for fact in facts if _in_range(fact, bounds, 'current') and in_scope(fact)]
         prior = [fact for fact in facts if _in_range(fact, bounds, 'prior') and in_scope(fact)]
@@ -273,11 +261,11 @@ def _channels(facts, team, period, abroad_people_names):
     return output
 
 
-def _school_grade_rows(facts, team, period, abroad_people_names, line="training"):
+def _school_grade_rows(facts, team, period, line="training"):
     if period.get('status') == 'future' or not period.get('through_date'):
         return []
     bounds = _period_bounds(period)
-    scope = _aggregate._team_fact_filter(team['id'], line, abroad_people_names)
+    scope = _aggregate._team_fact_filter(team['id'], line)
     grouped = defaultdict(lambda: {'orders': {'current': [], 'prior': []},
                                   'cash': {'current': [], 'prior': []}})
     for fact in facts:
@@ -325,10 +313,10 @@ def _school_grade_rows(facts, team, period, abroad_people_names, line="training"
     return sorted(result,key=lambda r: (-(r['orders']['actual'] or 0), r['name']))
 
 
-def _grade_rows(facts, team, period, abroad_people_names, line):
+def _grade_rows(facts, team, period, line):
     bounds = _period_bounds(period)
     if not bounds: return []
-    scope = _aggregate._team_fact_filter(team['id'], line, abroad_people_names)
+    scope = _aggregate._team_fact_filter(team['id'], line)
     buckets = defaultdict(list)
     for fact in facts:
         if fact['business_line']==line and scope(fact) and (_in_range(fact,bounds,'current') or _in_range(fact,bounds,'prior')):
@@ -396,14 +384,13 @@ def enrich_periods(periods, facts, training_targets, abroad_targets, online_targ
     _ = (abroad_targets, online_targets)
 
     for period in periods:
-        abroad_people_names = _person_abroad_names(period)
         for team in period.get('teams', []):
             team_id = team.get('id')
             team['business_groups'] = _business_groups(
-                valid_facts, team_id, period, abroad_people_names, training_targets,
+                valid_facts, team_id, period, training_targets,
             )
-            team['yoy_groups'] = _yoy_groups(valid_facts, team_id, period, abroad_people_names)
-            team['channels'] = _channels(valid_facts, team, period, abroad_people_names)
-            team['schools_by_line'] = {line:_school_grade_rows(valid_facts, team, period, abroad_people_names, line) for line in ('training','abroad')}
-            team['grades_by_line'] = {line:_grade_rows(valid_facts,team,period,abroad_people_names,line) for line in ('training','abroad')}
+            team['yoy_groups'] = _yoy_groups(valid_facts, team_id, period)
+            team['channels'] = _channels(valid_facts, team, period)
+            team['schools_by_line'] = {line:_school_grade_rows(valid_facts, team, period, line) for line in ('training','abroad')}
+            team['grades_by_line'] = {line:_grade_rows(valid_facts,team,period,line) for line in ('training','abroad')}
             team['country_groups'] = _country_groups(team)

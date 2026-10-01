@@ -29,7 +29,7 @@
     $('period-note').textContent=`${p.start_date} — ${p.through_date || p.end_date}  ·  时间进度 ${pct(p.time_progress)}`;
     if(board==='university') {
       const t=selected[0];
-      $('university-lines').innerHTML=['training','abroad'].map(line=>`<section class="line-ledger"><header class="line-ledger-head"><h2>${line==='training'?'大学语培':'大学留学'}</h2><small>${line==='training'?'工单 · 现金 · 人头':'按八人团队贡献归属'}</small></header><div class="metric-strip">${['orders','cash','heads'].map((key,i)=>metric(t.lines[line][key],['工单','现金','人头'][i],p)).join('')}</div></section>`).join('');
+      $('university-lines').innerHTML=['training','abroad'].map(line=>`<section class="line-ledger"><header class="line-ledger-head"><h2>${line==='training'?'大学语培':'线下留学'}</h2><small>${line==='training'?'工单 · 现金 · 人头':'按线下渠道汇总 · 不限在职人员'}</small></header><div class="metric-strip">${['orders','cash','heads'].map((key,i)=>metric(t.lines[line][key],['工单','现金','人头'][i],p)).join('')}</div></section>`).join('');
       $('business-groups-body').innerHTML=(t.business_groups||[]).map(row=>`<tr><th>${esc(row.name)}</th>${['orders','cash','heads'].map((key,i)=>`<td class="group-metric">${metric(row[key],['工单','现金','人头'][i],p)}</td>`).join('')}</tr>`).join('');
       let detail=$('university-yoy');
       if(!detail){detail=document.createElement('div');detail.id='university-yoy';$('business-groups-body').closest('section').append(detail);}
@@ -105,7 +105,7 @@
     $('period-select').value=state.period;$('person-period-select').value=state.person;
     $('period-select').disabled=false;$('person-period-select').disabled=false;$('person-month-mode').disabled=false;
     $('freshness-label').textContent='数据截止';$('freshness-date').textContent=data.metadata.data_through;
-    $('footer-source').textContent=`截至 ${data.metadata.data_through}`;
+    $('footer-source').textContent=`截至 ${data.metadata.data_through} · 工单完成不含删除、回收`;
     $('load-state').hidden=true;renderOverview();
   }).catch(error=>{$('load-state').hidden=false;$('load-state').className='load-state is-visible is-error';$('load-state').textContent='数据加载失败，请重新生成看板。';console.error(error);});
 })();

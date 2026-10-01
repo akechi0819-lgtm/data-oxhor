@@ -10,6 +10,7 @@ WITH normalized_orders AS (
 orders_raw AS (
  SELECT source_row_number AS work_order_row_number, NULLIF(TRIM(ID),'') AS work_order_id,
  DATE '1899-12-30'+CAST(TRY_CAST(分配时间 AS DOUBLE) AS INTEGER) AS event_date,
+ NULLIF(TRIM(工单状态),'') AS order_status,
  TRIM(团队) AS source_team,
  TRIM(顾问归属) AS adviser_belong,
  TRIM(跟进顾问) AS follow_adviser,
@@ -58,7 +59,7 @@ orders_raw AS (
  END AS business_group
  FROM orders_raw
 ), orders_dim AS (
- SELECT work_order_id, business_group, active_type, online_offline, second_channel, first_channel, campaign_name, school_name, grade_name, entry_person,
+ SELECT work_order_id, business_group, active_type, online_offline, second_channel, first_channel, campaign_name, school_name, grade_name, entry_person, order_status,
  CASE WHEN online_offline='线下' THEN 'offline_market'
       WHEN second_channel='虚拟人' THEN 'online_private'
       WHEN online_offline='线上' THEN 'online_platform' END AS team_id
@@ -69,7 +70,8 @@ orders_raw AS (
  r.first_channel, r.second_channel, r.campaign_name, r.school_name, r.grade_name,
  r.entry_person AS entry_person,
  1.0::DOUBLE actual_value, 'work_orders' metric, NULL AS student_id,
- NULL AS cash_channel, r.active_type AS work_order_active_type, NULL AS cash_campaign_name
+ NULL AS cash_channel, r.active_type AS work_order_active_type, NULL AS cash_campaign_name,
+ r.order_status
  FROM mapped_orders r
  JOIN orders_dim o ON r.work_order_id = o.work_order_id
  CROSS JOIN params
@@ -116,12 +118,13 @@ orders_raw AS (
  c.student_id,
  c.channel AS cash_channel,
  o.active_type AS work_order_active_type,
- c.cash_campaign_name AS cash_campaign_name
+ c.cash_campaign_name AS cash_campaign_name,
+ o.order_status
  FROM cash_raw c
  LEFT JOIN orders_dim o
  ON c.work_order_id = o.work_order_id
 )
-SELECT source_row_number, work_order_id, event_date, team_id, business_group, first_channel, second_channel, campaign_name, entry_person, school_name, grade_name, metric, actual_value, student_id, cash_channel, work_order_active_type, cash_campaign_name FROM orders
+SELECT source_row_number, work_order_id, event_date, team_id, business_group, first_channel, second_channel, campaign_name, entry_person, school_name, grade_name, metric, actual_value, student_id, cash_channel, work_order_active_type, cash_campaign_name, order_status FROM orders
 UNION ALL
-SELECT source_row_number, work_order_id, event_date, team_id, business_group, first_channel, second_channel, campaign_name, entry_person, school_name, grade_name, metric, actual_value, student_id, cash_channel, work_order_active_type, cash_campaign_name FROM cash_matched
+SELECT source_row_number, work_order_id, event_date, team_id, business_group, first_channel, second_channel, campaign_name, entry_person, school_name, grade_name, metric, actual_value, student_id, cash_channel, work_order_active_type, cash_campaign_name, order_status FROM cash_matched
 ORDER BY event_date, team_id, business_group, metric, campaign_name;

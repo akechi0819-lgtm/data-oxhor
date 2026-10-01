@@ -5,3 +5,5 @@ from dashboard_product.management.tests.test_facts import NormalizeFactsTests
 from dashboard_product.management.tests.test_breakdowns import BreakdownTests
 
 from dashboard_product.management.tests.test_enhancements import EnhancementTests
+
+from dashboard_product.management.tests.test_notifications import ManagementNotificationsTest

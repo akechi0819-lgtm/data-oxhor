@@ -2,7 +2,7 @@
 
 `dashboard_product/` 负责已确认口径的固定查询、看板 artifact、统一主页面和静态发布。人员绩效监控和钉钉日报已迁至 [monitoring_product](../monitoring_product/README.md)，不再由看板入口计算或发送。
 
-线上团队融合看板已通过验收，正式入口为 `online_team/`：只读主工作区当前 Snapshot，统一生成语培和留学结果，留学卡片支持 SSC 开关。发布为自包含 `online_market_special.html`，沿用原地址和鉴权。原线上影子查询目前仍供未迁移的通知取数与旧口径复核使用，不作为新版网页发布入口。留学线下特供继续使用原影子链路，不改变其计算。详见 [新版上线说明](../docs/online-team-release.md)。
+线上团队融合看板已通过验收，正式入口为 `online_team/`：只读主工作区当前 Snapshot，统一生成语培和留学结果，留学统计统一排除SSC，全年目标6715。发布为自包含 `online_market_special.html`，沿用原地址和鉴权。原线上影子查询目前仍供未迁移的通知取数与旧口径复核使用，不作为新版网页发布入口。留学线下特供继续使用原影子链路，不改变其计算。详见 [新版上线说明](../docs/online-team-release.md)。
 
 ## 运行
 
@@ -82,3 +82,5 @@ python3 -m unittest discover -s dashboard_product/tests -v
 ## 管理融合看板（隔离施工）
 
 新版总览、预备高中、大学、人员产能和活动页位于 `management/`，沿用静态HTML，整合已验收线上模块。构建、月度切换和本地交付说明见 [management/README.md](./management/README.md)，检查点证据与限制见[核验记录](../docs/dashboard-rebuild-verification-20260930.md)。目前不自动替换主/线下线上页面，不触发通知。
+
+本轮本地状态已封存，Bot发送/云端接入不在本轮交付内；后续改由dot接手，见[交接清单](../docs/dashboard-dot-handoff-20261001.md)。
