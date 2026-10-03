@@ -1,4 +1,4 @@
--- 独立原渠道基线：取自867f870渠道版，补已确认留学标签、删除/回收排除、SSC排除及明确线下ID。
+-- 独立原渠道基线：取自867f870渠道版，补已确认留学标签、包含删除/回收、SSC排除及明确线下ID。
 WITH params AS (
   SELECT CAST(? AS DATE) AS start_date, CAST(? AS DATE) AS end_date, CAST(? AS VARCHAR) AS offline_ids,
     CAST(? AS VARCHAR[]) AS study_advisers, CAST(? AS VARCHAR[]) AS prep_advisers
@@ -51,7 +51,6 @@ WITH params AS (
   WHERE rn = 1
     AND work_order_id IS NOT NULL
     AND source_team = '留学'
-    AND COALESCE(order_status, '') NOT IN ('删除', '回收')
     AND event_date >= start_date
     AND event_date < end_date
 ), flagged AS (

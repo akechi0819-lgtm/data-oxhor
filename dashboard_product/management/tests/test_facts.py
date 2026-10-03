@@ -82,7 +82,7 @@ class NormalizeFactsTests(unittest.TestCase):
         self.assertEqual(diagnostics["training_study_order_excluded"], 1)
         self.assertEqual(diagnostics["training_unconfirmed_blank_team_excluded"], 1)
 
-    def test_deleted_and_recalled_orders_are_retained_for_audit_but_not_counted(self):
+    def test_deleted_and_recalled_orders_count_for_teams_but_not_personal_eligibility(self):
         people, abroad_people = configs()
         order_statuses = {"T-deleted": "删除", "T-recalled": "回收", "T-live": "死单"}
         training = []
@@ -137,9 +137,9 @@ class NormalizeFactsTests(unittest.TestCase):
         result = aggregate(facts, people, abroad_people, {}, {}, {}, date(2026, 9, 28))
         september = next(period for period in result["periods"] if period["id"] == "2026-09")
         total = next(team for team in september["teams"] if team["id"] == "total")
-        self.assertEqual(total["lines"]["training"]["orders"]["actual"], 1)
+        self.assertEqual(total["lines"]["training"]["orders"]["actual"], 3)
         self.assertEqual(total["lines"]["training"]["cash"]["actual"], 500)
-        self.assertEqual(total["lines"]["abroad"]["orders"]["actual"], 0)
+        self.assertEqual(total["lines"]["abroad"]["orders"]["actual"], 2)
 
     def test_online_eight_person_claim_stays_online_and_keeps_personal_owner(self):
         people, abroad_people = configs()

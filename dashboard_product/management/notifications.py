@@ -296,8 +296,6 @@ def _channels(order_facts, data_through):
     counts = defaultdict(Decimal)
     today_counts = defaultdict(Decimal)
     for fact in order_facts:
-        if not _included(fact):
-            continue
         second = str(fact.get('second_channel') or '').strip() or '二级渠道待确认'
         key = second
         amount = _value(fact)
@@ -319,9 +317,8 @@ def _channels(order_facts, data_through):
 
 def _team_orders_metric(metric, order_facts, data_through, natural_period):
     result = dict(metric or {})
-    included = [fact for fact in order_facts if _included(fact)]
     daily_actual = _number(sum(
-        (_value(fact) for fact in included
+        (_value(fact) for fact in order_facts
          if str(fact.get('event_date') or '')[:10] == data_through.isoformat()), Decimal(0)))
     actual, target = result.get('actual'), result.get('target')
     period_start = _date(natural_period['start_date'])

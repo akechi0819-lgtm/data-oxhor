@@ -6,5 +6,8 @@ from dashboard_product.management.tests.test_breakdowns import BreakdownTests
 
 from dashboard_product.management.tests.test_enhancements import EnhancementTests
 
-from dashboard_product.management.tests.test_notifications import ManagementNotificationsTest
+from dashboard_product.management.tests.test_notifications import ManagementNotificationsTest, OnlineProjectionScopeTest
+from dashboard_product.management.tests.test_cash_share import NewStudentCashQueryTests, PassiveCashShareTests
 from dashboard_product.management.tests.test_adviser_mapping import AdviserMappingQueryTests
+
+from dashboard_product.management.tests.test_market_totals import MarketTotalsTest

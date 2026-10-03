@@ -215,17 +215,19 @@ class ManagementNotificationsTest(unittest.TestCase):
         self.assertEqual(person['orders_gap'], 3)
         self.assertEqual(person['remaining_workdays'], 19)
         self.assertEqual(person['daily_orders'], 6 / 19)
-        self.assertEqual(training['team_metrics']['orders']['daily_actual'], 1)
+        self.assertEqual(training['team_metrics']['orders']['daily_actual'], 2)
         self.assertEqual(training['team_metrics']['orders']['daily_average'], 4 / 28)
         self.assertTrue(training['team_metrics']['orders']['behind'])
+        self.assertEqual(person['orders_actual'], 4)
+        self.assertEqual(training['team_metrics']['orders']['actual'], 4)
 
         all_orders = training['ledgers']['team_orders']
         recycled = next(row for row in all_orders if row['fact_id'] == 'train-recycled')
         self.assertEqual(recycled['counts_toward_completion'], False)
         self.assertEqual(recycled['exclusion_reason'], '工单已回收')
         self.assertEqual(recycled['source_record'], {'ID': 'train-recycled', '团队': 'offline_market'})
-        self.assertEqual(sum(row['month'] for row in training['channels']), 1)
-        self.assertEqual(sum(row['today'] for row in training['channels']), 1)
+        self.assertEqual(sum(row['month'] for row in training['channels']), 2)
+        self.assertEqual(sum(row['today'] for row in training['channels']), 2)
         abroad_personal_ids = [row['fact_id'] for row in abroad['ledgers']['personal_orders']]
         abroad_team_ids = [row['fact_id'] for row in abroad['ledgers']['team_orders']]
         self.assertIn('abroad-personal-only', abroad_personal_ids)
@@ -254,9 +256,9 @@ class ManagementNotificationsTest(unittest.TestCase):
         self.assertEqual(virtual['title'], '线上虚拟人')
         self.assertEqual(virtual['business_line'], 'mixed')
         self.assertEqual(virtual['team_metrics']['orders']['actual'], 2)
-        self.assertEqual(virtual['team_metrics']['orders']['daily_actual'], 2)
-        self.assertEqual(sum(row['month'] for row in virtual['channels']), 2)
-        self.assertEqual(sum(row['today'] for row in virtual['channels']), 2)
+        self.assertEqual(virtual['team_metrics']['orders']['daily_actual'], 7)
+        self.assertEqual(sum(row['month'] for row in virtual['channels']), 7)
+        self.assertEqual(sum(row['today'] for row in virtual['channels']), 7)
         self.assertEqual(by_name['虚拟甲']['orders_actual'], 2)
         self.assertEqual(by_name['虚拟甲']['orders_target'], 10)
         self.assertEqual(by_name['虚拟甲']['today_orders'], 2)
@@ -284,7 +286,7 @@ class ManagementNotificationsTest(unittest.TestCase):
         self.assertEqual(virtual['ledgers']['personal_secondary_orders'], [])
 
 
-    def test_platforms_merge_same_secondary_channel_and_exclude_deleted(self):
+    def test_platforms_merge_same_secondary_channel_and_include_deleted_for_team(self):
         from datetime import date
         from dashboard_product.management.notifications import _channels
         rows = [
@@ -296,10 +298,36 @@ class ManagementNotificationsTest(unittest.TestCase):
         ]
         channels = _channels(rows, date(2026, 9, 28))
         self.assertEqual(channels, [
-            {'name': '小红书', 'month': 3, 'today': 1, 'share': .75},
-            {'name': '大众点评', 'month': 1, 'today': 1, 'share': .25},
+            {'name': '小红书', 'month': 13, 'today': 11, 'share': 13 / 14},
+            {'name': '大众点评', 'month': 1, 'today': 1, 'share': 1 / 14},
         ])
 
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class OnlineProjectionScopeTest(unittest.TestCase):
+    def test_projection_uses_team_attribution_scope_and_counts_deleted_orders(self):
+        from dashboard_product.management.online_view import online_view
+        from dashboard_product.online_team.build import metric
+        from datetime import date
+        p={'id':'FY27','label':'2027财年全年','kind':'year','status':'available',
+           'start_date':'2026-06-01','through_date':'2026-10-02',
+           'prior_start_date':'2025-06-01','prior_through_date':'2025-10-02',
+           'teams':[{'id':'online','business_groups':[], 'lines':{
+               line:{'orders':metric(1 if line=='abroad' else 0,0,None,0,'单'),
+                     'cash':metric(None,None,None,0,'元',status='not_connected'),
+                     'heads':metric(None,None,None,0,'人',status='not_connected')}
+               for line in ('training','abroad')}}]}
+        facts=[{'fact_id':'deleted-online','work_order_id':'a','team_id':'online_platform',
+                'business_line':'abroad','acquisition_mode':'online','metric':'orders',
+                'event_date':'2026-10-02','value':1,'order_status':'删除','counts_toward_completion':False},
+               {'fact_id':'offline-attribution','work_order_id':'b','team_id':'online_platform',
+                'business_line':'abroad','acquisition_mode':'offline','metric':'orders',
+                'event_date':'2026-10-02','value':1,'order_status':'回收','counts_toward_completion':False}]
+        result=online_view({'metadata':{'data_through':'2026-10-02'},'schema_version':'dashboard_rebuild.v1','periods':[p]},facts,{'cash':{'total':{'annual':None}}})
+        period=result['periods'][0]
+        self.assertEqual(period['lines']['abroad']['orders']['actual'],1)
+        self.assertEqual(sum(r['orders'] for r in period['lines']['abroad']['channels']),1)
+        self.assertEqual(sum(r['abroad_orders'] for r in period['daily']),1)

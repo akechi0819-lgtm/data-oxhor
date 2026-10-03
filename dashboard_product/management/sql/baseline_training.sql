@@ -1,4 +1,4 @@
--- V14同源基线，订单补用户确认的删除/回收排除；现金关联及资格不改变。
+-- 市场团队同源基线：删除/回收计入团队；现金关联及资格不改变。
 WITH params AS (SELECT CAST(? AS DATE) AS start_date, CAST(? AS DATE) AS end_date),
 orders_raw AS (
  SELECT NULLIF(TRIM(ID),'') AS work_order_id,
@@ -66,7 +66,7 @@ orders_raw AS (
  FROM mapped_orders r
  JOIN orders_dim o ON r.work_order_id = o.work_order_id
  CROSS JOIN params
- WHERE r.rn=1 AND r.work_order_id IS NOT NULL AND r.active_type='被动' AND COALESCE(r.order_status, '') NOT IN ('删除','回收') AND event_date>=start_date AND event_date<end_date
+ WHERE r.rn=1 AND r.work_order_id IS NOT NULL AND r.active_type='被动' AND event_date>=start_date AND event_date<end_date
  GROUP BY ALL
 ), cash_raw AS (
  SELECT NULLIF(TRIM(工单ID),'') AS work_order_id,

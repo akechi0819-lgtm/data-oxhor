@@ -28,7 +28,6 @@
 .radar-values thead { background:#f1f5f9; color:#627b8b; }
 .capacity-reference { display:flex; flex-direction:column; gap:3px; margin:6px 12px; padding-top:6px; border-top:1px solid #e3ebf2; font-size:12px; color:#5f798b; }
 .capacity-reference span { display:flex; justify-content:space-between; }
-.radar-scope { margin:6px 12px; font-size:11px; color:#7a8c99; }
 @media(max-width:1050px){.capacity-workspace{grid-template-columns:1fr}.capacity-scroll table{min-width:810px}.capacity-scroll{max-height:430px}.capacity-radar{max-width:500px}}
 
 .capacity-scroll small.capacity-identity { white-space:normal; max-width:98px; }

@@ -11,6 +11,7 @@
   };
   const LINES = {
     training: { label: "语培", className: "training" },
+    market: { label: "语培市场总盘", className: "training" },
     mixed: { label: "虚拟人", className: "training" },
     abroad: { label: "留学", className: "abroad" },
   };
@@ -108,7 +109,7 @@
   function periodLabel(period) {
     if (!period) return "未选择期间";
     const title = cleanString(period.label) || `${formatDate(period.start_date)} 至 ${formatDate(period.through_date)}`;
-    return period.status === "future" ? `${title}（团队自然月未开始）` : title;
+    return period.status === "future" ? `${title}（期间尚未开始）` : title;
   }
 
   function getPeriod() {
@@ -188,11 +189,6 @@
     return `${value}${suffix}`;
   }
 
-  function metricNoteMarkup(metric) {
-    const note = isObject(metric) ? cleanString(metric.note) : "";
-    return note ? `<small class="metric-detail">${escapeHTML(note)}</small>` : "";
-  }
-
   function renderLineMetricRow(lineId, metricId, metric, periodStatus) {
     const descriptor = METRICS.find((entry) => entry.id === metricId);
     const status = metricStatus(metric, null, periodStatus);
@@ -210,12 +206,11 @@
     const target = !notAssessed && status === "available" ? metricDetail(metric, "target", descriptor.unit) : "";
     const completion = !notAssessed && status === "available" ? metricDetail(metric, "completion") : "";
     const detail = notAssessed
-      ? "人员留学贡献见FY产能"
+      ? "人员留学贡献见财年产能"
       : [target ? `目标 ${target}` : "", completion ? `完成 ${completion}` : ""].filter(Boolean).join(" · ");
-    const noteMarkup = notAssessed ? "" : metricNoteMarkup(metric);
     return `<tr>
       <th scope="row"><span class="metric-label">${escapeHTML(descriptor.label)}</span></th>
-      <td><strong>${current}</strong>${detail ? `<small class="metric-detail">${detail}</small>` : ""}${noteMarkup}</td>
+      <td><strong>${current}</strong>${detail ? `<small class="metric-detail">${detail}</small>` : ""}</td>
       <td>${prior}</td>
       <td>${yoy}</td>
     </tr>`;
@@ -226,7 +221,7 @@
     const line = isObject(team.lines) && isObject(team.lines[lineId]) ? team.lines[lineId] : {};
     const teamName = cleanString(team.name) || UNIT_LABELS[state.unitId] || state.unitId;
     const rows = METRICS.map(({ id }) => renderLineMetricRow(lineId, id, line[id], period.status)).join("");
-    const periodBadge = period.status === "future" ? "尚未开始" : "团队 · 自然月";
+    const periodBadge = period.status === "future" ? "尚未开始" : "团队 · 自然期间";
     return `<article class="line-card ${descriptor.className}">
       <div class="line-card-head">
         <div><div class="line-title"><span class="line-symbol" aria-hidden="true"></span><h3>${escapeHTML(descriptor.label)}</h3></div>
@@ -248,14 +243,15 @@
       return;
     }
     if (!team) {
-      ui.lineCards.innerHTML = '<div class="empty-panel">当前期间没有所选管理单元的数据。页面不会合并其他单元来补值。</div>';
+      ui.lineCards.innerHTML = '<div class="empty-panel">当前期间没有所选管理单元的数据。</div>';
       return;
     }
     const mixed = team.id === "virtual";
-    byId("progress-title").textContent = mixed ? "团队进度" : "语培与留学进度";
+    const market = team.id === "total";
+    byId("progress-title").textContent = market ? "语培市场总盘与留学专项" : mixed ? "团队进度" : "语培与留学进度";
     ui.lineCards.style.gridTemplateColumns = mixed ? "1fr" : "";
-    const displayTeam = mixed ? {...team, lines:{...team.lines, mixed:{...team.lines.training, orders:team.combined_orders}}} : team;
-    ui.lineCards.innerHTML = (mixed ? ["mixed"] : ["training", "abroad"]).map((lineId) => renderLineCard(lineId, displayTeam, period)).join("");
+    const displayTeam = market ? {...team, lines:{...team.lines, market:{...team.lines.training, orders:team.market_orders}}} : mixed ? {...team, lines:{...team.lines, mixed:{...team.lines.training, orders:team.combined_orders}}} : team;
+    ui.lineCards.innerHTML = (market ? ["market", "abroad"] : mixed ? ["mixed"] : ["training", "abroad"]).map((lineId) => renderLineCard(lineId, displayTeam, period)).join("");
   }
 
   function goalValue(value) {
@@ -347,12 +343,19 @@
 
   function compareTable(rows, targets=false) {
     const heads = safeArray(rows).some(row => row.heads);
+    const cashShare = targets && safeArray(rows).some(row => row.passive_cash_share);
     const value = m => formatNumber(m && m.actual);
     const old = m => formatNumber(m && m.prior);
     const change = m => formatPercent(m && m.yoy);
     const target = m => m && m.target != null ? formatNumber(m.target) : "未配置";
     const progress = m => m && m.completion != null ? `<progress max="1" value="${Math.min(1,Math.max(0,m.completion))}"></progress> ${formatPercent(m.completion)}` : "—";
-    return `<table class="data-table"><thead><tr><th>业务组</th><th>工单完成</th><th>${targets?"工单目标":"同期工单"}</th><th>${targets?"工单进度":"工单同比"}</th><th>现金完成（元）</th><th>${targets?"现金目标":"同期现金"}</th><th>${targets?"现金进度":"现金同比"}</th>${heads?'<th>人头</th><th>人头同比</th>':''}</tr></thead><tbody>${safeArray(rows).map(row=>`<tr><th>${escapeHTML(row.name)}</th><td>${value(row.orders)}</td><td>${targets?target(row.orders):old(row.orders)}</td><td>${targets?progress(row.orders):change(row.orders)}</td><td>${value(row.cash)}</td><td>${targets?target(row.cash):old(row.cash)}</td><td>${targets?progress(row.cash):change(row.cash)}</td>${heads?`<td>${value(row.heads)}</td><td>${change(row.heads)}</td>`:''}</tr>`).join("")}</tbody></table>`;
+    const shareCell = row => {
+      const share = row.passive_cash_share || {};
+      const note = `${share.note || "被动新生正向报入现金 ÷ 全渠道新生正向报入现金"}；分子 ${formatNumber(share.numerator)} 元；分母 ${formatNumber(share.denominator)} 元`;
+      return `<td title="${escapeHTML(note)}">${formatPercent(share.ratio)}</td>`;
+    };
+    const table = `<table class="data-table"><thead><tr><th>业务组</th><th>工单完成</th><th>${targets?"工单目标":"同期工单"}</th><th>${targets?"工单进度":"工单同比"}</th><th>现金完成（元）</th><th>${targets?"现金目标":"同期现金"}</th><th>${targets?"现金进度":"现金同比"}</th>${cashShare?'<th>被动现金占新生收入</th>':''}${heads?'<th>人头</th><th>人头同比</th>':''}</tr></thead><tbody>${safeArray(rows).map(row=>`<tr><th>${escapeHTML(row.name)}</th><td>${value(row.orders)}</td><td>${targets?target(row.orders):old(row.orders)}</td><td>${targets?progress(row.orders):change(row.orders)}</td><td>${value(row.cash)}</td><td>${targets?target(row.cash):old(row.cash)}</td><td>${targets?progress(row.cash):change(row.cash)}</td>${cashShare?shareCell(row):''}${heads?`<td>${value(row.heads)}</td><td>${change(row.heads)}</td>`:''}</tr>`).join("")}</tbody></table>`;
+    return table;
   }
 
   function renderRestored(team) {
@@ -425,7 +428,7 @@
     const metadata = state.data && state.data.metadata ? state.data.metadata : {};
     ui.activityScope.textContent = `工单自 ${formatDate(metadata.orders_coverage_start)}、现金自 ${formatDate(metadata.cash_coverage_start)}，累计至 ${formatDate(metadata.data_through)}；不随期间或管理单元变化。`;
     if (!visible.length) {
-      ui.activityBody.innerHTML = `<tr><td colspan="8" class="table-empty">${results.length ? "当前页没有活动。" : state.activityQuery ? "没有名称包含该子串的活动。" : "没有可展示的活动累计数据。"}</td></tr>`;
+      ui.activityBody.innerHTML = `<tr><td colspan="8" class="table-empty">${results.length ? "当前页没有活动。" : state.activityQuery ? "没有匹配的活动。" : "没有可展示的活动累计数据。"}</td></tr>`;
       return;
     }
     ui.activityBody.innerHTML = visible.map(({ activity, index }) => {
@@ -455,7 +458,7 @@
       ? `${periodLabel(period)} · ${unitLabel} · 数据截至 ${formatDate(metadata.data_through)}`
       : `数据截至 ${formatDate(metadata.data_through)}`;
     ui.scopeNote.textContent = period
-      ? `${formatDate(period.start_date)} 至 ${formatDate(period.through_date)} · ${period.status === "future" ? "尚未开始" : "期间数据"}`
+      ? `${formatDate(period.start_date)} 至 ${formatDate(period.through_date)}${period.status === "future" ? " · 尚未开始" : ""}`
       : "等待期间数据";
     renderLineCards(team, period);
     const personalPeriod = safeArray(state.data.periods).find(p => p.id === ui.personalMonth.value);
@@ -503,7 +506,7 @@
     ui.freshnessDate.textContent = `截至 ${through}`;
     ui.freshness.classList.remove("is-error");
     ui.loadMessage.classList.remove("is-visible", "is-error");
-    ui.footerRun.textContent = `数据截止 ${through} · 金额单位：元 · 工单完成不含删除、回收`;
+    ui.footerRun.textContent = `数据截止 ${through} · 金额单位：元`;
   }
 
   function setView(viewId, focusTab = false) {
@@ -532,7 +535,7 @@
     ui.periodSelect.disabled = known !== "overview";
     ui.unitSelect.disabled = known === "activities";
     if (known === "overview") renderOverview();
-    else ui.periodCaption.textContent = known === "capacity" ? `人员产能 · FY27累计 · 同期为上年同窗` : "市场活动 · 可用历史累计";
+    else ui.periodCaption.textContent = known === "capacity" ? `人员产能 · 2027财年累计 · 同期为上年同窗` : "市场活动 · 可用历史累计";
     for (const tab of ui.tabs) {
       const selected = tab.dataset.view === known;
       tab.setAttribute("aria-selected", selected ? "true" : "false");
@@ -591,7 +594,7 @@
     state.unitId = Object.prototype.hasOwnProperty.call(UNIT_LABELS, ui.unitSelect.value) ? ui.unitSelect.value : "total";
     renderOverview();
     renderCapacity();
-    if (state.activeView === "capacity") ui.periodCaption.textContent = `人员产能 · FY27累计 · 同期为上年同窗`;
+    if (state.activeView === "capacity") ui.periodCaption.textContent = `人员产能 · 2027财年累计 · 同期为上年同窗`;
   });
   ui.activitySearch.addEventListener("input", () => {
     state.activityQuery = ui.activitySearch.value;

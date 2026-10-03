@@ -31,6 +31,7 @@ ABROAD_ONLINE_TEAM = 'online_platform'
 ABROAD_METRICS_NOTE = '留学现金及人头数据尚未接入。'
 VIRTUAL_COMBINED_ORDERS_NOTE = '按团队贡献汇总；多人共同工单在团队合计中去重，目标沿用现有配置。'
 CASH_CAPACITY = 800000
+METRIC_UNITS = {'orders': '单', 'cash': '元', 'heads': '人'}
 CENT = Decimal('0.01')
 ONE = Decimal('1')
 
@@ -213,7 +214,7 @@ def _virtual_combined_orders_metric(base_metric, facts, roster_names, period):
     target = base_metric.get('target')
     progress = period.get('time_progress', 0)
     if period['status'] == 'future' or not period.get('through_date'):
-        return metric(None, None, target, progress, 'orders', status='future',
+        return metric(None, None, target, progress, '单', status='future',
                       note=VIRTUAL_COMBINED_ORDERS_NOTE)
     start, through = _date(period['start_date']), _date(period['through_date'])
     prior_start, prior_through = _shift_year(start), _shift_year(through)
@@ -228,11 +229,11 @@ def _virtual_combined_orders_metric(base_metric, facts, roster_names, period):
     )
     actual = _number(_decimal(base_metric.get('actual')) + _decimal(abroad_current))
     prior = _number(_decimal(base_metric.get('prior')) + _decimal(abroad_prior))
-    return metric(actual, prior, target, progress, 'orders',
+    return metric(actual, prior, target, progress, '单',
                   note=VIRTUAL_COMBINED_ORDERS_NOTE)
 
 
-def _valid_facts(facts, through):
+def _valid_facts(facts, through, *, include_non_completion=False):
     end = _date(through)
     cleaned = []
     for fact in facts:
@@ -241,7 +242,7 @@ def _valid_facts(facts, through):
             continue
         if fact.get('metric') not in ('orders', 'cash'):
             continue
-        if fact.get('metric') == 'orders' and (
+        if not include_non_completion and fact.get('metric') == 'orders' and (
                 fact.get('counts_toward_completion') is False
                 or _text(fact.get('order_status')) in ('删除', '回收')):
             continue
@@ -401,18 +402,18 @@ def _metric_for_period(facts, line, kind, predicate, period, target, *, note='')
     status = period['status']
     if line == 'abroad' and kind in ('cash', 'heads'):
         if status == 'future':
-            return metric(None, None, None, period.get('time_progress', 0), kind,
+            return metric(None, None, None, period.get('time_progress', 0), METRIC_UNITS[kind],
                           status='future', note=ABROAD_METRICS_NOTE)
-        return metric(None, None, None, period.get('time_progress', 0), kind,
+        return metric(None, None, None, period.get('time_progress', 0), METRIC_UNITS[kind],
                       status='not_connected', note=ABROAD_METRICS_NOTE)
     if line == 'abroad' and kind == 'orders' and note == 'not_configured':
         if status == 'future':
-            return metric(None, None, target, period.get('time_progress', 0), 'orders',
+            return metric(None, None, target, period.get('time_progress', 0), '单',
                           status='future', note='本部门暂不统计留学完成；贡献见人员产能。')
-        return metric(None, None, None, period.get('time_progress', 0), 'orders',
+        return metric(None, None, None, period.get('time_progress', 0), '单',
                       status='not_configured', note='本部门暂不统计留学完成；贡献见人员产能。')
     if status == 'future' or not period.get('through_date'):
-        return metric(None, None, target, period.get('time_progress', 0), kind,
+        return metric(None, None, target, period.get('time_progress', 0), METRIC_UNITS[kind],
                       status='future', note=note)
     start, through = _date(period['start_date']), _date(period['through_date'])
     actual = (_unique_heads(facts, line, start, through, predicate) if kind == 'heads'
@@ -420,7 +421,7 @@ def _metric_for_period(facts, line, kind, predicate, period, target, *, note='')
     prior_start, prior_through = _shift_year(start), _shift_year(through)
     prior = (_unique_heads(facts, line, prior_start, prior_through, predicate) if kind == 'heads'
              else _sum_fact_values(facts, line, kind, prior_start, prior_through, predicate))
-    return metric(actual, prior, target, period.get('time_progress', 0), kind, note=note)
+    return metric(actual, prior, target, period.get('time_progress', 0), METRIC_UNITS[kind], note=note)
 
 
 def _personal_qualification(person, fact, line):
@@ -560,9 +561,9 @@ def _people_for_period(facts, roster, period, through, mode='performance'):
             'abroad_actual': abroad_actual,
             'abroad_prior': abroad_prior,
             'abroad_completion': abroad_actual / abroad_target if abroad_actual is not None and abroad_target else None,
-            'cash_actual': _personal_metric(cash_actual, cash_prior, _personal_cash_target(person, period), cash_status, 'cash',
+            'cash_actual': _personal_metric(cash_actual, cash_prior, _personal_cash_target(person, period), cash_status, '元',
                                            ABROAD_METRICS_NOTE if cash_status == 'not_connected' else '', progress=progress),
-            'heads_actual': _personal_metric(heads_actual, heads_prior, None, heads_status, 'heads',
+            'heads_actual': _personal_metric(heads_actual, heads_prior, None, heads_status, '人',
                                             ABROAD_METRICS_NOTE if heads_status == 'not_connected' else ''),
         })
     return start.isoformat(), through_value, rows, progress
@@ -703,16 +704,19 @@ def aggregate(facts, people_config, abroad_people_config, training_targets,
     26th-to-25th performance window, with a parallel natural-calendar view.
     """
     through = _date(through)
-    facts = _valid_facts(facts, through)
+    team_facts = _valid_facts(facts, through, include_non_completion=True)
+    personal_facts = _valid_facts(facts, through)
     roster = _roster(people_config, abroad_people_config)
     configs = (training_targets, abroad_targets, online_abroad_targets)
     period_rows = []
     for source_period in online_periods(through):
         period = dict(source_period)
         team_rows = []
-        person_start, person_through, people_rows, person_progress = _people_for_period(facts, roster, period, through)
+        person_start, person_through, people_rows, person_progress = _people_for_period(
+            personal_facts, roster, period, through,
+        )
         calendar_start, calendar_through, calendar_people_rows, calendar_progress = _people_for_period(
-            facts, roster, period, through, mode='calendar',
+            personal_facts, roster, period, through, mode='calendar',
         )
         people_map = {person['name']: person for person in roster}
         for team_id, name in TEAM_DEFS:
@@ -724,9 +728,9 @@ def aggregate(facts, people_config, abroad_people_config, training_targets,
                     if line == 'abroad' and kind == 'orders' and team_id in ABROAD_NOT_CONFIGURED_TEAMS:
                         note = 'not_configured'
                     predicate = _team_fact_filter(team_id, line)
-                    target = _team_target(configs, period, team_id, line, kind, facts)
+                    target = _team_target(configs, period, team_id, line, kind, team_facts)
                     metrics[kind] = _metric_for_period(
-                        facts, line, kind, predicate, period, target, note=note,
+                        team_facts, line, kind, predicate, period, target, note=note,
                     )
                 lines[line] = metrics
             selected_people = [row for row in people_rows if team_id == 'total' or
@@ -740,11 +744,11 @@ def aggregate(facts, people_config, abroad_people_config, training_targets,
             combined_orders = None
             if team_id == 'virtual':
                 combined_orders = _virtual_combined_orders_metric(
-                    lines['training']['orders'], facts, _virtual_roster_names(roster), period,
+                    lines['training']['orders'], team_facts, _virtual_roster_names(roster), period,
                 )
             country_scope = _team_fact_filter(team_id, 'abroad')
             countries = [] if not period.get('through_date') else _countries(
-                [fact for fact in facts if country_scope(fact)],
+                [fact for fact in team_facts if country_scope(fact)],
                 _date(period['start_date']), _date(period['through_date']))
             team_row = {'id': team_id, 'name': name, 'lines': lines,
                         'people': selected_people,
@@ -762,7 +766,7 @@ def aggregate(facts, people_config, abroad_people_config, training_targets,
         if period['status'] == 'future' or not period.get('through_date'):
             country_rows = []
         else:
-            country_rows = _countries(facts, _date(period['start_date']), _date(period['through_date']))
+            country_rows = _countries(team_facts, _date(period['start_date']), _date(period['through_date']))
         # Person detail is a period-level table and appears once per period.
         period_rows.append({
             'id': period['id'], 'label': period['label'],
@@ -774,6 +778,6 @@ def aggregate(facts, people_config, abroad_people_config, training_targets,
         })
     return {
         'periods': period_rows,
-        'capacity': _capacity(facts, roster, through, (capacity_config or {}).get('annual_cash_by_person', CASH_CAPACITY)),
-        'activities': _activities(facts),
+        'capacity': _capacity(personal_facts, roster, through, (capacity_config or {}).get('annual_cash_by_person', CASH_CAPACITY)),
+        'activities': _activities(team_facts),
     }

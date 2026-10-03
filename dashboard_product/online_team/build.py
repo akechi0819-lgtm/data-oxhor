@@ -242,10 +242,10 @@ def select(records, start, end):
 
 
 def periods(through):
-    definitions = [('FY27', 'FY27 全年', 'year', date(2026, 6, 1), date(2027, 5, 31))]
+    definitions = [('FY27', '2027财年全年', 'year', date(2026, 6, 1), date(2027, 5, 31))]
     for i, (y, m) in enumerate([(2026, 6), (2026, 9), (2026, 12), (2027, 3)], 1):
         ey, em = (y + (m + 1) // 12, (m + 1) % 12 + 1)
-        definitions.append((f'Q{i}', f'Q{i}', 'quarter', date(y, m, 1), date(ey, em, calendar.monthrange(ey, em)[1])))
+        definitions.append((f'Q{i}', f'第{"一二三四"[i-1]}季度', 'quarter', date(y, m, 1), date(ey, em, calendar.monthrange(ey, em)[1])))
     for i in range(12):
         y, m = 2026 + (5 + i) // 12, (5 + i) % 12 + 1
         definitions.append((f'{y}-{m:02d}', f'{y}年{m}月', 'month', date(y, m, 1), date(y, m, calendar.monthrange(y, m)[1])))

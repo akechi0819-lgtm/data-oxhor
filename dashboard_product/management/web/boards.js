@@ -18,18 +18,18 @@
   }
   function metric(m,label,p) {
     const missing=m?.status==='not_connected'||m?.status==='not_configured';
-    return `<div class="metric-unit"><span class="metric-title">${label}</span><div class="metric-primary"><strong>${status(m)}</strong></div>${missing?'<span class="status-text">'+(label==='人头'||label==='现金'?'留学现金尚未接入':'暂不考核')+'</span>':`<div class="metric-compare"><span>同期 ${number(m?.prior)}</span>${yoy(m)}</div>${label==='人头'?'':`<div class="metric-target">目标 <strong>${target(m)}</strong></div>${progress(m,p)}`}`}</div>`;
+    return `<div class="metric-unit"><span class="metric-title">${label}</span><div class="metric-primary"><strong>${status(m)}</strong></div>${missing?'':`<div class="metric-compare"><span>同期 ${number(m?.prior)}</span>${yoy(m)}</div>${label==='人头'?'':`<div class="metric-target">目标 <strong>${target(m)}</strong></div>${progress(m,p)}`}`}</div>`;
   }
   function table(rows,p,targets=false) {
     return `<div class="table-frame"><table class="compact-yoy"><thead><tr><th>业务组</th><th>工单当期</th><th>同期</th><th>同比</th>${targets?'<th>工单目标</th><th>完成率</th>':''}<th>现金当期（元）</th><th>同期</th><th>同比</th>${targets?'<th>现金目标</th><th>完成率</th>':''}</tr></thead><tbody>${rows.map(r=>`<tr><th>${esc(r.name)}</th><td>${number(r.orders?.actual)}</td><td>${number(r.orders?.prior)}</td><td>${yoy(r.orders)}</td>${targets?`<td>${target(r.orders)}</td><td>${pct(r.orders?.completion)}</td>`:''}<td>${number(r.cash?.actual)}</td><td>${number(r.cash?.prior)}</td><td>${yoy(r.cash)}</td>${targets?`<td>${target(r.cash)}</td><td>${pct(r.cash?.completion)}</td>`:''}</tr>`).join('')}</tbody></table></div>`;
   }
   function renderOverview() {
     const p=period(), selected=teams(p);
-    $('board-caption').textContent=`${p.label} · 团队自然月 · 数据截至 ${state.base.metadata.data_through}`;
+    $('board-caption').textContent=`${p.label} · 数据截至 ${state.base.metadata.data_through}`;
     $('period-note').textContent=`${p.start_date} — ${p.through_date || p.end_date}  ·  时间进度 ${pct(p.time_progress)}`;
     if(board==='university') {
       const t=selected[0];
-      $('university-lines').innerHTML=['training','abroad'].map(line=>`<section class="line-ledger"><header class="line-ledger-head"><h2>${line==='training'?'大学语培':'线下留学'}</h2><small>${line==='training'?'工单 · 现金 · 人头':'按线下渠道汇总 · 不限在职人员'}</small></header><div class="metric-strip">${['orders','cash','heads'].map((key,i)=>metric(t.lines[line][key],['工单','现金','人头'][i],p)).join('')}</div></section>`).join('');
+      $('university-lines').innerHTML=['training','abroad'].map(line=>`<section class="line-ledger"><header class="line-ledger-head"><h2>${line==='training'?'大学语培':'线下留学'}</h2></header><div class="metric-strip">${['orders','cash','heads'].map((key,i)=>metric(t.lines[line][key],['工单','现金','人头'][i],p)).join('')}</div></section>`).join('');
       $('business-groups-body').innerHTML=(t.business_groups||[]).map(row=>`<tr><th>${esc(row.name)}</th>${['orders','cash','heads'].map((key,i)=>`<td class="group-metric">${metric(row[key],['工单','现金','人头'][i],p)}</td>`).join('')}</tr>`).join('');
       let detail=$('university-yoy');
       if(!detail){detail=document.createElement('div');detail.id='university-yoy';$('business-groups-body').closest('section').append(detail);}
@@ -37,7 +37,7 @@
     } else {
       const t=selected[0];
       if(!t){$('prep-teams').innerHTML='<p class="empty-state">请选择至少一个业务组</p>';return;}
-      $('prep-teams').innerHTML=`<section class="team-workspace"><header class="team-section-head"><h2>${esc(t.name)}</h2><p>所选业务组汇总</p></header><div class="table-frame"><table class="workbook-table"><thead><tr><th>范围</th><th>工单</th><th>现金（元）</th><th>人头</th></tr></thead><tbody><tr><th>${esc(t.name)}</th>${['orders','cash','heads'].map((key,i)=>`<td>${metric(t.lines.training[key],['工单','现金','人头'][i],p)}</td>`).join('')}</tr></tbody></table></div><div class="section-bar"><h3>业务组目标与完成进度</h3></div>${table(t.business_groups||[],p,true)}<div class="section-bar"><h3>业务组同期对比</h3></div>${table(t.yoy_groups||[],p)}</section>`;
+      $('prep-teams').innerHTML=`<section class="team-workspace"><header class="team-section-head"><h2>${esc(t.name)}</h2></header><div class="table-frame"><table class="workbook-table"><thead><tr><th>范围</th><th>工单</th><th>现金（元）</th><th>人头</th></tr></thead><tbody><tr><th>${esc(t.name)}</th>${['orders','cash','heads'].map((key,i)=>`<td>${metric(t.lines.training[key],['工单','现金','人头'][i],p)}</td>`).join('')}</tr></tbody></table></div><div class="section-bar"><h3>业务组目标与完成进度</h3></div>${table(t.business_groups||[],p,true)}<div class="section-bar"><h3>业务组同期对比</h3></div>${table(t.yoy_groups||[],p)}</section>`;
     }
   }
 
@@ -105,7 +105,7 @@
     $('period-select').value=state.period;$('person-period-select').value=state.person;
     $('period-select').disabled=false;$('person-period-select').disabled=false;$('person-month-mode').disabled=false;
     $('freshness-label').textContent='数据截止';$('freshness-date').textContent=data.metadata.data_through;
-    $('footer-source').textContent=`截至 ${data.metadata.data_through} · 工单完成不含删除、回收`;
+    $('footer-source').textContent=`截至 ${data.metadata.data_through}`;
     $('load-state').hidden=true;renderOverview();
-  }).catch(error=>{$('load-state').hidden=false;$('load-state').className='load-state is-visible is-error';$('load-state').textContent='数据加载失败，请重新生成看板。';console.error(error);});
+  }).catch(error=>{$('load-state').hidden=false;$('load-state').className='load-state is-visible is-error';$('load-state').textContent='数据加载失败，请刷新后重试。';console.error(error);});
 })();

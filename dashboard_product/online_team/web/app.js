@@ -63,7 +63,7 @@
 
   function numberText(value) {
     if (!isNumber(value)) return value === null || value === undefined ? "—" : escapeHTML(value);
-    return new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 20 }).format(value);
+    return new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 2 }).format(value);
   }
 
   function metricUnit(metric, fallback) {
@@ -126,12 +126,12 @@
 
   function statusMessage(status, periodStatus, metric) {
     if (periodStatus === "future" || (metric && metric.status === "future")) {
-      return "该期间尚未开始，实际值不显示为零。";
+      return "该期间尚未开始";
     }
-    if (status === "not_connected") return "待接入 · 当前没有可展示的实际值。";
-    if (metric && metric.actual === null) return "暂无实际值 · 空值不代表业务为零。";
-    if (!metric) return "该指标尚无可展示结果。";
-    return "该指标暂不可用。";
+    if (status === "not_connected") return "未接入";
+    if (metric && metric.actual === null) return "暂无实际值";
+    if (!metric) return "暂无数据";
+    return "暂不可用";
   }
 
   function statusClass(status, periodStatus) {
@@ -167,7 +167,6 @@
     const gap = isFuture ? null : metric && metric.gap;
     const timeGap = isFuture ? null : metric && metric.time_gap;
     const fallbackStatus = statusMessage(status, period.status, metric);
-    const note = cleanString(metric && metric.note);
     const yoyTone = isNumber(yoy) ? (yoy < 0 ? "negative" : yoy > 0 ? "positive" : "") : "";
     let mainMarkup;
 
@@ -196,7 +195,6 @@
     return `<div class="metric-block">
       <div class="metric-topline"><span class="metric-label">${escapeHTML(label)}</span><span class="metric-yoy ${yoyTone}">同比<strong>${escapeHTML(percentText(yoy))}</strong></span></div>
       ${mainMarkup}
-      ${note ? `<p class="metric-note">${escapeHTML(note)}</p>` : ""}
     </div>`;
   }
 
@@ -205,7 +203,7 @@
     const lineClass = LINE_CLASSES[lineId];
     return `<article class="line-card ${lineClass}">
       <div class="line-card-head">
-        <div><div class="line-title"><span class="line-symbol" aria-hidden="true"></span><h3>${escapeHTML(lineLabel)}</h3></div><p class="line-scope">${escapeHTML(cleanString(line.scope) || "按当前结果口径")}</p></div>
+        <div class="line-title"><span class="line-symbol" aria-hidden="true"></span><h3>${escapeHTML(lineLabel)}</h3></div>
         <div class="line-card-head-actions"><span class="line-badge">${lineId === "training" ? "语培业务线" : "留学业务线"}</span></div>
       </div>
       ${renderMetricBlock("工单资源", line.orders, period, "单")}
@@ -287,7 +285,7 @@
 
     if (period.status === "future") {
       ui.trendLegend.innerHTML = series.map((item) => `<span class="legend-item"><i class="legend-line" style="--legend-color:${item.color}" aria-hidden="true"></i>${escapeHTML(item.label)}</span>`).join("");
-      ui.dailyChart.innerHTML = `<div class="empty-chart">该期间尚未开始，暂无每日新增数据</div>`;
+      ui.dailyChart.innerHTML = `<div class="empty-chart">该期间尚未开始</div>`;
       return;
     }
 
@@ -412,7 +410,7 @@
   function renderChannels(period) {
     if (period.status === "future") {
       ui.channelCount.textContent = "尚未开始";
-      ui.channelBody.innerHTML = `<tr><td colspan="7" class="table-empty">该期间尚未开始，渠道数据不会显示为零。</td></tr>`;
+      ui.channelBody.innerHTML = `<tr><td colspan="7" class="table-empty">该期间尚未开始</td></tr>`;
       return;
     }
     const groups = channelGroups(period);
@@ -458,7 +456,7 @@
     const line = getLine(period, "training");
     const groups = safeArray(line && line.groups);
     if (period.status === "future") {
-      ui.groupBody.innerHTML = `<tr><td colspan="5" class="table-empty">该期间尚未开始，业务组数据不会显示为零。</td></tr>`;
+      ui.groupBody.innerHTML = `<tr><td colspan="5" class="table-empty">该期间尚未开始</td></tr>`;
       return;
     }
     if (!groups.length) {
@@ -510,7 +508,7 @@
     const line = getLine(period, "abroad");
     const dimensions = safeArray(line && line.dimensions);
     if (period.status === "future") {
-      ui.dimensionList.innerHTML = `<div class="dimension-empty">该期间尚未开始，条线与国家数据不会显示为零。</div>`;
+      ui.dimensionList.innerHTML = `<div class="dimension-empty">该期间尚未开始</div>`;
       return;
     }
     if (!dimensions.length) {

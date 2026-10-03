@@ -91,7 +91,7 @@ def _target(targets, period, selected, kind):
 
 def selection_views(periods, facts, people_config, training_targets):
     through=max(a._date(p['through_date']) for p in periods if p.get('through_date'))
-    valid=a._valid_facts(facts,through)
+    valid=a._valid_facts(facts,through,include_non_completion=True)
     membership=_group_members(people_config)
     result={}
     for mask in range(1,8):

@@ -50,7 +50,7 @@ def _period_progress(period):
 def _metric_with_status(actual, prior, target, period, unit, *, status=None, note=''):
     status = status or period.get('status', 'available')
     return _metric(
-        actual, prior, target, _period_progress(period), unit,
+        actual, prior, target, _period_progress(period), _aggregate.METRIC_UNITS[unit],
         status=status, note=note,
     )
 
@@ -376,7 +376,9 @@ def enrich_periods(periods, facts, training_targets, abroad_targets, online_targ
     """
     _add_period_windows(periods)
     through_dates = [period.get('through_date') for period in periods if period.get('through_date')]
-    valid_facts = (_aggregate._valid_facts(facts, max(_date(value) for value in through_dates))
+    valid_facts = (_aggregate._valid_facts(
+        facts, max(_date(value) for value in through_dates), include_non_completion=True,
+    )
                    if through_dates else [])
     # The first argument to these helpers has a fixed contract today. Keep the
     # loaded configurations in this signature so callers can enrich the full

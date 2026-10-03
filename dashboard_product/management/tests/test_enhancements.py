@@ -33,6 +33,60 @@ class EnhancementTests(unittest.TestCase):
         self.assertEqual(sum(r['cash']['actual'] for r in all_groups['channels']),300)
         self.assertEqual(sum(r['share'] for r in all_groups['channels']),1)
 
+    def test_deleted_and_recycled_orders_count_for_teams_but_not_people(self):
+        people={'teams':[{'team_id':'offline_market','groups':[
+            {'group_id':'youth','display_name':'青少组','members':[
+                {'display_name':'马澳','business_group':'留学预备','status':'active',
+                 'monthly_targets':{'2026-09':{'orders':100}}},
+            ]},
+            {'group_id':'middle_school','display_name':'初中组','members':[]},
+            {'group_id':'high_school','display_name':'高中组','members':[]},
+        ]}]}
+        targets={'business_groups':{'prep':{'display_name':'留学预备','months':{
+            '2026-09':{'offline_market':{'work_order_target':100,'passive_cash_target':1000}},
+        }}}}
+        facts=[
+            {'fact_id':'deleted','event_date':'2026-09-15','business_line':'training',
+             'business_group':'留学预备','comparison_group':'青少','team_id':'offline_market',
+             'work_order_id':'deleted','owners':['马澳'],'metric':'orders','value':1,
+             'order_status':'删除','counts_toward_completion':False,
+             'first_channel':'市场活动','second_channel':'线下校代',
+             'school_name':'学校A','grade_name':'初二'},
+            {'fact_id':'recycled','event_date':'2026-09-20','business_line':'training',
+             'business_group':'留学预备','comparison_group':'初中','team_id':'offline_market',
+             'work_order_id':'recycled','owners':['马澳'],'metric':'orders','value':1,
+             'order_status':'回收','first_channel':'市场活动','second_channel':'线下校代',
+             'school_name':'学校A','grade_name':'初二'},
+        ]
+        body=aggregate(facts,people,{'people':[]},targets,{}, {},date(2026,9,28))
+        enrich_periods(body['periods'],facts,targets,{}, {})
+        september=next(p for p in body['periods'] if p['id']=='2026-09')
+        prep=next(t for t in september['teams'] if t['id']=='prep')
+
+        self.assertEqual(prep['lines']['training']['orders']['actual'],2)
+        self.assertEqual(sum(r['orders']['actual'] for r in prep['channels']),2)
+        self.assertEqual(sum(r['orders']['actual'] for r in prep['yoy_groups']),2)
+        self.assertEqual(prep['schools_by_line']['training'][0]['orders']['actual'],2)
+        self.assertEqual(prep['grades_by_line']['training'][0]['orders']['actual'],2)
+        person=prep['people'][0]
+        calendar_person=prep['person_calendar']['people'][0]
+        self.assertEqual(person['training_actual'],0)
+        self.assertEqual(calendar_person['training_actual'],0)
+        self.assertEqual(body['capacity'][0]['orders'],0)
+        self.assertEqual({r['name']:r['orders'] for r in body['activities']}['未填写活动'],2)
+
+        views=selection_views(body['periods'],facts,people,targets)
+        selected=next(p for p in views['3'] if p['id']=='2026-09')['teams'][0]
+        self.assertEqual(selected['lines']['training']['orders']['actual'],2)
+        self.assertEqual(sum(r['orders']['actual'] for r in selected['channels']),2)
+        self.assertEqual(selected['people'][0]['training_actual'],0)
+        self.assertEqual(selected['person_calendar']['people'][0]['training_actual'],0)
+
+        enhance_capacity(body,facts,people,{'people':[]},date(2026,9,28),{'annual_cash_by_person':800000})
+        capacity=body['capacity'][0]
+        self.assertEqual(capacity['orders_metric']['actual'],0)
+        self.assertEqual(capacity['radar']['axes'][0]['value'],0)
+
     def test_selection_views_filter_calendar_people_and_keep_calendar_window(self):
         facts,people,targets,_=self.base()
         people['teams'][0]['groups'][1]['members'].append({

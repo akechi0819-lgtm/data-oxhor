@@ -204,7 +204,6 @@ h1 { margin-bottom: 7px; color: #163447; font-size: clamp(24px, 2.2vw, 31px); fo
 .line-title { display: flex; min-width: 0; align-items: flex-start; gap: 9px; }
 .line-symbol { width: 9px; height: 9px; flex: 0 0 auto; border: 2px solid var(--line-accent); border-radius: 50%; box-shadow: 0 0 0 3px var(--line-tint); }
 .line-title h3 { min-width: 0; margin: 0; overflow-wrap: anywhere; color: #294655; font-size: 15px; font-weight: 680; line-height: 1.3; }
-.line-scope { max-width: 100%; margin: 6px 0 0 18px; overflow-wrap: anywhere; color: #819098; font-size: 10px; line-height: 1.5; }
 .line-badge { flex: 0 0 auto; padding: 4px 8px; border-radius: 4px; color: var(--line-accent); background: var(--line-tint); font-size: 10px; font-weight: 650; }
 .line-card-head-actions { display: flex; flex: 0 0 auto; flex-direction: column; align-items: flex-end; gap: 6px; }
 .metric-block { padding: 14px 18px 15px 20px; }
@@ -230,7 +229,6 @@ h1 { margin-bottom: 7px; color: #163447; font-size: clamp(24px, 2.2vw, 31px); fo
 .metric-foot-item strong.positive { color: var(--good); }
 .metric-status { padding: 10px 12px; border-radius: 5px; color: #7e632b; background: #fbf6e9; font-size: 11px; }
 .metric-status.not-connected { color: #637780; background: #f1f5f5; }
-.metric-note { margin: 8px 0 0; color: #8b989c; font-size: 10px; }
 .line-grid.single-line { grid-template-columns: minmax(0, 1fr); }
 .empty-panel { grid-column: 1 / -1; padding: 26px; border: 1px dashed var(--line-strong); border-radius: 8px; color: var(--muted); text-align: center; background: rgba(255,255,255,.6); }
 
@@ -283,7 +281,6 @@ h1 { margin-bottom: 7px; color: #163447; font-size: clamp(24px, 2.2vw, 31px); fo
 .line-chip.abroad-text { color: var(--abroad); }
 .channel-name { color: #284654; font-weight: 640; }
 .channel-sub { display: block; margin-top: 2px; color: #909da1; font-size: 9px; }
-.table-footnote { margin: 8px 0 0; color: #94a0a4; font-size: 9px; }
 
 .breakdown-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; align-items: start; }
 .breakdown-grid.single-breakdown { grid-template-columns: minmax(0, 1fr); }
@@ -367,7 +364,6 @@ h1 { margin-bottom: 7px; color: #163447; font-size: clamp(24px, 2.2vw, 31px); fo
   .line-grid, .analysis-grid, .breakdown-grid { grid-template-columns: minmax(0, 1fr); gap: 10px; }
   .line-card-head { padding: 14px 13px 11px 16px; }
   .line-title h3 { font-size: 14px; }
-  .line-scope { margin-left: 17px; font-size: 9px; }
   .metric-block { padding: 12px 13px 13px 16px; }
   .metric-actual { font-size: 27px; }
   .metric-foot { gap: 5px; }

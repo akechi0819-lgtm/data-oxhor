@@ -125,6 +125,8 @@ def build(args):
     from dashboard_product.management.facts import normalize_facts
     from dashboard_product.management.aggregate import aggregate
     from dashboard_product.management.breakdowns import enrich_periods
+    from dashboard_product.management.cash_share import attach_passive_cash_share
+    from dashboard_product.management.market_totals import attach_market_orders
     from dashboard_product.management.enhancements import enhance_capacity, selection_views
     ws = Path(args.workspace).resolve()
     cfg = read(ws / 'Work/workspace.json')
@@ -163,6 +165,10 @@ def build(args):
         training_rows.extend(fetch(HERE / 'sql/training_details.sql',
                                   [start, end, attachment_start, study_advisers, prep_advisers], f'training_{i}'))
         order_rows.extend(fetch(HERE / 'sql/orders.sql', [start, end, attachment_start], f'orders_{i}'))
+    new_student_cash_rows = fetch(
+        HERE / 'sql/new_student_cash.sql',
+        ['2026-06-01', (through + timedelta(days=1)).isoformat()], 'new_student_cash',
+    )
     people_path = ROOT / 'workspace_modeling/operations/people.json'
     abroad_people_path = ROOT / 'dashboard_product/config/offline_market_people.json'
     training_target_path = ROOT / 'dashboard_product/config/project_targets.json'
@@ -188,16 +194,23 @@ def build(args):
     body = aggregate(facts, people, abroad_people, targets, read(abroad_target_path), read(online_target_path), through,
                      capacity_config=read(capacity_target_path))
     enrich_periods(body['periods'], facts, targets, read(abroad_target_path), read(online_target_path))
+    old_rows = fetch(HERE / 'sql/baseline_training.sql',
+                     ['2025-06-01', (through + timedelta(days=1)).isoformat()], 'baseline')
+    market_order_rows = fetch(HERE / 'sql/market_orders.sql',
+                              ['2025-06-01', (through + timedelta(days=1)).isoformat()], 'market_orders')
+    attach_market_orders(body['periods'], market_order_rows)
+    attach_passive_cash_share(body['periods'], new_student_cash_rows)
     enhance_capacity(body, facts, people, abroad_people, through, read(capacity_target_path))
     segments = selection_views(body['periods'], facts, people, targets)
     notes = [
+        '市场总盘工单按原被动有效工单范围统计，包含业务组暂无法拆分；业务线按已确认范围独立统计，不与总盘相加。',
         '团队按自然月，个人业绩按上月26日至本月25日；跨部门工单只计产能，不计个人考核完成。',
         '大学原本业务线工单目标不变，另一业务线目标为原月目标10%四舍五入；其他团队不强制下跨业务线目标。',
         '语培人头按被动新生正向报入现金的学员编号去重，不设1500元门槛；同一人员重复学员取最大分摊权重。',
         '留学现金及人头未接入；活动回收倍数仅以已接入的语培现金计算，不是利润率。',
         f"活动按当前Snapshot可用历史累计；工单起于{coverage['orders_start']}，现金起于{coverage['cash_start']}，均截至{through}，不保证覆盖活动完整生命周期。",
-        '已确认SSC渠道统一排除；小语种不因目标差额被排除。',
-        '删除、回收工单不计任何完成指标，但保留在本地推送明细；现金资格不因关联工单状态自动改变。',
+        'SSC排除仅用于留学专项及对应业务线拆解，不套用到原语培市场总盘；小语种保留。',
+        '删除、回收工单计入总盘和各团队核算，但不计个人业绩及个人产能；现金资格不因关联工单状态改变。',
         '留学人员名单仅用于个人展示；线下部门完成按原渠道范围，不因离职或未识别人员而减少。',
     ]
     public = {'schema_version': 'dashboard_rebuild.v1', 'metadata': {
@@ -206,8 +219,6 @@ def build(args):
         'capacity_start': '2026-06-01', 'orders_coverage_start': coverage['orders_start'],
         'cash_coverage_start': coverage['cash_start'],
         'created_at': datetime.now(timezone.utc).isoformat(), 'notes': notes}, **body}
-    old_rows = fetch(HERE / 'sql/baseline_training.sql',
-                     ['2025-06-01', (through + timedelta(days=1)).isoformat()], 'baseline')
     public['reconciliation'] = reconciliation(public, old_rows, people, targets, facts)
     confirmed_offline_ids = abroad_people.get('confirmed_offline_work_order_ids', [])
     public['reconciliation']['notes'].extend([
@@ -215,10 +226,14 @@ def build(args):
         f"工单{', '.join(map(str, confirmed_offline_ids))}已按用户确认从当前P1线上对照剔除，并在P2来源模式记线下；原始渠道和旧范围基线保留。" if confirmed_offline_ids else '',
         '个人认领继续使用明确主责规则；该个人名单不再作为部门总量门槛。',
     ])
-    p1_abroad, _, _ = study_facts(
+    _, p1_legacy_abroad, _ = study_facts(
         [r for r in order_rows if not r.get('source_team')], mapping, reference,
         exclude_current_work_order_ids=confirmed_offline_ids,
     )
+    p1_abroad = [row for row in p1_legacy_abroad
+                 if row['labeled_team'] == '留学'
+                 and str(row.get('second_channel', '')).strip().casefold() != 'ssc'
+                 and str(row['work_order_id']) not in set(map(str, confirmed_offline_ids))]
     for period in public['periods']:
         if not period.get('through_date'):
             continue
@@ -257,8 +272,8 @@ def build(args):
                 'baseline': official, 'current': actual, 'difference': None if actual is None else actual-official,
                 'status': 'not_comparable', 'scope_note': scope_note})
     validate_public_data(public)
-    sources = [Path(__file__), HERE / 'facts.py', HERE / 'aggregate.py', HERE / 'breakdowns.py', HERE / 'enhancements.py', HERE / 'notifications.py', HERE / 'online_view.py',
-               ROOT / 'dashboard_product/refresh.py', ROOT / 'workspace_modeling/operations/personnel.py', people_path, abroad_people_path,
+    sources = [Path(__file__), HERE / 'facts.py', HERE / 'aggregate.py', HERE / 'breakdowns.py', HERE / 'cash_share.py', HERE / 'market_totals.py', HERE / 'enhancements.py', HERE / 'notifications.py', HERE / 'online_view.py',
+               ROOT / 'dashboard_product/refresh.py', ROOT / 'dashboard_product/online_team/build.py', ROOT / 'workspace_modeling/operations/personnel.py', people_path, abroad_people_path,
                training_target_path, abroad_target_path, online_target_path, capacity_target_path, cash_override_path, MAPPING, reference_path,
                ws / 'Work/Bridge/reference.json',
                *sorted((HERE / 'web').glob('*')),
