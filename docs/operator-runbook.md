@@ -1,6 +1,6 @@
 # 本地运维手册
 
-> 2026-09-16 模块切换：人员进度与钉钉推送已迁至 `monitoring_product/`，看板不再承担发送。新入口要求 workspace、snapshot-id、run-id、as-of-date、data-through-date；正式发送另需显式 env-file。共享花名册在 `workspace_modeling/operations/people.json`。本地迁移完成不代表云端任务已切换；详见项目根目录 `monitoring_product/README.md`。
+> 2026-10-03：P3 已在 Grok 现有云电脑完成同批构建和只读投递/发布演练。9:45 管理 routine 已启用；10:24 钉钉 routine 保持暂停。P4 旧入口清理收尾中，P5 尚无页面激活成功回执，不把 staging 或 routine enabled 状态当成 live。
 
 ## 1. 版本和路径
 
@@ -24,7 +24,7 @@ python3 -m pip install "data-oxhor[full]"
 sh tools/install_runtime.sh full
 ```
 
-可选 profile 为 `core`（数据分析）、`test`（项目测试）和 `full`（全部项目 Python 运行时）。全量测试统一使用 `sh tools/run_tests.sh`。PPT Master 由宿主全局 Skill 管理，不在项目 `.venv`、extras 或预检脚本中安装。
+可选profile为 `core`（DuckDB数据运行时）、`test`（工作簿/图片/日期及项目测试）和 `full`（再增加BI浏览器和通知传输）。`full`不包含宿主PPT、文档转换、音视频或模型SDK。全量测试统一使用 `sh tools/run_tests.sh`，覆盖主测试、看板和监控；PPT Master由宿主全局Skill管理，不在项目extras或预检脚本中安装。已有 `.venv` 不因依赖声明精简被自动卸载，环境更新时按新profile重建即可。
 | Git | 本地 `main` 已包含 Bridge 对齐向导 S3.5；当前工作树状态以 `git status` 为准 |
 
 Harness 是全局工具，不安装到项目目录。`/Users/akechi/.dsh` 可能包含机器配置和凭据，不纳入项目版本控制。
@@ -77,9 +77,20 @@ PPT Master 现由宿主全局 Skill 管理。项目只保证交给它的当前 S
 
 ## 4.1 看板发布与钉钉
 
-看板日更在云电脑 `/home/box/oxhor/dashboard`，每天 10:00 Asia/Shanghai 跑 `dashboard_product/deploy/publish_static_dashboard.sh`。本机 Codex 定时已停。
+Grok 云电脑的 9:45 Asia/Shanghai routine 调用 `dashboard_product/deploy/run_management_daily.sh`。运行环境复用已有 warehouse Python、dashroot、whcustomer 和原 C 层 env-file；Nginx 配置路径已实读确认为 `/etc/nginx/sites-available/dashboard`：
 
-C 层环境变量只写在 `dashboard_product/.env.server`（mode 600），模板见 `dashboard_product/.env.server.example`：
+```bash
+PYTHON="/path/to/warehouse-venv/bin/python" \
+PROJECT_ROOT="/path/to/dashroot" \
+WORKSPACE="/path/to/whcustomer" \
+ENV_FILE="/path/to/existing-C-env-file" \
+REMOTE_NGINX_CONF=/etc/nginx/sites-available/dashboard \
+bash /path/to/dashroot/dashboard_product/deploy/run_management_daily.sh
+```
+
+该批次从显式当前 Snapshot 构建管理共同结果，并对同批消息执行 dry-run、写入当天 batch 指针、组包和 release 激活流程。正式页面仍须以激活回执和实际 URL 检查确认；目前 P5 未完成。不要因为 routine 已启用就报告页面已 live。
+
+C 层环境变量留在现有凭据文件，不进 Git、不贴聊天：
 
 | 变量 | 用途 |
 |---|---|
@@ -87,14 +98,22 @@ C 层环境变量只写在 `dashboard_product/.env.server`（mode 600），模�
 | `NOTIFY_PUBLIC_ORIGIN` | 钉钉图片/表格公网前缀 |
 | `DINGTALK_WEBHOOK_<CHANNEL>` / `DINGTALK_SECRET_<CHANNEL>` | 五通道：`ONLINE_PRIVATE`、`ONLINE_PLATFORM`、`OFFLINE_YOUTH`、`OFFLINE_HIGH_SCHOOL`、`OFFLINE_UNIVERSITY` |
 
-云电脑独立运行必须 CopyToBox 该文件，禁止进 Git、禁止贴聊天。缺 webhook 的通道会被跳过。钉钉发送：
+同批只读预览使用 routine 中的 `WORKSPACE`、`RUN_ID`、`AS_OF_DATE`：
 
 ```bash
-python3 -m monitoring_product.notify send --workspace <workspace> --snapshot-id <snapshot_id> --run-id <run_id> --as-of-date <YYYY-MM-DD> --data-through-date <YYYY-MM-DD> --dry-run
-python3 -m monitoring_product.notify send --workspace <workspace> --snapshot-id <snapshot_id> --run-id <run_id> --as-of-date <YYYY-MM-DD> --data-through-date <YYYY-MM-DD>
+BATCH_DIR="$WORKSPACE/Output/DashboardManagement/$RUN_ID"
+SHARED_RESULT="$BATCH_DIR/shared_result.json"
+python -m monitoring_product.shared_delivery \
+  --shared-result "$SHARED_RESULT" \
+  --output-dir "$BATCH_DIR/delivery_preview" \
+  --as-of-date "$AS_OF_DATE" \
+  --state-dir "$WORKSPACE/Work/DeliveryState" \
+  --dashboard-base-url http://dashboard.apinova.cn --dry-run
 ```
 
-冒烟：`python3 -m unittest discover -s dashboard_product/tests -v`；公网 `http://dashboard.apinova.cn/healthz` 匿名 200，未登录业务页 401。
+当天经授权的批次投递入口是 `monitoring_product/deploy/deliver_management_batch.sh`，它读取 `Work/ManagementDelivery/batch.json` 并显式使用同一 C 层 env-file。Grok 的 10:24 钉钉 routine 当前 paused，保持暂停；五个原群的七条消息由 `shared_delivery` 负责，旧独立通知查询链保持退役。
+
+P5 激活沿用现有域名、认证和匿名 `/healthz`；通知图片/附件仍从 `/var/www/dashboard/notify/` 服务。新静态页面激活后以真实 receipt 验证，不删除旧生产页作为本轮运维步骤。
 
 ## 5. 升级策略
 
@@ -109,6 +128,8 @@ DeepSeek Harness 处于 Developer Preview。升级前必须：
 
 ## 6. 常见问题
 
+BI滚动重建仅更新 `br_work_orders` 与 `br_cash`，其他来源槽位保留。重复Snapshot或当前对齐会话未完成会在下载前按现有sync检查拒绝；已有current却缺少manifest/landing/声明来源时明确失败，不把它当首次导入。成功JSON的 `orders/cash` 指向当前Input，`export_orders/export_cash` 指向原导出留存；不再返回成功后已经删除的暂存路径。一般失败会恢复两个输入槽位；如果当前发布状态无法读取或恢复失败，错误会给出本次 `input_backup/` 路径，保留该目录用于恢复，按实际current状态处理。除此之外不新建历史保留或备份服务。
+
 | 现象 | 检查 |
 |---|---|
 | `dsh` 找不到 | 使用绝对路径并检查 `/Users/akechi/.local/bin` 是否在 `PATH` |
@@ -119,7 +140,8 @@ DeepSeek Harness 处于 Developer Preview。升级前必须：
 | Snapshot 冲突 | 使用新的 `run_id` 和显式输出目录，不覆盖已发布 Snapshot |
 | 向导 `awaiting_confirmation` / 退出 2 | 宿主向客户展示问题，理解自由回答后把 option、原回答和确认人传给 `answer` |
 | 月度文件更新 | 先完成当前对齐会话；替换 `Input/Data/<source_id>` 当前文件并用新 `snapshot_id` 执行 `sync-data`，向导成功切换后自动删除旧 Snapshot |
-| 留学工单清洗参考 | `customers/bi_operations/Input/Reference/留学-FY26-资源表.xlsx` 由 `data_acquisition.jobs.work_order_cleaning` 在工单合并入仓前使用；当前只清洗 `咨询方式一级渠道` 根节点为网络资源/新媒体的线上工单，渠道合作/市场活动线下工单封存；渠道校正与国家/条线校正分别计算，欧亚总部在线直接归欧亚条线，语培工单原值不改 |
+| 留学工单清洗参考 | `customers/bi_operations/Input/Reference/留学-FY26-资源表.xlsx` 由现有 `data_acquisition.jobs.work_order_cleaning` 规则读取；当前调用方为线上/线下影子准备及 `online_team`、管理共同事实构建，`rebuild_bi_warehouse` 的主仓滚动合并不调用该清洗器。线上规则处理网络资源/新媒体；线下影子另做国家/条线补充。渠道与国家/条线校正分别计算，不把产品侧重洗当成原始输入或主Snapshot已被改写；语培原值不改 |
+| 留学官方记分卡 | `customers/bi_operations/Input/Reference/留学板块-官方记分卡.md` 是业务确认的线上/线下完成值与 FY27 目标，置信度高于数仓；分析时先读它。不 ingest 进 Snapshot，不写入 Bridge，不自动回写看板目标。清洗参考表 `留学-FY26-资源表.xlsx` 不能覆盖本记分卡 |
 | `ACTIVE_SESSION_EXISTS` | 先完成当前 Snapshot 的对齐会话，再执行月度刷新 |
 | `sync-data` 返回 cleanup warning | 新 Snapshot 已是当前状态；在确认不再占用旧 Run 后手工清理该目录 |
 | 客户工作区误入 Git | 使用默认忽略的 `customers/`，交付产品时可整体复制该客户工作区 |

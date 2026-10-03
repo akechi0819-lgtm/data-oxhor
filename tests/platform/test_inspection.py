@@ -168,7 +168,19 @@ class WorkbookInspectionTests(unittest.TestCase):
         project = tomllib.loads((Path(__file__).resolve().parents[2] / "pyproject.toml").read_text(encoding="utf-8"))["project"]
         self.assertEqual(project["requires-python"], ">=3.12")
         self.assertEqual(project["dependencies"], ["duckdb==1.5.5"])
-        self.assertEqual(project["optional-dependencies"]["test"], ["openpyxl==3.1.5"])
+        extras = project["optional-dependencies"]
+        self.assertEqual(
+            extras["test"],
+            ["openpyxl==3.1.5", "Pillow==12.3.0", "python-dateutil==2.9.0.post0"],
+        )
+        self.assertEqual(
+            extras["full"],
+            [
+                "openpyxl==3.1.5", "Pillow==12.3.0", "python-dateutil==2.9.0.post0",
+                "playwright==1.62.0", "pexpect==4.9.0", "certifi==2026.7.22",
+            ],
+        )
+        self.assertNotIn("ppt", extras)
 
 
 if __name__ == "__main__":

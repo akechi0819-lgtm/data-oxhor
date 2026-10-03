@@ -180,8 +180,9 @@ def _current_run_root(root: Path, paths: dict[str, Path], config: dict[str, Any]
     return run_root
 
 
-def sync_data(*, root: Path, snapshot_id: str) -> dict[str, Any]:
-    paths, config = load_workspace(root)
+def _validate_sync_preconditions(
+    *, root: Path, paths: dict[str, Path], config: dict[str, Any], snapshot_id: str,
+) -> Path | None:
     if not SNAPSHOT_PATTERN.fullmatch(snapshot_id):
         raise AlignmentError("SNAPSHOT_ID_INVALID", "snapshot_id is invalid")
     run_id = "run_" + snapshot_id.removeprefix("snapshot_")
@@ -195,7 +196,34 @@ def sync_data(*, root: Path, snapshot_id: str) -> dict[str, Any]:
             "ACTIVE_SESSION_EXISTS",
             f"complete the current Snapshot sessions before refreshing data: {', '.join(active_sessions)}",
         )
-    old_run_root = _current_run_root(root, paths, config)
+    return _current_run_root(root, paths, config)
+
+
+def validate_sync_preconditions(*, root: Path, snapshot_id: str) -> None:
+    """Check the same Snapshot/session/pointer constraints used by ``sync_data``."""
+    paths, config = load_workspace(root)
+    _validate_sync_preconditions(root=root, paths=paths, config=config, snapshot_id=snapshot_id)
+
+
+def current_snapshot_root(root: Path) -> Path | None:
+    """Return the configured current Snapshot directory after validating its pointer."""
+    paths, config = load_workspace(root)
+    snapshot_id = config.get("current_snapshot_id")
+    run_root = _current_run_root(root, paths, config)
+    if snapshot_id is None:
+        return None
+    if run_root is None:
+        raise AlignmentError("WORKSPACE_INVALID", "current warehouse pointer is missing")
+    return run_root / "data" / "snapshots" / str(snapshot_id)
+
+
+def sync_data(*, root: Path, snapshot_id: str) -> dict[str, Any]:
+    paths, config = load_workspace(root)
+    old_run_root = _validate_sync_preconditions(
+        root=root, paths=paths, config=config, snapshot_id=snapshot_id,
+    )
+    run_id = "run_" + snapshot_id.removeprefix("snapshot_")
+    new_run_root = paths["runs"] / run_id
     slots = _source_slots(paths["input_data"])
     manifest = {
         "sources": {

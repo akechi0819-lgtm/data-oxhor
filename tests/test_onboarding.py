@@ -29,10 +29,18 @@ class OnboardingTests(unittest.TestCase):
     def test_doctor_checks_runtime_and_pack(self) -> None:
         result = doctor(pack_path=self.pack)
         self.assertEqual("doctor_passed", result["status"])
+        self.assertEqual({"duckdb", "business_pack"}, {item["name"] for item in result["checks"]})
 
         full = doctor(profile="full", pack_path=self.pack)
-        self.assertEqual({"duckdb", "openpyxl", "Pillow", "business_pack"}, {item["name"] for item in full["checks"]})
+        self.assertEqual(
+            {"duckdb", "openpyxl", "Pillow", "python-dateutil", "Playwright", "pexpect", "certifi", "business_pack"},
+            {item["name"] for item in full["checks"]},
+        )
         self.assertTrue(all(item["status"] == "passed" for item in result["checks"]))
+        self.assertEqual(
+            "doctor_passed" if all(item["status"] == "passed" for item in full["checks"]) else "doctor_failed",
+            full["status"],
+        )
 
     def test_first_deployment_flow_and_handoff(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

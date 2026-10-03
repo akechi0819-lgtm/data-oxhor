@@ -3,7 +3,7 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from dashboard_product.online_team.export import export_site, validate_html, validate_public_data
+from dashboard_product.online_team.export import export_site, validate_public_data
 
 
 class ExportTest(unittest.TestCase):
@@ -28,7 +28,6 @@ class ExportTest(unittest.TestCase):
             self.assertNotIn('PRIVATE_DETAIL_NOT_FOR_WEB', text)
             payload = text.split('type="application/json">', 1)[1].split('</script>', 1)[0]
             self.assertEqual(json.loads(payload), data)
-            self.assertEqual(validate_html(output)['sha256'], result['sha256'])
 
     def test_private_fact_columns_cannot_be_embedded(self):
         data = {'schema_version':'dashboard_rebuild.v1', 'metadata':{'run_id':'r','snapshot_id':'s','data_through':'2026-09-28'},

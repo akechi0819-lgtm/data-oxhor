@@ -12,11 +12,18 @@ dependencies = [
 
 [project.optional-dependencies]
 core = []
-mcp = ["mcp==2.2.0"]
-test = ["openpyxl==3.1.5"]
+test = [
+  "openpyxl==3.1.5",
+  "Pillow==12.3.0",
+  "python-dateutil==2.9.0.post0",
+]
 full = [
   "openpyxl==3.1.5",
   "Pillow==12.3.0",
+  "python-dateutil==2.9.0.post0",
+  "playwright==1.62.0",
+  "pexpect==4.9.0",
+  "certifi==2026.7.22",
 ]
 
 [project.scripts]
@@ -25,14 +32,13 @@ business-pack = "interfaces.business_pack:main"
 company-bridge = "interfaces.company_bridge:main"
 workspace-modeling = "interfaces.workspace_modeling:main"
 casebook = "interfaces.casebook:main"
-project-intelligence = "project_intelligence.__main__:main"
-project-intelligence-mcp = "project_intelligence.mcp_server:main"
 
 [tool.setuptools.packages.find]
-include = ["workspace_modeling*", "data_platform*", "data_acquisition*", "dashboard_product*", "monitoring_product*", "interfaces*", "project_intelligence*"]
+include = ["workspace_modeling*", "data_platform*", "data_acquisition*", "dashboard_product*", "monitoring_product*", "interfaces*"]
 
 [tool.setuptools.package-data]
 "workspace_modeling.business_pack" = ["packs/**/*.json"]
 
+
 "workspace_modeling.operations" = ["people.json"]
-"monitoring_product" = ["sql/*.sql", "config/*.json", "deploy/*.sh"]
+"monitoring_product" = ["deploy/*.sh"]

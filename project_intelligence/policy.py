@@ -38,7 +38,7 @@ DOCUMENTS = (
     'workspace_modeling/operations/personnel.py',
     'dashboard_product/refresh.py', 'dashboard_product/dashboard_chrome.py',
     'dashboard_product/config/saved_queries.json',
-    'monitoring_product/notify.py', 'monitoring_product/digest.py',
+    'dashboard_product/management/build.py', 'monitoring_product/shared_delivery.py',
     'project_intelligence/policy.py', 'project_intelligence/service.py',
     'project_intelligence/__main__.py',
 )
@@ -52,8 +52,8 @@ MODULES = {
     'data_acquisition': 'BI 导出、窗口合并和来源接入',
     'data_platform': 'Snapshot、表结构、受控只读查询',
     'workspace_modeling': 'Pack、Bridge、对齐、Casebook、共享人员规则',
-    'dashboard_product': '固定查询、看板渲染与静态发布',
-    'monitoring_product': '人员进度、交付物与已授权通知',
+    'dashboard_product': '固定受控查询、共同计算、看板渲染与静态发布',
+    'monitoring_product': '同批结果预览、交付物与已授权投递',
     'market_workspace': '绑定运营工作区的市场工作面',
     'project_intelligence': '本地项目上下文只读服务',
 }
@@ -62,9 +62,9 @@ AGENTS = ('workspace_setup', 'ad_hoc_analysis', 'dashboard_publisher', 'daily_mo
 INTEGRATIONS = (
     ('bi', 'BI 浏览器导出 / Chrome CDP', 'data_acquisition/connectors/bi/bi_downloads.py', 'code_declared'),
     ('local_host', '本机 DeepSeek Harness', 'docs/architecture.md', 'document_declared'),
-    ('grok_cloud', 'Grok 云电脑、外部调度与分层回写', 'SYNC.md', 'historical_record'),
+    ('grok_cloud', 'Grok 云电脑、外部调度与分层回写', 'SYNC.md', 'document_declared'),
     ('static_server', 'SSH/SCP 发布到 Nginx 静态服务器', 'dashboard_product/DEPLOYMENT.md', 'document_declared'),
-    ('dingtalk', '钉钉人员进度通知', 'monitoring_product/notify.py', 'code_declared'),
+    ('dingtalk', '同批人员进度通知投递', 'monitoring_product/shared_delivery.py', 'code_declared'),
     ('github', '公开代码仓与私密中转仓', 'SYNC.md', 'document_declared'),
 )
 MAX_FILE_BYTES = 512_000

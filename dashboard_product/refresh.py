@@ -1,15 +1,7 @@
 #!/usr/bin/env python3
-import argparse,json,subprocess
-from pathlib import Path
-from data_platform.query.evidence import read_query_result
-from datetime import datetime,timezone
-from uuid import uuid4
-from workspace_modeling.operations.personnel import BUSINESS_GROUP_BY_ROSTER_GROUP, PEOPLE_CONFIG_PATH, date_to_perf_month, is_displayable_person, match_person_names
+"""Retained V14 projection and attribution helpers used by management builds."""
+from workspace_modeling.operations.personnel import BUSINESS_GROUP_BY_ROSTER_GROUP, date_to_perf_month, is_displayable_person, match_person_names
 from dashboard_product.fallback_mapping import infer_team, resolve_cash_channel
-ROOT=Path(__file__).parent
-DASHBOARD_QUERY_ID='dashboard_actuals'
-DASHBOARD_QUERY_VERSION='v14'
-DASHBOARD_SAVED_QUERY=f'{DASHBOARD_QUERY_ID}/{DASHBOARD_QUERY_VERSION}'
 DASHBOARD_QUERY_COLUMNS=(
     'event_date','team_id','business_group','first_channel','second_channel',
     'campaign_name','entry_person','school_name','grade_name','metric',
@@ -17,6 +9,8 @@ DASHBOARD_QUERY_COLUMNS=(
 )
 TEAMS=[('offline_market','线下市场'),('online_private','线上私域（虚拟人团队）'),('online_platform','线上平台')]
 MARKET_TOTAL_TEAMS=[('offline_market','线下市场'),('online_platform','线上市场'),('online_private','虚拟人')]
+# 个人月度实际按自然月的团队（20260929 v3：虚拟人团队 online_private 改为绩效月，只剩线上平台）。
+PERSON_NATURAL_MONTH_TEAMS=('online_platform',)
 UNASSIGNED_TEAM='暂时无法识别团队'
 MARKET_TOTAL_TEAM_IDS={team_id for team_id,_ in MARKET_TOTAL_TEAMS}
 MONTHS=[f'2026-{m:02d}' for m in range(6,13)]+[f'2027-{m:02d}' for m in range(1,6)]
@@ -45,49 +39,6 @@ def remap_tmk_school_agent_team(team, first_channel, campaign, entry_person, off
         return 'offline_market'
     return team
 
-def read(p): return json.loads(Path(p).read_text(encoding='utf-8'))
-
-def _artifact_receipt_path(artifact_path, query_result):
- receipt=query_result.get('receipt')
- if isinstance(receipt,dict): receipt=receipt.get('path')
- if not receipt: return None
- path=Path(receipt)
- if path.is_absolute(): return path
- root=Path(artifact_path).parent
- candidates=[root/path]
- if query_result.get('run_id'):
-  candidates.insert(0,root/query_result['run_id']/path)
- return next((candidate for candidate in candidates if candidate.is_file()),candidates[0])
-
-def validate_publish_artifact(artifact_path):
- artifact_path=Path(artifact_path)
- artifact=read(artifact_path)
- query_results=artifact.get('query_results') or []
- if len(query_results)!=2:
-  raise ValueError(f'publish requires two {DASHBOARD_SAVED_QUERY} results; got {len(query_results)}')
- for index,query_result in enumerate(query_results,1):
-  if query_result.get('status')!='passed':
-   raise ValueError(f'query result {index} is not passed')
-  columns=query_result.get('columns') or (query_result.get('result') or {}).get('columns')
-  if tuple(columns or ())!=DASHBOARD_QUERY_COLUMNS:
-   actual_columns=','.join(columns or ()) or '<missing>'
-   expected_columns=','.join(DASHBOARD_QUERY_COLUMNS)
-   raise ValueError(f'query result {index} is not {DASHBOARD_SAVED_QUERY}; expected columns {expected_columns}, got {actual_columns}')
-  receipt_path=_artifact_receipt_path(artifact_path,query_result)
-  if receipt_path is None or not receipt_path.is_file():
-   raise ValueError(f'query result {index} is missing its query receipt')
-  receipt=read(receipt_path)
-  saved=receipt.get('saved_query_ref') or {}
-  actual=f"{saved.get('query_id')}/{saved.get('version')}"
-  if actual!=DASHBOARD_SAVED_QUERY:
-   raise ValueError(f'query result {index} references {actual}; publish requires {DASHBOARD_SAVED_QUERY}')
- return {'status':'artifact_validated','artifact':str(artifact_path),'saved_query':DASHBOARD_SAVED_QUERY}
-
-def run(ws,rid,snap,out,a,b):
- c=read(ws/'Work/workspace.json'); z=subprocess.run(['python3','-m','interfaces.data_platform','run-saved-query','--warehouse',str(ws/c['current_warehouse_path']),'--snapshot-id',snap,'--run-id',rid,'--output-root',str(out),'--registry-root',str(ws/'Work/SavedQueries'),'--query-id',DASHBOARD_QUERY_ID,'--version',DASHBOARD_QUERY_VERSION,'--params-json',json.dumps([a,b]),'--max-rows','50000','--max-result-bytes','10000000'],cwd=ROOT.parent,capture_output=True,text=True); r=json.loads(z.stdout or '{}')
- if z.returncode != 0 or r.get('status')!='passed': raise ValueError(f"Query failed: {r.get('errors')} | stderr: {z.stderr}")
- r['result'] = read_query_result(r, output_root=out)
- return r
 def project(q,p,tg,people,capacity=None):
  from dashboard_product.capacity import add_contribution, annual_cash_capacity, credit_unique, empty_contributions, person_line, unique_total
  act={}; yoy_act={}; per={}; prior_act={}; yoy_prior={}; per_monthly={}; person_drill={}; heads_credits={}
@@ -148,7 +99,9 @@ def project(q,p,tg,people,capacity=None):
   for person_name in people_hit:
    if is_current:
     per[(team,person_name,metric)]=per.get((team,person_name,metric),0)+value
-    perf_month=str(dt)[:7] if team in ('online_private','online_platform') else date_to_perf_month(dt)
+    # 个人维度：线下与虚拟人团队（online_private，20260929 v3）按绩效月（上月26日至本月25日）；线上平台个人目标与实际按自然月（ab53258）。
+    # 团队/总体上方仍按自然月 month；查询上界已截到 data_through。
+    perf_month=str(dt)[:7] if team in PERSON_NATURAL_MONTH_TEAMS else date_to_perf_month(dt)
     if perf_month: per_monthly[(team,person_name,perf_month,metric)]=per_monthly.get((team,person_name,perf_month,metric),0)+value
     if perf_month:
      drill_key=(team,person_name,perf_month,metric,str(first_ch or '未归类'),str(second_ch or '未细分'))
@@ -247,54 +200,3 @@ def project(q,p,tg,people,capacity=None):
   business_group_groups.append({'display_name':group_name,'quarter_targets':quarter_targets,'monthly_targets':monthly_targets,'annual_targets':annual_targets,'monthly_actuals':monthly,'prior_monthly_actuals':prior_monthly,'cash_actual':sum(monthly['cash']),'orders_actual':sum(monthly['orders'])})
  teams.append({'team_id':'market_total','display_name':'市场总计','cash_target':sum((team['cash_target'] or 0) for team in teams) or None,'orders_target':sum((team['orders_target'] or 0) for team in teams) or None,'groups':total_groups,'business_group_groups':business_group_groups,'yoy_groups':total_yoy,'people':[]})
  return {'months':MONTHS,'prior_months':PRIOR_MONTHS,'teams':teams,'drilldowns':drill}
-def refresh(workspace,run_id,as_of_date=None):
- from datetime import date,timedelta
- ws=workspace.resolve(); c=read(ws/'Work/workspace.json'); snap=c['current_snapshot_id']; out=ws/'Output/Dashboard'/run_id; out.mkdir(parents=True,exist_ok=False)
-
- # Explicit as-of dates let local/production previews stop at the selected Snapshot day.
- today = date.today()
- fiscal_year_start = date(2026, 6, 1)
- prior_fiscal_year_start = date(2025, 6, 1)
- if as_of_date:
-  data_through = date.fromisoformat(as_of_date)
-  query_end = data_through + timedelta(days=1)
-  as_of = data_through
- else:
-  query_end = today
-  data_through = today - timedelta(days=1)
-  as_of = today
-
- # Data Platform uses half-open periods; explicit as_of_date is inclusive.
- current_start = fiscal_year_start.isoformat()
- current_end = query_end.isoformat()
-
- # 去年同期：使用相同的半开区间跨度。
- days_into_fy = (query_end - fiscal_year_start).days
- prior_end = prior_fiscal_year_start + timedelta(days=days_into_fy)
- prior_start = prior_fiscal_year_start.isoformat()
- prior_end_str = prior_end.isoformat()
-
- q=run(ws,run_id,snap,out,current_start,current_end)
- p=run(ws,run_id+'_prior',snap,out,prior_start,prior_end_str)
- d=project(q,p,read(ROOT/'config/project_targets.json'),read(PEOPLE_CONFIG_PATH),read(ROOT/'config/capacity_targets.json'))
- a={'schema_version':'dashboard_artifact.v1','artifact_id':'dashboard_'+uuid4().hex[:12],'run_id':run_id,'snapshot_id':snap,'as_of_date':as_of.isoformat(),'data_through_date':data_through.isoformat(),'created_at':datetime.now(timezone.utc).isoformat(),'query_results':[q,p],'errors':[],'dashboard':d}
- path=out/'artifact.json'; path.write_text(json.dumps(a,ensure_ascii=False,indent=2),encoding='utf-8')
- return {'status':'artifact_created','artifact':str(path)}
-def render(artifact, output=None):
- import sys; sys.path.insert(0,str(ROOT.parent))
- from dashboard_product.render_template import render_html
- a=read(artifact); artifact=Path(artifact)
- out=Path(output) if output is not None else artifact.with_name('full.html')
- out.write_text(render_html(a),encoding='utf-8'); return {'status':'rendered','output':str(out)}
-def main():
- p=argparse.ArgumentParser(); s=p.add_subparsers(dest='c',required=True)
- r=s.add_parser('refresh'); r.add_argument('--workspace',type=Path,required=True); r.add_argument('--run-id',required=True); r.add_argument('--as-of-date')
- render_parser=s.add_parser('render'); render_parser.add_argument('--artifact',type=Path,required=True)
- validate_parser=s.add_parser('validate-publish-artifact'); validate_parser.add_argument('--artifact',type=Path,required=True)
- render_parser.add_argument('--output',type=Path)
- x=p.parse_args()
- if x.c=='refresh': z=refresh(x.workspace,x.run_id,as_of_date=x.as_of_date)
- elif x.c=='validate-publish-artifact': z=validate_publish_artifact(x.artifact)
- else: z=render(x.artifact, output=x.output)
- print(json.dumps(z,ensure_ascii=False)); return 0
-if __name__=='__main__': raise SystemExit(main())

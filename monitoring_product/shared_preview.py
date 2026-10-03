@@ -18,9 +18,7 @@ from pathlib import Path
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
-from PIL import Image, ImageDraw
-
-from monitoring_product.notify_render import _font
+from PIL import Image, ImageDraw, ImageFont
 
 
 WIDTH = 1200
@@ -56,6 +54,42 @@ DASHBOARD_PAGES = {
     'high': 'prep_high.html',
     'virtual': 'index.html?unit=virtual',
 }
+
+DASHBOARD_FONTS = (
+    '/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc',
+    '/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc',
+    '/System/Library/Fonts/Hiragino Sans GB.ttc',
+    '/System/Library/Fonts/STHeiti Medium.ttc',
+    '/System/Library/Fonts/STHeiti Light.ttc',
+)
+
+
+def _font(size: int, bold: bool = False):
+    """Load a CJK-capable font for local previews."""
+    preferred = []
+    if bold:
+        preferred.extend([
+            '/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc',
+            '/System/Library/Fonts/STHeiti Medium.ttc',
+            '/System/Library/Fonts/Hiragino Sans GB.ttc',
+        ])
+    preferred.extend(DASHBOARD_FONTS)
+    seen = set()
+    for path in preferred:
+        if path in seen or not Path(path).exists():
+            continue
+        seen.add(path)
+        for index in (0, 2, 1, 3, 4):
+            try:
+                return ImageFont.truetype(path, size, index=index)
+            except OSError:
+                continue
+            except Exception:
+                continue
+    raise FileNotFoundError(
+        'No CJK font found for shared preview. Install fonts-noto-cjk '
+        'or configure monitoring_product.shared_preview.DASHBOARD_FONTS'
+    )
 
 
 def _escape(value) -> str:

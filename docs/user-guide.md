@@ -108,11 +108,11 @@ Agent 会先保存为待确认案例。你检查后再说“确认保存这个�
 
 ## 看板发布
 
-固定看板不走自由分析。刷新、渲染和发布使用看板发布 Agent：一次读取当前 Snapshot，生成全量 `artifact.json`，再渲染并上传统一的 `full.html` 主页面。线上影子看板另有特供入口。钉钉人员进度是另一次发送，默认先 dry-run。
+固定看板不走自由分析。Grok 的09:45看板 Routine 从当前 Snapshot 构建同批管理结果，再更新四个静态页面；日推模块消费同一批结果。新版已于2026-10-03正式上线。10:24钉钉日推 Routine 仍暂停；预览和正式投递入口见[看板部署说明](../dashboard_product/DEPLOYMENT.md)及[日常监控说明](../monitoring_product/README.md)。
 
 ```text
 刷新本月看板并发布主页面。
-先预览钉钉人员进度，不要群发。
+预览当前管理批次的钉钉进度。
 ```
 
 密钥和 webhook 不在对话里填写。公开入口是 `http://dashboard.apinova.cn`，业务页需要账号。详细步骤见 [`dashboard_product/DEPLOYMENT.md`](../dashboard_product/DEPLOYMENT.md)。

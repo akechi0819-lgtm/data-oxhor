@@ -6,7 +6,7 @@
 
 ## 安装与启动
 
-使用项目现有 Python 3.12 环境。MCP SDK 固定为官方 `mcp==2.2.0`，可选 extra 名为 `mcp`。当前本机已安装并通过 `pip check`。
+使用项目现有 Python 3.12 环境，单独安装MCP SDK `mcp==2.2.0`；该版本在2026-09-17本机验收时已通过依赖检查。当前 `pyproject.toml` 不提供 `mcp` extra，以下为源码启动方式。
 
 ```bash
 cd '/Users/akechi/Desktop/manager -CowH'
@@ -15,7 +15,7 @@ cd '/Users/akechi/Desktop/manager -CowH'
   --root '/Users/akechi/Desktop/manager -CowH'
 ```
 
-安装整个项目时使用 `python -m pip install '.[mcp]'`，将生成 `project-intelligence-mcp` 入口；使用该入口时设置 `PYTHONDONTWRITEBYTECODE=1`。源码运行优先使用上面的 `python -B -m`，不要求重新安装项目。
+使用上面的 `python -B -m` 从源码checkout启动，不要求重新安装整个项目。当前安装包没有包含 `project_intelligence` 或生成 `project-intelligence-mcp` console入口，不能把项目wheel安装成功当作该服务可用；部署时须保留完整源码及显式cwd/root。
 
 这是长驻 stdio 子进程：正常启动后等待客户端输入 JSON-RPC，不打印横幅或就绪文本。由 MCP 客户端启动和管理；stdin EOF 或 Ctrl-C 停止。工作目录须能导入本项目；root 必须由本机操作者显式指定，不可由模型工具参数或客户端 roots 改写。
 

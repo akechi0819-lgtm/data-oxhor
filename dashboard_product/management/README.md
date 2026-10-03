@@ -1,6 +1,6 @@
-# P2 管理融合看板（隔离施工）
+# 管理融合看板（Grok 已上线）
 
-这是独立的本地预览模块，尚未接入正式发布或钉钉。沿用静态HTML，不新增数据库、BI服务或网页后端。正式线上融合页仍由 `online_team` 负责。
+管理融合看板与7条共同结果推送的本地 a224be6 产物已验收；不重做业务或版式验收。P3已在 Grok 现有云电脑完成真实 management.build 与只读投递/发布演练：61个文件 SHA 一致，`run_grok_p3_20261002` 构建成功，7条消息及18个公开文件检查通过。通用 `publication`、`monitoring_product.shared_delivery` 和 `monitoring_product.delivery_transport` 保留。P4旧源码与生产入口已清理，P5正式页面已于2026-10-03激活；Grok 09:45看板Routine已启用，10:24日推仍暂停。Pawsy 全量迁移和上传前置已取消。管理批次的线上页从本批共同结果投影。旧生产独立页面已退出，新线上页消费同批共同结果。迁移状态见 [开发记录](../../DEVELOPMENT.md)。
 
 ## 构建
 
@@ -8,7 +8,7 @@
 .venv/bin/python -m dashboard_product.management.build \
   --workspace customers/bi_operations \
   --snapshot-id <workspace.json中当前明确Snapshot> \
-  --run-id run_p2_<唯一批次> \
+  --run-id run_management_<唯一批次> \
   --as-of-date <上海日期>
 ```
 
@@ -16,7 +16,8 @@
 
 - `site/`：仅展示用数据与静态网页，可单独提供本地HTTP服务。
 - `index.html`、`university.html`、`prep_high.html`、`online.html`：自包含静态页，沿用统一导航。
-- `shared_result.json`：同批汇总与查询身份，供下一阶段推送消费。
+- `shared_result.json`：同批汇总、查询身份及引用哈希，供共同结果预览、发布组包和发送适配消费。
+- `notifications.json` / `online_shared_result.json`：本批推送与线上页投影，仅本地保存；不公开整份JSON。
 - `details.json`：逐笔事实与贡献人，只留本地，不通过site目录提供。
 - `reconciliation.json` / `.md`：同Snapshot现有V14复算对账与差异。
 - `_query/`：Data Platform受控只读查询回执。
@@ -32,7 +33,11 @@
 - 线上留学目标及SSC排除：`dashboard_product/online_team/config/study_abroad_targets.json`及已确认渠道规则。
 - 空团队顾问业务线映射：`dashboard_product/online_team/config/confirmed_team_mapping.json`。
 
+旧通知SQL随退役删除后，原花名册重复维护已消除。2026-10-03两条活跃SQL的历史顾问映射也收口到已有 `online_team/config/confirmed_team_mapping.json`，并已同批同步Grok：构建读取一次配置绑定“留学/留学预备”数组，SQL不抄名单，非空团队和未知顾问规则不变。该确认映射与当前员工花名册用途不同，继续独立维护。后续更新 `build.py`与两条SQL仍须保持同一参数合同。
+
 原始输入只读；人员和明确归属配置仅按用户确认维护。当前人员名单用于个人展示，不限制历史部门完成。
+
+官方记分卡位于客户 `Input/Reference/`：Markdown供业务阅读，JSON供构建读取历史对照。业务更新时同时维护这两份表示；它们不替代产品目标配置。年度/月度目标仍由上列已有配置维护，更新相应目标时沿用已确认的业务口径，不自动把官方历史完成写进当前Snapshot实际或目标。两者范围不同的比较由现有对账说明解释，不新增同步或一致性检查服务。
 
 ## 口径
 
@@ -50,7 +55,7 @@
 .venv/bin/python -m unittest discover -s dashboard_product/management/tests -v
 ```
 
-运行完成后还需真实构建、同窗对账以及桌面/窄屏交互检查。P2验收不等于P3推送已接入或公网已替换。
+修改计算或呈现后按受影响范围验证；部署只核对实际运行、产物与发布。既有本地业务/版式已验收，不重复安排同一验收；发送适配实现不等于生产任务已切换或公网已替换。
 
 
 ## 独立页面与原功能恢复
@@ -62,7 +67,7 @@
 
 ## 已确认的新版交互（2026-09-30）
 
-- 统一六项导航：市场总览、线上平台、留学预备＋高中、大学、人员产能、市场活动。线上页由已验收 `online_team` 模块在同一Snapshot下独立构建并嵌入导航，不借整合改口径。
+- 统一六项导航：市场总览、线上平台、留学预备＋高中、大学、人员产能、市场活动。管理批次线上页由 `online_view.py` 从同一批共同事实投影，不再调用独立线上build重新查询；`online_team` 中被管理构建使用的共享构建/导出函数和模板继续保留。
 - 渠道、学校按语培/留学平铺两表；工单和现金均保留当期/同期/同比及占比。可切换“渠道×业务组”“学校×年级”直接看明细，不逐行折叠。
 - 学校默认按工单降序显示前30所，支持现金排序和其余学校展开；排名仅改变展示，不改变指标分母。
 - 留学预备＋高中三选项多选预计算7种组合。同窗指标、去重人头和占比从所选事实重新汇总；单选青少或初中不拆原留学预备整体目标。人员按所属组筛选，个人绩效核算范围不变。
@@ -81,7 +86,9 @@
 
 线下留学部门完成按原渠道范围，撤销八人名单部门门槛：三类被动线下渠道、新东方学校推荐的已确认市场推荐子集、明确线下工单名单。当前人员、离职人员或未识别人员均不影响符合渠道范围的部门完成。固定历史推荐信号与当前人员花名册分离。个人归属及产能仍保留人员识别；语培范围不变。`baseline_offline_channels.sql`为独立对数基线，旧八人部门基线已移除。
 
-## P3 共同结果与人员流水
+## 共同结果与人员流水（本地 a224be6 验收产物）
+
+以下为2026-10-01本地验收时的数据合同记录；当时P3生产接入尚未完成，后续P3/P4/P5已于2026-10-03完成，当前运行状态见[开发记录](../../DEVELOPMENT.md)和[部署说明](../DEPLOYMENT.md)。
 
 `notifications.json` 是本批次生成的私有7条推送结果，`shared_result.json.notifications_ref`记录其路径与哈希。日期、目标、实际、落后和日均指标在共同层计算；渲染只读取结果。大学两条消息的channel_id均为offline_university。线上布局由同批`online_shared_result.json`投影，不再调用独立线上build重新查询。
 

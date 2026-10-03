@@ -14,12 +14,28 @@
 | 数据平台 | `data_platform/` | 已落地 | landing、不可变 Snapshot、schema、quality、受控只读 SQL |
 | 工作区建模 | `workspace_modeling/` | 已落地 | Pack、Bridge、对齐向导、首次部署、Casebook、内测反馈 |
 | 自由分析交付 | 宿主 Agent + `workspace_modeling.delivery` | 已落地 | 分析编排与文件生成由宿主完成，确定性组包由 `workspace_modeling.delivery` 完成；PPT 调用宿主全局 `ppt-master` |
-| 固定看板 | `dashboard_product/` | 已落地/持续增强 | V12 主页面静态发布、basic auth；人员监控已拆出 |
+| 固定看板 | `dashboard_product/` | 已落地/持续增强 | `management.build` 生成的四页已在Grok上线；09:45看板日更启用，监控消费同批结果 |
 | 日常监控 | `monitoring_product/` | 已落地 | 人员进度、落后判断、明细证据与钉钉日报；定时由宿主触发 |
 
 ## 当前主线
 
-2026-10-01 本轮封存：本地看板、统一计算和7条简洁推送预览已核验。用户决定跳过Bot实际发送/Grok接入，后续另做dot迁移。独立源码62项测试及run_p3_sealed_20261001真实重建通过，与已核验事实/各期/通知一致；旧发送草稿移出正式源码。Grok输入草稿已清空，未发核查指令，未上传、发布或更改云端任务。详见[交接清单](./docs/dashboard-dot-handoff-20261001.md)及施工计划第25节。
+2026-10-03维护源码同步已完成：用户授权保持双端代码一致后，Grok按固定v2包同步52份源文件/92个目标，并补齐既有只读上下文模块4份源码。主控独立校验96个目标和14个重点运行源码SHA-256，全部匹配本机；云端定向合成测试58+38+21+20共137项通过，doctor full与pip check通过。初版清单不一致时未安装，已作废；8份预期旧版文档/测试差异已正常同步，没有云端手改业务算法。源码和说明均以本机为准，原软链、Python3.13/DuckDB1.5.5保留；没有本任务触发的BI下载、客户数仓更新、指针/例行调整、页面发布或钉钉发送。数据由用户按需手动更新，不列为本轮待办。完整回执见 `.local/sync/inbox/grok-source-align-20261003/` 与施工计划第34节。
+
+2026-10-03同步前源码比对记录：当时用户要求与Grok Bot核对代码且不更新数仓。14份现场源文件3份相同、11份不同，4份原文附件验证通过；当时BI维护、安装和名单参数化未同步。BI两个merge函数除缺失历史旧fallback外结构一致，清洗及窗口口径一致。该只读记录在 `.local/audits/grok-code-compare-20261003/REPORT.md`，之后的实际同步已由上方完成记录覆盖。
+
+2026-10-03正式上线：Grok P3/P4/P5已完成，34旧运行路径删除，4页/18资源激活并经本机独立认证HTTP及服务器哈希验证。原09:45看板Routine已恢复，数仓09:30不动，日推10:24保持假期暂停，未群发。初始发布run_grok_release_20261003使用snapshot_bi_operations_20261002，数据截至2026-10-01；正常日更等待当天仓就绪。完整回执以[施工计划第32节](./docs/dashboard-static-rebuild-plan.md)为准，下文未完成/锁屏描述属于施工过程。
+
+2026-10-03上线后复查：旧通知SQL删除后，原花名册重复维护已消除；两条活跃SQL中另存的59名历史顾问映射也已在本机收口为读取现有 `confirmed_team_mapping.json`，不改标签或当前花名册。清理未使用的通知配置、旧资源打包声明和无调用函数，修正上下文服务及过期操作说明；256项测试全部通过。用户授权核销取消的Pawsy包/staging，释放约1.77 GiB，保留清单回执与原件。此次源码增量尚未同步Grok；此前BI修复在看板包中明确暂缓，尚无单独部署回执；本机Snapshot仍为9月29日，Grok上线批次为10月2日，数据尚未回流。详见[施工计划第33节](./docs/dashboard-static-rebuild-plan.md)。
+
+2026-10-03实际施工状态：Grok P3已完成61文件安装与当前Snapshot真实构建，7条预览及18文件组包通过；两条原Routine已切到同批daily/deliver，保留09:45启用和10:24暂停，数仓09:30不动。P4本地旧入口已清理，112项定向及项目测试入口253项通过；云端清理小包已备好，P5正式激活尚未执行。Mac锁屏使桌面对接中断，需手动解锁后续传最后小包及发布命令。当前网页仍旧版，未发钉钉。当前施工证据见[施工计划第31节](./docs/dashboard-static-rebuild-plan.md)。
+
+2026-10-02运行方案更新：用户实测Pawsy自动抓包浏览器无法取得下载结果，当前不能替代Grok Bot，继续现有Grok云电脑。撤回Pawsy完整迁移和全量上传安排；前次目的地审批不再是当前待办，已打包未上传的固定批次仅留历史。P3改为Grok接入已验收共同结果及通用发布/投递适配，随后P4旧入口清理、P5上线；不重开业务/版式验收。本次仅改计划，未恢复任务、发送或发布。当前决定见[施工计划第30节](./docs/dashboard-static-rebuild-plan.md)与[同步边界](./SYNC.md)；下文Pawsy迁移记录仅为过程追溯。
+
+2026-10-02瘦身施工：主控与GPT-6 Astra（中等思考强度）复核后，用户授权按[最小改造计划](./docs/cleanup-refactor-plan-20261002.md)施工。BI更新修复与安装依赖精简已实现：历史缺失不再静默截断、两个BI槽位局部恢复、回执返回可用路径；移除PPT及无消费者依赖、修失效安装调用，恢复实际测试覆盖。独立干净环境339项通过、9项可选MCP跳过，full安装/doctor/依赖检查/CLI通过，Astra终审通过。旧链消费者已核对，用户已确认Pawsy的BI下载交接未通，继续Grok；新版在Grok端尚无正式接入成功回执，P4旧入口和重复名单尚未删除。不增加回执层、审批或保护平台，也不改变原P3→P4→P5顺序。
+
+2026-10-02 Pawsy迁移过程记录（已被第30节继续Grok决定覆盖）：当时用户确认dot为Pawsy，要求完整牛马项目迁入其自带云电脑、替代Grok Bot，本机关机后仍可运行。本机开发与云端调整通过Git合并，工作区和登录态分层。目标环境核查、同批发布组包、共同结果发送适配及共用运输已实现；此前279文件A准备包的85项测试是当时验收记录。最新决定已取消probe和手工附件前置，并准备当前源码及完整业务归档；本地全量传输回执状态为 `prepared_verified_not_uploaded`。具体私有中转目的地的外传审批仍未完成，云端Git/业务登录与生产接管也未完成，P4/P5尚未执行。当时范围记录于施工计划第29节；该Pawsy安排现已取消，当前以第30节和[同步边界](./SYNC.md)为准，第25–29节仅保留过程记录。
+
+2026-10-01 用户已确认本地看板、共同计算和推送产物验收合格，源码封存a224be6。后续顺序调整为P3 dot迁移 → P4旧看板与旧入口移除 → P5正式上线，不再安排重复本地验收。Grok接入取消，外部迁移/移除/上线尚未执行；仅保留实际运行与发布成功检查。详见[施工计划](./docs/dashboard-static-rebuild-plan.md)第26节和[dot交接](./docs/dashboard-dot-handoff-20261001.md)。
 
 2026-09-29 用户另行立项静态看板隔离重构，计划见 [看板静态重构计划](./docs/dashboard-static-rebuild-plan.md)：保留 HTML/CSS/JS 静态托管并复用现有 SQL；新版看板与推送消费同一批结构化计算结果，推送不再独立取数或重复业务计算。P0/P1 已在 `market_workspace/Programs/dashboard_rebuild/` 完成本地线上融合样板，产出共同结果与逐笔数据；292 个保护文件未变，12 项合成测试、17 期间/42 个独立对照值及浏览器检查通过，随后用户已验收P0/P1并授权线上特供替换：正式模块迁至 `dashboard_product/online_team/`，自包含HTML沿用原地址，接入原看板日更脚本，代码提交 `9d6f520`；2026-09-30 Grok安装及17项测试、当前数据对账通过。服务器SSH连接数限制阻断即时发布，公网仍为旧页，待既有日更完成发布；实际日更为Asia/Shanghai每天10:06。P2其他管理视图、P3钉钉接入尚未展开；本次不改数仓、主/线下计算或钉钉任务。验收和上线说明见计划链接。这是独立新需求，不恢复历史已取消的架构施工。
 
@@ -46,14 +62,30 @@ python3 -m interfaces.data_platform --help
 python3 -m interfaces.business_pack validate
 python3 -m interfaces.company_bridge validate --help
 python3 -m interfaces.casebook --help
-python3 -m dashboard_product.refresh --help
-python3 -m monitoring_product.notify --help
+python3 -m dashboard_product.management.build --help
+python3 -m dashboard_product.management.publication --help
+python3 -m monitoring_product.shared_delivery --help
 python3 -m unittest discover -s dashboard_product/tests -v
 sh tools/run_tests.sh -v
 git diff --check
 ```
 
 ## 决策记录
+
+### 2026-10-02：按联合瘦身计划实施最小修复
+
+- BI前置校验与sync复用同一实现；历史来源按当前manifest精确选择，删除路径推测和缺失文件静默fallback。Input只替换两个BI来源，导入/ingest失败恢复；发布已成功时不倒退输入，状态未知或恢复失败保留本次局部备份并报告路径。
+- full依赖由21项收敛为6项，test包含工作簿/图片/日期库；删除PPT profile和失效S4预检，不恢复项目侧宿主依赖。doctor检查实际运行库，不增加doctor test接口。当前 `.venv`未拆除。
+- 恢复主/看板/监控测试入口；将依赖私有registry的单测改为源码SQL类型回归。干净test与full安装验证通过，终版142+123+83项，339通过/9可选MCP跳过；BI/Bridge定向29项通过，Astra聚焦终审通过。
+- 第3项只完成消费者核对和记分卡用途说明。最新Pawsy聊天未提供生产接管成功回执，旧链和对应名单保留到既有P3/P4；不先翻修待拆代码、不新建调度或治理。施工记录见上述计划及 `.local/audits/cleanup-20261002/`。
+
+### 2026-10-02：项目瘦身与活跃说明核查
+
+- 用户授权检查临时/BI中间产物、模块越界和过期口径，并清理已被最终版替代的看板试制结果。
+- 清理11个管理与8个线上试制批次的展示、打包及重复计算副本，保留各批查询证据、构建身份和对账/验收记录；完整保留 `run_p3_sealed_20261001`、`run_p3_audited_20261001`、当前Snapshot、原始输入、正式成果、投递状态和待完成迁移包。试制批次留下 `CLEANED.md`；详细清单及哈希位于 `.local/audits/cleanup-20261002/`。
+- 本次释放约2.14 GiB，目录占用从约8.1 GiB降到5.9 GiB。BI临时下载目录不存在；原始导出留存 `_bi_export_keep` 和历史Snapshot不能仅凭目录名删除。
+- 活跃架构/接入说明同步V14；旧看板运行合同与两份旧线下启动交接移入历史区，删除指向已拆除 `analysis_product` 的孤立PPT提示词；管理说明区分本地验收、已实现适配和待生产切换。
+- 模块总体分工保留。BI输入替换的失败恢复、历史landing定位、人员名单重复和跨产品私有依赖列为后续最小修复项；本轮不改变业务SQL、目标、归属或生产任务，不重写Git历史。
 
 ### 2026-09-18：物理目录收口与 Grok 工作面隔离
 

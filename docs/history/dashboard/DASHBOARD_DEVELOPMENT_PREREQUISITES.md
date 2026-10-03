@@ -1,5 +1,7 @@
 # 看板运行合同
 
+> **历史材料（2026-10-02 归档）**：本文中的旧 Snapshot、排期和影子入口仅代表当时状态，不作为当前操作指引。现行看板说明见 [模块 README](../../../dashboard_product/README.md) 与 [部署说明](../../../dashboard_product/DEPLOYMENT.md)；管理共同结果见 [management README](../../../dashboard_product/management/README.md)。
+
 更新时间：2026-09-09
 
 本文档记录当前可运行边界，不再列未实施的架构计划。

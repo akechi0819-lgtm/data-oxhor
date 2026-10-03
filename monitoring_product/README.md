@@ -1,70 +1,24 @@
 # 日常监控
 
-当前封存版本使用共同结果和只读预览；Bot发送/云端接线已按用户要求跳过，后续另做dot迁移。见[封存交接](../docs/dashboard-dot-handoff-20261001.md)。下文旧发送链路仅说明原模块，不表示新版本已启用发送。
+本地 a224be6 管理产物、共同结果和只读预览已验收；不重做业务或版式验收。P3已在 Grok 现有云电脑完成真实 management.build 与只读投递/发布演练：61个文件 SHA 一致，`run_grok_p3_20261002` 构建成功，7条消息及18个公开文件检查通过。通用 `monitoring_product.shared_delivery`、`monitoring_product.delivery_transport` 与管理发布 `publication` 保留。P4旧源码与生产入口已清理，P5正式页面已于2026-10-03激活；Pawsy 全量迁移和上传前置已取消。Grok运行状态按已切换的新版Routine继续，真实网页已激活，机器与独立HTTP回执见施工计划第32节。封存交接见[历史记录](../docs/dashboard-dot-handoff-20261001.md)。
 
-2026-09-16 云端迁移已验收，角色、排期和回执见 [云端部署验收](../docs/monitoring-cloud-deployment.md)。下文部署步骤中的待切换说明是迁移过程记录，实际状态以验收记录为准。
-
-首个场景为人员绩效进度监控。模块从当前 Snapshot 受控取数，生成工单/现金/人头进度、落后名单、PNG、Excel 和钉钉正文。无须先刷新看板。
-
-## 运行合同
+`monitoring_product.shared_delivery` 是直接消费已验收共同结果的通用投递适配，不独立取数。P3已在 Grok 现有云电脑完成只读演练，两个实际Routine已切到新版daily/deliver入口且无重复任务。只读命令留作复核：
 
 ```bash
-python3 -m monitoring_product.notify send \
-  --workspace customers/bi_operations \
-  --snapshot-id <workspace.json中的current_snapshot_id> \
-  --run-id <本次唯一运行编号> \
-  --as-of-date <计算时间进度的日期> \
-  --data-through-date <已核验的数据截止日期> \
-  --team offline_market --dry-run
+python3 -m monitoring_product.shared_delivery \
+  --shared-result <本批次>/shared_result.json \
+  --output-dir <本批次>/delivery_preview \
+  --as-of-date <notifications.metadata.as_of_date> \
+  --state-dir <客户工作区>/Work/DeliveryState \
+  --dashboard-base-url http://dashboard.apinova.cn --dry-run
 ```
 
-日期格式为 YYYY-MM-DD，数据截止日期由操作者按已完成的数据同步核验后明确传入，不从文件名或修改时间推测。线下通道按绩效月查询上月 26 日至本月 25 日；线上私域和线上平台按自然月查询当月 1 日至月末。`--team` 可重复；省略则选择五通道。`offline_market` 展开为线下青少、高中、大学；其余为 `online_private`、`online_platform`。
+适配器的正式调用需显式加入 `--env-file <C层凭据文件>`，要求当天新Snapshot、昨日数据截止及完整五通道配置。持久 `state-dir` 跨批次复用，按日期/通道/消息去重；已成功不再发送，请求结果未知则阻断该条重发并报告，其他可安全继续的消息分别留回执。同群双消息使用独立图片/附件路径。dry-run不读取凭据、不建投递状态、不上传、不发送，允许封存历史数据演练；历史预览成功不表示正式新鲜度检查通过。P3实际只读投递和发布组包演练已通过；P5页面激活已完成。
 
-正式发送去掉 `--dry-run`，增加 `--env-file <C层凭据文件>`。现有凭据可保持原位置并显式传入，模块不自动寻找或复制密钥。缺 webhook 的通道标为 skipped，整体 partial、非零退出。
+## Grok例行接入
 
-默认产物为 `<workspace>/Output/Monitoring/<run_id>/`：各通道 `people.html`、`people.png`、`details.xlsx`、`message.md`，以及本地 `evidence.json` 和 `_query/` 受控查询凭据。结果包含运行编号、Snapshot 和日期；上传只选择 PNG/XLSX，证据 JSON 不进公网。
+生产调用 `deploy/deliver_management_batch.sh`，工作目录设为现有dashboard源码目录，显式传入 `PROJECT_ROOT`、`WORKSPACE`、warehouse虚拟环境 `PYTHON` 和原 `ENV_FILE`。入口读取 `Work/ManagementDelivery/batch.json` 指定的run、Snapshot、日期及结果路径，核对同批身份后投递，不通过目录时间选结果，不重新查仓。
 
-每次使用唯一 run_id。Snapshot 必须与工作区 current 指针一致，数仓路径必须在该工作区内；Data Platform 再验证仓库身份和只读 SQL。全部选中通道完成取数和计算后才渲染、上传、发送。查询失败、结果丢失或计算异常整批阻断，CLI 输出 failed 并非零退出，预览同样阻断。成功查得零行属于有效结果。
+当前原例行每天10:24（Asia/Shanghai），已切换到该入口，**仍保持假期暂停**，本轮没有发送或补发。7条消息使用原5通道，大学和线上各有同群双消息，虚拟人工单按已确认混合贡献；团队自然月、个人固定绩效月等口径由management共同计算，网页选择不改变播报窗口。
 
-## 业务口径归属
-
-- `sql/notify_work_orders.sql`、`notify_cash.sql`、`notify_work_orders_by_ids.sql`：原通知查询原样迁入，保留 TMK 校代资源归属、现金团队兜底与跨月工单回查。
-- `digest.py`：人员归属、工单落后判断、现金和人头计算。原有业务公式保持；通道合计从同一明细按行汇总，不重复累计多人共同归属。
-- `workspace_modeling/operations/personnel.py`：看板和监控共用的绩效月、人员匹配规则。
-- `workspace_modeling/operations/people.json`：现有 BI 运营花名册和人员目标，保持单一来源。`vacant`、`departed`、`transferred` 不进入当前通道花名册；SQL 中的线下人员名单仍需随可展示花名册一起更新。该配置不是跨公司的通用行业 Pack。
-- `notify_render.py`：图片、表格和正文；`notify.py`：受控查询、统一最终结果和发送编排。
-
-## 部署与切换
-
-1. A 层同时同步 `monitoring_product/`、`workspace_modeling/operations/`、修改后的 `dashboard_product/refresh.py` 和 `pyproject.toml`。删除旧通知 Python、通知 SQL、两个通知部署脚本及旧花名册路径；不删除运行证据或客户数据。
-2. 云端宿主的通知任务改用上面的新命令和显式工作区/日期/Snapshot。先 dry-run 核对，再按原发送授权上线。看板日更命令不变，必须同步共享业务目录。
-3. C 层密钥位置不变，任务通过 `--env-file` 引用；本次代码迁移不等于已部署云端或改好外部定时任务。
-4. `deploy/publish_notify_assets.sh` 通过显式 ENV_FILE 发布 PNG/XLSX。沿用现有 `/notify/<token>/<channel>/` 静态地址；Nginx 属于共用托管设施，配置仍在 `dashboard_product/deploy/nginx-dashboard-http.conf`。必要时运行本模块 `deploy/install_notify_nginx.sh`，同样显式传 ENV_FILE。
-
-旧 `dashboard_product.notify` 命令及 `--artifact` 输入已移除，不提供兼容转发。定时由外部宿主负责；尚未建设变化检测、去重冷却或自动重试。
-
-## 验证
-
-```bash
-python3 -m unittest discover -s monitoring_product/tests -v
-python3 -m unittest discover -s dashboard_product/tests -v
-python3 -m monitoring_product.notify send --help
-```
-
-## 新版共同结果预览（P3，本地验收阶段）
-
-新版预览从管理共同结果读取，不查询数仓、不上传、不发送；原生产入口和外部调度尚未切换。
-
-```bash
-python3 -m dashboard_product.management.build \
-  --workspace customers/bi_operations --snapshot-id <显式当前Snapshot> \
-  --run-id <本次运行编号> --as-of-date <运行日期>
-python3 -m monitoring_product.shared_preview \
-  --shared-result <本次输出目录>/shared_result.json \
-  --output-dir <本次输出目录>/notify_preview \
-  --dashboard-base-url <已确认的看板地址或本地预览地址>
-```
-
-入口校验notifications_ref哈希与Snapshot、run_id、截止日身份；7条消息中大学语培/留学共享原offline_university通道、分两条。人员图文只播报个人进度和落后提醒，附件只有个人进度和相关工单/现金流水；线上平台无个人指标，使用简短团队进度、二级渠道平台列表及同范围流水；平台同名跨一级合并，不展示一级渠道。其他渠道等管理分析只通过看板链接查看。
-
-删除/回收工单不计完成但在相关流水中保留；现金不因关联工单状态自动扣除。所有实际、目标、窗口、人头、落后和日均指标由management/notifications.py及共同聚合层确定，渲染只排版。历史数据只生成明确标注的本地预览；上线发送仍须保留新鲜度门禁，先核验实际调度避免旧入口重复发送。
+旧 `notify`、`digest`、独立通知SQL和旧线上双消息入口已退役；历史部署回执见[历史部署记录](../docs/monitoring-cloud-deployment.md)，不得用于恢复旧命令。

@@ -42,6 +42,14 @@ def write_site_json(path, data):
     path.write_text(json.dumps(data, ensure_ascii=False, separators=(',', ':'), allow_nan=False), encoding='utf-8')
 
 
+def _confirmed_adviser_lists(mapping_config):
+    mappings = mapping_config['mappings']
+    return (
+        [row['source_adviser'] for row in mappings if row['labeled_team'] == '留学'],
+        [row['source_adviser'] for row in mappings if row['labeled_team'] == '留学预备'],
+    )
+
+
 def export_department(out, public, page, team_ids):
     """Package each independently composed board with only its management units."""
     package = out / 'packages' / page
@@ -130,6 +138,8 @@ def build(args):
     if guide['next_step'] != 'analyze':
         raise ValueError('workspace is not ready for controlled analysis')
     receipts = []
+    confirmed_mapping = read(MAPPING)
+    study_advisers, prep_advisers = _confirmed_adviser_lists(confirmed_mapping)
     def fetch(path, params, suffix):
         records, receipt = query(path, params, suffix, args.run_id, args.snapshot_id,
                                  ws / cfg['current_warehouse_path'], out, out / '_query')
@@ -150,7 +160,8 @@ def build(args):
     attachment_start = min(through.replace(day=1), personal_start).isoformat()
     training_rows, order_rows = [], []
     for i, (start, end) in enumerate(yearly_windows(coverage_start, through + timedelta(days=1))):
-        training_rows.extend(fetch(HERE / 'sql/training_details.sql', [start, end, attachment_start], f'training_{i}'))
+        training_rows.extend(fetch(HERE / 'sql/training_details.sql',
+                                  [start, end, attachment_start, study_advisers, prep_advisers], f'training_{i}'))
         order_rows.extend(fetch(HERE / 'sql/orders.sql', [start, end, attachment_start], f'orders_{i}'))
     people_path = ROOT / 'workspace_modeling/operations/people.json'
     abroad_people_path = ROOT / 'dashboard_product/config/offline_market_people.json'
@@ -160,7 +171,7 @@ def build(args):
     capacity_target_path = ROOT / 'dashboard_product/config/capacity_targets.json'
     reference_path = ws / 'Input/Reference/留学-FY26-资源表.xlsx'
     people, abroad_people = read(people_path), read(abroad_people_path)
-    mapping = {r['source_adviser']: r['labeled_team'] for r in read(MAPPING)['mappings']}
+    mapping = {r['source_adviser']: r['labeled_team'] for r in confirmed_mapping['mappings']}
     reference = load_work_order_reference(reference_path)
     cash_override_path = ROOT / 'dashboard_product/config/confirmed_cash_team_overrides.json'
     facts, diagnostics = normalize_facts(training_rows, order_rows, people, abroad_people, mapping, reference,
@@ -218,7 +229,9 @@ def build(args):
             'baseline': before, 'current': after, 'difference': None if after is None else after-before,
             'status': 'matched' if before == after else 'difference'})
     old_offline = fetch(HERE / 'sql/baseline_offline_channels.sql',
-                        ['2025-06-01', (through + timedelta(days=1)).isoformat(), ','.join(map(str, confirmed_offline_ids))], 'baseline_offline_channels')
+                        ['2025-06-01', (through + timedelta(days=1)).isoformat(),
+                         ','.join(map(str, confirmed_offline_ids)), study_advisers, prep_advisers],
+                        'baseline_offline_channels')
     for period in public['periods']:
         if period['status'] == 'future':
             continue

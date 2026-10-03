@@ -1,4 +1,4 @@
-"""Real subprocess MCP tests; the optional mcp extra is required to run them."""
+"""Real subprocess MCP tests; install the independent MCP SDK to run them."""
 from __future__ import annotations
 
 import asyncio
@@ -54,7 +54,7 @@ def fingerprints(root):
             for p in root.rglob('*') if p.is_file()}
 
 
-@unittest.skipUnless(HAS_MCP, 'Install the optional mcp extra for MCP protocol tests')
+@unittest.skipUnless(HAS_MCP, 'Install mcp==2.2.0 for MCP protocol tests')
 class MCPClientTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory(prefix='pi mcp ')
@@ -164,7 +164,7 @@ class MCPClientTests(unittest.IsolatedAsyncioTestCase):
             self.assertFalse((await client.call_tool('get_integration_map')).is_error)
 
 
-@unittest.skipUnless(HAS_MCP, 'Install the optional mcp extra for MCP protocol tests')
+@unittest.skipUnless(HAS_MCP, 'Install mcp==2.2.0 for MCP protocol tests')
 class MCPWireTests(unittest.TestCase):
     def test_stdout_protocol_only_malformed_params_and_clean_eof(self):
         with tempfile.TemporaryDirectory(prefix='pi wire ') as tmp:

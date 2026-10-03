@@ -69,19 +69,20 @@
 
 运行以显式 `run_id` 区分，查询和恢复以显式 `snapshot_id` 定位仓库。源 SHA-256 用于 inspect/ingest 的源绑定以及 Snapshot/Artifact manifest。每个受控查询结果同时记录由 `ingest.sheets` 反查的 `referenced_relations` 与 `referenced_source_ids`；这只服务于冻结分析的来源校验，不扩张为统一血缘平台。SQL 是直接查询输入或保存查询内容。Education Pack 1.0.0 与 Company Bridge 按企业工作区独立版本化；Data Platform 不伪造 Pack/Bridge 选择。
 
-公共证据演进只统一查询回执、文件身份与业务交付清单的公共字段和引用，不统一产品业务内容，也不建设 Artifact Registry。Data Platform 生产物理执行证据，业务层绑定工作区与 Pack/Bridge，Casebook 复制最小引用闭包并验证；Pack.metrics 保持指标定义权威，不新建第二套指标库。字段责任、路径和分轮状态见 [公共证据合同](./evidence-contract.md)。第 2 轮已实现自由分析链路：查询始终落盘回执，交付组包与 Casebook 可独立验证；看板、监控和市场入口已同步查询读取，看板保持静态图表定位，监控保持现有产物结构；原定最终产物统一改造已取消。后续只针对现有能力无法解决的实际问题调整，不为格式一致而扩建。
+公共证据演进只统一查询回执、文件身份与业务交付清单的公共字段和引用，不统一产品业务内容，也不建设 Artifact Registry。Data Platform 生产物理执行证据，业务层绑定工作区与 Pack/Bridge，Casebook 复制最小引用闭包并验证；Pack.metrics 保持指标定义权威，不新建第二套指标库。字段责任、路径和分轮状态见 [公共证据合同](./evidence-contract.md)。第 2 轮已实现自由分析链路：查询始终落盘回执，交付组包与 Casebook 可独立验证；自由分析和市场入口通过 Data Platform 受控查询读取。管理看板另由 `management.build` 查询、计算并生成同批结果，`shared_delivery` 只消费结果处理消息；看板继续输出静态页面，监控不再独立取数。后续只针对现有能力无法解决的实际问题调整，不为格式一致而扩建。
 
-固定看板发布走另一条只读链路，不经过分析交付：
+固定看板和推送共用一条管理批次链路，不经过自由分析交付：
 
 ```text
-当前 Snapshot
-  → dashboard_actuals/v12（Data Platform run-saved-query）
-  → artifact.json（全量，不进公网；目标区三组，同比区青少/初中/高中/大学；查询 12 列含 student_id）
-  → full.html 主页面
-  → 服务器只托管静态文件
+当前 Snapshot → dashboard_product.management.build → 同批 shared_result.json
+  ├→ management.publication → 18个公开静态资源 → release staging → Nginx current symlink
+  ├→ shared_preview → 本地通知预览
+  └→ shared_delivery → dry-run 或授权批次投递
 ```
 
-钉钉 webhook 和发布 SSH 密码属于 C 层，不进入公开仓库或 MCP。
+`shared_result.json` 只在本地工作区流转，包含私有通知、核对数据和受控查询回执的同批引用，不发布到 Web 根。钉钉 webhook 和发布 SSH 密码属于 C 层，不进入公开仓库或 MCP。Nginx 页面根为 `/var/www/dashboard/current`；匿名通知资产仍从原 `/var/www/dashboard/notify/` 路径提供。
+
+P3/P4/P5已在Grok云电脑完成；09:45管理Routine已启用，10:24钉钉Routine仍暂停。P5页面于2026-10-03激活并取得独立HTTP/文件哈希回执，完成细节见[施工计划第32节](./dashboard-static-rebuild-plan.md)。`dashboard_product.refresh.py` 只保留被管理构建导入的内部 source helper，不是 CLI 入口。
 
 ## 4. 确定性边界
 
@@ -113,7 +114,7 @@ Data Platform v2 将每个 Sheet 按实际表头名原样落入 landing，并在
 
 首次部署先由宿主 Skill 询问业务端口（例如高中、初中、市场、运营、教学），再通过 workspace-modeling CLI 初始化工作区、导入来源并发布 Snapshot。工作区配置中的 `business_port` 是用户选择的业务范围；`company_id` 只作为由工作区路径生成的内部隔离身份，不要求用户提供公司名称。Snapshot 发布后，Skill 自动调用 `handoff` 进入 Bridge 对齐；候选生成和关键口径确认仍由宿主原生 Agent 与用户完成。
 
-向导工作区是可整体复制的客户产品目录：`Input` 保存当前数据与参考资料，`Work` 保存 Pack、当前指针、当前不可变 Snapshot 和对齐会话文件，`Output` 保存正式 Bridge。源文件承担历史归档，工作区不保存 Snapshot 历史；刷新先成功发布并切换新 Snapshot，再清理旧 Run，失败或存在未完成会话时不动当前 Snapshot。仅保存已用 Snapshot ID，防止同名指向不同输入。路径相对工作区，不要求目录位于源码外；源码 checkout 仅通过 `.gitignore` 排除 `customers/`。宿主原生模型负责提出候选和理解客户回答，核心只校验候选、保存决定并确定性 build/validate，不依赖 Harness SDK 或 Codex SDK。旧 Bridge 只在 `company_id` 与 Pack 身份都相同时提供企业口径摘要，旧字段定位不会复用到新 Snapshot，也不在刷新后被标记为当前可运行 Bridge。
+向导工作区是可整体复制的客户产品目录：`Input` 保存当前数据与参考资料，`Work` 保存 Pack、当前指针、当前不可变 Snapshot 和对齐会话文件，`Output` 保存正式 Bridge。业务确认的官方记分卡放在 `Input/Reference/`，不进 Snapshot、不进 Bridge 数据行；覆盖范围内的指标以记分卡为准，数仓查询只作明细、拆解和对账。源文件承担历史归档，工作区不保存 Snapshot 历史；刷新先成功发布并切换新 Snapshot，再清理旧 Run，失败或存在未完成会话时不动当前 Snapshot。仅保存已用 Snapshot ID，防止同名指向不同输入。路径相对工作区，不要求目录位于源码外；源码 checkout 仅通过 `.gitignore` 排除 `customers/`。宿主原生模型负责提出候选和理解客户回答，核心只校验候选、保存决定并确定性 build/validate，不依赖 Harness SDK 或 Codex SDK。旧 Bridge 只在 `company_id` 与 Pack 身份都相同时提供企业口径摘要，旧字段定位不会复用到新 Snapshot，也不在刷新后被标记为当前可运行 Bridge。
 
 一套正常客户工作区默认对应一家公司和一个主要角色。Codex 或 DeepSeek Harness 直接在该工作区使用 Data、Pack、Bridge 和项目 Skills；换公司或换角色时由宿主创建新会话或清理记忆，再进入另一工作区。不建设 Customer Profile、公司/角色路由器或项目清理按钮。
 
@@ -125,7 +126,7 @@ Codex、DeepSeek Harness 等宿主已具备 HTML、图表和文件生成/交付�
 
 ## 7. Casebook、内测回收与真实使用中的沉淀
 
-宿主 Session 负责对话上下文、角色切换和记忆清理。`runs/` 保留客户本地的原始运行证据，但不自动成为 Agent 记忆，也不自动上传。S5 在每个客户工作区增加 Casebook：只将人工确认的最小证据包、结论、适用范围和限制作为可检索案例保存；案例需绑定 Snapshot、Pack/Bridge 版本和关键查询。命中案例只是线索，当前事实必须回到当前 Snapshot 的受控查询验证。
+宿主 Session 负责对话上下文、角色切换和记忆清理。`runs/` 保留客户本地的原始运行证据，但不自动成为 Agent 记忆，也不自动上传。S5 在每个客户工作区增加 Casebook：只将人工确认的最小证据包、结论、适用范围和限制作为可检索案例保存；案例需绑定 Snapshot、Pack/Bridge 版本和关键查询。命中案例只是线索，当前事实默认必须回到当前 Snapshot 的受控查询验证。官方记分卡已覆盖的留学完成值与目标除外：以 `Input/Reference` 记分卡为准，不以 Casebook 或数仓核算值覆盖。
 
 用户本地内测以版本化问题卡执行，生成评价记录和用户主动导出的反馈包。默认反馈包只含版本、评分、错误码、耗时和脱敏反馈；业务证据仅能由用户逐项授权附带。开发侧回收后按下表处理：
 
@@ -142,21 +143,19 @@ Codex、DeepSeek Harness 等宿主已具备 HTML、图表和文件生成/交付�
 
 保留模块内已有的必要约束：只读查询、Snapshot 不覆盖、unresolved 阻断和文件验收。本次核查后的有限修复只补齐既有模块连接，不新增总 Agent、Capability Registry 系统、独立 Metric Layer 或 Artifact 平台；复杂度门槛不是恢复已取消施工的授权。其他扩展须由具体问题或明确新需求提出，按复用模块、扩展接口、新增模块、新增 Agent 的顺序另行评估。
 
-## 9. 日常监控模块（2026-09-16）
+## 9. 管理批次与日常投递（2026-10-03施工记录，最终状态见施工计划第32节）
 
-`monitoring_product/` 已从看板独立，首个场景是人员绩效进度与钉钉日报。调用链为：
+管理构建和日常钉钉投递按同一批次身份运行：
 
 ```text
-外部宿主定时 / 人工调用
-  → daily_monitor Agent
-  → monitoring_product.notify（显式 workspace / snapshot_id / run_id / 日期）
-  → Data Platform 受控只读查询（三份通知 SQL，含跨月工单回查）
-  → 同一份最终 digest → 图片 / Excel / 正文 → 已授权的钉钉通道
+Grok 9:45 routine → management.build（Data Platform受控只读查询）
+  → shared_result.json → shared_delivery dry-run → 7条消息 / 5个原通道
+  → 当天授权批次由 deliver_management_batch.sh 投递
 ```
 
-与看板共同使用 `workspace_modeling/operations/` 的人员匹配、绩效月与 BI 运营花名册；监控不再导入看板 Python 模块、不消费看板 artifact。Agent 可只读查看看板以核对，但不得自行刷新或发布。当前公司专用 SQL/花名册不宣称跨公司通用。
+`shared_delivery` 不查询业务数据；它校验共享结果引用与身份，渲染同批通知附件，并按持久状态逐消息去重。大学和线上平台各两条消息分别共用原群。10:24 钉钉 routine 当前 paused，不在此模块或文档更新中恢复。人员匹配、绩效月和花名册仍共用 `workspace_modeling/operations/`。
 
-查询凭据与实际 SQL 留在本地 `_query/`；最终结果保存在 `evidence.json`。小查询即使由 Data Platform 内联返回，也保存查询回执，避免丢失来源凭据。所有选中通道成功取数后才生成交付物；任一失败整批阻断，不把失败当零。外部调度、密钥和服务器托管权限仍由宿主管理。
+查询回执和明细留在工作区；网页组包只选manifest列明的18个静态资源。P3同批只读演练已完成，P4旧入口清理收尾中，P5正式页面激活仍待真实回执。外部调度、C层凭据和服务器权限仍由宿主管理。
 
 ## 市场日常启动目录
 

@@ -55,8 +55,9 @@ def doctor(*, profile: str = "core", pack_path: Path | None = None) -> dict[str,
     check_module("duckdb", "duckdb")
     if profile == "full":
         for name, import_name in (
-            ("openpyxl", "openpyxl"),
-            ("Pillow", "PIL"),
+            ("openpyxl", "openpyxl"), ("Pillow", "PIL"),
+            ("python-dateutil", "dateutil"), ("Playwright", "playwright"),
+            ("pexpect", "pexpect"), ("certifi", "certifi"),
         ):
             check_module(name, import_name)
     selected_pack = pack_path or default_pack_path()

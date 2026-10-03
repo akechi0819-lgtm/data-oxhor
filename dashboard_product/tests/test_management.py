@@ -7,3 +7,4 @@ from dashboard_product.management.tests.test_breakdowns import BreakdownTests
 from dashboard_product.management.tests.test_enhancements import EnhancementTests
 
 from dashboard_product.management.tests.test_notifications import ManagementNotificationsTest
+from dashboard_product.management.tests.test_adviser_mapping import AdviserMappingQueryTests

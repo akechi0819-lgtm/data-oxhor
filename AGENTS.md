@@ -28,7 +28,7 @@
 
 1. Agent Host 负责自然语言理解、追问、候选 SQL、分析叙事和文件交付；项目 CLI、Pack、Bridge 和 Skills 提供确定性业务能力。
 2. 每次日常分析都针对一个明确的客户工作区、一个主要角色和一个当前 Snapshot。不得跨公司、跨角色或跨工作区猜测事实。
-3. 当前业务事实必须来自当前 Snapshot 的受控只读查询。Casebook 只能提供方法线索，历史数字不能直接回答当前问题。
+3. 当前业务事实默认来自当前 Snapshot 的受控只读查询。Casebook 只能提供方法线索，历史数字不能直接回答当前问题。业务确认的官方记分卡除外：覆盖范围内以 `Input/Reference` 记分卡为准，置信度高于数仓核算值。
 4. 用户看到的是业务问题、结论、来源和限制；机器 JSON、内部 ID 和 CLI 只是宿主编排边界，不要求用户手工编辑。
 
 ## 自由分析 Agent 的运行顺序
@@ -37,9 +37,9 @@
 
 1. 用 `python3 -m interfaces.casebook guide --workspace <workspace>` 检查工作区状态。
 2. 若未初始化、没有当前 Snapshot 或没有兼容 Bridge，停止分析并引导到对应的首次部署、数据同步或 Bridge 对齐流程。
-3. 状态为 `analyze` 时，读取显式 `snapshot_id`、当前 Pack 和 Bridge；按角色和问题类别可选检索同公司已确认 Casebook。
-4. 使用 Data Platform 的 `describe`、`quality`、`query` 或已确认的 `run-saved-query` 取得当前事实。每次查询携带显式 `run_id`、`snapshot_id` 和输出目录。
-5. 回答时说明时间范围、指标口径、来源和限制。用户明确要求文件时，再生成表格、图表或 PPT，并确保数字可回查本次查询。
+3. 状态为 `analyze` 时，读取显式 `snapshot_id`、当前 Pack 和 Bridge；按角色和问题类别可选检索同公司已确认 Casebook。涉及留学线上/线下资源、签约、毛签、占比、FY27 目标或 Q1 完成率时，先读工作区 `Input/Reference/留学板块-官方记分卡.md`。
+4. 使用 Data Platform 的 `describe`、`quality`、`query` 或已确认的 `run-saved-query` 取得明细与诊断。每次查询携带显式 `run_id`、`snapshot_id` 和输出目录。官方记分卡已覆盖的指标以记分卡为准，数仓不得覆盖。
+5. 回答时说明时间范围、指标口径、来源和限制。用户明确要求文件时，再生成表格、图表或 PPT，并确保数字可回查本次查询或官方记分卡。
 6. 用户明确验收且希望复用时，才创建 Casebook candidate；不得自动确认案例、修改 Pack/Bridge/Skill 或发布模板。
 
 ## 首次部署与状态切换
@@ -53,9 +53,10 @@
 
 - 原始输入只读；不得上传客户文件、整个 `runs/`、DuckDB、Parquet 或工作区到外部服务。
 - Agent 只能通过 Data Platform 受控入口执行只读 SQL，不直接连接客户 DuckDB，不使用 `latest`、修改时间或模糊文件名选状态。
+- 业务确认的官方记分卡放在客户工作区 `Input/Reference/`，不进 Snapshot、不进 Bridge 数据行。覆盖范围内的指标以记分卡为准，置信度高于数仓核算值；数仓只用于明细、拆解和对账。
 - 未确认 Bridge 映射不能作为正式事实；日期重叠只是风险信号，不能直接当作重复或退款。
 - 负向现金必须按数据事实表述为负向现金，原因需业务确认，不得自动称为退款。
-- 正式文件必须可打开、内容非空，关键数字必须回查同一受控查询；PPT 由宿主全局 `ppt-master` 生成，不得因路由模式不同放宽证据和数字回查要求。
+- 正式文件必须可打开、内容非空，关键数字必须回查同一受控查询或对应官方记分卡；PPT 由宿主全局 `ppt-master` 生成，不得因路由模式不同放宽证据和数字回查要求。
 
 ## 模块边界
 

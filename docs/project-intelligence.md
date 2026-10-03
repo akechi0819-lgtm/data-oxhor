@@ -24,7 +24,7 @@
 .venv/bin/python -B -m project_intelligence read <content_id> --start-line 1 --limit 80 --expected-sha256 <sha256>
 ```
 
-`--root <源码根目录>` 放在子命令前，仅供本机操作者选择实际 checkout。安装后的命令行入口为 `project-intelligence`；安装位置与目标 checkout 不同时必须显式传 `--root`，并用 `PYTHONDONTWRITEBYTECODE=1` 禁用缓存。未来模型工具不接收 root、路径、shell、SQL 或 URL 参数。
+`--root <源码根目录>` 放在子命令前，仅供本机操作者选择实际 checkout。当前通过源码根目录的 `python -B -m project_intelligence` 启动；项目安装包不包含该模块或 `project-intelligence` console入口。执行位置与目标checkout不同时必须保证源码可导入并显式传 `--root`，用 `PYTHONDONTWRITEBYTECODE=1` 禁用缓存。模型工具不接收 root、路径、shell、SQL 或 URL 参数。
 
 Python 调用入口是 `ProjectContextService(root=Path(...))`：
 
@@ -54,6 +54,8 @@ Python 调用入口是 `ProjectContextService(root=Path(...))`：
 ## 读取与输出边界
 
 批准文件列表与工作区范围在 `project_intelligence/policy.py`。列表来自本项目实际扫描，没有递归发布整个 checkout。目录新增文件不会自动获得暴露权限；`.gitignore` 也不是安全允许清单。
+
+2026-10-03旧通知入口退役后，原批准的notify/digest源码项已替换为管理批次build和shared_delivery；钉钉声明也指向现行投递模块。仍只返回源码/说明与连接声明，不读取共同结果或查询明细，不增加业务写入或远端探测。
 
 默认不读 `.env`、认证状态、浏览器档案、私钥、人员花名册明细、Input、业务报告、同步包、备份或宿主会话。客户元数据仅通过特定投影读取，不允许通过 read/search 访问客户目录。配置不提供通用透传接口。
 

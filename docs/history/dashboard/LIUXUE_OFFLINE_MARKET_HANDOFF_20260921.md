@@ -1,5 +1,7 @@
 # 留学线下市场看板交接
 
+> **历史材料（2026-10-02 归档）**：本文中的旧 Snapshot、排期和影子入口仅代表当时状态，不作为当前操作指引。现行看板说明见 [模块 README](../../../dashboard_product/README.md) 与 [部署说明](../../../dashboard_product/DEPLOYMENT.md)；管理共同结果见 [management README](../../../dashboard_product/management/README.md)。
+
 更新时间：2026-09-21
 工作区：`customers/bi_operations`
 当前 Snapshot：`snapshot_bi_operations_20260920`
@@ -158,7 +160,7 @@ Bridge 只存映射判断，不存 SQL、窗口计数或工单样例。该板块
 ## 7. 启动时必读
 
 - `dashboard_product/README.md`
-- `dashboard_product/DASHBOARD_DEVELOPMENT_PREREQUISITES.md`
+- `docs/history/dashboard/DASHBOARD_DEVELOPMENT_PREREQUISITES.md`
 - `agents/dashboard_publisher/AGENT.md`
 - 本文件
 - `customers/bi_operations/Work/Runs/run_offline_channel_mapping_20260921/unified_market_mapping.md`
@@ -167,4 +169,4 @@ Bridge 只存映射判断，不存 SQL、窗口计数或工单样例。该板块
   `cand_override_newdongfang_market_contribution`
   以及 8 条 `cand_norm_*` 留学规则
 
-启动提示词：`dashboard_product/docs/LIUXUE_OFFLINE_MARKET_START_PROMPT_20260921.md`
+启动提示词：`docs/history/dashboard/LIUXUE_OFFLINE_MARKET_START_PROMPT_20260921.md`

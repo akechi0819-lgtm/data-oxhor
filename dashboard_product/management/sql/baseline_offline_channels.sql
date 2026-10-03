@@ -1,13 +1,16 @@
 -- 独立原渠道基线：取自867f870渠道版，补已确认留学标签、删除/回收排除、SSC排除及明确线下ID。
-WITH normalized_orders AS (
+WITH params AS (
+  SELECT CAST(? AS DATE) AS start_date, CAST(? AS DATE) AS end_date, CAST(? AS VARCHAR) AS offline_ids,
+    CAST(? AS VARCHAR[]) AS study_advisers, CAST(? AS VARCHAR[]) AS prep_advisers
+), normalized_orders AS (
  SELECT * REPLACE (
   CASE WHEN NULLIF(TRIM(团队),'') IS NULL AND NULLIF(TRIM(ID),'') IS NOT NULL
-    AND TRIM(跟进顾问) IN ('王新源', '李佳泽', '赵云鹏', '周洁', '陶明月', '高彬', '孙秀娟', '任湧', '孔杨斌', '闫姝含', '费丽莎', '冯海侠', '张晓颖', '刘倬含', '李彦呈', '李怡洁', '马晓君', '王垚', '李燕丹', '叶怡妍', '杜顺秋', '许慧卿', '康晨阳', '付凯琳', '孟晓旭', '张琢', '秦海娜', '陈俣彤(离职)', '崔双双', '王璐琪6', '张鸣', '韩馥阳', '田曼萍', '靳琳', '刘馨阳', '王春昊', '钟瑞童', '杨雨晴', '刘兴琦(离职)', '张莉', '何梦雅', '宋佳霖', '王雨', '天津公海池管理员', '董郓泾', '刘翔宇', '高超(离职)', '黄闰琪(离职)', '魏洪颖(离职)', '战艺鑫(离职)', '王川(离职)', '杨晓琳(离职)', '梅宇杰(离职)', '徐奕凡(离职)', '徐蕊(离职)', '天津留学管理员', '田宝蕊(离职)', '李峥(离职)', '宋珊珊')
-  THEN CASE WHEN TRIM(跟进顾问) IN ('徐奕凡(离职)','田宝蕊(离职)') THEN '留学预备' ELSE '留学' END
+    AND (list_contains((SELECT study_advisers FROM params), TRIM(跟进顾问))
+      OR list_contains((SELECT prep_advisers FROM params), TRIM(跟进顾问)))
+  THEN CASE WHEN list_contains((SELECT prep_advisers FROM params), TRIM(跟进顾问))
+    THEN '留学预备' ELSE '留学' END
   ELSE 团队 END AS 团队
  ) FROM landing.br_work_orders__sheet_1f0596db9f25
-), params AS (
-  SELECT CAST(? AS DATE) AS start_date, CAST(? AS DATE) AS end_date, CAST(? AS VARCHAR) AS offline_ids
 ), base AS (
   SELECT
     NULLIF(TRIM(ID), '') AS work_order_id,

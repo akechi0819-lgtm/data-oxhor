@@ -1,5 +1,7 @@
 # 留学线下市场看板 · 新线程启动提示词
 
+> **历史材料（2026-10-02 归档）**：本文中的旧 Snapshot、排期和影子入口仅代表当时状态，不作为当前操作指引。现行看板说明见 [模块 README](../../../dashboard_product/README.md) 与 [部署说明](../../../dashboard_product/DEPLOYMENT.md)；管理共同结果见 [management README](../../../dashboard_product/management/README.md)。
+
 把下面「可粘贴正文」原样贴到新线程。本文件只是备份，不要当运行入口改口径。
 
 ---
@@ -12,9 +14,9 @@
 
 1. `AGENTS.md`
 2. `dashboard_product/README.md`
-3. `dashboard_product/DASHBOARD_DEVELOPMENT_PREREQUISITES.md`
+3. `docs/history/dashboard/DASHBOARD_DEVELOPMENT_PREREQUISITES.md`
 4. `agents/dashboard_publisher/AGENT.md`
-5. `dashboard_product/docs/LIUXUE_OFFLINE_MARKET_HANDOFF_20260921.md`（本轮主交接）
+5. `docs/history/dashboard/LIUXUE_OFFLINE_MARKET_HANDOFF_20260921.md`（本轮主交接）
 6. `customers/bi_operations/Work/Runs/run_offline_channel_mapping_20260921/unified_market_mapping.md`
 
 口径已经锁定在 Company Bridge `bridge_bi_operations` **v1.6.0**：

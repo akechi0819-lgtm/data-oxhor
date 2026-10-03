@@ -134,7 +134,7 @@ delivery_demo/
 |---|---|
 | `data_platform/query/service.py`、`interfaces/data_platform.py` | 查询始终写证据包、保留 saved query 身份与显式来源绑定、提供可验证回执；query/run-saved-query/quality 同一执行路径同步。只在实际复用出现时抽出最小模块内读写校验函数 |
 | `workspace_modeling/casebook/service.py`、`interfaces/casebook.py` | create/capture/verify 接入选定包的验证与复制；沿用四态和人工确认；按实际输入变化更新 CLI，不新增保存入口 |
-| `dashboard_product/refresh.py`、`monitoring_product/notify.py`、`market_workspace/tools/data.py` | 已同步新查询回执验证和结果读取，删除被取代的读取分支；产品最终业务清单保持原结构，不另行统一改造 |
+| `dashboard_product/management/build.py`、`monitoring_product/shared_delivery.py`、`market_workspace/tools/data.py` | 管理构建通过 Data Platform 受控查询并生成共同结果；投递只校验和消费同批结果，不独立取数；市场工具保留自己的受控读取入口 |
 | 自由分析入口说明、`docs/casebook-pilot-contract.md`、本合同与集成指南 | 宿主生成一个最小交付清单的确定性方法、授权 capture 输入与证据位置同步；不建设 Renderer |
 | `tests/platform/test_query_service.py`、`tests/test_casebook.py`、`tests/test_casebook_pilot_cli.py`、`tests/test_market_workspace.py`、看板/监控相关读取测试 | 合成工作区覆盖内联/文件读取、空结果、同内容不同身份、SQL/参数/结果篡改、越界、错仓/错 Snapshot、复制后删源、原状态/隔离回归；发送与发布 mock |
 

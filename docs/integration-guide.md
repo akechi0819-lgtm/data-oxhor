@@ -1,6 +1,6 @@
 # 核心 CLI 接入指南
 
-> 2026-09-16 模块切换：人员进度与钉钉推送已迁至 `monitoring_product/`，看板不再承担发送。新入口要求 workspace、snapshot-id、run-id、as-of-date、data-through-date；正式发送另需显式 env-file。共享花名册在 `workspace_modeling/operations/people.json`。本地迁移完成不代表云端任务已切换；详见项目根目录 `monitoring_product/README.md`。
+> 当前经营批次由 `dashboard_product.management.build` 生成同批共同结果，页面与 `monitoring_product.shared_delivery` 共用其通知引用。Grok 09:45 看板 Routine 已启用，10:24 钉钉 Routine 仍暂停；P3/P4/P5已完成，正式上线回执见[看板施工计划](./dashboard-static-rebuild-plan.md)。共享花名册位于 `workspace_modeling/operations/people.json`。
 
 ## 1. 当前公开入口
 
@@ -12,7 +12,7 @@
 python3 -m pip install "data-oxhor[full]"
 ```
 
-`core` 只安装数据分析运行时，`test` 增加项目测试依赖，`full` 覆盖当前项目的 Python 能力。源码用户可执行 `sh tools/install_runtime.sh test` 或 `sh tools/install_runtime.sh full`；不建议在系统 Python 中逐项安装。PPT Master、DeepSeek Harness、Office/字体和模型凭据属于宿主环境，不由项目 wheel 管理。
+`core` 只安装DuckDB数据运行时；`test`增加工作簿、图片和日期库，支持主测试、看板及监控测试；`full`再加入BI浏览器下载、图片渲染和传输所需的Playwright、pexpect与certifi。源码用户可执行 `sh tools/install_runtime.sh test` 或 `sh tools/install_runtime.sh full`。已删除项目内PPT profile及无调用的文档、音视频、抓取和模型依赖；PPT Master、DeepSeek Harness、Office/字体和模型凭据由宿主管理。
 
 首次部署引导层使用同一 Python 环境：
 
@@ -54,12 +54,15 @@ python3 -m interfaces.data_platform --help
 | `interfaces.business_pack` | Workspace Modeling；Pack 文件 | validate/describe JSON，只读 | 无 |
 | `interfaces.company_bridge` | Workspace Modeling；Pack、候选/Bridge、可选 Snapshot 画像 | 校验/扫描结果或 build 正式 Bridge；按子命令写显式输出 | 无自动业务确认或发送 |
 | `interfaces.casebook` | Workspace Modeling；工作区、角色、用户选择的证据/评价 | guide/search/verify 只读；create/capture/confirm 等写本工作区 Casebook；反馈导出写本地 ZIP | 不自动上传，不自动确认案例 |
-| `dashboard_product.refresh` | Dashboard；工作区、run、已确认保存查询与目标/花名册 | refresh 写本地业务 artifact；render 写 HTML | refresh/render 不等同发布；部署脚本另需发布授权 |
-| `monitoring_product.notify` | Monitoring；workspace、snapshot、run、日期、花名册；正式发送需 env-file | 独立查询、digest、图片/Excel/证据；写显式本地输出 | dry-run 不发送；正式 send 上传并发送已授权钉钉通道 |
+| `dashboard_product.management.build` | Dashboard；工作区、显式 Snapshot、run_id、as-of-date；通过 Data Platform 受控查询 | 写同批 `shared_result.json`、私有通知/核对引用及 18 个静态展示资源 | 本地构建；不直接发送钉钉 |
+| `dashboard_product.management.publication` | Dashboard；同批 `shared_result.json`、输出目录 | 校验引用身份与哈希，生成仅含公开资源的 release manifest | 本地组包；不上传或切 live |
+| `monitoring_product.shared_delivery` | Monitoring；同批 `shared_result.json`、as-of-date、state-dir；正式投递另需 C 层 env-file | dry-run 生成本地预览；正式投递使用共同结果的七条消息与同批附件 | 正式模式上传附件并发送已授权的钉钉通道；逐消息去重 |
 | `market_workspace/oxhor` | 市场工作面；固定数据工作区、显式 Snapshot/run | 只读 CLI 调用，写市场 Evidence；不提供导入/发布 | 无 |
 | `project_intelligence` CLI / stdio MCP | Project Intelligence；批准代码/文档、工作区结构元数据 | 只读上下文，不返回业务明细、不执行业务 SQL | 服务内无业务写入；远程接入边界见专门文档 |
 
 这是一份静态能力说明，精确参数与写入目录仍以各命令 `--help` 和模块合同为准。自由分析交付由宿主组织，不增加 `analyze` 核心服务或运行时 Capability Registry。
+
+`interfaces.data_platform` 仍是项目受控 SQL 查询的公开 CLI。`dashboard_product/refresh.py` 仅保留被导入的内部 source helper，不是受支持的 `python -m` 命令行库；固定看板流程从 `management.build` 开始。
 
 每个子命令的精确参数以 `--help` 为准，例如：
 
@@ -163,7 +166,7 @@ python3 -m interfaces.company_bridge validate \
   --pack workspace_modeling/business_pack/packs/education_training_operations_cn/pack.json
 ```
 
-当前 BI 工作区正式 Bridge 为 `bridge_bi_operations` v1.2.0。它引用当前 `landing.*` 关系，直接使用源表头名定位字段；具体运行时可额外传入同一 Snapshot 的 `--snapshot-description` 与 `--snapshot-quality` 做兼容性校验。
+当前 BI 工作区正式 Bridge 为 `bridge_bi_operations` v1.6.0。它引用当前 `landing.*` 关系，直接使用源表头名定位字段；v1.6.0 在既有现金/工单口径上增加留学线渠道映射判断，不保留 v1.5.0 运行兼容。具体运行时可额外传入同一 Snapshot 的 `--snapshot-description` 与 `--snapshot-quality` 做兼容性校验。清洗脚本和渠道看板 SQL 尚未消费该映射。
 
 历史扫描使用 `scan-history`，但输出角色是 `historical_scan`，不能直接构建正式 Bridge。只有人工复核后的 `confirmed_review` 可以传给 `build`；未确认项必须保留为 `unresolved` 或拒收，不能静默选择。完整合同见 [Company Bridge v1 合同](./company-bridge-contract.md)。
 
@@ -213,12 +216,25 @@ python3 -m interfaces.casebook guide --workspace customers/company_customer
 
 ## 9. 固定看板与钉钉
 
-看板不是 Data Platform 新 CLI，而是模块入口：
+固定经营批次先从显式当前 Snapshot 构建一次，再由页面发布和投递适配共同消费本批结果：
 
 ```bash
-python3 -m dashboard_product.refresh refresh --workspace customers/bi_operations --run-id run_dashboard_<id>
-python3 -m dashboard_product.refresh render --artifact <artifact.json>
-python3 -m monitoring_product.notify send --workspace <workspace> --snapshot-id <snapshot_id> --run-id <run_id> --as-of-date <YYYY-MM-DD> --data-through-date <YYYY-MM-DD> --dry-run
+WORKSPACE="/path/to/whcustomer"
+CURRENT_SNAPSHOT_ID="$(python -c 'import json,sys;print(json.load(open(sys.argv[1]))["current_snapshot_id"])' "$WORKSPACE/Work/workspace.json")"
+RUN_ID="run_management_$(TZ=Asia/Shanghai date +%Y%m%d_%H%M%S)"
+AS_OF_DATE="$(TZ=Asia/Shanghai date +%F)"
+python -m dashboard_product.management.build \
+  --workspace "$WORKSPACE" --snapshot-id "$CURRENT_SNAPSHOT_ID" \
+  --run-id "$RUN_ID" --as-of-date "$AS_OF_DATE"
+BATCH_DIR="$WORKSPACE/Output/DashboardManagement/$RUN_ID"
+SHARED_RESULT="$BATCH_DIR/shared_result.json"
+python -m monitoring_product.shared_delivery \
+  --shared-result "$SHARED_RESULT" \
+  --output-dir "$BATCH_DIR/delivery_preview" \
+  --as-of-date "$AS_OF_DATE" \
+  --state-dir "$WORKSPACE/Work/DeliveryState" --dry-run
 ```
 
-刷新只消费已确认 `dashboard_actuals/v12`。目标区留学预备/高中/大学，同比区青少/初中/高中/大学。主页面另有「市场人员产能」页签；线上影子看板作为独立特供入口。主页面发布和 Nginx 门口见 [`dashboard_product/DEPLOYMENT.md`](../dashboard_product/DEPLOYMENT.md)。Webhook 属于 C 层，不在本接入指南展开。
+正式批次投递由 `monitoring_product/deploy/deliver_management_batch.sh` 读取 `Work/ManagementDelivery/batch.json`，再次核对同批身份后调用 `shared_delivery`；该模式需要显式 `--env-file` 所指向的原 C 层文件。七条消息投递到原五个通道：`offline_youth`、`offline_high_school`、`offline_university`、`online_private`、`online_platform`。大学与线上平台的两条消息分别共用原群。10:24 投递 routine 当前暂停，不能由本接入说明触发恢复。
+
+Grok 09:45 Routine 使用 `dashboard_product/deploy/run_management_daily.sh`，环境变量指向 warehouse Python、dashroot、whcustomer 和原 C 文件，`REMOTE_NGINX_CONF` 采用已确认的 `/etc/nginx/sites-available/dashboard`。P3/P4/P5已完成，09:45看板日更启用，10:24日推仍暂停；上线回执见[看板施工计划第32节](./dashboard-static-rebuild-plan.md)。页面发布边界见 [`dashboard_product/DEPLOYMENT.md`](../dashboard_product/DEPLOYMENT.md)，共同结果合同见 [`management/README.md`](../dashboard_product/management/README.md)，投递状态见 [`monitoring_product/README.md`](../monitoring_product/README.md)。Webhook 属于 C 层，不在本接入指南展开。

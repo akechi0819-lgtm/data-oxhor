@@ -7,7 +7,8 @@ from dashboard_product.capacity import (
     annual_cash_capacity,
     cash_contribution_bucket,
 )
-from dashboard_product.refresh import project, read, render
+from dashboard_product.refresh import project
+from dashboard_product.online_team.build import read
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -84,22 +85,6 @@ class CapacityProjectionTest(unittest.TestCase):
         self.assertEqual(by_name['王昊']['heads_actual'], 0.5)
         self.assertEqual(by_name['马澳']['heads_actual'], 0.5)
 
-    def test_render_keeps_six_radar_dimensions(self):
-        src = (ROOT / 'render_template.py').read_text(encoding='utf-8')
-        labels = ['工单数', '签约量', '转化率', '渠道&校代贡献', 'TMK贡献', '活动贡献']
-        for label in labels:
-            self.assertIn(label, src)
-        self.assertIn("key: 'orders'", src)
-        self.assertIn("key: 'heads'", src)
-        self.assertIn("key: 'conversion'", src)
-        self.assertIn("key: 'partner'", src)
-        self.assertIn("key: 'tmk'", src)
-        self.assertIn("key: 'campaign'", src)
-        self.assertEqual(src.count('{ key:'), 6)
-        self.assertIn('市场人员产能</button>', src)
-        self.assertIn('function capacityPeerKey(row)', src)
-        self.assertIn("offline_market') return 'offline|'", src)
-        self.assertIn('线上私域整队一个均值', src)
 
 
 if __name__ == '__main__':

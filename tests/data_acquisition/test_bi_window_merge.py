@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import tempfile
 import unittest
 from datetime import date
@@ -12,11 +13,13 @@ import openpyxl
 
 from data_acquisition.jobs.bi_window_merge import (
     excel_serial_to_date,
+    find_landing_parquet,
     merge_cash,
     merge_orders,
     rolling_start_date,
+    resolve_prior_landing_dir,
 )
-from data_acquisition.jobs.work_order_cleaning import clean_work_order_rows, load_work_order_reference
+from workspace_modeling.bridge_alignment.workspace import init_workspace, sync_data
 
 
 def _excel_serial(d: date) -> float:
@@ -85,12 +88,7 @@ class MergeOrdersTests(unittest.TestCase):
                 ],
                 sheet_name="工单明细导出用表",
             )
-            sheet, cols, rows, stats = merge_orders(
-                export_xlsx=export,
-                prior_parquet=prior,
-                start=start,
-                end=date(2026, 9, 16),
-            )
+            sheet, cols, rows, stats = merge_orders(export_xlsx=export, prior_parquet=prior, start=start)
             self.assertEqual(sheet, "工单明细导出用表")
             self.assertNotIn("source_id", cols)
             self.assertNotIn("snapshot_id", cols)
@@ -108,129 +106,6 @@ class MergeOrdersTests(unittest.TestCase):
             ]
             self.assertTrue(outside_dates)
             self.assertEqual(stats["outside_rows"], 2)
-
-
-class WorkOrderCleaningTests(unittest.TestCase):
-    def test_study_abroad_overlay_maps_channels_country_line_and_active_state(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            reference_path = root / "reference.xlsx"
-            _write_xlsx(
-                reference_path,
-                [
-                    "时间", "一级获取渠道", "二级获取渠道", "三级获取渠道", "数据提供方",
-                    "矫正-渠道", "矫正-条线", "矫正-意向国家", "矫正-意向阶段", "矫正-咨询课程",
-                ],
-                [["1月", "网络资源", "店铺类", "美团点评", "provider", "大众", "欧亚条线", "中国香港", "研究生", ""]],
-                sheet_name="Sheet1",
-            )
-            reference = load_work_order_reference(reference_path)
-            rows = [
-                {
-                    "ID": "WO1", "团队": None, "一级渠道": "前途推荐", "二级渠道": "前途推荐",
-                    "主被动": "主动", "资源主被动": "被动", "咨询方式一级渠道": "网络资源-店铺类",
-                    "渠道": "美团点评", "意向国家/地区": "中国香港", "资源描述": "",
-                },
-                {
-                    "ID": "WO2", "团队": "高中", "一级渠道": "原一级", "二级渠道": "原二级",
-                    "主被动": "主动", "资源主被动": "被动", "咨询方式一级渠道": "网络资源-店铺类",
-                    "渠道": "美团点评", "意向国家/地区": "中国香港", "资源描述": "",
-                },
-            ]
-            cleaned, stats = clean_work_order_rows(rows, reference)
-            self.assertEqual(cleaned[0]["一级渠道"], "网络资源")
-            self.assertEqual(cleaned[0]["二级渠道"], "大众")
-            self.assertEqual(cleaned[0]["主被动"], "被动")
-            self.assertEqual(cleaned[0]["意向国家"], "中国香港")
-            self.assertEqual(cleaned[0]["矫正条线"], "欧亚条线")
-            self.assertEqual(cleaned[1]["一级渠道"], "原一级")
-            self.assertEqual(cleaned[1]["二级渠道"], "原二级")
-            self.assertEqual(stats["target_rows"], 1)
-            self.assertEqual(stats["online_target_rows"], 1)
-            self.assertEqual(stats["main_active_overrides"], 1)
-
-    def test_offline_study_abroad_rows_are_held_without_cleaning(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            reference_path = root / "reference.xlsx"
-            _write_xlsx(
-                reference_path,
-                [
-                    "时间", "一级获取渠道", "二级获取渠道", "三级获取渠道", "数据提供方",
-                    "矫正-渠道", "矫正-条线", "矫正-意向国家", "矫正-意向阶段", "矫正-咨询课程",
-                ],
-                [["1月", "市场活动", "综合展", "小红书", "provider", "小红书", "欧亚条线", "中国香港", "研究生", ""]],
-                sheet_name="Sheet1",
-            )
-            reference = load_work_order_reference(reference_path)
-            rows = [{
-                "ID": "OFF1", "团队": None, "一级渠道": "前途推荐", "二级渠道": "前途推荐",
-                "主被动": "主动", "资源主被动": "被动", "咨询方式一级渠道": "市场活动-综合展",
-                "渠道": "小红书", "意向国家/地区": "中国香港", "资源描述": "",
-            }]
-            cleaned, stats = clean_work_order_rows(rows, reference)
-            self.assertEqual(cleaned[0]["一级渠道"], "前途推荐")
-            self.assertEqual(cleaned[0]["二级渠道"], "前途推荐")
-            self.assertEqual(cleaned[0]["主被动"], "主动")
-            self.assertEqual(stats["offline_target_rows"], 1)
-
-    def test_eurasia_online_path_sets_eurasia_line_without_country(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            reference_path = root / "reference.xlsx"
-            _write_xlsx(
-                reference_path,
-                [
-                    "时间", "一级获取渠道", "二级获取渠道", "三级获取渠道", "数据提供方",
-                    "矫正-渠道", "矫正-条线", "矫正-意向国家", "矫正-意向阶段", "矫正-咨询课程",
-                ],
-                [["1月", "新媒体", "欧亚总部在线", "虚拟人", "provider", "个人渠道", "欧亚条线", "日本", "本科", ""]],
-                sheet_name="Sheet1",
-            )
-            reference = load_work_order_reference(reference_path)
-            rows = [{
-                "ID": "EUR1", "团队": None, "一级渠道": "前途推荐", "二级渠道": "前途推荐",
-                "主被动": "主动", "资源主被动": "被动", "咨询方式一级渠道": "新媒体-欧亚总部在线",
-                "渠道": "虚拟人", "意向国家/地区": "", "资源描述": "",
-            }]
-            cleaned, _ = clean_work_order_rows(rows, reference)
-            self.assertEqual(cleaned[0]["矫正条线"], "欧亚条线")
-
-    def test_first_country_and_language_fallback_fill_country_and_line(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            reference_path = root / "reference.xlsx"
-            _write_xlsx(
-                reference_path,
-                [
-                    "时间", "一级获取渠道", "二级获取渠道", "三级获取渠道", "数据提供方",
-                    "矫正-渠道", "矫正-条线", "矫正-意向国家", "矫正-意向阶段", "矫正-咨询课程",
-                ],
-                [
-                    ["1月", "网络资源", "店铺类", "美团点评", "provider", "大众", "欧亚条线", "日本", "本科", ""],
-                    ["1月", "网络资源", "店铺类", "小红书", "provider", "小红书", "欧亚条线", "法国", "本科", ""],
-                ],
-                sheet_name="Sheet1",
-            )
-            reference = load_work_order_reference(reference_path)
-            rows = [
-                {
-                    "ID": "MULTI", "团队": None, "主被动": "主动", "资源主被动": "被动",
-                    "咨询方式一级渠道": "网络资源-店铺类", "渠道": "美团点评",
-                    "意向国家/地区": "日本,法国", "资源描述": "",
-                },
-                {
-                    "ID": "LANG", "团队": None, "主被动": "主动", "资源主被动": "被动",
-                    "咨询方式一级渠道": "网络资源-店铺类", "渠道": "小红书",
-                    "意向国家/地区": "", "资源描述": "咨询法语课程",
-                },
-            ]
-            cleaned, _ = clean_work_order_rows(rows, reference, include_audit=True)
-            self.assertEqual(cleaned[0]["意向国家"], "日本")
-            self.assertEqual(cleaned[0]["意向国家归属方式"], "字段首国")
-            self.assertEqual(cleaned[1]["意向国家"], "法国")
-            self.assertEqual(cleaned[1]["意向国家归属方式"], "资源描述语种推断")
-            self.assertEqual(cleaned[1]["矫正条线"], "欧亚条线")
 
 
 class MergeCashTests(unittest.TestCase):
@@ -260,12 +135,7 @@ class MergeCashTests(unittest.TestCase):
                 ],
                 sheet_name="现金明细表",
             )
-            sheet, cols, rows, stats = merge_cash(
-                export_xlsx=export,
-                prior_parquet=prior,
-                start=start,
-                end=date(2026, 9, 16),
-            )
+            sheet, cols, rows, stats = merge_cash(export_xlsx=export, prior_parquet=prior, start=start)
             self.assertEqual(sheet, "现金明细表")
             self.assertNotIn("source_row_number", cols)
             self.assertGreater(stats["merged_rows"], stats["export_rows"])
@@ -277,6 +147,79 @@ class MergeCashTests(unittest.TestCase):
             self.assertIn("250", cash_vals)
             dates = [excel_serial_to_date(r["业务日期"]) for r in rows]
             self.assertTrue(any(d is not None and d < start for d in dates))
+
+    def test_missing_explicit_prior_parquet_is_an_error_for_both_sources(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            missing = root / "missing.parquet"
+            orders = root / "orders.xlsx"
+            cash = root / "cash.xlsx"
+            _write_xlsx(orders, ["ID", "分配时间"], [["A", "2026-01-01"]])
+            _write_xlsx(cash, ["工单ID", "业务日期"], [["A", "2026-01-01"]])
+            with self.assertRaises(duckdb.IOException):
+                merge_orders(export_xlsx=orders, prior_parquet=missing, start=date(2026, 3, 1))
+            with self.assertRaises(duckdb.IOException):
+                merge_cash(export_xlsx=cash, prior_parquet=missing, start=date(2026, 3, 1))
+
+
+class PriorSnapshotLookupTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.pack = Path("workspace_modeling/business_pack/packs/education_training_operations_cn/pack.json").resolve()
+
+    def _workspace(self, root: Path) -> Path:
+        init_workspace(
+            root=root,
+            company_id="company_bi_lookup",
+            business_port="operations",
+            pack_path=self.pack,
+        )
+        for source_id, name, sheet, headers in (
+            ("br_work_orders", "orders.xlsx", "工单明细导出用表", ["ID", "分配时间", "姓名"]),
+            ("br_cash", "cash.xlsx", "现金明细表", ["工单ID", "业务日期", "现金收入"]),
+        ):
+            slot = root / "Input" / "Data" / source_id
+            slot.mkdir(parents=True)
+            _write_xlsx(slot / name, headers, [["A", "2026-01-01", "100"]], sheet_name=sheet)
+        sync_data(root=root, snapshot_id="snapshot_bi_lookup_01")
+        return root
+
+    def test_current_snapshot_uses_declared_artifact_and_reports_missing_source(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            workspace = self._workspace(Path(directory) / "workspace")
+            landing = resolve_prior_landing_dir(workspace)
+            self.assertIsNotNone(landing)
+            manifest_path = landing.parent / "snapshot_manifest.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            orders_table = next(
+                sheet["target_table"]
+                for source in manifest["sources"]
+                if source["source_id"] == "br_work_orders"
+                for sheet in source["sheets"]
+            )
+            expected = landing / f"{orders_table}.parquet"
+            (landing / "br_work_orders__not_declared.parquet").write_bytes(b"decoy")
+            self.assertEqual(expected, find_landing_parquet(landing, "br_work_orders"))
+
+            cash_source = next(source for source in manifest["sources"] if source["source_id"] == "br_cash")
+            manifest["sources"].remove(cash_source)
+            manifest_path.write_text(json.dumps(manifest, ensure_ascii=False), encoding="utf-8")
+            with self.assertRaisesRegex(RuntimeError, "br_cash source"):
+                find_landing_parquet(landing, "br_cash")
+
+    def test_current_snapshot_with_missing_manifest_or_landing_is_not_first_import(self) -> None:
+        for missing in ("manifest", "landing"):
+            with self.subTest(missing=missing), tempfile.TemporaryDirectory() as directory:
+                workspace = self._workspace(Path(directory) / "workspace")
+                landing = resolve_prior_landing_dir(workspace)
+                if missing == "manifest":
+                    (landing.parent / "snapshot_manifest.json").unlink()
+                    message = "manifest is missing"
+                else:
+                    import shutil
+                    shutil.rmtree(landing)
+                    message = "landing directory is missing"
+                with self.assertRaisesRegex(RuntimeError, message):
+                    resolve_prior_landing_dir(workspace)
 
 
 if __name__ == "__main__":
