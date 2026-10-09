@@ -6,13 +6,17 @@ import subprocess
 from pathlib import Path
 
 import pytest
+import dashboard_product
+import monitoring_product
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 PRODUCER = PROJECT_ROOT / "data_acquisition" / "deploy" / "run_daily_warehouses.sh"
+DASHBOARD_PACKAGE = Path(dashboard_product.__file__).resolve().parent
+MONITORING_PACKAGE = Path(monitoring_product.__file__).resolve().parent
 CONSUMERS = [
-    PROJECT_ROOT / "dashboard_product" / "deploy" / "run_management_daily.sh",
-    PROJECT_ROOT / "monitoring_product" / "deploy" / "deliver_management_batch.sh",
+    DASHBOARD_PACKAGE / "deploy" / "run_management_daily.sh",
+    MONITORING_PACKAGE / "deploy" / "deliver_management_batch.sh",
 ]
 CHECK_ARGS = ["-m", "data_acquisition.jobs.daily_warehouses", "check"]
 AS_OF_DATE = "2026-10-09"
