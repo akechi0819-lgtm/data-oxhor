@@ -280,6 +280,9 @@ def _write_source(path, tables):
             cells = []
             for column in columns:
                 value = row.get(column)
+                if column == 'origin_row_number' and value is not None:
+                    # 受控landing查询返回文本；源Excel物理行号在标准工作簿中保持整数。
+                    value = int(value)
                 cell = WriteOnlyCell(sheet, value=value)
                 if isinstance(value, str):
                     cell.data_type = 's'
