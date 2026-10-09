@@ -266,6 +266,8 @@ def _window(message: dict, data_through: str) -> dict:
 
 
 def _source_coverage_text(message: dict) -> str:
+    if message.get('business_line') == 'training':
+        return ''
     coverage = message.get('source_coverage')
     if not isinstance(coverage, dict) or not coverage.get('start_date') or not coverage.get('through_date'):
         candidates = [person.get('abroad_source_coverage') for person in message.get('people') or []
@@ -377,6 +379,8 @@ def _employee_columns(message: dict) -> list[tuple[str, int]]:
         columns.extend([(f'{label}目标', 125), (amount_label, 125), (f'{label}完成率', 120)])
     if show_heads:
         columns.extend([('人头目标', 110), ('人头完成', 110), ('人头完成率', 120)])
+    if _message_uses_heads(message) and _message_has_cash(message):
+        columns.append(('现金完成（元）', 130))
     return columns
 
 
@@ -415,6 +419,10 @@ def _employee_values(person: dict, message: dict) -> list[str]:
             _metric_display(row['heads_actual'], row['heads_status'], row['heads_display'], row['heads_parts']),
             _percent(row['heads_completion']) if row['heads_completion'] is not None else _missing(None, row['heads_status']),
         ])
+    if _message_uses_heads(message) and _message_has_cash(message):
+        values.append(_metric_display(
+            row['cash_actual'], row['cash_status'], row['cash_display'], row['cash_parts'], money=True,
+        ))
     return values
 
 
@@ -1108,6 +1116,12 @@ def _markdown(message: dict, data_through: str, dashboard_url: str | None) -> st
         lines = [f'## {title}', '', window]
         if progress is not None:
             lines.append(f'时间进度 {float(progress) * 100:.1f}% · 剩余工作日 {remaining if remaining is not None else "—"}')
+        if _message_uses_heads(message):
+            columns = [label for label, _ in _employee_columns(message)]
+            people_rows = [_employee_values(person, message) for person in message.get('people') or []]
+            lines.extend(['', '| ' + ' | '.join(columns) + ' |',
+                          '| ' + ' | '.join('---' for _ in columns) + ' |'])
+            lines.extend('| ' + ' | '.join(values) + ' |' for values in people_rows)
         lines.extend(['', '**落后时间进度（工单）**'])
         behind = _behind_people(message)
         if behind:

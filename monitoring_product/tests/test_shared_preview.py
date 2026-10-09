@@ -268,6 +268,27 @@ class SharedPreviewTests(unittest.TestCase):
             self.assertEqual(online['dashboard_url'], 'http://127.0.0.1:8778/online.html')
 
             training = next(item for item in result['messages'] if item['id'] == 'university.training')
+            training_payload = next(message for message in payload['messages']
+                                    if message['id'] == 'university.training')
+            training_columns = _employee_columns(training_payload)
+            self.assertIn(('现金完成（元）', 130), training_columns)
+            self.assertIn(('人头完成', 110), training_columns)
+            self.assertIn(('人头完成率', 120), training_columns)
+            training_values = _employee_values(training_payload['people'][0], training_payload)
+            self.assertEqual(training_values[-1], '123,456.9 元')
+            training_html = Path(training['html']).read_text(encoding='utf-8')
+            training_markdown = Path(training['markdown']).read_text(encoding='utf-8')
+            self.assertIn('<th>现金完成（元）</th>', training_html)
+            self.assertIn('123,456.9 元', training_html)
+            self.assertNotIn('留学数据覆盖', training_html)
+            self.assertIn('现金完成（元）', training_markdown)
+            self.assertIn('123,456.9 元', training_markdown)
+            with Image.open(training['png']) as training_image:
+                self.assertGreaterEqual(training_image.width,
+                                        sum(width for _, width in training_columns) + 64)
+            high_training_message = next(message for message in payload['messages']
+                                         if message['id'] == 'high.training')
+            self.assertNotIn('现金完成（元）', [label for label, _ in _employee_columns(high_training_message)])
             training_book = load_workbook(training['xlsx'], data_only=True)
             self.assertEqual(training_book.sheetnames, ['个人进度', '工单明细', '现金明细'])
             personal = training_book['个人进度']

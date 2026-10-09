@@ -15,6 +15,8 @@ python3 -m monitoring_product.shared_delivery \
 
 适配器的正式调用需显式加入 `--env-file <C层凭据文件>`，要求当天新Snapshot、昨日数据截止及完整五通道配置。持久 `state-dir` 跨批次复用，按日期/通道/消息去重；已成功不再发送，请求结果未知则阻断该条重发并报告，其他可安全继续的消息分别留回执。同群双消息使用独立图片/附件路径。dry-run不读取凭据、不建投递状态、不上传、不发送，允许封存历史数据演练；历史预览成功不表示正式新鲜度检查通过。P3实际只读投递和发布组包演练已通过；P5页面激活已完成。
 
+2026-10-09大学语培推送保留原工单与人头栏，追加“现金完成（元）”，取同批个人实际现金。HTML、PNG、Markdown显示一致，Excel原现金字段保留；大学留学现金仍沿同批来源。图片画布随列宽扩展，不因新增现金列裁切。此修改只更新本地预览和源码，未发送或调整既有接收渠道。
+
 ## Grok例行接入
 
 生产调用 `deploy/deliver_management_batch.sh`，工作目录设为现有dashboard源码目录，显式传入 `PROJECT_ROOT`、`WORKSPACE`、warehouse虚拟环境 `PYTHON` 和原 `ENV_FILE`。入口读取 `Work/ManagementDelivery/batch.json` 指定的run、Snapshot、日期及结果路径，核对同批身份后投递，不通过目录时间选结果，不重新查仓。
