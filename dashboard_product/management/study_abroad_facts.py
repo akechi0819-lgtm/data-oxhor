@@ -88,6 +88,32 @@ def _unique_paths(paths: list[Path]) -> list[Path]:
     return result
 
 
+def _prepared_origin_hashes(path: Path) -> set[str]:
+    """来源白名单从已通过Snapshot摘要校验的规范表读取，不伪造历史原件身份。"""
+    import openpyxl
+    hashes: set[str] = set()
+    book = openpyxl.load_workbook(path, read_only=True, data_only=True)
+    try:
+        for kind in ('resources', 'contracts', 'languages'):
+            sheet = book[kind]
+            sheet.reset_dimensions()
+            rows = sheet.iter_rows(values_only=True)
+            header = next(rows, ())
+            if 'origin_sha256' not in header:
+                raise ValueError('留学规范表缺少逐行来源SHA列')
+            index = header.index('origin_sha256')
+            for row in rows:
+                if not any(value is not None for value in row):
+                    continue
+                value = _text(row[index])
+                if not _SHA256.fullmatch(value):
+                    raise ValueError('留学规范表逐行来源SHA无效')
+                hashes.add(value)
+    finally:
+        book.close()
+    return hashes
+
+
 def _snapshot_sources(workspace: Path, snapshot_id: str, expected_company_id: str) -> dict[str, Any]:
     workspace_config_path = workspace / "Work/workspace.json"
     workspace_config, workspace_config_bytes = _read_json(workspace_config_path)
@@ -204,6 +230,7 @@ def _snapshot_sources(workspace: Path, snapshot_id: str, expected_company_id: st
     snapshot_source_sha = prepared_sources[0].get("sha256")
     if not isinstance(snapshot_source_sha, str) or _sha256(prepared_source) != snapshot_source_sha:
         raise ValueError("Snapshot规范化来源SHA与source_lineage不一致")
+    origin_hashes = _prepared_origin_hashes(prepared_source)
 
     bridge_path = workspace / "Work/Bridge/reference.json"
     bridge, _ = _read_json(bridge_path)
@@ -245,6 +272,7 @@ def _snapshot_sources(workspace: Path, snapshot_id: str, expected_company_id: st
         "fingerprints": fingerprints,
         "source_through": source_through,
         "source_sha256": source_sha256,
+        "origin_hashes": origin_hashes,
     }
 
 
@@ -471,8 +499,8 @@ def load_study_abroad_facts(*, workspace: Path, snapshot_id: str, run_id: str,
     if not source_rows:
         raise ValueError("留学facts查询范围为空；不回退到BI留学明细")
     source_hashes = {_text(row.get("origin_sha256")) for row in source_rows}
-    if source_hashes != {context["source_sha256"]}:
-        raise ValueError("留学facts行来源SHA与当前隔离Snapshot指针不一致")
+    if not source_hashes.issubset(context["origin_hashes"]):
+        raise ValueError("留学facts行来源SHA不属于当前Snapshot冻结规范表")
 
     diagnostics: Counter[str] = Counter(query_rows=len(source_rows))
     mapped_rows: list[tuple[dict[str, Any], tuple[Any, ...]]] = []

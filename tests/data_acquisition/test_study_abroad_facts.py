@@ -36,7 +36,15 @@ def _make_workspace(root: Path) -> dict[str, Path | bytes]:
     people_roster = input_root / "people.json"
     abroad_roster = input_root / "abroad_people.json"
     raw_source.write_bytes(b"synthetic original workbook")
-    prepared_source.write_bytes(b"synthetic normalized workbook")
+    from openpyxl import Workbook
+    prepared = Workbook()
+    prepared.remove(prepared.active)
+    for kind in ('resources', 'contracts', 'languages'):
+        sheet = prepared.create_sheet(kind)
+        sheet.append(['origin_sha256'])
+        sheet.append([_sha(raw_source)])
+    prepared.save(prepared_source)
+    prepared.close()
     people_roster.write_text("{}", encoding="utf-8")
     abroad_roster.write_text("{}", encoding="utf-8")
 
