@@ -19,6 +19,10 @@
                 "2026-09": {
                   "orders": 105,
                   "cash": 120000
+                },
+                "2026-10": {
+                  "orders": 70,
+                  "cash": 80000
                 }
               },
               "note": "市内全域"
@@ -32,6 +36,10 @@
                 "2026-09": {
                   "orders": 105,
                   "cash": 120000
+                },
+                "2026-10": {
+                  "orders": 70,
+                  "cash": 80000
                 }
               },
               "note": "市内全域"
@@ -45,6 +53,10 @@
                 "2026-09": {
                   "orders": 105,
                   "cash": 120000
+                },
+                "2026-10": {
+                  "orders": 70,
+                  "cash": 80000
                 }
               },
               "note": "市内全域"
@@ -82,7 +94,13 @@
               "person_id": "liu_bin",
               "display_name": "刘彬",
               "status": "active",
-              "business_group": "高中"
+              "business_group": "高中",
+              "monthly_targets": {
+                "2026-10": {
+                  "orders": 50,
+                  "cash": 80000
+                }
+              }
             },
             {
               "person_id": "gu_zhiven",
@@ -92,6 +110,10 @@
               "monthly_targets": {
                 "2026-09": {
                   "orders": 60
+                },
+                "2026-10": {
+                  "orders": 50,
+                  "cash": 80000
                 }
               },
               "note": "待定"
@@ -104,6 +126,10 @@
               "monthly_targets": {
                 "2026-09": {
                   "orders": 60
+                },
+                "2026-10": {
+                  "orders": 50,
+                  "cash": 80000
                 }
               },
               "note": "待替换"
@@ -119,7 +145,13 @@
               "person_id": "meng_fangming",
               "display_name": "孟方明",
               "status": "active",
-              "business_group": "高中"
+              "business_group": "高中",
+              "monthly_targets": {
+                "2026-10": {
+                  "orders": 40,
+                  "cash": 64000
+                }
+              }
             }
           ]
         },

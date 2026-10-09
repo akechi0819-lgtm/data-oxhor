@@ -60,16 +60,13 @@ def _measure(facts, line, kind, predicate, period, team_id, target=None):
     if period.get('status') == 'future' or not period.get('through_date'):
         return _metric_with_status(None, None, target, period, kind, status='future')
 
-    if line == 'abroad' and kind in ('cash', 'heads'):
-        return _metric_with_status(
-            None, None, None, period, kind, status='not_connected',
-            note=_aggregate.ABROAD_METRICS_NOTE,
-        )
-    if line == 'abroad' and kind == 'orders' and team_id in _aggregate.ABROAD_NOT_CONFIGURED_TEAMS:
+    if line == 'abroad' and team_id in _aggregate.ABROAD_NOT_CONFIGURED_TEAMS:
         return _metric_with_status(
             None, None, None, period, kind, status='not_configured',
             note='本部门暂不统计留学完成；贡献见人员产能。',
         )
+    if line == 'abroad':
+        return _aggregate._abroad_metric(facts, kind, predicate, period, target)
 
     bounds = _period_bounds(period)
     start, through, prior_start, prior_through = bounds
@@ -238,8 +235,7 @@ def _channels(facts, team, period):
             cash_share = None
             if orders.get('actual') is not None and all_orders.get('actual'):
                 share = orders['actual'] / all_orders['actual']
-            if (line == 'training' and cash.get('actual') is not None
-                    and all_cash.get('actual')):
+            if cash.get('actual') is not None and all_cash.get('actual'):
                 cash_share = cash['actual'] / all_cash['actual']
             output.append({
                 'business_line': line,
@@ -262,55 +258,33 @@ def _channels(facts, team, period):
 
 
 def _school_grade_rows(facts, team, period, line="training"):
-    if period.get('status') == 'future' or not period.get('through_date'):
-        return []
     bounds = _period_bounds(period)
+    if not bounds:
+        return []
     scope = _aggregate._team_fact_filter(team['id'], line)
-    grouped = defaultdict(lambda: {'orders': {'current': [], 'prior': []},
-                                  'cash': {'current': [], 'prior': []}})
+    grouped = defaultdict(list)
     for fact in facts:
-        if fact.get('business_line') != line or not scope(fact):
-            continue
-        which = next((label for label in ('current', 'prior')
-                      if _in_range(fact, bounds, label)), None)
-        if which is None:
-            continue
-        school = str(fact.get('school_name') or '').strip() or UNKNOWN_SCHOOL
-        grade = grade_label(fact.get('grade_name'))
-        key = (school, grade)
-        if fact['metric'] in ('orders', 'cash'):
-            grouped[key][fact['metric']][which].append(fact['value'])
-
-    by_school = defaultdict(lambda: {'grades': []})
-    for (school, grade), values in sorted(grouped.items()):
-        grade_row = {'name': grade}
-        for kind in ('orders', 'cash'):
-            current = _aggregate._sum_numbers(values[kind]['current'], money=kind == 'cash')
-            prior = _aggregate._sum_numbers(values[kind]['prior'], money=kind == 'cash')
-            grade_row[kind] = (_metric_with_status(None, None, None, period, kind, status='not_connected')
-                               if line == 'abroad' and kind == 'cash' else
-                               _metric_with_status(current, prior, None, period, kind))
-        by_school[school]['grades'].append(grade_row)
-
+        if (fact.get('business_line') == line and scope(fact)
+                and (_in_range(fact, bounds, 'current') or _in_range(fact, bounds, 'prior'))):
+            school = str(fact.get('school_name') or '').strip() or UNKNOWN_SCHOOL
+            grouped[(school, grade_label(fact.get('grade_name')))].append(fact)
+    by_school = defaultdict(list)
+    for (school, grade), rows in sorted(grouped.items()):
+        by_school[school].append({'name': grade, **{
+            kind: _measure(rows, line, kind, lambda fact: True, period, team['id'])
+            for kind in ('orders', 'cash')}})
     result = []
-    for school, row in sorted(by_school.items()):
-        school_row = {'name': school, 'grades': row['grades']}
-        for kind in ('orders', 'cash'):
-            current_values = [grade[kind]['actual'] or 0 for grade in row['grades']]
-            prior_values = [grade[kind]['prior'] or 0 for grade in row['grades']]
-            current = _aggregate._sum_numbers(current_values, money=kind == 'cash')
-            prior = _aggregate._sum_numbers(prior_values, money=kind == 'cash')
-            school_row[kind] = (_metric_with_status(None, None, None, period, kind, status='not_connected')
-                                if line == 'abroad' and kind == 'cash' else
-                                _metric_with_status(current, prior, None, period, kind))
-        school_row["business_line"] = line
-        result.append(school_row)
-    totals={kind:sum(r[kind]['actual'] or 0 for r in result) for kind in ('orders','cash')}
-    for r in result:
-        for item in [r,*r['grades']]:
-            item['share']=item['orders']['actual']/totals['orders'] if totals['orders'] else None
-            item['cash_share']=item['cash']['actual']/totals['cash'] if totals['cash'] and item['cash']['actual'] is not None else None
-    return sorted(result,key=lambda r: (-(r['orders']['actual'] or 0), r['name']))
+    for school, grades in sorted(by_school.items()):
+        rows = [fact for (name, _), bucket in grouped.items() if name == school for fact in bucket]
+        result.append({'name': school, 'grades': grades, 'business_line': line, **{
+            kind: _measure(rows, line, kind, lambda fact: True, period, team['id'])
+            for kind in ('orders', 'cash')}})
+    totals = {kind: sum(row[kind]['actual'] or 0 for row in result) for kind in ('orders', 'cash')}
+    for row in result:
+        for item in [row, *row['grades']]:
+            for kind, key in (('orders', 'share'), ('cash', 'cash_share')):
+                item[key] = item[kind]['actual'] / totals[kind] if totals[kind] and item[kind]['actual'] is not None else None
+    return sorted(result, key=lambda row: (-(row['orders']['actual'] or 0), row['name']))
 
 
 def _grade_rows(facts, team, period, line):

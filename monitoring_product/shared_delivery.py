@@ -27,6 +27,7 @@ from monitoring_product import delivery_transport as notify, shared_preview
 EXPECTED_MESSAGES = {
     'prep.training': 'offline_youth',
     'high.training': 'offline_high_school',
+    'high.abroad': 'offline_high_school',
     'university.training': 'offline_university',
     'university.abroad': 'offline_university',
     'virtual.mixed': 'online_private',
@@ -94,6 +95,9 @@ def _validate_contract(shared: dict, payload: dict, as_of_date: str,
         raise ValueError('notification data_through does not match shared result metadata')
     if notification_metadata.get('as_of_date') != as_of_date:
         raise ValueError('notification as_of_date does not match --as-of-date')
+    study_source = shared_metadata.get('study_abroad_source')
+    if study_source is not None and notification_metadata.get('study_abroad_source') != study_source:
+        raise ValueError('notification study-abroad source does not match shared result metadata')
 
     through = _iso_date(shared_metadata['data_through'], 'data_through')
     as_of = _iso_date(as_of_date, 'as-of-date')
@@ -117,6 +121,8 @@ def _validate_contract(shared: dict, payload: dict, as_of_date: str,
             freshness_reasons.append(
                 f'sending requires data_through to be exactly yesterday ({yesterday.isoformat()})',
             )
+        if study_source is not None and _iso_date(study_source['through_date'], 'study-abroad through_date') != yesterday:
+            freshness_reasons.append(f'留学来源须覆盖至昨日 ({yesterday.isoformat()})，当前为 {study_source["through_date"]}')
         if freshness_reasons:
             raise ValueError('freshness guard blocked delivery: ' + '; '.join(freshness_reasons))
 
@@ -124,7 +130,7 @@ def _validate_contract(shared: dict, payload: dict, as_of_date: str,
     actual = Counter((str(message.get('id')), str(message.get('channel_id'))) for message in messages)
     expected = Counter(EXPECTED_MESSAGES.items())
     if actual != expected:
-        raise ValueError('notification messages must match the fixed seven-message, five-channel contract')
+        raise ValueError('notification messages must match the fixed eight-message, five-channel contract')
     return messages
 
 
@@ -200,7 +206,7 @@ def _rendered_by_id(rendered: dict) -> dict[str, dict]:
         raise ValueError('notification renderer returned no messages')
     indexed = {str(item.get('id')): item for item in entries if isinstance(item, dict)}
     if len(indexed) != len(entries) or set(indexed) != set(EXPECTED_MESSAGES):
-        raise ValueError('notification renderer output does not match the seven-message contract')
+        raise ValueError('notification renderer output does not match the eight-message contract')
     return indexed
 
 

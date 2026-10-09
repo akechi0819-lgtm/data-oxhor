@@ -35,8 +35,11 @@ TECHNICAL_FIELDS = {
 }
 STATUS_LABELS = {
     'available': '已接入',
+    'partial': '部分覆盖',
     'not_configured': '未配置',
     'not_connected': '未接入',
+    'not_covered': '该期间未覆盖',
+    'separate_counts': '分业务统计',
     'future': '窗口未开始',
     'unavailable': '不可用',
 }
@@ -107,13 +110,23 @@ def _status(value) -> str:
 def _missing(value, status=None) -> str:
     if value is not None:
         return ''
-    if status in {'not_connected', 'not_configured', 'future', 'unavailable'}:
+    if status in {'not_connected', 'not_configured', 'not_covered', 'future', 'unavailable', 'partial'}:
         return _status(status)
+    if status == 'separate_counts':
+        return '—'
     return '未配置'
 
 
+def _number_text(value) -> str:
+    number = float(value)
+    whole, separator, fraction = f'{number:,.2f}'.partition('.')
+    fraction = fraction.rstrip('0')
+    text = whole + (f'.{fraction}' if separator and fraction else '')
+    return '0' if text == '-0' else text
+
+
 def _count(value) -> str:
-    return '未配置' if value is None else f'{int(round(float(value))):,}'
+    return '未配置' if value is None else _number_text(value)
 
 
 def _money(value) -> str:
@@ -134,8 +147,40 @@ def _percent(value) -> str:
 def _hours(value) -> str:
     if value is None:
         return '—'
-    number = float(value)
-    return f'{int(number):,}' if number.is_integer() else f'{number:,.1f}'
+    return _number_text(value)
+
+
+def _metric_display(actual, status=None, display=None, parts=None, *, money=False) -> str:
+    if status == 'not_covered':
+        return _status(status)
+    if status == 'separate_counts':
+        if display:
+            return str(display)
+        if isinstance(parts, list):
+            values = []
+            for part in parts:
+                if not isinstance(part, dict) or part.get('actual') is None:
+                    continue
+                label = str(part.get('label') or '').strip()
+                value = _money(part['actual']) if money else _count(part['actual'])
+                values.append(f'{label} {value}'.strip())
+            return '／'.join(values) if values else '—'
+        return '—'
+    if status in {'available', 'partial'} and display:
+        return str(display)
+    if actual is None:
+        return _missing(None, status)
+    return _money(actual) if money else _count(actual)
+
+
+def _metric_spreadsheet_value(actual, status=None, display=None, parts=None):
+    if status == 'not_covered':
+        return _status(status)
+    if status == 'separate_counts':
+        return display or _metric_display(actual, status, display, parts)
+    if status in {'available', 'partial'} and display:
+        return display
+    return actual if actual is not None else _missing(None, status)
 
 
 def _behind(person: dict) -> str:
@@ -191,12 +236,50 @@ def _message_uses_heads(message: dict) -> bool:
     return _team_key(message) == 'university' and message.get('business_line') == 'training'
 
 
+def _message_has_heads(message: dict) -> bool:
+    metrics = message.get('team_metrics') or {}
+    if isinstance(metrics, dict) and metrics.get('heads') is not None:
+        return True
+    return any(person.get('heads_actual') is not None for person in message.get('people') or [])
+
+
 def _message_has_cash(message: dict) -> bool:
-    return not (_team_key(message) == 'university' and message.get('business_line') == 'abroad')
+    metrics = message.get('team_metrics') or {}
+    if isinstance(metrics, dict) and metrics.get('cash') is not None:
+        return True
+    if any(person.get('cash_actual') is not None for person in message.get('people') or []):
+        return True
+    ledgers = message.get('ledgers') or {}
+    return bool(ledgers.get('team_cash') or ledgers.get('personal_cash'))
+
+
+def _cash_metric_label(message: dict) -> str:
+    return '现金'
+
+
+def _detail_download_label(message: dict) -> str:
+    return '相关工单与现金流水'
 
 
 def _window(message: dict, data_through: str) -> dict:
     return message.get('window') or {}
+
+
+def _source_coverage_text(message: dict) -> str:
+    coverage = message.get('source_coverage')
+    if not isinstance(coverage, dict) or not coverage.get('start_date') or not coverage.get('through_date'):
+        candidates = [person.get('abroad_source_coverage') for person in message.get('people') or []
+                      if isinstance(person, dict) and isinstance(person.get('abroad_source_coverage'), dict)]
+        unique = {(item.get('start_date'), item.get('through_date')) for item in candidates}
+        if len(unique) == 1:
+            start_date, through_date = next(iter(unique))
+            coverage = {'start_date': start_date, 'through_date': through_date}
+    if not isinstance(coverage, dict):
+        return ''
+    start_date, through_date = coverage.get('start_date'), coverage.get('through_date')
+    if not start_date or not through_date:
+        return ''
+    return f'留学数据覆盖 {start_date}—{through_date}'
 
 
 def _personal_window_text(message: dict, data_through: str) -> tuple[str, float | None, int | None]:
@@ -209,7 +292,11 @@ def _personal_window_text(message: dict, data_through: str) -> tuple[str, float 
     people = message.get('people') or []
     remaining = next((person.get('remaining_workdays') for person in people
                       if person.get('remaining_workdays') is not None), None)
-    return f'绩效月 {month}（{start} 至 {end}）· 数据截止 {through}', progress, remaining
+    label = f'绩效月 {month}（{start} 至 {end}）· 数据截止 {through}'
+    coverage = _source_coverage_text(message)
+    if coverage:
+        label += f' · {coverage}'
+    return label, progress, remaining
 
 
 def _team_window_text(message: dict, data_through: str) -> tuple[str, float | None]:
@@ -218,10 +305,14 @@ def _team_window_text(message: dict, data_through: str) -> tuple[str, float | No
     start = window.get('team_start') or f'{month}-01'
     end = window.get('team_end') or window.get('team_through') or data_through
     through = window.get('team_through') or data_through
-    return f'自然月 {month}（{start} 至 {end}）· 数据截止 {through}', window.get('team_progress')
+    label = f'自然月 {month}（{start} 至 {end}）· 数据截止 {through}'
+    coverage = _source_coverage_text(message)
+    if coverage:
+        label += f' · {coverage}'
+    return label, window.get('team_progress')
 
 
-def _metric_person_value(person: dict, key: str) -> tuple[object, object, object, str | None]:
+def _metric_person_value(person: dict, key: str) -> tuple[object, object, object, str | None, object, object]:
     row = person.get(f'{key}_actual') or {}
     actual = row.get('actual') if isinstance(row, dict) else row
     target = person.get(f'{key}_target')
@@ -231,12 +322,14 @@ def _metric_person_value(person: dict, key: str) -> tuple[object, object, object
     if completion is None and isinstance(row, dict):
         completion = row.get('completion')
     status = row.get('status') if isinstance(row, dict) else None
-    return target, actual, completion, status
+    display = row.get('display') if isinstance(row, dict) else None
+    parts = row.get('parts') if isinstance(row, dict) else None
+    return target, actual, completion, status, display, parts
 
 
 def _person_row(person: dict, message: dict) -> dict:
-    cash_target, cash_actual, cash_completion, cash_status = _metric_person_value(person, 'cash')
-    heads_target, heads_actual, heads_completion, heads_status = _metric_person_value(person, 'heads')
+    cash_target, cash_actual, cash_completion, cash_status, cash_display, cash_parts = _metric_person_value(person, 'cash')
+    heads_target, heads_actual, heads_completion, heads_status, heads_display, heads_parts = _metric_person_value(person, 'heads')
     return {
         'name': person.get('name') or person.get('display_name') or '未命名',
         'group': person.get('business_group') or person.get('home_group') or '—',
@@ -251,10 +344,14 @@ def _person_row(person: dict, message: dict) -> dict:
         'cash_actual': cash_actual,
         'cash_completion': cash_completion,
         'cash_status': cash_status,
+        'cash_display': cash_display,
+        'cash_parts': cash_parts,
         'heads_target': heads_target if heads_target is not None else person.get('heads_target'),
         'heads_actual': heads_actual,
         'heads_completion': heads_completion if heads_completion is not None else person.get('heads_completion'),
         'heads_status': heads_status,
+        'heads_display': heads_display,
+        'heads_parts': heads_parts,
         'secondary_business_line': person.get('secondary_business_line'),
         'secondary_orders_target': person.get('secondary_orders_target'),
         'secondary_orders_actual': person.get('secondary_orders_actual'),
@@ -263,19 +360,39 @@ def _person_row(person: dict, message: dict) -> dict:
 
 
 def _employee_columns(message: dict) -> list[tuple[str, int]]:
+    if message.get('personal_only'):
+        columns = [('人员', 160), ('业务团队', 110), ('工单完成', 140), ('当日新增', 140)]
+        if any(person.get('cash_actual') is not None for person in message.get('people') or []):
+            columns.append((_cash_metric_label(message), 130))
+        return columns
     columns = [
         ('人员', 140), ('业务团队', 90), ('工单目标', 100), ('工单完成', 100),
         ('工单完成率', 120), ('应完成', 90), ('日均需完成', 110),
     ]
-    if _message_uses_heads(message):
+    show_heads = _message_uses_heads(message) or (_team_key(message) == 'university' and _message_has_heads(message))
+    show_cash = _message_has_cash(message) and not _message_uses_heads(message)
+    if show_cash:
+        label = _cash_metric_label(message)
+        amount_label = '现金完成'
+        columns.extend([(f'{label}目标', 125), (amount_label, 125), (f'{label}完成率', 120)])
+    if show_heads:
         columns.extend([('人头目标', 110), ('人头完成', 110), ('人头完成率', 120)])
-    elif _message_has_cash(message):
-        columns.extend([('现金目标', 125), ('现金完成', 125), ('现金完成率', 120)])
     return columns
 
 
 def _employee_values(person: dict, message: dict) -> list[str]:
     row = _person_row(person, message)
+    if message.get('personal_only'):
+        values = [
+            row['name'], row['group'],
+            _count(row['orders_actual']) if row['orders_actual'] is not None else _missing(None),
+            _count(row['today_orders']) if row['today_orders'] is not None else '—',
+        ]
+        if any(source.get('cash_actual') is not None for source in message.get('people') or []):
+            values.append(_metric_display(
+                row['cash_actual'], row['cash_status'], row['cash_display'], row['cash_parts'], money=True,
+            ))
+        return values
     values = [
         row['name'], row['group'],
         _count(row['orders_target']) if row['orders_target'] is not None else _missing(None),
@@ -284,17 +401,19 @@ def _employee_values(person: dict, message: dict) -> list[str]:
         _daily(row['expected_orders']) if row['expected_orders'] is not None else '—',
         _daily(row['daily_orders']),
     ]
-    if _message_uses_heads(message):
-        values.extend([
-            _hours(row['heads_target']) if row['heads_target'] is not None else _missing(None, row['heads_status']),
-            _hours(row['heads_actual']) if row['heads_actual'] is not None else _missing(None, row['heads_status']),
-            _percent(row['heads_completion']) if row['heads_completion'] is not None else _missing(None, row['heads_status']),
-        ])
-    elif _message_has_cash(message):
+    show_heads = _message_uses_heads(message) or (_team_key(message) == 'university' and _message_has_heads(message))
+    show_cash = _message_has_cash(message) and not _message_uses_heads(message)
+    if show_cash:
         values.extend([
             _money(row['cash_target']) if row['cash_target'] is not None else _missing(None, row['cash_status']),
-            _money(row['cash_actual']) if row['cash_actual'] is not None else _missing(None, row['cash_status']),
+            _metric_display(row['cash_actual'], row['cash_status'], row['cash_display'], row['cash_parts'], money=True),
             _percent(row['cash_completion']) if row['cash_completion'] is not None else _missing(None, row['cash_status']),
+        ])
+    if show_heads:
+        values.extend([
+            _hours(row['heads_target']) if row['heads_target'] is not None else _missing(None, row['heads_status']),
+            _metric_display(row['heads_actual'], row['heads_status'], row['heads_display'], row['heads_parts']),
+            _percent(row['heads_completion']) if row['heads_completion'] is not None else _missing(None, row['heads_status']),
         ])
     return values
 
@@ -304,10 +423,24 @@ def _behind_people(message: dict) -> list[dict]:
             if person.get('behind') is True]
 
 
+def _no_behind_text(message: dict) -> str:
+    coverage = message.get('source_coverage') or {}
+    window = message.get('window') or {}
+    start, through = window.get('person_start'), window.get('person_through')
+    if (message.get('business_line') == 'abroad' and start and through
+            and coverage.get('start_date') and coverage.get('through_date')
+            and (coverage['start_date'] > start or coverage['through_date'] < through)):
+        return '来源未覆盖完整绩效窗口，暂不判断落后'
+    if not any(person.get('behind') is False for person in message.get('people') or []):
+        return '暂无可判断的绩效进度'
+    return '无人落后时间进度'
+
+
 def _html_people(message: dict, data_through: str, dashboard_url: str | None,
                  preview_label: str) -> str:
     title = message.get('title') or message.get('id')
     meta, progress, remaining = _personal_window_text(message, data_through)
+    personal_only = bool(message.get('personal_only'))
     columns = _employee_columns(message)
     headers = ''.join(f'<th>{_escape(label)}</th>' for label, _ in columns)
     rows = []
@@ -320,14 +453,28 @@ def _html_people(message: dict, data_through: str, dashboard_url: str | None,
                 css = ' class="numeric behind"'
             cells.append(f'<td{css}>{_escape(value)}</td>')
         rows.append('<tr>' + ''.join(cells) + '</tr>')
-    behind = _behind_people(message)
+    behind = [] if personal_only else _behind_people(message)
     behind_html = ('<ul>' + ''.join(
         f'<li><strong>{_escape(row["name"])}</strong> 工单 {_count(row["orders_actual"])}/{_count(row["orders_target"])}'
         f'（{_percent(row["orders_completion"])}），应完成 {_daily(row["expected_orders"])}，'
-        f'日均需 {_daily(row["daily_orders"])} 条</li>' for row in behind) + '</ul>') if behind else '<p>无人落后时间进度</p>'
-    cash_note = '<p class="note">大学留学现金及人头未接入。</p>' if not _message_has_cash(message) else ''
+        f'日均需 {_daily(row["daily_orders"])} 条</li>' for row in behind) + '</ul>') if behind else f'<p>{_escape(_no_behind_text(message))}</p>'
     link = f'<p><a href="{_escape(dashboard_url)}">查看看板</a></p>' if dashboard_url else ''
     progress_html = '' if progress is None else f'<p class="progress">绩效月时间进度 {progress * 100:.1f}% · 剩余工作日 {remaining if remaining is not None else "—"}</p>'
+    channel_html = ''
+    if personal_only:
+        channel_rows = _online_channel_rows(message)
+        body = ''.join(
+            '<tr>' + ''.join(
+                f'<td class="numeric">{_escape(value)}</td>' if column else f'<td>{_escape(value)}</td>'
+                for column, value in enumerate(row)
+            ) + '</tr>'
+            for row in channel_rows
+        ) or '<tr><td colspan="4">暂无渠道数据</td></tr>'
+        channel_html = (f'<h2>个人渠道分布</h2><table><thead><tr><th>二级渠道</th>'
+                        f'<th class="numeric">月累计</th><th class="numeric">当日新增</th>'
+                        f'<th class="numeric">占比</th></tr></thead><tbody>{body}</tbody></table>')
+    colspan = len(columns)
+    behind_section = '' if personal_only else f'<h2>落后时间进度（工单）</h2>{behind_html}'
     return f'''<!doctype html><html lang="zh-CN"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1"><title>{_escape(title)}</title>
 <style>:root{{--ink:{INK};--muted:{MUTED};--line:{LINE};--blue:{BLUE};--canvas:{CANVAS}}}*{{box-sizing:border-box}}
@@ -341,8 +488,8 @@ thead th{{background:#f7f9fc;color:var(--muted);font-size:13px;white-space:norma
 ul{{margin:0;padding-left:20px}}li{{margin:5px 0;color:{RED}}}a{{color:{BLUE}}}.local{{margin-top:22px;font-size:11px;color:#9aa4b2}}
 </style></head><body><main><div class="eyebrow">DATA OXHOR / 人员月度贡献</div><h1>{_escape(title)}</h1>
 <p class="meta">{_escape(meta)} · 剩余工作日 {remaining if remaining is not None else '—'}</p>{progress_html}
-{cash_note}<table><thead><tr>{headers}</tr></thead><tbody>{''.join(rows) or '<tr><td colspan="10">当前没有人员进度</td></tr>'}</tbody></table>
-<h2>落后时间进度（工单）</h2>{behind_html}{link}<div class="local">{_escape(preview_label)}</div></main></body></html>'''
+<table><thead><tr>{headers}</tr></thead><tbody>{''.join(rows) or f'<tr><td colspan="{colspan}">当前没有人员进度</td></tr>'}</tbody></table>
+{channel_html}{behind_section}{link}<div class="local">{_escape(preview_label)}</div></main></body></html>'''
 
 
 def _online_metrics(message: dict) -> list[dict]:
@@ -350,21 +497,24 @@ def _online_metrics(message: dict) -> list[dict]:
     output = []
     orders = metrics.get('orders') or {}
     output.append({'name': '工单', 'metric': orders, 'unit': '条'})
-    if message.get('business_line') == 'training':
+    if message.get('business_line') == 'training' or metrics.get('cash') is not None:
         cash = metrics.get('cash') or {}
-        output.append({'name': '语培现金', 'metric': cash, 'unit': '元'})
+        output.append({'name': '语培现金' if message.get('business_line') == 'training' else _cash_metric_label(message),
+                       'metric': cash, 'unit': '元'})
     return output
 
 
 def _metric_cell(metric: dict, field: str, *, money=False) -> str:
     value = metric.get(field)
+    if field == 'actual':
+        return _metric_display(value, metric.get('status'), metric.get('display'), metric.get('parts'), money=money)
     if value is None:
         return _missing(None, metric.get('status'))
     return _money(value) if money else _count(value)
 
 
 def _metric_status(metric: dict) -> str:
-    if metric.get('status') in {'not_connected', 'not_configured', 'future', 'unavailable'}:
+    if metric.get('status') in {'not_connected', 'not_configured', 'not_covered', 'future', 'unavailable', 'partial', 'separate_counts'}:
         return _status(metric.get('status'))
     return '已接入' if metric.get('target') is not None else '未配置'
 
@@ -407,6 +557,17 @@ def _online_channel_rows(message: dict) -> list[list[str]]:
         _count(channel.get('today')) if channel.get('today') is not None else '—',
         _percent(channel.get('share')) if channel.get('share') is not None else '—',
     ] for channel in message.get('channels') or []]
+
+
+def _personal_channel_xlsx_rows(message: dict) -> tuple[list[str], list[list]]:
+    headers = ['二级渠道', '月累计', '当日新增', '占比%']
+    rows = [[
+        str(channel.get('name') or '二级渠道待确认'),
+        channel.get('month'),
+        channel.get('today'),
+        None if channel.get('share') is None else round(float(channel['share']) * 100, 1),
+    ] for channel in message.get('channels') or []]
+    return headers, rows
 
 
 def _wrap(draw, text: str, font, max_width: int) -> list[str]:
@@ -468,22 +629,30 @@ def _draw_table(draw, x, y, widths, headers, rows, *, cell_font, header_font, ri
 def _render_person_png(message: dict, data_through: str, path: Path, dashboard_url: str | None) -> Path:
     title = str(message.get('title') or message.get('id'))
     meta, progress, remaining = _personal_window_text(message, data_through)
+    personal_only = bool(message.get('personal_only'))
     people = message.get('people') or []
     columns = _employee_columns(message)
     headers = [name for name, _ in columns]
     widths = [width for _, width in columns]
     values = [_employee_values(person, message) for person in people]
-    behind = _behind_people(message)
-    note = '大学留学现金及人头未接入。' if not _message_has_cash(message) else ''
+    behind = [] if personal_only else _behind_people(message)
+    channel_rows = _online_channel_rows(message) if personal_only else []
+    if personal_only and not channel_rows:
+        channel_rows = [['暂无渠道数据', '—', '—', '—']]
+    channel_widths = [520, 180, 180, 140]
+    channel_headers = ['二级渠道', '月累计', '当日新增', '占比']
     table_draw = ImageDraw.Draw(Image.new('RGB', (1, 1), 'white'))
     cell_font, header_font = _font(15), _font(13, bold=True)
     table_h = _table_height(table_draw, widths, headers, values, cell_font, header_font)
-    behind_h = 40 + sum(28 for _ in behind) if behind else 50
-    note_h = 28 if note else 0
-    height = 225 + table_h + behind_h + note_h + 36
-    image = Image.new('RGB', (WIDTH, height), CANVAS)
+    behind_h = 0 if personal_only else (40 + sum(28 for _ in behind) if behind else 50)
+    channel_h = (_table_height(table_draw, channel_widths, channel_headers,
+                               channel_rows, cell_font, header_font) if channel_rows else 0)
+    channel_section_h = 43 + channel_h if channel_rows else 0
+    height = 225 + table_h + behind_h + channel_section_h + 36
+    canvas_width = max(WIDTH, sum(widths) + 64)
+    image = Image.new('RGB', (canvas_width, height), CANVAS)
     draw = ImageDraw.Draw(image)
-    draw.rectangle((14, 14, WIDTH - 14, height - 14), fill='white', outline=LINE, width=1)
+    draw.rectangle((14, 14, canvas_width - 14, height - 14), fill='white', outline=LINE, width=1)
     draw.text((32, 29), 'DATA OXHOR / 人员月度贡献', font=_font(12, bold=True), fill=BLUE)
     draw.text((32, 51), title, font=_font(27, bold=True), fill=INK)
     draw.text((32, 94), meta + f' · 剩余工作日 {remaining if remaining is not None else "—"}', font=_font(15), fill=MUTED)
@@ -496,29 +665,33 @@ def _render_person_png(message: dict, data_through: str, path: Path, dashboard_u
             draw.rounded_rectangle((bar_x, bar_y, bar_x + round(bar_w * pct), bar_y + 10), radius=5, fill=BLUE)
         draw.text((bar_x + bar_w + 12, 123), f'{pct * 100:.1f}%', font=_font(18, bold=True), fill=BLUE)
     y = 164
-    if note:
-        draw.text((32, y), note, font=_font(14), fill=MUTED)
-        y += 26
     y = _draw_table(draw, 32, y, widths, headers, values, cell_font=cell_font,
                     header_font=header_font, right_columns=tuple(range(2, len(headers))))
-    y += 18
-    draw.text((32, y), '落后时间进度（工单）', font=_font(17, bold=True), fill=INK)
-    y += 26
-    if behind:
-        for person in behind:
-            line = (f"{person['name']}  工单 {_count(person['orders_actual'])}/{_count(person['orders_target'])}"
-                    f"（{_percent(person['orders_completion'])}），应完成 {_daily(person['expected_orders'])}，"
-                    f"日均需 {_daily(person['daily_orders'])} 条")
-            draw.text((32, y), line, font=_font(14), fill=RED)
-            y += 25
-    else:
-        draw.text((32, y), '无人落后时间进度', font=_font(14), fill=MUTED)
-        y += 22
+    if channel_rows:
+        y += 18
+        draw.text((32, y), '个人渠道分布', font=_font(17, bold=True), fill=INK)
+        y += 25
+        y = _draw_table(draw, 32, y, channel_widths, channel_headers, channel_rows,
+                        cell_font=cell_font, header_font=header_font, right_columns=(1, 2, 3))
+    if not personal_only:
+        y += 18
+        draw.text((32, y), '落后时间进度（工单）', font=_font(17, bold=True), fill=INK)
+        y += 26
+        if behind:
+            for person in behind:
+                line = (f"{person['name']}  工单 {_count(person['orders_actual'])}/{_count(person['orders_target'])}"
+                        f"（{_percent(person['orders_completion'])}），应完成 {_daily(person['expected_orders'])}，"
+                        f"日均需 {_daily(person['daily_orders'])} 条")
+                draw.text((32, y), line, font=_font(14), fill=RED)
+                y += 25
+        else:
+            draw.text((32, y), _no_behind_text(message), font=_font(14), fill=MUTED)
+            y += 22
     footer = '流水见附件' + (' · 详细分析见看板' if dashboard_url else '')
     draw.text((32, y + 10), footer, font=_font(12), fill=MUTED)
     final_height = y + 40
-    image = image.crop((0, 0, WIDTH, final_height))
-    ImageDraw.Draw(image).rectangle((14, 14, WIDTH - 14, final_height - 14), outline=LINE, width=1)
+    image = image.crop((0, 0, canvas_width, final_height))
+    ImageDraw.Draw(image).rectangle((14, 14, canvas_width - 14, final_height - 14), outline=LINE, width=1)
     path.parent.mkdir(parents=True, exist_ok=True)
     image.save(path, 'PNG')
     return path
@@ -528,7 +701,8 @@ def _online_rows(message: dict) -> list[list[str]]:
     rows = []
     metrics = message.get('team_metrics') or {}
     line = message.get('business_line')
-    for name, key in [('工单', 'orders')] + ([('语培现金', 'cash')] if line == 'training' else []):
+    cash_label = '语培现金' if line == 'training' else _cash_metric_label(message)
+    for name, key in [('工单', 'orders')] + ([(cash_label, 'cash')] if line == 'training' or metrics.get('cash') is not None else []):
         metric = metrics.get(key) or {}
         money = key == 'cash'
         rows.append([
@@ -634,38 +808,70 @@ def _status_text(value):
     }.get(value, value)
 
 
-def _reason_text(fact: dict) -> str:
+def _person_credit_text(fact: dict, field: str, kind: str) -> str:
+    credits = fact.get('person_credits')
+    if not isinstance(credits, dict):
+        return ''
+    parts = []
+    for name, credit in credits.items():
+        if not isinstance(credit, dict):
+            continue
+        value = credit.get(field)
+        if value is None:
+            shown = '未配置'
+        elif field == 'weight' or kind == '工单':
+            shown = _number_text(value)
+        else:
+            shown = _money(value)
+        parts.append(f'{name}：{shown}')
+    return '；'.join(parts)
+
+
+def _reason_text(fact: dict, *, team_scope: bool = False) -> str:
+    status = _status_text(fact.get('order_status'))
+    if team_scope:
+        return ''
+    if status in {'删除', '回收'}:
+        return f'工单状态为{status}，不计个人业绩'
     reason = fact.get('exclusion_reason')
-    labels = {
-        'order_status_deleted': '工单状态为删除，不计入工单完成',
-        'order_status_recalled': '工单状态为回收，不计入工单完成',
-    }
-    if reason in labels:
-        return labels[reason]
+    if reason and fact.get('counts_toward_completion') is False and not team_scope:
+        return f'{reason}；不计个人业绩'
     return str(reason or ('' if fact.get('counts_toward_completion') is True else '未提供原因'))
 
 
-def _detail_row(fact: dict, index: int, kind: str) -> dict:
+def _detail_row(fact: dict, index: int, kind: str, *, team_scope: bool = False) -> dict:
     row = _source_fields(fact)
     owners = fact.get('owners') or []
+    status = _status_text(fact.get('order_status'))
+    counts_toward_completion = fact.get('counts_toward_completion')
+    if team_scope:
+        counts_toward_completion = True
     row.update({
         '发生日期': fact.get('event_date'),
         '业务线': _line_name(fact.get('business_line')),
         '工单ID': fact.get('work_order_id'),
+        '资源ID': fact.get('resource_id'),
         '归属人员': '、'.join(map(str, owners)) if isinstance(owners, (list, tuple)) else str(owners or ''),
-        '指标': kind,
+        '指标': _cash_metric_label({'business_line': fact.get('business_line')}) if kind == '现金' else kind,
         '数量/金额': fact.get('value'),
         '工单状态': _status_text(fact.get('order_status')),
         '是否计入工单完成': ('不适用' if kind == '现金' else
-                              ('是' if fact.get('counts_toward_completion') is True else ('否' if fact.get('counts_toward_completion') is False else '未标明'))),
-        '不计入原因': '' if kind == '现金' else _reason_text(fact),
+                              ('是' if counts_toward_completion is True else ('否' if counts_toward_completion is False else '未标明'))),
+        '不计入原因': '' if kind == '现金' else _reason_text(fact, team_scope=team_scope),
     })
+    if not team_scope:
+        person_weights = _person_credit_text(fact, 'weight', kind)
+        person_values = _person_credit_text(fact, 'value', kind)
+        if person_weights or person_values:
+            row['个人分配权重'] = person_weights
+            row['个人贡献数量/金额'] = person_values
     return row
 
 
 def _ledger_rows(message: dict, key: str, kind: str) -> list[dict]:
     ledgers = message.get('ledgers') or {}
     prefix = 'team' if _message_is_online(message) else 'personal'
+    team_scope = prefix == 'team'
     facts = list(ledgers.get(f'{prefix}_{key}') or [])
     if (key == 'orders' and prefix == 'personal'
             and _team_key(message) == 'university'):
@@ -674,19 +880,44 @@ def _ledger_rows(message: dict, key: str, kind: str) -> list[dict]:
     for fact in facts:
         if not isinstance(fact, dict):
             continue
-        identity = fact.get('fact_id') or (fact.get('business_line'), fact.get('work_order_id'), fact.get('event_date'))
+        identity = fact.get('fact_id') or (
+            fact.get('business_line'), fact.get('work_order_id'), fact.get('resource_id'),
+            fact.get('event_date'), fact.get('value'),
+        )
         if identity in seen:
             continue
         seen.add(identity)
-        output.append(_detail_row(fact, len(output) + 1, kind))
+        output.append(_detail_row(fact, len(output) + 1, kind, team_scope=team_scope))
     return output
 
 
 def _person_xlsx_rows(message: dict, data_through: str) -> tuple[list[str], list[list]]:
+    if message.get('personal_only'):
+        labels = ['人员', '业务团队', '工单完成', '当日新增']
+        has_cash = any(person.get('cash_actual') is not None for person in message.get('people') or [])
+        if has_cash:
+            labels.append(_cash_metric_label(message))
+        rows = []
+        for source in message.get('people') or []:
+            person = _person_row(source, message)
+            row = [
+                person['name'], person['group'],
+                person['orders_actual'] if person['orders_actual'] is not None else _missing(None),
+                person['today_orders'] if person['today_orders'] is not None else _missing(None),
+            ]
+            if has_cash:
+                row.append(_metric_spreadsheet_value(
+                    person['cash_actual'], person['cash_status'],
+                    person['cash_display'], person['cash_parts'],
+                ))
+            rows.append(row)
+        return labels, rows
+    cash_label = _cash_metric_label(message)
+    cash_actual_label = '现金完成(元)'
     labels = [
         '人员', '业务团队', '主线工单目标', '主线工单完成', '主线工单完成率%',
-        '应完成工单', '日均需完成', '落后时间进度', '现金目标(元)', '现金完成(元)',
-        '现金完成率%', '人头目标', '人头完成', '人头完成率%', '另一业务线',
+        '应完成工单', '日均需完成', '落后时间进度', f'{cash_label}目标(元)', cash_actual_label,
+        f'{cash_label}完成率%', '人头目标', '人头完成', '人头完成率%', '另一业务线',
         '另一业务线工单目标', '另一业务线工单完成', '另一业务线完成率%',
     ]
     rows = []
@@ -699,10 +930,12 @@ def _person_xlsx_rows(message: dict, data_through: str) -> tuple[list[str], list
             round(float(person['orders_completion']) * 100, 1) if person['orders_completion'] is not None else '未配置',
             person['expected_orders'], person['daily_orders'], _behind(person),
             person['cash_target'] if person['cash_target'] is not None else _missing(None, person['cash_status']),
-            person['cash_actual'] if person['cash_actual'] is not None else _missing(None, person['cash_status']),
+            _metric_spreadsheet_value(person['cash_actual'], person['cash_status'],
+                                      person['cash_display'], person['cash_parts']),
             round(float(person['cash_completion']) * 100, 1) if person['cash_completion'] is not None else _missing(None, person['cash_status']),
             person['heads_target'] if person['heads_target'] is not None else _missing(None, person['heads_status']),
-            person['heads_actual'] if person['heads_actual'] is not None else _missing(None, person['heads_status']),
+            _metric_spreadsheet_value(person['heads_actual'], person['heads_status'],
+                                      person['heads_display'], person['heads_parts']),
             round(float(person['heads_completion']) * 100, 1) if person['heads_completion'] is not None else _missing(None, person['heads_status']),
             _line_name(person['secondary_business_line']),
             person['secondary_orders_target'] if person['secondary_orders_target'] is not None else _missing(None),
@@ -723,7 +956,8 @@ def _online_xlsx_rows(message: dict, data_through: str) -> tuple[list[str], list
         metric = item['metric']
         rows.append([
             _line_name(message.get('business_line')), window, item['name'], metric.get('target'),
-            metric.get('actual'),
+            _metric_spreadsheet_value(metric.get('actual'), metric.get('status'),
+                                      metric.get('display'), metric.get('parts')),
             None if metric.get('completion') is None else round(float(metric['completion']) * 100, 1),
             _metric_status(metric),
         ])
@@ -733,6 +967,9 @@ def _online_xlsx_rows(message: dict, data_through: str) -> tuple[list[str], list
 def _write_sheet(workbook: Workbook, name: str, headers: list[str], rows: list[list], note: str) -> None:
     sheet = workbook.create_sheet(name)
     last = max(1, len(headers))
+    header_index = {header: index for index, header in enumerate(headers)}
+    metric_index = header_index.get('指标')
+    money_metrics = {'现金', '语培现金', '毛签金额', '签约金额', '实缴金额'}
     for row, text in ((1, name), (2, f'范围：{note}')):
         sheet.cell(row, 1, text)
         sheet.merge_cells(start_row=row, start_column=1, end_row=row, end_column=last)
@@ -752,6 +989,12 @@ def _write_sheet(workbook: Workbook, name: str, headers: list[str], rows: list[l
             cell = sheet.cell(row_index, column, value)
             cell.alignment = Alignment(wrap_text=True, vertical='top',
                                        horizontal='right' if isinstance(value, (int, float)) else 'left')
+            header = str(headers[column - 1]) if column <= len(headers) else ''
+            metric = str(values[metric_index]) if metric_index is not None and metric_index < len(values) else ''
+            money_column = any(label in header for label in ('现金', '毛签金额', '签约金额', '实缴金额'))
+            money_column = money_column or (header in {'目标', '完成', '数量/金额'} and metric in money_metrics)
+            if money_column and isinstance(value, (int, float)) and not isinstance(value, bool):
+                cell.number_format = '#,##0.00'
     for column, header in enumerate(headers, start=1):
         sample = [str(header)] + [str(row[column - 1]) for row in rows[:150]
                                   if column <= len(row) and row[column - 1] is not None]
@@ -761,7 +1004,12 @@ def _write_sheet(workbook: Workbook, name: str, headers: list[str], rows: list[l
 
 
 def _write_detail_sheet(workbook: Workbook, name: str, rows: list[dict], note: str, *, show_business_line=True) -> None:
-    standard = ['发生日期', '业务线', '工单ID', '归属人员', '指标', '数量/金额', '工单状态', '是否计入工单完成', '不计入原因']
+    standard = ['发生日期', '业务线', '工单ID', '归属人员', '指标']
+    if any(row.get('资源ID') is not None for row in rows):
+        standard.insert(3, '资源ID')
+    if any('个人分配权重' in row or '个人贡献数量/金额' in row for row in rows):
+        standard.extend(['个人分配权重', '个人贡献数量/金额'])
+    standard.extend(['数量/金额', '工单状态', '是否计入工单完成', '不计入原因'])
     if not show_business_line:
         standard.remove('业务线')
         rows = [{k: v for k, v in row.items() if k != '业务线'} for row in rows]
@@ -781,18 +1029,23 @@ def _write_xlsx(message: dict, data_through: str, path: Path) -> Path:
         headers, rows = _online_xlsx_rows(message, data_through)
         window, _ = _team_window_text(message, data_through)
         _write_sheet(book, '进度汇总', headers, rows, window)
-        scope = f'{window}；对应自然月卡片范围。删除/回收状态保留并标明是否计入工单完成。'
+        scope = f'{window}；对应自然月团队核算范围，删除、回收计入团队业绩；个人业绩剔除。'
     else:
         headers, rows = _person_xlsx_rows(message, data_through)
         window, _, _ = _personal_window_text(message, data_through)
         _write_sheet(book, '个人进度', headers, rows,
                      f'{window}；个人行是贡献口径，不能相加替代部门去重工单量。')
-        scope = f'{window}；只包含本消息相关人员的个人流水，删除/回收状态保留并标明是否计入工单完成。'
+        scope = f'{window}；只包含本消息相关人员的个人流水，删除、回收保留明细但不计个人业绩。'
+    if message.get('personal_only'):
+        channel_headers, channel_values = _personal_channel_xlsx_rows(message)
+        _write_sheet(book, '渠道分布', channel_headers, channel_values,
+                     f'{window}；按个人工单贡献统计。')
     orders = _ledger_rows(message, 'orders', '工单')
     cash = _ledger_rows(message, 'cash', '现金')
     _write_detail_sheet(book, '工单明细', orders, scope, show_business_line=_team_key(message) != 'virtual')
-    cash_scope = scope if cash else scope + '；当前范围没有已接入现金流水。'
-    _write_detail_sheet(book, '现金明细', cash, cash_scope, show_business_line=_team_key(message) != 'virtual')
+    if not message.get('personal_only') or cash:
+        cash_scope = scope if cash else scope + '；当前范围没有已接入金额流水。'
+        _write_detail_sheet(book, '现金明细', cash, cash_scope, show_business_line=_team_key(message) != 'virtual')
     path.parent.mkdir(parents=True, exist_ok=True)
     book.save(path)
     return path
@@ -809,6 +1062,28 @@ def _dashboard_url(message: dict, base_url: str | None) -> str | None:
 
 def _markdown(message: dict, data_through: str, dashboard_url: str | None) -> str:
     title = message.get('title') or message.get('id')
+    if message.get('personal_only'):
+        window, progress, remaining = _personal_window_text(message, data_through)
+        lines = [f'## {title}', '', window]
+        if progress is not None:
+            lines.append(f'时间进度 {float(progress) * 100:.1f}% · 剩余工作日 {remaining if remaining is not None else "—"}')
+        columns = [label for label, _ in _employee_columns(message)]
+        people_rows = [_employee_values(person, message) for person in message.get('people') or []]
+        lines.extend(['', '| ' + ' | '.join(columns) + ' |',
+                      '| ' + ' | '.join('---' for _ in columns) + ' |'])
+        lines.extend('| ' + ' | '.join(values) + ' |' for values in people_rows)
+        lines.extend(['', '个人渠道分布', '', '| 二级渠道 | 月累计 | 当日新增 | 占比 |',
+                      '| --- | ---: | ---: | ---: |'])
+        channel_rows = _online_channel_rows(message)
+        if channel_rows:
+            lines.extend('| ' + ' | '.join(row) + ' |' for row in channel_rows)
+        else:
+            lines.append('| 暂无渠道数据 | — | — | — |')
+        lines.extend(['', '![本地消息图片](message.png)', ''])
+        if dashboard_url:
+            lines.append(f'[查看看板]({dashboard_url})')
+        lines.extend(['[查看HTML预览](message.html)', f'[下载{_detail_download_label(message)}](details.xlsx)', ''])
+        return '\n'.join(lines)
     if _message_is_online(message):
         window, progress = _team_window_text(message, data_through)
         lines = [f'## {title}', '', window]
@@ -833,8 +1108,6 @@ def _markdown(message: dict, data_through: str, dashboard_url: str | None) -> st
         lines = [f'## {title}', '', window]
         if progress is not None:
             lines.append(f'时间进度 {float(progress) * 100:.1f}% · 剩余工作日 {remaining if remaining is not None else "—"}')
-        if not _message_has_cash(message):
-            lines.append('大学留学现金及人头未接入。')
         lines.extend(['', '**落后时间进度（工单）**'])
         behind = _behind_people(message)
         if behind:
@@ -845,11 +1118,11 @@ def _markdown(message: dict, data_through: str, dashboard_url: str | None) -> st
                 for person in behind
             )
         else:
-            lines.append('- 无人落后时间进度')
+            lines.append('- ' + _no_behind_text(message))
     lines.extend(['', '![本地消息图片](message.png)', ''])
     if dashboard_url:
         lines.append(f'[查看看板]({dashboard_url})')
-    lines.extend(['[查看HTML预览](message.html)', '[下载相关工单与现金流水](details.xlsx)', ''])
+    lines.extend(['[查看HTML预览](message.html)', f'[下载{_detail_download_label(message)}](details.xlsx)', ''])
     return '\n'.join(lines)
 
 

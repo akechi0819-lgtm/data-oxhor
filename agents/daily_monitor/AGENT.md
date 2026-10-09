@@ -2,7 +2,7 @@
 
 ## 职责与入口
 
-只从当天管理批次的 `shared_result.json` 投递已计算好的七条消息，不独立取数或重算指标。七条消息投递到原 5 个钉钉通道：`offline_youth`、`offline_high_school`、`offline_university`、`online_private`、`online_platform`；大学和线上平台各两条消息共用各自原群。
+只从当天管理批次的 `shared_result.json` 投递已计算好的八条消息，不独立取数或重算指标。八条消息投递到原 5 个钉钉通道：`offline_youth`、`offline_high_school`、`offline_university`、`online_private`、`online_platform`；高中、大学和线上平台各两条消息共用各自原群。高中留学为个人简报，消费 `high.abroad` 的个人完成、渠道及个人流水，不把个人贡献改写成部门完成。
 
 只读预览使用当前批次的 `WORKSPACE`、`RUN_ID` 和通知 `AS_OF_DATE`：
 

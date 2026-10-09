@@ -37,6 +37,25 @@
   .flat-single .flat-scroll { max-height:calc(100vh - 350px); }
   [data-board="prep_high"] .flat-scroll { max-height:174px; }
 }
+.flat-table.is-channel-comparison { min-width:920px; table-layout:auto; }
+.flat-table.is-channel-comparison thead th { width:auto; white-space:nowrap; }
+.flat-table.is-channel-comparison thead th:first-child { width:22%; }
+.flat-table.is-channel-comparison thead th:nth-child(n+2):nth-child(-n+7) { width:9.5%; }
+.flat-table.is-channel-comparison thead th:last-child { width:21%; }
+.flat-table.is-channel-comparison tbody td:nth-child(n+2):nth-child(-n+7) { font-variant-numeric:tabular-nums; white-space:nowrap; }
+body[data-board="university"] .is-channel-grid,
+body[data-board="prep_high"] .is-channel-grid { grid-template-columns:minmax(0,1fr); }
+body[data-board="university"] .is-channel-grid .is-channel-card .flat-scroll,
+body[data-board="prep_high"] .is-channel-grid .is-channel-card .flat-scroll { max-height:none; }
+.personal-abroad-panel { margin-top:8px; }
+.personal-abroad-summary { display:flex; align-items:baseline; justify-content:space-between; gap:8px 16px; padding:6px 10px; color:#5f7480; font-size:12px; }
+.personal-abroad-summary strong { color:#203e55; font-size:15px; font-variant-numeric:tabular-nums; }
+.personal-abroad-panel .flat-scroll { max-height:none; }
+.flat-table.personal-abroad-table { min-width:760px; table-layout:auto; }
+.flat-table.personal-abroad-table thead th { width:auto; white-space:nowrap; }
+.personal-abroad-table thead th:first-child { min-width:150px; }
+.personal-abroad-table thead th:nth-child(2) { min-width:125px; }
+.personal-abroad-table tbody td:nth-child(n+3) { white-space:nowrap; }
 .flat-scroll { scrollbar-gutter:stable; }
 .flat-scroll::-webkit-scrollbar { width:7px; height:7px; }
 .flat-scroll::-webkit-scrollbar-track { background:#f0f4f7; }

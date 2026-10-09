@@ -6,33 +6,41 @@
   "people": [
     {
       "display_name": "孙伟",
+      "business_group": "大学",
       "monthly_targets": {"2026-10": {"orders": 70, "cash": 80000}}
     },
     {
       "display_name": "吴子玄",
+      "business_group": "大学",
       "monthly_targets": {"2026-10": {"orders": 70, "cash": 80000}}
     },
     {
       "display_name": "邓睿",
+      "business_group": "大学",
       "monthly_targets": {"2026-10": {"orders": 70, "cash": 100000}}
     },
     {
       "display_name": "王洪霞",
+      "business_group": "大学",
       "monthly_targets": {"2026-10": {"orders": 70, "cash": 100000}}
     },
     {
       "display_name": "王衡利",
+      "business_group": "大学",
       "monthly_targets": {"2026-10": {"orders": 70, "cash": 80000}}
     },
     {
       "display_name": "杨芸聿",
+      "business_group": "大学",
       "monthly_targets": {"2026-10": {"orders": 70, "cash": 80000}}
     },
     {
-      "display_name": "马玥"
+      "display_name": "马玥",
+      "business_group": "高中"
     },
     {
-      "display_name": "高书航"
+      "display_name": "高书航",
+      "business_group": "大学"
     }
   ]
 }

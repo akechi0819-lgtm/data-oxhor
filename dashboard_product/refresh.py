@@ -1,6 +1,12 @@
 #!/usr/bin/env python3
 """Retained V14 projection and attribution helpers used by management builds."""
-from workspace_modeling.operations.personnel import BUSINESS_GROUP_BY_ROSTER_GROUP, date_to_perf_month, is_displayable_person, match_person_names
+from workspace_modeling.operations.personnel import (
+    BUSINESS_GROUP_BY_ROSTER_GROUP,
+    co_creation_weights,
+    date_to_perf_month,
+    is_displayable_person,
+    match_person_names,
+)
 from dashboard_product.fallback_mapping import infer_team, resolve_cash_channel
 DASHBOARD_QUERY_COLUMNS=(
     'event_date','team_id','business_group','first_channel','second_channel',
@@ -46,19 +52,46 @@ def project(q,p,tg,people,capacity=None):
  market_team_act={}; market_team_prior={}
  drill={"current":{"cash":{"channel":{},"school_grade":{}},"orders":{"channel":{},"school_grade":{}}},"prior":{"cash":{"channel":{},"school_grade":{}},"orders":{"channel":{},"school_grade":{}}}}
  configured_people=[]
+ roster_by_name={}
  for team_config in people.get('teams',[]):
   for group_config in team_config.get('groups',[]):
    group_business_group=BUSINESS_GROUP_BY_ROSTER_GROUP.get(group_config.get('display_name'))
    for person in group_config.get('members',[]):
     person_name=person.get('display_name')
     if not is_displayable_person(person): continue
-    configured_people.append((team_config['team_id'], person.get('business_group') or group_business_group, person_name))
+    business_group=person.get('business_group') or group_business_group
+    team_id=team_config['team_id']
+    configured_people.append((team_id, business_group, person_name))
+    roster_row=roster_by_name.setdefault(person_name, {
+     'team_ids':set(), 'business_groups_by_team':{}, 'status':person.get('status')
+    })
+    roster_row['team_ids'].add(team_id)
+    roster_row['business_groups_by_team'].setdefault(team_id,set()).add(business_group)
  offline_names={name for configured_team,_,name in configured_people if configured_team=='offline_market'}
 
  def matched_people(team, business_group, campaign, entry_person):
-  candidates=[name for configured_team, configured_group, name in configured_people
-              if configured_team == team and configured_group == business_group]
+  # Match co-creators across the source team's groups. Original group
+  # qualification is applied after the shared denominator is known.
+  candidates=[name for configured_team,_,name in configured_people if configured_team==team]
   return match_person_names(candidates, campaign, entry_person)
+
+ def personal_role_eligible(name, team, target):
+  person=roster_by_name.get(name)
+  if not person: return False
+  team_ids=person['team_ids']
+  if 'online_private' in team_ids:
+   return True
+  if 'online_platform' in team_ids:
+   return (team == 'online_platform'
+           and target in person['business_groups_by_team'].get('online_platform',set()))
+  return (team == 'offline_market' and 'offline_market' in team_ids
+          and target in person['business_groups_by_team'].get('offline_market',set()))
+
+ def head_role_eligible(name, team, target):
+  person=roster_by_name.get(name)
+  if not person or team not in person['team_ids']:
+   return False
+  return target in person['business_groups_by_team'].get(team,set())
 
  def add_row(row, period, months, actuals, yoy_actuals, is_current):
   if len(row)!=15: raise ValueError(f'Unexpected dashboard query row: expected 15 columns, got {len(row)}')
@@ -96,22 +129,34 @@ def project(q,p,tg,people,capacity=None):
   drill[period][metric_key]['channel'][channel_key]=drill[period][metric_key]['channel'].get(channel_key,0)+value
   drill[period][metric_key]['school_grade'][grade_key]=drill[period][metric_key]['school_grade'].get(grade_key,0)+value
   people_hit=[] if fallback_team else matched_people(team, target, campaign, entry_person)
-  for person_name in people_hit:
+  shared_weights=co_creation_weights(people_hit, roster_by_name)
+  # The retained V14 reconciliation may have an explicitly configured
+  # online-platform individual roster even though the new shared co-creation
+  # API only splits offline and online-private roles.
+  for name in people_hit:
+   if 'online_platform' in roster_by_name[name]['team_ids']:
+    shared_weights.setdefault(name,1)
+  personal_hits=[name for name in people_hit
+                 if name in shared_weights and personal_role_eligible(name,team,target)]
+  for person_name in personal_hits:
    if is_current:
-    per[(team,person_name,metric)]=per.get((team,person_name,metric),0)+value
+    person_team='online_private' if 'online_private' in roster_by_name[person_name]['team_ids'] else team
+    credited_value=value*float(shared_weights[person_name])
+    per[(person_team,person_name,metric)]=per.get((person_team,person_name,metric),0)+credited_value
     # 个人维度：线下与虚拟人团队（online_private，20260929 v3）按绩效月（上月26日至本月25日）；线上平台个人目标与实际按自然月（ab53258）。
     # 团队/总体上方仍按自然月 month；查询上界已截到 data_through。
-    perf_month=str(dt)[:7] if team in PERSON_NATURAL_MONTH_TEAMS else date_to_perf_month(dt)
-    if perf_month: per_monthly[(team,person_name,perf_month,metric)]=per_monthly.get((team,person_name,perf_month,metric),0)+value
+    perf_month=str(dt)[:7] if person_team in PERSON_NATURAL_MONTH_TEAMS else date_to_perf_month(dt)
+    if perf_month: per_monthly[(person_team,person_name,perf_month,metric)]=per_monthly.get((person_team,person_name,perf_month,metric),0)+credited_value
     if perf_month:
-     drill_key=(team,person_name,perf_month,metric,str(first_ch or '未归类'),str(second_ch or '未细分'))
-     person_drill[drill_key]=person_drill.get(drill_key,0)+value
-  if is_current and metric=='passive_reported_cash' and people_hit:
+     drill_key=(person_team,person_name,perf_month,metric,str(first_ch or '未归类'),str(second_ch or '未细分'))
+     person_drill[drill_key]=person_drill.get(drill_key,0)+credited_value
+  if is_current and metric=='passive_reported_cash' and personal_hits:
    sid=str(student_id).strip() if student_id not in (None,'') else ''
    if sid:
-    weight=1.0/len(people_hit)
-    for person_name in people_hit:
-     credit_unique(heads_credits,(team,person_name),sid,weight)
+    for person_name in personal_hits:
+     if not head_role_eligible(person_name,team,target): continue
+     person_team='online_private' if 'online_private' in roster_by_name[person_name]['team_ids'] else team
+     credit_unique(heads_credits,(person_team,person_name),sid,float(shared_weights[person_name]))
  # 处理当前年度数据
  for row in q['result']['rows']:
   add_row(row,'current',MONTHS,act,yoy_act,True)

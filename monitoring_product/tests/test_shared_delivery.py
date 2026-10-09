@@ -13,7 +13,10 @@ from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import Mock, patch
 
+from openpyxl import load_workbook
+
 from monitoring_product import delivery_transport as notify
+from monitoring_product.shared_preview import _write_xlsx
 from monitoring_product.tests.test_shared_preview import notifications_payload
 
 
@@ -123,6 +126,75 @@ class SharedDeliveryTests(unittest.TestCase):
         from monitoring_product import shared_delivery
         self.delivery = shared_delivery
 
+    def test_fresh_bi_cannot_send_stale_study_abroad_source(self):
+        with TemporaryDirectory() as folder:
+            shared_path = _write_shared_result(Path(folder))
+            shared = json.loads(shared_path.read_text())
+            payload = json.loads((Path(folder) / shared['notifications_ref']['path']).read_text())
+            source = {'snapshot_id': 'snapshot_study_fixture', 'start_date': '2026-09-01',
+                      'through_date': '2026-09-29', 'source_sha256': 'a' * 64}
+            shared['metadata']['study_abroad_source'] = source
+            payload['metadata']['study_abroad_source'] = dict(source)
+            self.assertEqual(len(self.delivery._validate_contract(shared, payload, AS_OF_DATE, sending=False)), 8)
+            with patch.object(self.delivery, '_today_shanghai', return_value=date(2026, 10, 1)):
+                with self.assertRaisesRegex(ValueError, '留学来源须覆盖至昨日'):
+                    self.delivery._validate_contract(shared, payload, AS_OF_DATE, sending=True)
+                payload['metadata']['study_abroad_source']['through_date'] = DATA_THROUGH
+                with self.assertRaisesRegex(ValueError, 'study-abroad source does not match'):
+                    self.delivery._validate_contract(shared, payload, AS_OF_DATE, sending=False)
+                source['through_date'] = DATA_THROUGH
+                self.assertEqual(len(self.delivery._validate_contract(shared, payload, AS_OF_DATE, sending=True)), 8)
+
+    def test_fixed_contract_requires_high_abroad_unique_id_and_correct_channel(self):
+        shared = {
+            'metadata': {
+                'run_id': 'run_contract', 'snapshot_id': SNAPSHOT_ID,
+                'data_through': DATA_THROUGH,
+            },
+        }
+
+        def fresh_payload():
+            payload = notifications_payload()
+            payload['data_through'] = DATA_THROUGH
+            payload['metadata'].update({
+                'run_id': 'run_contract',
+                'snapshot_id': SNAPSHOT_ID,
+                'data_through': DATA_THROUGH,
+                'as_of_date': AS_OF_DATE,
+            })
+            virtual = next(message for message in payload['messages']
+                           if message['id'] == 'virtual.training')
+            virtual['id'] = 'virtual.mixed'
+            virtual['business_line'] = 'mixed'
+            return payload
+
+        payload = fresh_payload()
+        self.assertEqual(len(payload['messages']), 8)
+        self.assertEqual(
+            {message['channel_id'] for message in payload['messages']},
+            {'offline_youth', 'offline_high_school', 'offline_university',
+             'online_private', 'online_platform'},
+        )
+        self.delivery._validate_contract(shared, payload, AS_OF_DATE, sending=False)
+
+        missing = fresh_payload()
+        missing['messages'] = [message for message in missing['messages']
+                               if message['id'] != 'high.abroad']
+        with self.assertRaisesRegex(ValueError, 'fixed eight-message, five-channel'):
+            self.delivery._validate_contract(shared, missing, AS_OF_DATE, sending=False)
+
+        duplicate = fresh_payload()
+        next(message for message in duplicate['messages']
+             if message['id'] == 'high.abroad')['id'] = 'high.training'
+        with self.assertRaisesRegex(ValueError, 'duplicate message id'):
+            self.delivery._validate_contract(shared, duplicate, AS_OF_DATE, sending=False)
+
+        wrong_channel = fresh_payload()
+        next(message for message in wrong_channel['messages']
+             if message['id'] == 'high.abroad')['channel_id'] = 'online_platform'
+        with self.assertRaisesRegex(ValueError, 'offline_high_school'):
+            self.delivery._validate_contract(shared, wrong_channel, AS_OF_DATE, sending=False)
+
     def _invoke(self, root: Path, shared_path: Path, *, state_dir: Path,
                 env_file: Path | None, as_of_date: str = AS_OF_DATE,
                 output_name: str = 'delivery', dry_run: bool = False) -> tuple[int, dict]:
@@ -161,11 +233,37 @@ class SharedDeliveryTests(unittest.TestCase):
 
             self.assertEqual(code, 0, result)
             self.assertEqual(result['status'], 'dry_run')
-            self.assertEqual(len(result['messages']), 7)
+            self.assertEqual(len(result['messages']), 8)
             rendered.assert_called_once()
             read_env.assert_not_called()
             uploaded.assert_not_called()
             posted.assert_not_called()
+
+    def test_xlsx_completion_flag_uses_team_or_person_scope(self):
+        payload = notifications_payload()
+        cases = (
+            ('online.training', '是', None, '团队核算范围'),
+            ('university.training', '否', '工单状态为回收，不计个人业绩', '个人流水'),
+        )
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            for message_id, expected_flag, expected_reason, scope_text in cases:
+                with self.subTest(message_id=message_id):
+                    message = next(row for row in payload['messages'] if row['id'] == message_id)
+                    path = _write_xlsx(message, payload['data_through'], root / f'{message_id}.xlsx')
+                    workbook = load_workbook(path, data_only=True)
+                    sheet = workbook['工单明细']
+                    headers = {cell.value: cell.column for cell in sheet[4]}
+                    recalled = next(
+                        row for row in range(5, sheet.max_row + 1)
+                        if sheet.cell(row, headers['工单ID']).value == 'recalled-order'
+                    )
+                    self.assertEqual(sheet.cell(recalled, headers['是否计入工单完成']).value,
+                                     expected_flag)
+                    self.assertEqual(sheet.cell(recalled, headers['不计入原因']).value,
+                                     expected_reason)
+                    self.assertIn(scope_text, sheet.cell(2, 1).value)
+                    workbook.close()
 
     def test_missing_one_required_credential_blocks_the_batch_before_effects(self):
         with TemporaryDirectory() as directory:
@@ -295,19 +393,19 @@ class SharedDeliveryTests(unittest.TestCase):
 
             self.assertEqual(code, 0, result)
             self.assertEqual(result['status'], 'sent')
-            self.assertEqual(len(result['messages']), 7)
-            self.assertEqual(uploaded.call_count, 7)
-            self.assertEqual(posted.call_count, 7)
-            self.assertEqual(len(set(uploaded_tokens)), 7)
+            self.assertEqual(len(result['messages']), 8)
+            self.assertEqual(uploaded.call_count, 8)
+            self.assertEqual(posted.call_count, 8)
+            self.assertEqual(len(set(uploaded_tokens)), 8)
             self.assertTrue(all(any(name.endswith('/people.png') for name in files)
                                 and any(name.endswith('/details.xlsx') for name in files)
                                 for files in staged_files))
 
             message_ids = [message['id'] for message in notifications_payload()['messages']]
-            message_ids[4] = 'virtual.mixed'
+            message_ids[5] = 'virtual.mixed'
             texts = [call.args[3] for call in posted.call_args_list]
             self.assertEqual(len(texts), len(message_ids))
-            for index in (2, 3, 5, 6):
+            for index in (3, 4, 6, 7):
                 with self.subTest(message=message_ids[index]):
                     self.assertIn(message_ids[index], texts[index])
                     self.assertNotIn('](message.png)', texts[index])
@@ -322,7 +420,7 @@ class SharedDeliveryTests(unittest.TestCase):
                 self.assertIsNotNone(xlsx)
                 return png.group(1), xlsx.group(1)
 
-            for pair in ((2, 3), (5, 6)):
+            for pair in ((3, 4), (6, 7)):
                 first_assets = asset_urls(texts[pair[0]])
                 second_assets = asset_urls(texts[pair[1]])
                 self.assertNotEqual(first_assets[0], second_assets[0])
@@ -364,8 +462,8 @@ class SharedDeliveryTests(unittest.TestCase):
             self.assertEqual(first_result['status'], 'sent')
             self.assertIn(second_result['status'], {'sent', 'partial', 'blocked'})
             self.assertIn(second_code, {0, 1})
-            self.assertEqual(len(posted), 7)
-            self.assertEqual(len(uploaded), 7)
+            self.assertEqual(len(posted), 8)
+            self.assertEqual(len(uploaded), 8)
 
     def test_unknown_message_is_not_retried_and_other_pending_messages_continue(self):
         with TemporaryDirectory() as directory:
@@ -405,8 +503,8 @@ class SharedDeliveryTests(unittest.TestCase):
             self.assertIn(first_result['status'], {'partial', 'blocked', 'failed'})
             self.assertIn(retry_code, {0, 1})
             self.assertIn(retry_result['status'], {'partial', 'blocked', 'failed'})
-            self.assertEqual(len(attempted_titles), 7, first_result)
-            self.assertEqual(len(uploaded_tokens), 7)
+            self.assertEqual(len(attempted_titles), 8, first_result)
+            self.assertEqual(len(uploaded_tokens), 8)
 
 
 class DeliveryTransportTests(unittest.TestCase):

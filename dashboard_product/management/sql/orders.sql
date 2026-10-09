@@ -7,6 +7,7 @@ WITH params AS (
   SELECT
     src.source_row_number,
     NULLIF(TRIM(src.ID), '') AS work_order_id,
+    NULLIF(TRIM(src.资源id), '') AS resource_id,
     DATE '1899-12-30' + CAST(TRY_CAST(src.分配时间 AS DOUBLE) AS INTEGER) AS event_date,
     NULLIF(TRIM(src.团队), '') AS source_team,
     NULLIF(TRIM(src.跟进顾问), '') AS adviser,
@@ -50,6 +51,7 @@ WITH params AS (
 SELECT
   source_row_number,
   work_order_id,
+  resource_id,
   event_date,
   source_team,
   adviser,

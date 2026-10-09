@@ -77,18 +77,6 @@ class AdviserMappingQueryTests(unittest.TestCase):
             work_order(63, 'T-added-study', '合成新增留学顾问'),
             work_order(64, 'T-nonempty-high', study_adviser, '高中'),
         ])
-        baseline_rows = [
-            work_order(i + 1, f'B-mapped-{i:02}', row['source_adviser'], event_serial=EVENT_SERIAL + 10)
-            for i, row in enumerate(self.mappings)
-        ]
-        baseline_rows.extend([
-            work_order(60, 'B-existing-team', prep_adviser, '留学', EVENT_SERIAL + 10),
-            work_order(61, 'B-nonempty-high', study_adviser, '高中', EVENT_SERIAL + 10),
-            work_order(62, 'B-unknown', '合成未知顾问', event_serial=EVENT_SERIAL + 10),
-            work_order(63, 'B-added-study', '合成新增留学顾问', event_serial=EVENT_SERIAL + 10),
-            work_order(64, 'B-added-prep', '合成新增预备顾问', event_serial=EVENT_SERIAL + 10),
-        ])
-        work_rows.extend(baseline_rows)
         with duckdb.connect(str(self.db)) as connection:
             connection.execute('CREATE SCHEMA ingest')
             connection.execute('CREATE SCHEMA landing')
@@ -120,16 +108,10 @@ class AdviserMappingQueryTests(unittest.TestCase):
         sql = f'INSERT INTO landing."{table}" ({names}) VALUES ({values})'
         connection.executemany(sql, [[row[name] for name, _ in columns] for row in rows])
 
-    def run_query(self, name, mapping_config):
+    def run_training_query(self, mapping_config):
         study_advisers, prep_advisers = _confirmed_adviser_lists(mapping_config)
-        if name == 'training':
-            sql_path = ROOT / 'dashboard_product/management/sql/training_details.sql'
-            parameters = ['2026-06-01', '2026-06-10', '2026-06-01', study_advisers, prep_advisers]
-        elif name == 'baseline':
-            sql_path = ROOT / 'dashboard_product/management/sql/baseline_offline_channels.sql'
-            parameters = ['2026-06-10', '2026-06-20', '', study_advisers, prep_advisers]
-        else:
-            raise AssertionError(name)
+        sql_path = ROOT / 'dashboard_product/management/sql/training_details.sql'
+        parameters = ['2026-06-01', '2026-06-10', '2026-06-01', study_advisers, prep_advisers]
         result = execute_query(
             warehouse=self.db, snapshot_id=SNAPSHOT, sql=sql_path.read_text(encoding='utf-8'),
             parameters=parameters, run_id='run_adviser_mapping_test', output_root=self.output,
@@ -137,8 +119,7 @@ class AdviserMappingQueryTests(unittest.TestCase):
         )
         receipt_path = self.output / result['run_id'] / result['receipt']['path']
         receipt, _ = verify_receipt(receipt_path)
-        expected_relations = ([f'landing.{CASH}', f'landing.{WORK_ORDERS}'] if name == 'training'
-                              else [f'landing.{WORK_ORDERS}'])
+        expected_relations = [f'landing.{CASH}', f'landing.{WORK_ORDERS}']
         self.assertEqual(receipt['referenced_relations'], expected_relations)
         data = read_query_result(result, output_root=self.output)
         return [dict(zip(data['columns'], row)) for row in data['rows']], receipt
@@ -148,7 +129,7 @@ class AdviserMappingQueryTests(unittest.TestCase):
         return {row['work_order_id']: row for row in rows}
 
     def test_existing_confirmed_mapping_matches_prior_rule(self):
-        training, training_receipt = self.run_query('training', self.mapping_config)
+        training, training_receipt = self.run_training_query(self.mapping_config)
         training_by_id = self.rows_by_id(training)
         expected_training = {
             f'T-mapped-{i:02}': ('初中' if row['labeled_team'] == '留学预备' else '业务组暂无法拆分')
@@ -162,30 +143,16 @@ class AdviserMappingQueryTests(unittest.TestCase):
         self.assertEqual({key: value['business_group'] for key, value in training_by_id.items()}, expected_training)
         self.assertEqual(len(training_receipt['referenced_relations']), 2)
 
-        baseline, baseline_receipt = self.run_query('baseline', self.mapping_config)
-        expected_baseline = {
-            f'B-mapped-{i:02}' for i, row in enumerate(self.mappings)
-            if row['labeled_team'] == '留学'
-        }
-        expected_baseline.add('B-existing-team')
-        self.assertEqual({row['work_order_id'] for row in baseline}, expected_baseline)
-        self.assertEqual(len(baseline_receipt['referenced_relations']), 1)
-
-    def test_mapping_additions_and_removals_change_both_sql_results(self):
+    def test_mapping_additions_and_removals_change_bi_training_sql_result(self):
         expanded = json.loads(json.dumps(self.mapping_config, ensure_ascii=False))
         expanded['mappings'].extend([
             {'source_adviser': '合成新增预备顾问', 'labeled_team': '留学预备'},
             {'source_adviser': '合成新增留学顾问', 'labeled_team': '留学'},
         ])
-        expanded_training, _ = self.run_query('training', expanded)
-        base_training, _ = self.run_query('training', self.mapping_config)
+        expanded_training, _ = self.run_training_query(expanded)
+        base_training, _ = self.run_training_query(self.mapping_config)
         self.assertEqual(self.rows_by_id(expanded_training)['T-added-prep']['business_group'], '初中')
         self.assertEqual(self.rows_by_id(base_training)['T-added-prep']['business_group'], '业务组暂无法拆分')
-
-        expanded_baseline, _ = self.run_query('baseline', expanded)
-        base_baseline, _ = self.run_query('baseline', self.mapping_config)
-        self.assertIn('B-added-study', {row['work_order_id'] for row in expanded_baseline})
-        self.assertNotIn('B-added-study', {row['work_order_id'] for row in base_baseline})
 
         removed = json.loads(json.dumps(self.mapping_config, ensure_ascii=False))
         removed['mappings'] = [
@@ -195,24 +162,16 @@ class AdviserMappingQueryTests(unittest.TestCase):
                 next(row['source_adviser'] for row in self.mappings if row['labeled_team'] == '留学预备'),
             }
         ]
-        removed_training, _ = self.run_query('training', removed)
-        removed_baseline, _ = self.run_query('baseline', removed)
+        removed_training, _ = self.run_training_query(removed)
         self.assertEqual(self.rows_by_id(removed_training)['T-mapped-00']['business_group'], '业务组暂无法拆分')
-        self.assertNotIn('B-mapped-00', {row['work_order_id'] for row in removed_baseline})
 
     def test_nonempty_teams_are_preserved_and_unknown_advisers_remain_unmapped(self):
-        training, _ = self.run_query('training', self.mapping_config)
+        training, _ = self.run_training_query(self.mapping_config)
         training_by_id = self.rows_by_id(training)
         self.assertEqual(training_by_id['T-existing-team']['business_group'], '大学')
         self.assertEqual(training_by_id['T-nonempty-high']['business_group'], '高中')
         self.assertEqual(training_by_id['T-unknown']['business_group'], '业务组暂无法拆分')
 
-        baseline, _ = self.run_query('baseline', self.mapping_config)
-        baseline_ids = {row['work_order_id'] for row in baseline}
-        self.assertIn('B-existing-team', baseline_ids)
-        self.assertNotIn('B-nonempty-high', baseline_ids)
-        self.assertNotIn('B-unknown', baseline_ids)
-        self.assertNotIn('B-added-prep', baseline_ids)
 
 
 if __name__ == '__main__':

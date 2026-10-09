@@ -1,0 +1,281 @@
+{
+  "schema_version": "company_bridge_candidates.v1",
+  "candidate_set_role": "confirmed_review",
+  "candidate_set_id": "study_abroad_explicit_channel_review",
+  "company_id": "workspace_bi_operations",
+  "pack_ref": {
+    "pack_id": "education_training_operations_cn",
+    "pack_version": "1.0.0"
+  },
+  "candidates": [
+    {
+      "candidate_id": "cand_study_abroad_market_activity_explicit",
+      "candidate_type": "normalization_rule",
+      "source_locator": "user_confirmed_20261008:study_abroad_market_activity",
+      "evidence_summary": "用户确认三层均为市场活动时归高校活动，采用Bridge定义。",
+      "evidence_refs": ["docs/integration-guide.md"],
+      "status": "confirmed",
+      "decision_note": "高校活动（按现有 Bridge）",
+      "decision_by": "user",
+      "proposed_mapping_or_rule": {
+        "source_id": "study_abroad_market",
+        "relation": "landing.study_abroad_market__resources",
+        "field_name": "first_channel",
+        "operation": "map_enum",
+        "target_type": "dimension",
+        "target_id": "acquisition.channel",
+        "parameters": {
+          "source_fields": ["first_channel", "second_channel", "third_channel"],
+          "match_values": ["市场活动", "市场活动", "市场活动"],
+          "normalized_l1": "市场活动",
+          "normalized_l2": "高校活动"
+        }
+      }
+    },
+    {
+      "candidate_id": "cand_study_abroad_brand_xiaohongshu",
+      "candidate_type": "normalization_rule",
+      "source_locator": "user_confirmed_20261008:channel_example_1",
+      "evidence_summary": "用户确认小红书品牌号归小红书。",
+      "evidence_refs": ["docs/integration-guide.md"],
+      "status": "confirmed",
+      "decision_note": "1. 小红书",
+      "decision_by": "user",
+      "proposed_mapping_or_rule": {
+        "source_id": "study_abroad_market",
+        "relation": "landing.study_abroad_market__resources",
+        "field_name": "first_channel",
+        "operation": "map_enum",
+        "target_type": "dimension",
+        "target_id": "acquisition.channel",
+        "parameters": {
+          "source_fields": ["first_channel", "second_channel", "third_channel"],
+          "match_values": ["网络资源", "搜索推广", "小红书品牌号"],
+          "normalized_l1": "网络资源",
+          "normalized_l2": "小红书"
+        }
+      }
+    },
+    {
+      "candidate_id": "cand_study_abroad_local_amap",
+      "candidate_type": "normalization_rule",
+      "source_locator": "user_confirmed_20261008:channel_example_2_amap",
+      "evidence_summary": "用户确认本地生活平台中的高德地图门店归高德。",
+      "evidence_refs": ["docs/integration-guide.md"],
+      "status": "confirmed",
+      "decision_note": "2. 对（分别归高德、大众）",
+      "decision_by": "user",
+      "proposed_mapping_or_rule": {
+        "source_id": "study_abroad_market",
+        "relation": "landing.study_abroad_market__resources",
+        "field_name": "first_channel",
+        "operation": "map_enum",
+        "target_type": "dimension",
+        "target_id": "acquisition.channel",
+        "parameters": {
+          "source_fields": ["first_channel", "second_channel", "third_channel"],
+          "match_values": ["线上运营", "本地生活平台", "高德地图门店"],
+          "normalized_l1": "网络资源",
+          "normalized_l2": "高德"
+        }
+      }
+    },
+    {
+      "candidate_id": "cand_study_abroad_local_dianping",
+      "candidate_type": "normalization_rule",
+      "source_locator": "user_confirmed_20261008:channel_example_2_dianping",
+      "evidence_summary": "用户确认本地生活平台中的大众点评归大众。",
+      "evidence_refs": ["docs/integration-guide.md"],
+      "status": "confirmed",
+      "decision_note": "2. 对（分别归高德、大众）",
+      "decision_by": "user",
+      "proposed_mapping_or_rule": {
+        "source_id": "study_abroad_market",
+        "relation": "landing.study_abroad_market__resources",
+        "field_name": "first_channel",
+        "operation": "map_enum",
+        "target_type": "dimension",
+        "target_id": "acquisition.channel",
+        "parameters": {
+          "source_fields": ["first_channel", "second_channel", "third_channel"],
+          "match_values": ["线上运营", "本地生活平台", "大众点评"],
+          "normalized_l1": "网络资源",
+          "normalized_l2": "大众"
+        }
+      }
+    },
+    {
+      "candidate_id": "cand_study_abroad_zhihu_ssc",
+      "candidate_type": "normalization_rule",
+      "source_locator": "user_confirmed_20261008:channel_example_3_zhihu",
+      "evidence_summary": "用户确认欧亚总部在线的知乎付费归SSC。",
+      "evidence_refs": ["docs/integration-guide.md"],
+      "status": "confirmed",
+      "decision_note": "3. ssc",
+      "decision_by": "user",
+      "proposed_mapping_or_rule": {
+        "source_id": "study_abroad_market",
+        "relation": "landing.study_abroad_market__resources",
+        "field_name": "first_channel",
+        "operation": "map_enum",
+        "target_type": "dimension",
+        "target_id": "acquisition.channel",
+        "parameters": {
+          "source_fields": ["first_channel", "second_channel", "third_channel"],
+          "match_values": ["新媒体", "欧亚总部在线", "知乎-付费"],
+          "normalized_l1": "新媒体",
+          "normalized_l2": "SSC"
+        }
+      }
+    },
+    {
+      "candidate_id": "cand_study_abroad_bilibili_ssc",
+      "candidate_type": "normalization_rule",
+      "source_locator": "user_confirmed_20261008:channel_example_3_bilibili",
+      "evidence_summary": "用户确认欧亚总部在线的B站免费归SSC。",
+      "evidence_refs": ["docs/integration-guide.md"],
+      "status": "confirmed",
+      "decision_note": "3. ssc",
+      "decision_by": "user",
+      "proposed_mapping_or_rule": {
+        "source_id": "study_abroad_market",
+        "relation": "landing.study_abroad_market__resources",
+        "field_name": "first_channel",
+        "operation": "map_enum",
+        "target_type": "dimension",
+        "target_id": "acquisition.channel",
+        "parameters": {
+          "source_fields": ["first_channel", "second_channel", "third_channel"],
+          "match_values": ["新媒体", "欧亚总部在线", "B站-免费"],
+          "normalized_l1": "新媒体",
+          "normalized_l2": "SSC"
+        }
+      }
+    },
+    {
+      "candidate_id": "cand_study_abroad_partner_personal",
+      "candidate_type": "normalization_rule",
+      "source_locator": "user_confirmed_20261008:channel_example_4",
+      "evidence_summary": "用户确认异业合作其他这类源组合归渠道合作-个人渠道。",
+      "evidence_refs": ["docs/integration-guide.md"],
+      "status": "confirmed",
+      "decision_note": "4. 渠道合作-个人渠道",
+      "decision_by": "user",
+      "proposed_mapping_or_rule": {
+        "source_id": "study_abroad_market",
+        "relation": "landing.study_abroad_market__resources",
+        "field_name": "first_channel",
+        "operation": "map_enum",
+        "target_type": "dimension",
+        "target_id": "acquisition.channel",
+        "parameters": {
+          "source_fields": ["first_channel", "second_channel", "third_channel"],
+          "match_values": ["渠道合作", "异业合作", "其他"],
+          "normalized_l1": "渠道合作",
+          "normalized_l2": "个人渠道"
+        }
+      }
+    },
+    {
+      "candidate_id": "cand_study_abroad_offline_school_agent",
+      "candidate_type": "normalization_rule",
+      "source_locator": "user_confirmed_20261008:channel_example_5",
+      "evidence_summary": "用户确认线下校代统一保留线下校代，不按人工标签改成活动或个人渠道。",
+      "evidence_refs": ["docs/integration-guide.md"],
+      "status": "confirmed",
+      "decision_note": "5. 线下校代",
+      "decision_by": "user",
+      "proposed_mapping_or_rule": {
+        "source_id": "study_abroad_market",
+        "relation": "landing.study_abroad_market__resources",
+        "field_name": "first_channel",
+        "operation": "map_enum",
+        "target_type": "dimension",
+        "target_id": "acquisition.channel",
+        "parameters": {
+          "source_fields": ["first_channel", "second_channel", "third_channel"],
+          "match_values": ["校代", "线下校代", "线下校代"],
+          "normalized_l1": "其他",
+          "normalized_l2": "线下校代"
+        }
+      }
+    },
+    {
+      "candidate_id": "cand_study_abroad_baidu_no_terminal",
+      "candidate_type": "normalization_rule",
+      "source_locator": "user_confirmed_20261008:channel_example_7",
+      "evidence_summary": "用户确认不带终端后缀的百度搜索乐语直接归百度。",
+      "evidence_refs": ["docs/integration-guide.md"],
+      "status": "confirmed",
+      "decision_note": "7. 直接归为百度",
+      "decision_by": "user",
+      "proposed_mapping_or_rule": {
+        "source_id": "study_abroad_market",
+        "relation": "landing.study_abroad_market__resources",
+        "field_name": "first_channel",
+        "operation": "map_enum",
+        "target_type": "dimension",
+        "target_id": "acquisition.channel",
+        "parameters": {
+          "source_fields": ["first_channel", "second_channel", "third_channel"],
+          "match_values": ["网络资源", "搜索推广乐语", "百度搜索乐语"],
+          "normalized_l1": "网络资源",
+          "normalized_l2": "百度"
+        }
+      }
+    },
+    {
+      "candidate_id": "cand_study_abroad_amap_with_referrer",
+      "candidate_type": "normalization_rule",
+      "source_locator": "user_confirmed_20261008:channel_example_8",
+      "evidence_summary": "用户确认带老师推荐备注的该高德店铺来源仍归高德。",
+      "evidence_refs": ["docs/integration-guide.md"],
+      "status": "confirmed",
+      "decision_note": "8. 归高德",
+      "decision_by": "user",
+      "proposed_mapping_or_rule": {
+        "source_id": "study_abroad_market",
+        "relation": "landing.study_abroad_market__resources",
+        "field_name": "first_channel",
+        "operation": "map_enum",
+        "target_type": "dimension",
+        "target_id": "acquisition.channel",
+        "parameters": {
+          "source_fields": ["first_channel", "second_channel", "third_channel"],
+          "match_values": ["网络资源", "店铺类", "高德地图 田曼萍推荐"],
+          "normalized_l1": "网络资源",
+          "normalized_l2": "高德"
+        }
+      }
+    },
+    {
+      "candidate_id": "cand_study_abroad_market_activity_by_grade",
+      "candidate_type": "override",
+      "source_locator": "user_confirmed_20261008:market_activity_work_order_grade",
+      "evidence_summary": "用户确认原三级仅供参考，市场活动缺少高校或中学细分时按对应工单年级映射。",
+      "evidence_refs": ["docs/integration-guide.md"],
+      "status": "confirmed",
+      "decision_note": "大学归高校活动，初中、高中归中学活动。已有明确渠道不改。",
+      "decision_by": "user",
+      "proposed_mapping_or_rule": {
+        "target_type": "dimension",
+        "target_id": "acquisition.channel",
+        "key": "unresolved_market_activity_by_work_order_grade",
+        "value": {
+          "normalized_l1": "市场活动",
+          "only_when_l2_unresolved": true,
+          "grade_source": "对应工单年级，受控只读引用同公司明确Snapshot",
+          "lookup_key": "资源编号",
+          "maps": {"college": "高校活动", "middle": "中学活动"},
+          "missing_or_conflicting": "保留市场活动一级和待核二级，不猜年级",
+          "do_not_use": ["意向学历", "顾问部门", "人员姓名"],
+          "team_scope": "渠道细分不改变人工市场归属和团队",
+          "warehouse_scope": "不导入原工单或现金事实，不修改BI或留学Snapshot"
+        },
+        "reason": "用户已明确渠道按看板既有口径归一；模糊市场活动以工单年级拆高校与中学。"
+      }
+    }
+  ],
+  "rejections": [],
+  "summary": {"candidate_count": 11, "rejection_count": 0}
+}

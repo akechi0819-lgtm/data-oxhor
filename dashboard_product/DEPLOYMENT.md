@@ -42,7 +42,7 @@ PROJECT_ROOT="/path/to/dashroot" WORKSPACE="/path/to/whcustomer" ENV_FILE="/path
 bash /path/to/dashroot/monitoring_product/deploy/deliver_management_batch.sh
 ```
 
-正式投递覆盖原 5 个钉钉通道（`offline_youth`、`offline_high_school`、`offline_university`、`online_private`、`online_platform`）和 7 条消息。大学两条消息共用原大学群，线上平台两条消息共用原线上平台群。10:24 routine 仍暂停，不在部署中恢复它。
+当前源码投递合同覆盖原 5 个钉钉通道（`offline_youth`、`offline_high_school`、`offline_university`、`online_private`、`online_platform`）和 8 条消息。2026-10-08新增高中留学个人简报；高中、大学与线上平台各有两条消息共用各自原群。高中留学只展示该组留学人员的个人完成、渠道构成与个人流水，不生成部门完成。该变更需与监控投递校验同批同步，旧七条消息批次不用于新合同投递。10:24 routine 仍暂停，不在部署中恢复它。
 
 ## 静态发布与激活
 

@@ -6,7 +6,7 @@
     prep: "留学预备",
     high: "高中",
     university: "大学",
-    virtual: "虚拟人",
+    virtual: "线上虚拟人",
     online: "线上平台",
   };
   const LINES = {
@@ -25,6 +25,10 @@
   const state = {
     data: null,
     periodId: null,
+    capacityMonth: null,
+    capacityTeam: "all",
+    capacityScope: "all",
+    orderStatusMode: "01",
     unitId: "total",
     activeView: "overview",
     activityQuery: "",
@@ -35,6 +39,7 @@
   const ui = {
     periodSelect: byId("period-select"),
     unitSelect: byId("unit-select"),
+    capacityScope: byId("capacity-scope"),
     periodCaption: byId("period-caption"),
     freshness: byId("freshness"),
     freshnessLabel: byId("freshness-label"),
@@ -148,9 +153,33 @@
     if (status === "not_connected") return "数据未接入";
     if (status === "not_configured") return "归属待确认";
     if (status === "future") return "尚未开始";
+    if (status === "not_covered") return "该期间未覆盖";
     if (status === "partial") return "部分接入";
     if (status === "available") return "已接入";
+    if (status === "separate_counts") return "分业务统计";
     return "状态未确认";
+  }
+
+  function metricDisplay(value, unit = "") {
+    const status = metricStatus(value);
+    if (status === "separate_counts") {
+      const display = isObject(value) ? cleanString(value.display) : "";
+      if (display) return escapeHTML(display);
+      const parts = safeArray(isObject(value) ? value.parts : null).map((part) => {
+        const label = cleanString(part && part.label);
+        const actual = part && part.actual;
+        return actual === null || actual === undefined ? "" : `${label ? `${escapeHTML(label)} ` : ""}${formatNumber(actual)}${part.unit ? ` ${escapeHTML(part.unit)}` : ""}`;
+      }).filter(Boolean);
+      return parts.length ? parts.join("／") : "—";
+    }
+    if ((status === "available" || status === "partial") && isObject(value)) {
+      const display = cleanString(value.display);
+      if (display) return escapeHTML(display);
+    }
+    const actual = rawActual(value);
+    if (actual === null || actual === undefined) return "—";
+    const shown = formatNumber(actual);
+    return unit ? `${shown} <span class="value-unit">${escapeHTML(unit)}</span>` : shown;
   }
 
   function metricValueMarkup(value, fallbackStatus = null, periodStatus = null, options = {}) {
@@ -159,7 +188,12 @@
     if (status === "future") return '<span class="value-state is-future">尚未开始</span>';
     if (status === "not_connected") return '<span class="value-state is-missing">数据未接入</span>';
     if (status === "not_configured") return '<span class="value-state is-unconfigured">归属待确认</span>';
+    if (status === "not_covered") return '<span class="value-state is-missing">该期间未覆盖</span>';
     if (status === "unknown") return '<span class="value-state is-unknown">状态未确认</span>';
+    if (status === "separate_counts") {
+      const display = metricDisplay(value, options.unit || "");
+      return display === "—" ? '<span class="value-state is-unknown">分业务人头未提供</span>' : `<span class="value-number">${display}</span>`;
+    }
     if (status === "partial" && (actual === null || actual === undefined)) {
       return '<span class="value-state is-missing">部分数据未接入</span>';
     }
@@ -167,10 +201,7 @@
     if (actual === null || actual === undefined || (typeof actual === "number" && !isNumber(actual))) {
       return '<span class="value-state is-unknown">实际值未提供</span>';
     }
-    const unit = options.unit || "";
-    const shown = formatNumber(actual);
-    const unitSuffix = unit ? ` <span class="value-unit">${escapeHTML(unit)}</span>` : "";
-    return `<span class="value-number">${shown}${unitSuffix}</span>`;
+    return `<span class="value-number">${metricDisplay(value, options.unit || "")}</span>`;
   }
 
   function scalarMarkup(value, emptyLabel = "数据未接入") {
@@ -191,25 +222,28 @@
 
   function renderLineMetricRow(lineId, metricId, metric, periodStatus) {
     const descriptor = METRICS.find((entry) => entry.id === metricId);
+    const metricLabel = descriptor.label;
     const status = metricStatus(metric, null, periodStatus);
     const departmentDoesNotAssessAbroad = state.unitId === "prep" || state.unitId === "high";
     const notAssessed = lineId === "abroad" && metricId === "orders" && departmentDoesNotAssessAbroad;
     const current = notAssessed
       ? '<span class="value-state is-unassessed">本部门暂不考核</span>'
       : metricValueMarkup(metric, null, periodStatus, { unit: descriptor.unit });
-    const prior = !notAssessed && status === "available" && isObject(metric) && metric.prior !== null && metric.prior !== undefined
+    const comparable = status === "available";
+    const progressAvailable = comparable || status === "partial";
+    const prior = !notAssessed && comparable && isObject(metric) && metric.prior !== null && metric.prior !== undefined
       ? `${formatNumber(metric.prior)}${descriptor.unit ? ` <span class="value-unit">${escapeHTML(descriptor.unit)}</span>` : ""}`
       : "—";
-    const yoy = !notAssessed && status === "available" && isObject(metric) && isNumber(metric.yoy)
+    const yoy = !notAssessed && comparable && isObject(metric) && isNumber(metric.yoy)
       ? `<span class="yoy-value ${metric.yoy > 0 ? "positive" : metric.yoy < 0 ? "negative" : ""}">${formatPercent(metric.yoy)}</span>`
       : "—";
-    const target = !notAssessed && status === "available" ? metricDetail(metric, "target", descriptor.unit) : "";
-    const completion = !notAssessed && status === "available" ? metricDetail(metric, "completion") : "";
+    const target = !notAssessed && progressAvailable ? metricDetail(metric, "target", descriptor.unit) : "";
+    const completion = !notAssessed && progressAvailable ? metricDetail(metric, "completion") : "";
     const detail = notAssessed
       ? "人员留学贡献见财年产能"
       : [target ? `目标 ${target}` : "", completion ? `完成 ${completion}` : ""].filter(Boolean).join(" · ");
     return `<tr>
-      <th scope="row"><span class="metric-label">${escapeHTML(descriptor.label)}</span></th>
+      <th scope="row"><span class="metric-label">${escapeHTML(metricLabel)}</span></th>
       <td><strong>${current}</strong>${detail ? `<small class="metric-detail">${detail}</small>` : ""}</td>
       <td>${prior}</td>
       <td>${yoy}</td>
@@ -222,10 +256,15 @@
     const teamName = cleanString(team.name) || UNIT_LABELS[state.unitId] || state.unitId;
     const rows = METRICS.map(({ id }) => renderLineMetricRow(lineId, id, line[id], period.status)).join("");
     const periodBadge = period.status === "future" ? "尚未开始" : "团队 · 自然期间";
+    const coverage = lineId === "abroad" && isObject(line.source_coverage) ? line.source_coverage : null;
+    const coverageText = coverage && coverage.start_date && coverage.through_date
+      ? `留学数据：${formatDate(coverage.start_date)}—${formatDate(coverage.through_date)}` : "";
+    const supplemental = lineId === "abroad" && team.id === "total"
+      ? renderSupplemental(line.supplemental) : "";
     return `<article class="line-card ${descriptor.className}">
       <div class="line-card-head">
         <div><div class="line-title"><span class="line-symbol" aria-hidden="true"></span><h3>${escapeHTML(descriptor.label)}</h3></div>
-          <p class="line-scope">${escapeHTML(teamName)} · ${escapeHTML(periodLabel(period))}</p>
+          <p class="line-scope">${escapeHTML(teamName)} · ${escapeHTML(periodLabel(period))}</p>${coverageText ? `<p class="line-coverage">${escapeHTML(coverageText)}</p>` : ""}
         </div>
         <span class="line-badge">${escapeHTML(periodBadge)}</span>
       </div>
@@ -233,8 +272,37 @@
         <table class="line-metric-table"><thead><tr><th scope="col">指标</th><th scope="col">当期</th><th scope="col">同期</th><th scope="col">同比</th></tr></thead>
           <tbody>${rows}</tbody>
         </table>
-      </div>
+      </div>${supplemental}
     </article>`;
+  }
+
+  function metricHasActivity(value) {
+    if (value === null || value === undefined) return false;
+    const status = metricStatus(value);
+    if (status === "not_covered" || status === "not_connected" || status === "future") return false;
+    if (status === "separate_counts") {
+      const parts = safeArray(value.parts);
+      if (parts.length) return parts.some((part) => isNumber(part?.actual) && part.actual !== 0);
+      const display = cleanString(value.display);
+      const numbers = display.match(/-?\d[\d,]*(?:\.\d+)?/g) || [];
+      return numbers.length ? numbers.some((part) => Number(part.replace(/,/g, "")) !== 0) : Boolean(display);
+    }
+    const actual = rawActual(value);
+    if (isNumber(actual)) return actual !== 0;
+    if (typeof actual === "string" && actual.trim()) {
+      const parsed = Number(actual.replace(/,/g, ""));
+      return Number.isFinite(parsed) ? parsed !== 0 : true;
+    }
+    if (actual !== null && actual !== undefined) return Boolean(actual);
+    const display = cleanString(isObject(value) ? value.display : "");
+    const numbers = display.match(/-?\d[\d,]*(?:\.\d+)?/g) || [];
+    return numbers.length ? numbers.some((part) => Number(part.replace(/,/g, "")) !== 0) : Boolean(display);
+  }
+
+  function renderSupplemental(rows) {
+    const ssc = safeArray(rows).find((row) => cleanString(row.id).toLowerCase() === "ssc");
+    if (!ssc || ![ssc.orders, ssc.cash, ssc.heads].some(metricHasActivity)) return "";
+    return `<div class="line-card-table-scroll line-supplemental"><table class="line-metric-table"><tbody><tr><th scope="row">SSC</th><td><small>工单</small><strong>${metricValueMarkup(ssc.orders, null, null, { unit: "单" })}</strong></td><td><small>现金（元）</small><strong>${metricValueMarkup(ssc.cash, null, null, { unit: "元" })}</strong></td><td><small>人头</small><strong>${metricValueMarkup(ssc.heads, null, null, { unit: "人" })}</strong></td></tr></tbody></table></div>`;
   }
 
   function renderLineCards(team, period) {
@@ -275,6 +343,17 @@
     return metricValueMarkup(value, status);
   }
 
+  function personWithOrderStatus(person) {
+    const view = person.order_status_views[state.orderStatusMode];
+    return {
+      ...person,
+      ...view,
+      training_target: person.training_target,
+      combined_target: person.combined_target,
+      abroad_target: person.abroad_target,
+    };
+  }
+
   function renderPeople(team, period) {
     const mixed = team?.id === "virtual";
     const headers = mixed ? ["人员", "工单目标", "工单完成", "完成率", "现金目标（元）", "现金完成（元）", "现金完成率", "人头"] : ["人员", "语培目标", "语培完成", "留学目标", "留学完成", "现金目标（元）", "现金完成（元）", "现金完成率", "人头"];
@@ -302,7 +381,8 @@
       ui.peopleBody.innerHTML = '<tr><td colspan="9" class="table-empty">当前管理单元没有个人明细。</td></tr>';
       return;
     }
-    ui.peopleBody.innerHTML = people.map((person) => {
+    ui.peopleBody.innerHTML = people.map((sourcePerson) => {
+      const person = personWithOrderStatus(sourcePerson);
       const name = cleanString(person && person.name) || "未提供姓名";
       const personLine = cleanString(person && person.business_line);
       const personGroup = cleanString(person && person.home_group) || "业务组未提供";
@@ -358,8 +438,22 @@
     return table;
   }
 
+  function renderAbroadProgress(rows) {
+    const progress = metric => isNumber(metric?.completion)
+      ? `<progress max="1" value="${Math.min(1, Math.max(0, metric.completion))}"></progress> ${formatPercent(metric.completion)}`
+      : metric?.status === "not_covered" ? "该期间未覆盖" : "—";
+    const target = metric => metric?.target == null ? "未配置" : formatNumber(metric.target);
+    const rowHtml = row => `<tr><th>${escapeHTML(row.name)}</th><td>${target(row.orders)}</td><td>${metricValueMarkup(row.orders)}</td><td>${progress(row.orders)}</td><td>${target(row.cash)}</td><td>${metricValueMarkup(row.cash)}</td><td>${progress(row.cash)}</td><td>${metricValueMarkup(row.heads)}</td></tr>`;
+    return `<table class="data-table"><thead><tr><th>维度</th><th>工单目标</th><th>工单完成</th><th>工单进度</th><th>现金目标（元）</th><th>现金完成（元）</th><th>现金进度</th><th>人头</th></tr></thead><tbody>${safeArray(rows).map(row=>rowHtml(row)).join("")}</tbody></table>`;
+  }
+
   function renderRestored(team) {
     byId("business-groups").innerHTML = compareTable(team && team.business_groups, true);
+    const abroadRows = safeArray(team?.abroad_progress);
+    byId("abroad-target-section").hidden = !abroadRows.length;
+    byId("abroad-targets").innerHTML = renderAbroadProgress(abroadRows);
+    const coverage = team?.lines?.abroad?.source_coverage;
+    byId("abroad-target-coverage").textContent = coverage ? `${coverage.start_date}—${coverage.through_date}` : "";
     byId("yoy-groups").innerHTML = compareTable(team && team.yoy_groups);
     const key=state.periodId+'|'+state.unitId;
     FlatTables.render(byId("channel-comparison"),team,{mode:"channels",key});
@@ -367,7 +461,75 @@
     FlatTables.render(byId("grade-comparison"),team,{mode:"grades",key});
   }
   function renderCapacity() {
-    if(state.data) CapacityView.render(byId("capacity-workspace"),state.data.capacity||[],state.data.metadata,state.capacityTeam||"all");
+    if (!state.data) return;
+    const selectedPeriod = CapacityView.period(state.data.capacity, state.capacityMonth);
+    if (state.activeView === "capacity") {
+      ui.periodCaption.textContent = selectedPeriod
+        ? `人员贡献 · ${CapacityView.monthLabel(selectedPeriod)}`
+        : "人员贡献 · 没有可展示月份";
+    }
+    CapacityView.render(
+      byId("capacity-workspace"),
+      state.data.capacity,
+      state.capacityMonth,
+      state.capacityTeam,
+      state.capacityScope,
+      state.orderStatusMode,
+    );
+    CapacityRadar.render(byId("capacity-radar-workspace"), state.data.capacity.radar, state.capacityTeam);
+  }
+
+  function setupCapacityPeriodControl() {
+    const capacity = state.data && state.data.capacity;
+    const periods = CapacityView.periods(capacity);
+    const available = new Set(periods.map((period) => String(period.id)));
+    if (!available.has(String(state.capacityMonth))) {
+      state.capacityMonth = CapacityView.defaultMonth(capacity) || null;
+    }
+    ui.periodSelect.replaceChildren();
+    periods.forEach((period) => {
+      const option = document.createElement("option");
+      option.value = String(period.id);
+      option.textContent = CapacityView.monthLabel(period);
+      ui.periodSelect.append(option);
+    });
+    if (!periods.length) {
+      const option = document.createElement("option");
+      option.value = "";
+      option.textContent = "没有人员月份";
+      ui.periodSelect.append(option);
+    }
+    ui.periodSelect.value = state.capacityMonth || "";
+    ui.periodSelect.previousElementSibling.textContent = "人员月份";
+    ui.periodSelect.disabled = periods.length < 2;
+  }
+
+  function setupCapacityTeamControl() {
+    const options = CapacityView.groups(state.data && state.data.capacity, state.capacityMonth);
+    const available = new Set(options.map((option) => option.id));
+    if (state.capacityTeam !== "all" && !available.has(state.capacityTeam)) {
+      state.capacityTeam = "all";
+    }
+    ui.unitSelect.innerHTML = '<option value="all">全部线下团队</option>'
+      + options.map(({ id, label }) => `<option value="${escapeHTML(id)}">${escapeHTML(label)}</option>`).join("");
+    ui.unitSelect.value = state.capacityTeam;
+    ui.unitSelect.previousElementSibling.textContent = "人员团队";
+    ui.unitSelect.setAttribute("aria-label", "筛选人员团队");
+    ui.unitSelect.disabled = false;
+  }
+
+  function restoreOverviewPeriodControl() {
+    const periods = safeArray(state.data && state.data.periods);
+    ui.periodSelect.replaceChildren();
+    periods.forEach((period, index) => {
+      const option = document.createElement("option");
+      option.value = String(period.id ?? index);
+      option.textContent = periodLabel(period);
+      ui.periodSelect.append(option);
+    });
+    ui.periodSelect.value = state.periodId || "";
+    ui.periodSelect.previousElementSibling.textContent = "统计期间";
+    ui.periodSelect.disabled = periods.length < 2;
   }
 
   function activityCashStatus(activity) {
@@ -382,12 +544,23 @@
     if (status === "not_connected") return '<span class="value-state is-missing">数据未接入</span>';
     if (status === "not_configured") return '<span class="value-state is-unconfigured">归属待确认</span>';
     if (status === "future") return '<span class="value-state is-future">尚未开始</span>';
+    if (status === "not_covered") return '<span class="value-state is-missing">该期间未覆盖</span>';
     if (status !== "available" && status !== "partial") return '<span class="value-state is-unknown">状态未确认</span>';
     const cash = activity.cash;
     const actual = rawActual(cash);
-    if (actual === null || actual === undefined) return '<span class="value-state is-missing">数据未接入</span>';
-    const partialNote = status === "partial" ? '<small class="cell-substate is-alert">现金仅含已接入语培部分</small>' : "";
+    if (actual === null || actual === undefined) return '<span class="value-state is-missing">部分数据未提供</span>';
+    const partialNote = status === "partial" ? '<small class="cell-substate is-alert">来源覆盖不一</small>' : "";
     return `${scalarMarkup(cash)}${partialNote}`;
+  }
+
+  function activityHeadsMarkup(activity) {
+    const display = cleanString(activity.heads_display);
+    if (isObject(activity.heads) && activity.heads.status === "not_covered") return scalarMarkup(activity.heads);
+    if (display && (!isObject(activity.heads) || activity.heads.actual == null)) {
+      return `<span class="value-number">${escapeHTML(display)}</span>`;
+    }
+    if (activity.heads && isObject(activity.heads)) return scalarMarkup(activity.heads);
+    return scalarMarkup(activity.heads);
   }
 
   function activityRecoveryText(activity, index) {
@@ -395,6 +568,7 @@
     if (status === "not_connected") return "数据未接入";
     if (status === "not_configured") return "归属待确认";
     if (status === "future") return "尚未开始";
+    if (status === "not_covered") return "该期间未覆盖";
     if (status !== "available" && status !== "partial") return "状态未确认";
     const cash = rawActual(activity.cash);
     if (!isNumber(cash)) return "数据未接入";
@@ -441,10 +615,10 @@
         <td class="numeric">${scalarMarkup(activity.training_orders)}</td>
         <td class="numeric">${scalarMarkup(activity.abroad_orders)}</td>
         <td class="numeric">${scalarMarkup(activity.orders)}</td>
-        <td class="numeric">${scalarMarkup(activity.heads)}</td>
+        <td class="numeric">${activityHeadsMarkup(activity)}</td>
         <td class="numeric">${activityCashMarkup(activity)}</td>
         <td><label class="visually-hidden" for="${costId}">${escapeHTML(name)}投入金额</label><input class="cost-input" id="${costId}" data-activity-index="${index}" type="number" step="any" inputmode="decimal" value="${escapeHTML(costValue)}" aria-label="${escapeHTML(name)}投入金额" /></td>
-        <td class="numeric"><strong class="recovery-value" id="activity-recovery-${index}">${escapeHTML(recovery)}</strong>${activityCashStatus(activity) === "partial" ? '<small class="cell-substate is-alert">按已接入语培现金</small>' : ""}</td>
+        <td class="numeric"><strong class="recovery-value" id="activity-recovery-${index}">${escapeHTML(recovery)}</strong>${activityCashStatus(activity) === "partial" ? '<small class="cell-substate is-alert">来源覆盖不一</small>' : ""}</td>
       </tr>`;
     }).join("");
   }
@@ -513,13 +687,10 @@
     const known = ["overview", "capacity", "activities"].includes(viewId) ? viewId : "overview";
     state.activeView = known;
     if(known === "capacity") {
-      const peers = new Map((state.data.capacity||[]).map(p=>[p.peer_group,`${p.home_team==='offline_market'?'线下':'虚拟人'} · ${p.home_group} · ${p.business_line==='abroad'?'留学':'语培'}`]));
-      ui.unitSelect.innerHTML='<option value="all">全部团队</option>'+[...peers].map(([key,label])=>`<option value="${escapeHTML(key)}">${escapeHTML(label)}</option>`).join('');
-      ui.unitSelect.value=state.capacityTeam||'all';
-      ui.unitSelect.previousElementSibling.textContent='人员团队';
-      ui.unitSelect.setAttribute('aria-label','筛选人员团队');
-      ui.periodSelect.value='FY27';
+      setupCapacityPeriodControl();
+      setupCapacityTeamControl();
     } else {
+      restoreOverviewPeriodControl();
       const choices = known === "activities" ? ["total"] : ["total","virtual","online"];
       if(known==='overview'&&!choices.includes(state.unitId))state.unitId='total';
       ui.unitSelect.innerHTML=choices.map(id=>`<option value="${id}">${UNIT_LABELS[id]}</option>`).join('');
@@ -530,12 +701,19 @@
     }
     ui.periodSelect.closest('label').hidden=known==='activities';
     ui.unitSelect.closest('label').hidden=known==='activities';
-    byId('page-title').textContent=known==='capacity'?'人员产能':known==='activities'?'市场活动':'市场总看板';
-    document.querySelector('.breadcrumb strong').textContent=known==='capacity'?'人员产能':known==='activities'?'市场活动':'市场总览';
-    ui.periodSelect.disabled = known !== "overview";
+    ui.capacityScope.closest('label').hidden=known!=='capacity';
+    const virtualView = known === 'overview' && state.unitId === 'virtual';
+    byId('page-title').textContent=known==='capacity'?'人员产能':known==='activities'?'市场活动':virtualView?'线上虚拟人经营看板':'市场总看板';
+    document.querySelector('.breadcrumb strong').textContent=known==='capacity'?'人员产能':known==='activities'?'市场活动':virtualView?'线上虚拟人':'市场总览';
+    document.body.dataset.unit = state.unitId;
+    window.dispatchEvent(new Event('management-unit-change'));
+    ui.periodSelect.disabled = known === "activities"
+      || (known === "capacity"
+        ? CapacityView.periods(state.data && state.data.capacity).length < 2
+        : safeArray(state.data && state.data.periods).length < 2);
     ui.unitSelect.disabled = known === "activities";
     if (known === "overview") renderOverview();
-    else ui.periodCaption.textContent = known === "capacity" ? `人员产能 · 2027财年累计 · 同期为上年同窗` : "市场活动 · 可用历史累计";
+    else if (known === "activities") ui.periodCaption.textContent = "市场活动 · 可用历史累计";
     for (const tab of ui.tabs) {
       const selected = tab.dataset.view === known;
       tab.setAttribute("aria-selected", selected ? "true" : "false");
@@ -559,6 +737,27 @@
     ui.countryGroups.innerHTML = '<p>国家与条线数据未加载。</p>';
     ui.activityBody.innerHTML = '<tr><td colspan="8" class="table-empty">没有有效的活动累计数据。</td></tr>';
   }
+
+  function syncOrderStatusToggles() {
+    document.querySelectorAll(".order-status-bit-toggle").forEach((toggle) => {
+      const bit = Number(toggle.dataset.statusBit);
+      if (bit === 0 || bit === 1) toggle.checked = state.orderStatusMode[bit] === "1";
+    });
+  }
+
+  document.addEventListener("change", (event) => {
+    const toggle = event.target;
+    if (!(toggle instanceof HTMLInputElement) || !toggle.matches(".order-status-bit-toggle")) return;
+    const bit = Number(toggle.dataset.statusBit);
+    if (bit !== 0 && bit !== 1) return;
+    const nextMode = state.orderStatusMode.split("");
+    nextMode[bit] = toggle.checked ? "1" : "0";
+    state.orderStatusMode = nextMode.join("");
+    syncOrderStatusToggles();
+    if (!state.data) return;
+    if (state.activeView === "capacity") renderCapacity();
+    else renderOverview();
+  });
 
   ui.tabs.forEach((tab, index) => {
     tab.addEventListener("click", () => setView(tab.dataset.view));
@@ -585,6 +784,12 @@
   window.addEventListener("hashchange", () => { if(state.data) setView(["capacity","activities"].includes(location.hash.slice(1)) ? location.hash.slice(1) : "overview"); });
   ui.personalMonth.addEventListener("change", () => renderOverview());
   ui.periodSelect.addEventListener("change", () => {
+    if (state.activeView === "capacity") {
+      state.capacityMonth = ui.periodSelect.value || null;
+      setupCapacityTeamControl();
+      renderCapacity();
+      return;
+    }
     state.periodId = ui.periodSelect.value;
     renderOverview();
     renderCapacity();
@@ -592,9 +797,12 @@
   ui.unitSelect.addEventListener("change", () => {
     if(state.activeView==='capacity'){state.capacityTeam=ui.unitSelect.value;renderCapacity();return;}
     state.unitId = Object.prototype.hasOwnProperty.call(UNIT_LABELS, ui.unitSelect.value) ? ui.unitSelect.value : "total";
-    renderOverview();
+    setView('overview');
     renderCapacity();
-    if (state.activeView === "capacity") ui.periodCaption.textContent = `人员产能 · 2027财年累计 · 同期为上年同窗`;
+  });
+  ui.capacityScope.addEventListener("change", () => {
+    state.capacityScope = ui.capacityScope.value;
+    renderCapacity();
   });
   ui.activitySearch.addEventListener("input", () => {
     state.activityQuery = ui.activitySearch.value;

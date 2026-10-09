@@ -8,7 +8,11 @@ from decimal import Decimal, ROUND_HALF_UP
 from dashboard_product.online_team.build import metric, periods as online_periods
 from workspace_modeling.operations.personnel import (
     BUSINESS_GROUP_BY_ROSTER_GROUP,
+    ORDER_STATUS_MODES,
+    ORDER_STATUS_VALUES,
+    co_creation_weights,
     is_displayable_person,
+    order_status_allowed,
 )
 
 
@@ -28,9 +32,7 @@ TRAINING_TEAM_ID = {
 ABROAD_NOT_CONFIGURED_TEAMS = frozenset({'prep', 'high', 'virtual'})
 ABROAD_OFFLINE_TEAM = 'offline_market'
 ABROAD_ONLINE_TEAM = 'online_platform'
-ABROAD_METRICS_NOTE = '留学现金及人头数据尚未接入。'
-VIRTUAL_COMBINED_ORDERS_NOTE = '按团队贡献汇总；多人共同工单在团队合计中去重，目标沿用现有配置。'
-CASH_CAPACITY = 800000
+ABROAD_METRICS_NOTE = '留学毛签使用签约金额，小语种使用实缴金额；两类客户分别去重。'
 METRIC_UNITS = {'orders': '单', 'cash': '元', 'heads': '人'}
 CENT = Decimal('0.01')
 ONE = Decimal('1')
@@ -154,11 +156,15 @@ def _roster(people_config, abroad_people_config):
                 row['targets']['training'].update(person.get('monthly_targets') or {})
 
     for person in abroad_people_config.get('people', []):
+        if not is_displayable_person(person):
+            continue
         name = _text(person.get('display_name'))
         if not name:
             continue
         row = entry(name)
-        row['home_group'] = row['home_group'] or '大学'
+        business_group = _text(person['business_group'])
+        if not row['training_roster']:
+            row['home_group'] = business_group
         row['team_ids'].add(ABROAD_OFFLINE_TEAM)
         row['lines'].add('abroad')
         row['abroad_roster'] = True
@@ -187,52 +193,6 @@ def _owners(fact):
     return sorted(seen)
 
 
-def _fact_identity(fact):
-    return fact.get('fact_id') or id(fact)
-
-
-def _virtual_roster_names(roster):
-    return {person['name'] for person in roster if 'online_private' in person['team_ids']}
-
-
-def _virtual_combined_order_facts(facts, roster_names):
-    """Return the virtual team's training orders plus owned abroad orders once."""
-    training_filter = _team_fact_filter('virtual', 'training')
-    training = [fact for fact in facts if fact.get('metric') == 'orders'
-                and fact.get('business_line') == 'training' and training_filter(fact)]
-    abroad = [fact for fact in facts if fact.get('metric') == 'orders'
-              and fact.get('business_line') == 'abroad'
-              and roster_names.intersection(fact.get('owners') or [])]
-    # The existing virtual training scope wins if a source fact appears in both lines.
-    unique = {}
-    for fact in [*training, *abroad]:
-        unique.setdefault(_fact_identity(fact), fact)
-    return list(unique.values())
-
-
-def _virtual_combined_orders_metric(base_metric, facts, roster_names, period):
-    target = base_metric.get('target')
-    progress = period.get('time_progress', 0)
-    if period['status'] == 'future' or not period.get('through_date'):
-        return metric(None, None, target, progress, '单', status='future',
-                      note=VIRTUAL_COMBINED_ORDERS_NOTE)
-    start, through = _date(period['start_date']), _date(period['through_date'])
-    prior_start, prior_through = _shift_year(start), _shift_year(through)
-    selected = _virtual_combined_order_facts(facts, roster_names)
-    abroad_current = _sum_numbers(
-        fact['value'] for fact in selected
-        if fact['business_line'] == 'abroad' and _in_window(fact, start, through)
-    )
-    abroad_prior = _sum_numbers(
-        fact['value'] for fact in selected
-        if fact['business_line'] == 'abroad' and _in_window(fact, prior_start, prior_through)
-    )
-    actual = _number(_decimal(base_metric.get('actual')) + _decimal(abroad_current))
-    prior = _number(_decimal(base_metric.get('prior')) + _decimal(abroad_prior))
-    return metric(actual, prior, target, progress, '单',
-                  note=VIRTUAL_COMBINED_ORDERS_NOTE)
-
-
 def _valid_facts(facts, through, *, include_non_completion=False):
     end = _date(through)
     cleaned = []
@@ -252,6 +212,7 @@ def _valid_facts(facts, through, *, include_non_completion=False):
         row['event_date'] = event_date
         row['value'] = _decimal(fact.get('value'))
         row['owners'] = _owners(fact)
+        row['virtual_owners'] = _owners({'owners': fact.get('virtual_owners')})
         cleaned.append(row)
     return cleaned
 
@@ -279,7 +240,65 @@ def _unique_heads(facts, business_line, start, end, predicate=None):
         student_id = _text(fact.get('student_id'))
         if student_id:
             students.add(student_id)
+    if business_line == 'abroad':
+        parts = _abroad_head_parts(facts, start, end, predicate)
+        if all(part['actual'] for part in parts):
+            return None
     return len(students)
+
+
+def _abroad_head_parts(facts, start, end, predicate=None):
+    customers = {'study_abroad': set(), 'small_language': set()}
+    for fact in facts:
+        if (fact['business_line'] == 'abroad' and fact['metric'] == 'cash'
+                and fact['value'] > 0 and _in_window(fact, start, end)
+                and (predicate is None or predicate(fact))):
+            key = _text(fact.get('student_id'))
+            domain = fact.get('customer_domain') or fact.get('source_product')
+            if key and domain in customers:
+                customers[domain].add(key)
+    return [{'label': label, 'actual': len(customers[key])}
+            for key, label in (('study_abroad', '留学'), ('small_language', '小语种'))]
+
+
+def _abroad_window(period, start=None, through=None):
+    """Clip a requested period to the explicitly declared isolated source."""
+    source = period['abroad_source']
+    explicit_personal_window = start is not None and through is not None
+    if not explicit_personal_window and (period.get('status') == 'future' or not period.get('through_date')):
+        return None
+    start = _date(start or period['start_date'])
+    through = _date(through or period['through_date'])
+    left = max(start, _date(source['start_date']))
+    right = min(through, _date(source['through_date']))
+    if left > right:
+        return None
+    return left, right, ('partial' if left != start or right != through else 'available')
+
+
+def _abroad_metric(facts, kind, predicate, period, target=None, *, start=None, through=None, progress=None):
+    source = period['abroad_source']
+    progress = period.get('time_progress', 0) if progress is None else progress
+    window = _abroad_window(period, start, through)
+    if window is None:
+        future = ((start is None and period.get('status') == 'future')
+                  or (start is not None and through is not None and _date(through) < _date(start)))
+        status = 'future' if future else 'not_covered'
+        return {**metric(None, None, target, progress, METRIC_UNITS[kind], status=status),
+                'source_coverage': dict(source)}
+    left, right, status = window
+    actual = (_unique_heads(facts, 'abroad', left, right, predicate) if kind == 'heads'
+              else _sum_fact_values(facts, 'abroad', kind, left, right, predicate))
+    result = metric(actual, None, target, progress, METRIC_UNITS[kind])
+    result.update(status=status, source_coverage={**source, 'start_date': left.isoformat(), 'through_date': right.isoformat()})
+    if status == 'partial':
+        result.update(gap=None, time_gap=None)
+    if kind == 'heads':
+        result['parts'] = _abroad_head_parts(facts, left, right, predicate)
+        if actual is None:
+            result.update(status='separate_counts', display='／'.join(
+                f"{part['label']}{part['actual']}人" for part in result['parts']))
+    return result
 
 
 def _training_filter(team_id=None, group=None):
@@ -371,6 +390,10 @@ def _team_target(configs, period, team_id, line, kind, facts):
                 if kind == 'orders' else
                 _department_training_cash_target(training_targets, period, team_config_id, group))
 
+    if kind == 'cash' and team_id in ('online', 'university'):
+        from dashboard_product.online_team.build import study_target
+        cash_config = online_abroad_targets if team_id == 'online' else offline_abroad_targets
+        return study_target(cash_config, period, 'cash') if 'cash' in cash_config else None
     if kind != 'orders':
         return None
     if team_id == 'university':
@@ -391,27 +414,23 @@ def _team_fact_filter(team_id, line):
             return _training_filter(TRAINING_TEAM_ID[team_id])
         return lambda fact: False
     if team_id == 'university':
-        return lambda fact: bool(fact.get('offline_channel_eligible'))
+        return lambda fact: fact.get('segment_id') == 'study_abroad_offline'
     if team_id == 'online':
-        return lambda fact: fact.get('team_id') == ABROAD_ONLINE_TEAM and fact.get('acquisition_mode') == 'online'
+        return lambda fact: fact.get('segment_id') == 'study_abroad_online'
     # Prep/high/virtual abroad ownership has not been confirmed.
     return lambda fact: False
 
 
 def _metric_for_period(facts, line, kind, predicate, period, target, *, note=''):
     status = period['status']
-    if line == 'abroad' and kind in ('cash', 'heads'):
+    if line == 'abroad' and note == 'not_configured':
         if status == 'future':
-            return metric(None, None, None, period.get('time_progress', 0), METRIC_UNITS[kind],
-                          status='future', note=ABROAD_METRICS_NOTE)
-        return metric(None, None, None, period.get('time_progress', 0), METRIC_UNITS[kind],
-                      status='not_connected', note=ABROAD_METRICS_NOTE)
-    if line == 'abroad' and kind == 'orders' and note == 'not_configured':
-        if status == 'future':
-            return metric(None, None, target, period.get('time_progress', 0), '单',
+            return metric(None, None, target, period.get('time_progress', 0), METRIC_UNITS[kind],
                           status='future', note='本部门暂不统计留学完成；贡献见人员产能。')
-        return metric(None, None, None, period.get('time_progress', 0), '单',
+        return metric(None, None, None, period.get('time_progress', 0), METRIC_UNITS[kind],
                       status='not_configured', note='本部门暂不统计留学完成；贡献见人员产能。')
+    if line == 'abroad':
+        return _abroad_metric(facts, kind, predicate, period, target)
     if status == 'future' or not period.get('through_date'):
         return metric(None, None, target, period.get('time_progress', 0), METRIC_UNITS[kind],
                       status='future', note=note)
@@ -424,12 +443,27 @@ def _metric_for_period(facts, line, kind, predicate, period, target, *, note='')
     return metric(actual, prior, target, period.get('time_progress', 0), METRIC_UNITS[kind], note=note)
 
 
-def _personal_qualification(person, fact, line):
-    if fact.get('team_inferred') and fact.get('metric') == 'cash':
+def _personal_owners(person, fact, kind):
+    if kind in ('orders', 'cash') and 'online_private' in person['team_ids']:
+        return fact.get('virtual_owners') or []
+    return fact.get('owners') or []
+
+
+def _personal_qualification(person, fact, line, kind):
+    if fact.get('segment_id') == 'international_market':
+        return False
+    virtual_personal = (kind in ('orders', 'cash')
+                        and 'online_private' in person['team_ids'])
+    if (fact.get('team_inferred') and fact.get('metric') == 'cash'
+            and not virtual_personal):
+        return False
+    if virtual_personal and kind == 'orders' and _text(fact.get('order_status')) == '无效':
         return False
     if line == 'training':
         if not person['training_roster'] and not person['abroad_roster']:
             return False
+        if virtual_personal:
+            return True
         if fact.get('team_id') not in person['team_ids']:
             return False
         return bool(person['home_group']) and fact.get('business_group') == person['home_group']
@@ -437,6 +471,44 @@ def _personal_qualification(person, fact, line):
         # Actual study-abroad contributions remain visible even without a target.
         return bool(person['training_roster'] or person['abroad_roster'])
     return False
+
+
+def _personal_order_status_allowed(fact, mode):
+    """Apply the completion-page selector without changing legacy callers."""
+    if mode is None:
+        return True
+    order_status = _text(fact.get('order_status'))
+    if not order_status_allowed(order_status, mode):
+        return False
+    if order_status in ORDER_STATUS_VALUES:
+        return True
+    # Preserve any existing non-status eligibility flag outside the three
+    # statuses explicitly opened by this selector.
+    return fact.get('counts_toward_completion') is not False
+
+
+def _personal_weights(fact, kind, roster_by_name):
+    names = list(fact.get('owners') or [])
+    if kind in ('orders', 'cash'):
+        names.extend(fact.get('virtual_owners') or [])
+    return co_creation_weights(names, roster_by_name)
+
+
+def _personal_weighted_facts(facts, person, line, kind, start, end, roster_by_name,
+                             *, order_status_mode=None):
+    source_kind = 'cash' if kind == 'heads' else kind
+    for fact in facts:
+        if (fact['business_line'] != line
+                or fact['metric'] != source_kind
+                or not _in_window(fact, start, end)
+                or (kind == 'orders'
+                    and not _personal_order_status_allowed(fact, order_status_mode))
+                or person['name'] not in _personal_owners(person, fact, kind)
+                or not _personal_qualification(person, fact, line, kind)):
+            continue
+        weights = _personal_weights(fact, source_kind, roster_by_name)
+        if person['name'] in weights:
+            yield fact, weights
 
 
 def _person_month_target(person, month_id, target_line):
@@ -470,26 +542,64 @@ def _personal_cash_target(person, period):
     return None if any(v is None for v in values) else _sum_numbers(values, money=True)
 
 
-def _personal_actual(facts, person, line, kind, start, end, roster_by_name=None):
-    matching = [fact for fact in facts if fact['business_line'] == line
-                and fact['metric'] == ('cash' if kind == 'heads' else kind) and _in_window(fact, start, end)
-                and person['name'] in fact['owners']
-                and _personal_qualification(person, fact, line)]
+def _personal_actual(facts, person, line, kind, start, end, roster_by_name,
+                     *, order_status_mode=None):
+    matching = list(_personal_weighted_facts(
+        facts, person, line, kind, start, end, roster_by_name,
+        order_status_mode=order_status_mode,
+    ))
     if kind == 'heads':
         credit = {}
-        for fact in matching:
+        for fact, weights in matching:
             if fact['metric'] != 'cash' or fact['value'] <= 0:
                 continue
             student_id = _text(fact.get('student_id'))
             if not student_id:
                 continue
-            eligible = [name for name in fact['owners'] if name in (roster_by_name or {})
-                        and roster_by_name[name]['training_roster']
-                        and _personal_qualification(roster_by_name[name], fact, line)]
-            weight = Decimal(1) / Decimal(max(1, len(eligible)))
-            credit[student_id] = max(credit.get(student_id, Decimal(0)), weight)
+            weight = weights.get(person['name'], Decimal(0))
+            if weight:
+                credit[student_id] = max(credit.get(student_id, Decimal(0)), weight)
         return _number(sum(credit.values(), Decimal(0)))
-    return _sum_numbers((fact['value'] for fact in matching), money=kind == 'cash')
+    return _sum_numbers(
+        (fact['value'] * weights[person['name']] for fact, weights in matching),
+        money=kind == 'cash',
+    )
+
+
+def _personal_abroad_channels(facts, person, start, end, prior_start, prior_end,
+                              roster_by_name, actual, status, progress,
+                              *, order_status_mode=None):
+    if status == 'future':
+        return []
+    grouped = defaultdict(lambda: {'actual': Decimal(0), 'prior': Decimal(0)})
+    for fact, weights in _personal_weighted_facts(
+            facts, person, 'abroad', 'orders', start, end, roster_by_name,
+            order_status_mode=order_status_mode):
+        first = _text(fact.get('first_channel')) or '一级渠道待确认'
+        second = _text(fact.get('second_channel')) or '二级渠道待确认'
+        grouped[(first, second)]['actual'] += fact['value'] * weights[person['name']]
+    for fact, weights in _personal_weighted_facts(
+            facts, person, 'abroad', 'orders', prior_start, prior_end, roster_by_name,
+            order_status_mode=order_status_mode):
+        first = _text(fact.get('first_channel')) or '一级渠道待确认'
+        second = _text(fact.get('second_channel')) or '二级渠道待确认'
+        grouped[(first, second)]['prior'] += fact['value'] * weights[person['name']]
+
+    identities = sorted(grouped)
+    rows = []
+    for first, second in identities:
+        values = grouped[(first, second)]
+        orders = metric(_number(values['actual']), None, None,
+                        progress, '单', status=status)
+        share = (float(_decimal(orders['actual']) / _decimal(actual))
+                 if orders['actual'] is not None and actual not in (None, 0) else None)
+        rows.append({
+            'name': second,
+            'first_channel': first,
+            'orders': orders,
+            'share': share,
+        })
+    return rows
 
 
 def _personal_metric(value, prior, target, status, unit, note='', progress=0):
@@ -500,7 +610,77 @@ def _personal_metric(value, prior, target, status, unit, note='', progress=0):
     return metric(value, prior, target, progress, unit, status=status, note=note)
 
 
-def _people_for_period(facts, roster, period, through, mode='performance'):
+def _personal_order_values(facts, person, start, effective_end, prior_start, prior_end,
+                           roster_by_name, training_target, abroad_target, status, progress,
+                           *, period, order_status_mode=None):
+    if order_status_mode is not None:
+        order_status_allowed(None, order_status_mode)
+    abroad_window = None
+    if status == 'future':
+        train_actual = abroad_actual = train_prior = abroad_prior = None
+        combined_actual = combined_prior = None
+    else:
+        train_actual = _personal_actual(
+            facts, person, 'training', 'orders', start, effective_end, roster_by_name,
+            order_status_mode=order_status_mode,
+        )
+        abroad_window = _abroad_window(period, start, effective_end)
+        abroad_actual = (_personal_actual(
+            facts, person, 'abroad', 'orders', abroad_window[0], abroad_window[1], roster_by_name,
+            order_status_mode=order_status_mode,
+        ) if abroad_window else None)
+        train_prior = _personal_actual(
+            facts, person, 'training', 'orders', prior_start, prior_end, roster_by_name,
+            order_status_mode=order_status_mode,
+        )
+        abroad_prior = None
+        combined_actual = (_number(_decimal(train_actual) + _decimal(abroad_actual))
+                           if abroad_actual is not None else None)
+        combined_prior = None
+        if 'online_private' in person['team_ids']:
+            # The new source excludes 国际市场 from all training/virtual views.
+            combined_actual, combined_prior = train_actual, train_prior
+
+    values = {
+        'training_target': training_target,
+        'training_actual': train_actual,
+        'training_prior': train_prior,
+        'training_completion': (train_actual / training_target
+                                if train_actual is not None and training_target else None),
+        'combined_target': training_target,
+        'combined_actual': combined_actual,
+        'combined_prior': combined_prior,
+        'combined_completion': (combined_actual / training_target
+                                if combined_actual is not None and training_target
+                                and ('online_private' in person['team_ids']
+                                     or (abroad_window and abroad_window[2] == 'available')) else None),
+        'abroad_target': abroad_target,
+        'abroad_actual': abroad_actual,
+        'abroad_prior': abroad_prior,
+        'abroad_completion': (abroad_actual / abroad_target
+                              if abroad_actual is not None and abroad_target
+                              and abroad_window and abroad_window[2] == 'available' else None),
+    }
+    if person['home_group'] == '高中' and person['abroad_roster']:
+        values['abroad_channels'] = _personal_abroad_channels(
+            facts, person, start, effective_end, prior_start, prior_end,
+            roster_by_name, abroad_actual, status, progress,
+            order_status_mode=order_status_mode,
+        )
+    return values
+
+
+def _owner_fact_index(facts):
+    result = defaultdict(list)
+    for fact in facts:
+        for owner in dict.fromkeys([*(fact.get('owners') or []),
+                                    *(fact.get('virtual_owners') or [])]):
+            result[owner].append(fact)
+    return result
+
+
+def _people_for_period(facts, roster, period, through, mode='performance', *,
+                       order_status_facts=None):
     if mode == 'performance':
         start, end = _calendar_month_window(period)
     elif mode == 'calendar':
@@ -515,129 +695,66 @@ def _people_for_period(facts, roster, period, through, mode='performance'):
     prior_end = _shift_year(effective_end) if status == 'available' else _shift_year(end)
     rows = []
     roster_by_name = {person['name']: person for person in roster}
-    owner_facts = defaultdict(list)
-    for fact in facts:
-        for owner in fact['owners']:
-            owner_facts[owner].append(fact)
+    owner_facts = _owner_fact_index(facts)
+    status_owner_facts = (_owner_fact_index(order_status_facts)
+                          if order_status_facts is not None else None)
     for person in roster:
         personal_facts = owner_facts[person['name']]
         train_target = _personal_target(person, period, 'training')
         abroad_target = _personal_target(person, period, 'abroad')
+        order_values = _personal_order_values(
+            personal_facts, person, start, effective_end, prior_start, prior_end,
+            roster_by_name, train_target, abroad_target, status, progress, period=period,
+        )
         if status == 'future':
-            train_actual = abroad_actual = train_prior = abroad_prior = None
-            combined_actual = combined_prior = None
             cash_actual = heads_actual = cash_prior = heads_prior = None
             cash_status = heads_status = 'future'
         else:
-            train_actual = _personal_actual(personal_facts, person, 'training', 'orders', start, effective_end)
-            abroad_actual = _personal_actual(personal_facts, person, 'abroad', 'orders', start, effective_end)
-            train_prior = _personal_actual(personal_facts, person, 'training', 'orders', prior_start, prior_end)
-            abroad_prior = _personal_actual(personal_facts, person, 'abroad', 'orders', prior_start, prior_end)
-            combined_actual = _number(_decimal(train_actual) + _decimal(abroad_actual))
-            combined_prior = _number(_decimal(train_prior) + _decimal(abroad_prior))
             if person['training_roster']:
-                cash_actual = _personal_actual(personal_facts, person, 'training', 'cash', start, effective_end)
+                cash_actual = _personal_actual(personal_facts, person, 'training', 'cash', start, effective_end, roster_by_name)
                 heads_actual = _personal_actual(personal_facts, person, 'training', 'heads', start, effective_end, roster_by_name)
-                cash_prior = _personal_actual(personal_facts, person, 'training', 'cash', prior_start, prior_end)
+                cash_prior = _personal_actual(personal_facts, person, 'training', 'cash', prior_start, prior_end, roster_by_name)
                 heads_prior = _personal_actual(personal_facts, person, 'training', 'heads', prior_start, prior_end, roster_by_name)
                 cash_status = heads_status = 'available'
             else:
                 cash_actual = heads_actual = cash_prior = heads_prior = None
-                cash_status = heads_status = 'not_connected'
-        rows.append({
+                cash_status = heads_status = 'not_covered'
+        personal_scope = lambda fact: (person['name'] in (fact.get('owners') or [])
+                                      and _personal_qualification(person, fact, 'abroad', fact['metric']))
+        abroad_cash = _abroad_metric(personal_facts, 'cash', personal_scope, period,
+                                     _personal_cash_target(person, period),
+                                     start=start, through=effective_end, progress=progress)
+        abroad_heads = _abroad_metric(personal_facts, 'heads', personal_scope, period,
+                                      start=start, through=effective_end, progress=progress)
+        person_row = {
             'name': person['name'],
             'home_group': person['home_group'],
             'business_line': person['business_line'],
-            'training_target': train_target,
-            'training_actual': train_actual,
-            'training_prior': train_prior,
-            'training_completion': train_actual / train_target if train_actual is not None and train_target else None,
-            'combined_target': train_target,
-            'combined_actual': combined_actual,
-            'combined_prior': combined_prior,
-            'combined_completion': (combined_actual / train_target
-                                   if combined_actual is not None and train_target else None),
-            'abroad_target': abroad_target,
-            'abroad_actual': abroad_actual,
-            'abroad_prior': abroad_prior,
-            'abroad_completion': abroad_actual / abroad_target if abroad_actual is not None and abroad_target else None,
-            'cash_actual': _personal_metric(cash_actual, cash_prior, _personal_cash_target(person, period), cash_status, '元',
-                                           ABROAD_METRICS_NOTE if cash_status == 'not_connected' else '', progress=progress),
-            'heads_actual': _personal_metric(heads_actual, heads_prior, None, heads_status, '人',
-                                            ABROAD_METRICS_NOTE if heads_status == 'not_connected' else ''),
-        })
+            **order_values,
+            'cash_actual': (_personal_metric(cash_actual, cash_prior, _personal_cash_target(person, period), cash_status, '元', progress=progress)
+                            if person['training_roster'] else abroad_cash),
+            'heads_actual': (_personal_metric(heads_actual, heads_prior, None, heads_status, '人')
+                             if person['training_roster'] else abroad_heads),
+            'abroad_source_coverage': dict(period['abroad_source']),
+        }
+        if status_owner_facts is not None:
+            eligible_status_facts = status_owner_facts[person['name']]
+            person_row['order_status_views'] = {
+                status_mode: _personal_order_values(
+                    eligible_status_facts, person, start, effective_end, prior_start, prior_end,
+                    roster_by_name, train_target, abroad_target, status, progress,
+                    period=period, order_status_mode=status_mode,
+                )
+                for status_mode in ORDER_STATUS_MODES
+            }
+        rows.append(person_row)
     return start.isoformat(), through_value, rows, progress
-
-
-def _capacity(facts, roster, through, cash_capacity=CASH_CAPACITY, start=None):
-    start = start or date(2026, 6, 1)
-    year_end = date(start.year + 1, 5, 31)
-    end = min(year_end, through)
-    fy_days = (year_end - start).days + 1
-    progress = max(0, min(1, ((end - start).days + 1) / fy_days))
-    target_to_date = cash_capacity * progress
-    capacity = []
-    for person in roster:
-        owned = [fact for fact in facts if person['name'] in fact['owners']
-                 and _in_window(fact, start, end)]
-        order_facts = [fact for fact in owned if fact['metric'] == 'orders']
-        training_orders = [fact for fact in order_facts if fact['business_line'] == 'training']
-        abroad_orders = [fact for fact in order_facts if fact['business_line'] == 'abroad']
-        cash_facts = [fact for fact in owned if fact['business_line'] == 'training' and fact['metric'] == 'cash']
-        cash_value = _sum_numbers((fact['value'] for fact in cash_facts), money=True)
-        cash_status = 'available' if person['training_roster'] else 'partial'
-        if not person['training_roster'] and not cash_facts:
-            cash_value = None
-            cash_status = 'not_connected'
-        destinations = defaultdict(Decimal)
-        own_training = Decimal(0)
-        cross_training = Decimal(0)
-        for fact in training_orders:
-            group = _text(fact.get('business_group')) or '未归类'
-            destinations[group] += fact['value']
-            if group == person['home_group']:
-                own_training += fact['value']
-            else:
-                cross_training += fact['value']
-        heads_by_student = {}
-        for fact in cash_facts:
-            if fact['value'] <= 0:
-                continue
-            student_id = _text(fact.get('student_id'))
-            if not student_id:
-                continue
-            weight = Decimal(1) / Decimal(max(1, len(fact['owners'])))
-            heads_by_student[student_id] = max(heads_by_student.get(student_id, Decimal(0)), weight)
-        heads = _number(sum(heads_by_student.values(), Decimal(0))) if cash_value is not None else None
-        capacity.append({
-            'name': person['name'],
-            'home_group': person['home_group'],
-            'home_team': sorted(person['team_ids'])[0],
-            'business_line': person['business_line'],
-            'orders': _sum_numbers(fact['value'] for fact in order_facts),
-            'cash': cash_value,
-            'heads': heads,
-            'own_training_orders': _number(own_training),
-            'cross_training_orders': _number(cross_training),
-            'abroad_orders': _sum_numbers(fact['value'] for fact in abroad_orders),
-            'training_destinations': [
-                {'name': name, 'orders': _number(value)}
-                for name, value in sorted(destinations.items())
-            ],
-            'cash_status': cash_status,
-            'cash_capacity': cash_capacity if person['training_roster'] else None,
-            'cash_progress_completion': (
-                float(_decimal(cash_value) / _decimal(target_to_date))
-                if person['training_roster'] and cash_value is not None and target_to_date else None
-            ),
-        })
-    return capacity
 
 
 def _activities(facts):
     grouped = defaultdict(lambda: {
         'training_orders': Decimal(0), 'abroad_orders': Decimal(0),
-        'cash': Decimal(0), 'training_students': set(), 'has_abroad': False, 'has_training': False,
+        'cash': Decimal(0), 'customers': defaultdict(set), 'has_abroad': False, 'has_training': False,
     })
     for fact in facts:
         name = _text(fact.get('campaign_name')) or '未填写活动'
@@ -647,25 +764,30 @@ def _activities(facts):
             row['training_orders' if fact['business_line'] == 'training' else 'abroad_orders'] += fact['value']
             if fact['business_line'] == 'abroad':
                 row['has_abroad'] = True
-        elif fact['metric'] == 'cash' and fact['business_line'] == 'training':
+        elif fact['metric'] == 'cash':
             row['cash'] += fact['value']
             if fact['value'] > 0 and _text(fact.get('student_id')):
-                row['training_students'].add(_text(fact.get('student_id')))
-        elif fact['metric'] == 'cash' and fact['business_line'] == 'abroad':
-            # Abroad cash is intentionally not connected to this product.
-            row['has_abroad'] = True
+                domain = ('training' if fact['business_line'] == 'training'
+                          else fact['customer_domain'])
+                row['customers'][domain].add(_text(fact.get('student_id')))
+            row['has_abroad'] |= fact['business_line'] == 'abroad'
     rows = []
     for name, row in sorted(grouped.items()):
         training_orders = _number(row['training_orders'])
         abroad_orders = _number(row['abroad_orders'])
+        parts = [{'label': label, 'actual': len(row['customers'][domain])}
+                 for domain, label in (('training', '语培'), ('study_abroad', '留学'), ('small_language', '小语种'))
+                 if row['customers'][domain]]
         rows.append({
             'name': name,
             'training_orders': training_orders,
             'abroad_orders': abroad_orders,
             'orders': _number(row['training_orders'] + row['abroad_orders']),
-            'cash': _number(row['cash'], money=True) if row['has_training'] else None,
-            'heads': len(row['training_students']) if row['has_training'] else None,
-            'cash_status': ('partial' if row['has_training'] else 'not_connected') if row['has_abroad'] else 'available',
+            'cash': _number(row['cash'], money=True),
+            'heads': sum(part['actual'] for part in parts) if len(parts) <= 1 else None,
+            'heads_parts': parts,
+            'heads_display': '／'.join(f"{part['label']}{part['actual']}人" for part in parts) if len(parts) > 1 else None,
+            'cash_status': 'partial' if row['has_training'] and row['has_abroad'] else 'available',
         })
     return rows
 
@@ -678,10 +800,10 @@ def _countries(facts, start, through):
         line = _text(fact.get('line')) or '条线待确认'
         country = _text(fact.get('country')) or '国家待确认'
         row = grouped[(line, country)]
-        mode = fact.get('acquisition_mode')
-        if mode == 'offline':
+        segment = fact.get('segment_id')
+        if segment == 'study_abroad_offline':
             row['offline'] += fact['value']
-        elif mode == 'online':
+        elif segment == 'study_abroad_online':
             row['online'] += fact['value']
         else:
             row['unassigned'] += fact['value']
@@ -697,7 +819,7 @@ def _countries(facts, start, through):
 
 
 def aggregate(facts, people_config, abroad_people_config, training_targets,
-              abroad_targets, online_abroad_targets, through, capacity_config=None):
+              abroad_targets, online_abroad_targets, through, *, abroad_source):
     """Aggregate normalized facts without reading source data or changing ownership.
 
     Team actuals use calendar periods. Person actuals keep the selected period's
@@ -710,13 +832,14 @@ def aggregate(facts, people_config, abroad_people_config, training_targets,
     configs = (training_targets, abroad_targets, online_abroad_targets)
     period_rows = []
     for source_period in online_periods(through):
-        period = dict(source_period)
+        period = {**source_period, 'abroad_source': dict(abroad_source)}
         team_rows = []
         person_start, person_through, people_rows, person_progress = _people_for_period(
-            personal_facts, roster, period, through,
+            personal_facts, roster, period, through, order_status_facts=team_facts,
         )
         calendar_start, calendar_through, calendar_people_rows, calendar_progress = _people_for_period(
             personal_facts, roster, period, through, mode='calendar',
+            order_status_facts=team_facts,
         )
         people_map = {person['name']: person for person in roster}
         for team_id, name in TEAM_DEFS:
@@ -725,7 +848,7 @@ def aggregate(facts, people_config, abroad_people_config, training_targets,
                 metrics = {}
                 for kind in ('orders', 'cash', 'heads'):
                     note = ''
-                    if line == 'abroad' and kind == 'orders' and team_id in ABROAD_NOT_CONFIGURED_TEAMS:
+                    if line == 'abroad' and team_id in ABROAD_NOT_CONFIGURED_TEAMS:
                         note = 'not_configured'
                     predicate = _team_fact_filter(team_id, line)
                     target = _team_target(configs, period, team_id, line, kind, team_facts)
@@ -733,6 +856,15 @@ def aggregate(facts, people_config, abroad_people_config, training_targets,
                         team_facts, line, kind, predicate, period, target, note=note,
                     )
                 lines[line] = metrics
+                if line == 'abroad':
+                    lines[line]['source_coverage'] = dict(abroad_source)
+                    if team_id == 'total':
+                        lines[line]['supplemental'] = [
+                            {'id': segment, 'name': label,
+                             **{kind: _abroad_metric(team_facts, kind,
+                                 lambda fact, segment=segment: fact.get('segment_id') == segment, period)
+                                for kind in ('orders', 'cash', 'heads')}}
+                            for segment, label in (('international_market', '国际市场'), ('ssc', 'SSC'), ('unassigned', '归属待确认'))]
             selected_people = [row for row in people_rows if team_id == 'total' or
                 (team_id in GROUP_BY_TEAM and 'offline_market' in people_map[row['name']]['team_ids']
                  and row['home_group'] == GROUP_BY_TEAM[team_id]) or
@@ -743,9 +875,7 @@ def aggregate(facts, people_config, abroad_people_config, training_targets,
                  (team_id == 'virtual' and 'online_private' in people_map[row['name']]['team_ids'])]
             combined_orders = None
             if team_id == 'virtual':
-                combined_orders = _virtual_combined_orders_metric(
-                    lines['training']['orders'], team_facts, _virtual_roster_names(roster), period,
-                )
+                combined_orders = dict(lines['training']['orders'])
             country_scope = _team_fact_filter(team_id, 'abroad')
             countries = [] if not period.get('through_date') else _countries(
                 [fact for fact in team_facts if country_scope(fact)],
@@ -769,6 +899,7 @@ def aggregate(facts, people_config, abroad_people_config, training_targets,
             country_rows = _countries(team_facts, _date(period['start_date']), _date(period['through_date']))
         # Person detail is a period-level table and appears once per period.
         period_rows.append({
+            **period,
             'id': period['id'], 'label': period['label'],
             'start_date': period['start_date'], 'through_date': period['through_date'],
             'status': period['status'], 'teams': team_rows,
@@ -778,6 +909,5 @@ def aggregate(facts, people_config, abroad_people_config, training_targets,
         })
     return {
         'periods': period_rows,
-        'capacity': _capacity(personal_facts, roster, through, (capacity_config or {}).get('annual_cash_by_person', CASH_CAPACITY)),
         'activities': _activities(team_facts),
     }

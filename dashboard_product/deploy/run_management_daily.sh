@@ -19,8 +19,14 @@ if _snapshot_cut_date(snapshot)!=date.fromisoformat(sys.argv[2]):
 print(snapshot)
 PY
 )"
+study_snapshot_id="$("$PYTHON" - "$WORKSPACE/Work/StudyAbroad/current.json" <<'PY'
+import json,sys
+print(json.load(open(sys.argv[1]))['snapshot_id'])
+PY
+)"
 "$PYTHON" -m dashboard_product.management.build --workspace "$WORKSPACE" \
-  --snapshot-id "$snapshot_id" --run-id "$RUN_ID" --as-of-date "$AS_OF_DATE"
+  --snapshot-id "$snapshot_id" --study-abroad-snapshot-id "$study_snapshot_id" \
+  --run-id "$RUN_ID" --as-of-date "$AS_OF_DATE"
 batch_dir="${WORKSPACE}/Output/DashboardManagement/${RUN_ID}"
 shared_result="${batch_dir}/shared_result.json"
 "$PYTHON" -m monitoring_product.shared_delivery --shared-result "$shared_result" \
@@ -30,12 +36,16 @@ shared_result="${batch_dir}/shared_result.json"
 # A fixed, explicit identity pointer, not a directory/time-based result lookup.
 "$PYTHON" - "$WORKSPACE" "$shared_result" "$AS_OF_DATE" <<'PY'
 import json,sys
+from datetime import date,timedelta
 from pathlib import Path
 from monitoring_product.shared_preview import _read_shared_notifications
-from monitoring_product.shared_delivery import _validate_contract
+from monitoring_product.shared_delivery import _validate_contract,_today_shanghai
 ws=Path(sys.argv[1]).resolve(); shared=Path(sys.argv[2]).resolve()
 body,notifications=_read_shared_notifications(shared)
-_validate_contract(body,notifications,sys.argv[3],sending=True)
+_validate_contract(body,notifications,sys.argv[3],sending=False)
+as_of=date.fromisoformat(sys.argv[3])
+if as_of != _today_shanghai() or body['metadata']['data_through'] != (as_of-timedelta(days=1)).isoformat():
+    raise ValueError('daily dashboard requires fresh BI data through yesterday')
 pointer=ws/'Work/ManagementDelivery/batch.json'; pointer.parent.mkdir(parents=True,exist_ok=True)
 data={k:body['metadata'][k] for k in ('run_id','snapshot_id','data_through')}
 data.update(as_of_date=sys.argv[3],shared_result=str(shared.relative_to(ws)))

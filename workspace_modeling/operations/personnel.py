@@ -1,12 +1,67 @@
 import re
 from pathlib import Path
+from decimal import Decimal
 
 PEOPLE_CONFIG_PATH = Path(__file__).with_name("people.json")
 BUSINESS_GROUP_BY_ROSTER_GROUP={'青少组':'留学预备','小初提能组':'留学预备','高中组':'高中','高中多途径组':'高中','国际学校择校组':'高中','大学组':'大学'}
 HIDDEN_PERSON_STATUSES = frozenset({'vacant', 'departed', 'transferred'})
+ORDER_STATUS_MODES = ('00', '01', '10', '11')
+DEFAULT_ORDER_STATUS_MODE = '01'
+ORDER_STATUS_VALUES = frozenset({'删除', '死单', '回收'})
+
+
+def order_status_allowed(status, mode):
+    """Return whether a work-order status is included by the two selector bits."""
+    if mode not in ORDER_STATUS_MODES:
+        raise ValueError(f'unsupported order status mode: {mode!r}')
+    normalized = str(status or '').strip()
+    if normalized in ('删除', '回收'):
+        return mode[0] == '1'
+    if normalized == '死单':
+        return mode[1] == '1'
+    return True
 
 def is_displayable_person(person):
     return bool(person.get('display_name')) and person.get('status') not in HIDDEN_PERSON_STATUSES
+
+
+def co_creation_weights(names, roster_by_name):
+    """Return individual attribution weights for currently displayed co-creators.
+
+    Offline-market members share one contribution equally. Online-private
+    virtual members each receive a full contribution and do not dilute the
+    offline denominator. Names absent from the current roster or in an
+    existing hidden status do not participate.
+    """
+    if isinstance(names, str):
+        names = (names,)
+
+    offline = []
+    virtual = []
+    seen = set()
+    roster_by_name = roster_by_name or {}
+    for raw_name in names or ():
+        name = str(raw_name or '').strip()
+        if not name or name in seen:
+            continue
+        seen.add(name)
+        person = roster_by_name.get(name)
+        if not person or person.get('status') in HIDDEN_PERSON_STATUSES:
+            continue
+        team_ids = person.get('team_ids') or ()
+        if isinstance(team_ids, str):
+            team_ids = (team_ids,)
+        team_ids = set(team_ids)
+        if 'online_private' in team_ids:
+            virtual.append(name)
+        elif 'offline_market' in team_ids:
+            offline.append(name)
+
+    result = {name: Decimal(1) for name in virtual}
+    if offline:
+        weight = Decimal(1) / Decimal(len(offline))
+        result.update({name: weight for name in offline})
+    return result
 
 def date_to_perf_month(date_str):
     """将日期转换为绩效月（YYYY-MM格式）

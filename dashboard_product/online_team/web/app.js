@@ -77,6 +77,20 @@
     return unit ? `${number} ${escapeHTML(unit)}` : number;
   }
 
+  function metricValueText(metric, unit) {
+    const status = metric && metric.status;
+    const display = cleanString(metric && metric.display);
+    if (status === "not_covered") return "该期间未覆盖";
+    if (status === "not_connected") return "未接入";
+    if (status === "not_configured") return "归属待确认";
+    if (status === "future") return "尚未开始";
+    if (status === "separate_counts") return display ? escapeHTML(display) : "—";
+    if ((status === "available" || status === "partial") && display) return escapeHTML(display);
+    const actual = actualValue(metric);
+    if (actual === null) return "—";
+    return valueWithUnit(actual, unit);
+  }
+
   function percentText(value) {
     if (value === null || value === undefined) return "—";
     if (!isNumber(value)) return escapeHTML(value);
@@ -129,6 +143,9 @@
       return "该期间尚未开始";
     }
     if (status === "not_connected") return "未接入";
+    if (status === "not_covered") return "该期间未覆盖";
+    if (status === "separate_counts" && metric && metric.display) return metric.display;
+    if (status === "partial" && metric && (metric.actual === null || metric.actual === undefined)) return "部分数据未提供";
     if (metric && metric.actual === null) return "暂无实际值";
     if (!metric) return "暂无数据";
     return "暂不可用";
@@ -137,6 +154,7 @@
   function statusClass(status, periodStatus) {
     if (periodStatus === "future" || status === "future") return "future";
     if (status === "not_connected") return "not-connected";
+    if (status === "not_covered") return "not-covered";
     return "";
   }
 
@@ -158,9 +176,14 @@
   function renderMetricBlock(label, metric, period, fallbackUnit) {
     const isFuture = period.status === "future" || (metric && metric.status === "future");
     const status = metric && metric.status;
-    const isReady = metric && metric.actual !== null && metric.actual !== undefined && !isFuture && status !== "not_connected";
+    const isCovered = status === "available" || status === "partial";
+    const isReady = metric && !isFuture && (
+      (isCovered && metric.actual !== null && metric.actual !== undefined)
+      || (isCovered && cleanString(metric.display))
+      || (status === "separate_counts" && cleanString(metric.display))
+    );
     const unit = metricUnit(metric, fallbackUnit);
-    const actual = isFuture ? null : metric && metric.actual;
+    const actualText = isReady ? metricValueText(metric, unit) : "";
     const target = metric && metric.target;
     const completion = isFuture ? null : metric && metric.completion;
     const yoy = isFuture ? null : metric && metric.yoy;
@@ -178,7 +201,7 @@
       const timeDisplay = target === null || target === undefined ? { text: "未配置", tone: "" } : renderDifference(timeGap, unit, "time");
       mainMarkup = `
         <div class="metric-core">
-          <div class="metric-actual">${valueWithUnit(actual, unit)}</div>
+          <div class="metric-actual">${actualText}</div>
           <div class="metric-target">目标<strong>${valueWithUnit(target, unit)}</strong></div>
         </div>
         ${progressWidth === null ? "" : `<div class="progress-track" role="img" aria-label="目标完成 ${escapeHTML(percentText(completion))}${timeProgressWidth === null ? "" : `；时间进度 ${escapeHTML(percentText(period.time_progress))}`} "><div class="progress-fill" style="width:${progressWidth}%"></div>${timeProgressWidth === null ? "" : `<span class="progress-marker" style="left:${timeProgressWidth}%" title="时间进度 ${escapeHTML(percentText(period.time_progress))}"></span>`}</div>`}
@@ -201,13 +224,16 @@
   function renderLineCard(lineId, line, period) {
     const lineLabel = cleanString(line.label) || (lineId === "training" ? "语培" : "留学");
     const lineClass = LINE_CLASSES[lineId];
+    const coverage = lineId === "abroad" && line.source_coverage;
+    const coverageText = coverage && coverage.start_date && coverage.through_date
+      ? `<p class="line-coverage">留学数据：${escapeHTML(cleanString(coverage.start_date))}—${escapeHTML(cleanString(coverage.through_date))}</p>` : "";
     return `<article class="line-card ${lineClass}">
       <div class="line-card-head">
-        <div class="line-title"><span class="line-symbol" aria-hidden="true"></span><h3>${escapeHTML(lineLabel)}</h3></div>
+        <div><div class="line-title"><span class="line-symbol" aria-hidden="true"></span><h3>${escapeHTML(lineLabel)}</h3></div>${coverageText}</div>
         <div class="line-card-head-actions"><span class="line-badge">${lineId === "training" ? "语培业务线" : "留学业务线"}</span></div>
       </div>
       ${renderMetricBlock("工单资源", line.orders, period, "单")}
-      ${renderMetricBlock("现金业绩", line.cash, period, "元")}
+      ${renderMetricBlock(lineId === "abroad" ? "现金" : "现金业绩", line.cash, period, "元")}
     </article>`;
   }
 
@@ -217,15 +243,19 @@
     const end = period.end_date ? formatDate(period.end_date) : "结束日期未提供";
     const through = period.through_date || metadata.data_through;
     const title = cleanString(metadata.title) || "线上团队 · 经营进度";
+    const abroadCoverage = state.lineFilter === "abroad"
+      ? getLine(period, "abroad")?.source_coverage : null;
+    const freshnessThrough = abroadCoverage?.through_date || metadata.data_through || through;
+    const uncovered = state.lineFilter === "abroad" && getLine(period, "abroad")?.orders?.status === "not_covered";
     ui.pageTitle.textContent = title;
     ui.periodCaption.textContent = period.status === "future"
       ? `${period.label || period.id} · ${start}至${end} · 该期间尚未开始`
-      : `${period.label || period.id} · ${start}至${end} · 数据截至${formatDate(through)}`;
-    ui.freshness.classList.toggle("is-ready", period.status !== "future" && period.status === "available");
+      : `${period.label || period.id} · ${start}至${end} · 数据截至${formatDate(abroadCoverage ? freshnessThrough : through)}`;
+    ui.freshness.classList.toggle("is-ready", !uncovered && period.status !== "future" && period.status === "available");
     ui.freshness.classList.toggle("is-future", period.status === "future");
     ui.freshness.classList.remove("is-error");
-    ui.freshnessLabel.textContent = period.status === "future" ? "未到统计期" : period.status === "available" ? "数据已更新" : "数据状态";
-    ui.freshnessDate.textContent = period.status === "future" ? `统计期间 ${period.label || period.id}` : `数据截止 ${formatDate(metadata.data_through || through)}`;
+    ui.freshnessLabel.textContent = period.status === "future" ? "未到统计期" : uncovered ? "该期间未覆盖" : period.status === "available" ? "数据已更新" : "数据状态";
+    ui.freshnessDate.textContent = period.status === "future" ? `统计期间 ${period.label || period.id}` : `数据截止 ${formatDate(freshnessThrough)}`;
     ui.trendPeriodNote.textContent = period.status === "future" ? "尚未开始" : `${formatDate(period.start_date)} — ${formatDate(through)}`;
     ui.scopeNote.textContent = period.status === "future"
       ? "本期时间进度 尚未开始"
@@ -368,12 +398,20 @@
   }
 
   function channelCashText(row, line) {
+    const rowMetric = row.cash && typeof row.cash === "object" ? row.cash : null;
+    const metric = rowMetric || (line && line.cash);
+    const status = metric && metric.status;
+    if (status === "not_covered") return "该期间未覆盖";
+    if (status === "not_connected") return "未接入";
+    if (status === "not_configured") return "归属待确认";
+    if (status === "future") return "尚未开始";
+    if (status === "separate_counts") return cleanString(metric.display) || "—";
+    if ((status === "available" || status === "partial") && cleanString(metric.display)) return cleanString(metric.display);
     if (row.cash === null || row.cash === undefined) {
       if (line && line.cash && line.cash.status === "not_connected") return "待接入";
       return "—";
     }
-    const metric = line && line.cash;
-    return valueWithUnit(row.cash, metricUnit(metric, "元"));
+    return valueWithUnit(actualValue(row.cash), metricUnit(metric, "元"));
   }
 
   function channelRows(period, lineId) {
@@ -427,7 +465,7 @@
       const lineLabel = lineId === "training" ? cleanString(line && line.label) || "语培" : "留学";
       const rowMarkup = channels.length ? channels.map((channel) => {
         const first = Array.isArray(channel.first_channels) ? channel.first_channels.join(" / ") : cleanString(channel.first_channels);
-        const orders = actualValue(channel.orders);
+        const orders = metricValueText(channel.orders, "单");
         const yoy = channel.orders_yoy ?? (channel.orders && channel.orders.yoy);
         const share = channel.share;
         const today = channel.today_orders;
@@ -435,7 +473,7 @@
         return `<tr>
           <td><span class="line-chip ${LINE_TAG_CLASSES[lineId]}">${escapeHTML(lineLabel)}</span></td>
           <td><span class="channel-name">${escapeHTML(name)}</span>${first ? `<span class="channel-sub">一级渠道：${escapeHTML(first)}</span>` : ""}</td>
-          <td class="numeric">${orders === null ? "—" : `${numberText(orders)} 单`}</td>
+          <td class="numeric">${orders}</td>
           <td class="numeric">${escapeHTML(percentText(yoy))}</td>
           <td class="numeric">${escapeHTML(percentText(share))}</td>
           <td class="numeric">${today === null || today === undefined ? "—" : `${numberText(today)} 单`}</td>
@@ -482,6 +520,12 @@
   }
 
   function dimensionValueText(value, unit) {
+    if (value && typeof value === "object") {
+      if (value.status === "not_covered") return "该期间未覆盖";
+      if (value.status === "not_connected") return "未接入";
+      if (value.status === "separate_counts") return cleanString(value.display) || "—";
+      if ((value.status === "available" || value.status === "partial") && cleanString(value.display)) return cleanString(value.display);
+    }
     const actual = actualValue(value);
     return actual === null ? "—" : valueWithUnit(actual, unit);
   }

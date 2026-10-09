@@ -22,8 +22,15 @@
             <label class="control-group" for="unit-select"><span>管理单元</span>
               <select id="unit-select" disabled aria-label="选择管理单元">
                 <option value="total" selected>全部管理单元</option>
-                <option value="virtual">虚拟</option>
+                <option value="virtual">线上虚拟人</option>
                 <option value="online">线上</option>
+              </select>
+            </label>
+            <label class="control-group" for="capacity-scope" hidden><span>留学业务范围</span>
+              <select id="capacity-scope" aria-label="筛选留学业务范围">
+                <option value="all">合计（留学＋小语种）</option>
+                <option value="study_abroad">留学</option>
+                <option value="small_language">小语种</option>
               </select>
             </label>
           </div>
@@ -55,7 +62,7 @@
             </section>
 
 
-            <div class="core-tabs" role="tablist" aria-label="业务组指标"><button id="core-targets" role="tab" aria-selected="true">目标与完成进度</button><button id="core-yoy" role="tab" aria-selected="false">业务组同期对比</button><button id="core-channels" role="tab" aria-selected="false">二级渠道同比</button><button id="core-schools" role="tab" aria-selected="false">学校排名</button><button id="core-grades" role="tab" aria-selected="false">年级表现</button><button id="core-people" role="tab" aria-selected="false">个人贡献</button><button id="core-countries" role="tab" aria-selected="false">国家条线</button></div><section class="report-section restored-section" id="target-panel"><div class="section-heading"><h2>业务组目标与完成进度</h2></div><div id="business-groups" class="table-scroll"></div></section>
+            <div class="core-tabs" role="tablist" aria-label="业务组指标"><button id="core-targets" role="tab" aria-selected="true">目标与完成进度</button><button id="core-yoy" role="tab" aria-selected="false">业务组同期对比</button><button id="core-channels" role="tab" aria-selected="false">二级渠道同比</button><button id="core-schools" role="tab" aria-selected="false">学校排名</button><button id="core-grades" role="tab" aria-selected="false">年级表现</button><button id="core-people" role="tab" aria-selected="false">个人贡献</button><button id="core-countries" role="tab" aria-selected="false">国家条线</button></div><section class="report-section restored-section" id="target-panel"><div class="section-heading"><h2>业务组目标与完成进度</h2></div><div id="business-groups" class="table-scroll"></div><div id="abroad-target-section"><div class="section-heading"><h2>留学目标与完成进度</h2><span id="abroad-target-coverage"></span></div><div id="abroad-targets" class="table-scroll"></div></div></section>
             <section class="report-section restored-section" id="yoy-panel" hidden><div class="section-heading"><h2>业务组同期对比</h2></div><div id="yoy-groups" class="table-scroll"></div></section>
             <section id="channels-panel" class="report-section" hidden><h2>二级渠道同比与业务组拆解</h2><div id="channel-comparison" class="table-scroll"></div></section>
             <section id="schools-panel" class="report-section" hidden><h2>学校排名</h2><div id="school-comparison"></div></section>
@@ -63,7 +70,7 @@
             <section id="people-panel" class="report-section" aria-labelledby="people-title" hidden>
               <div class="section-heading">
                 <div><p class="section-kicker">02 / 个人贡献</p><h2 id="people-title">月度绩效</h2><label>绩效月份 <select id="personal-month" aria-label="个人绩效月份"></select></label></div>
-                <p class="section-side-note" id="people-count">按当前管理单元</p>
+                <div class="people-section-controls"><div class="order-status-control-group"><label class="order-status-control"><input class="order-status-bit-toggle" type="checkbox" role="switch" data-status-bit="0" aria-label="包含删除／回收工单"><span class="order-status-track" aria-hidden="true"></span><span>包含删除／回收</span></label><label class="order-status-control"><input class="order-status-bit-toggle" type="checkbox" role="switch" data-status-bit="1" aria-label="包含死单工单" checked><span class="order-status-track" aria-hidden="true"></span><span>包含死单</span></label></div><p class="section-side-note" id="people-count">按当前管理单元</p></div>
               </div>
               <div class="period-band" id="person-period">个人绩效区间：等待数据</div>
               <div class="panel table-panel">
@@ -85,7 +92,7 @@
             </section>
           </section>
 
-          <section class="view-panel" id="view-capacity" role="tabpanel" aria-label="人员产能" hidden><div id="capacity-workspace"></div></section>
+          <section class="view-panel" id="view-capacity" role="tabpanel" aria-label="人员产能" hidden><div id="capacity-workspace"></div><div id="capacity-radar-workspace"></div></section>
 
           <section class="view-panel" id="view-activities" role="tabpanel" aria-label="市场活动" tabindex="0" hidden>
             <section class="report-section first-section" aria-labelledby="activities-title">

@@ -2,7 +2,15 @@ import unittest
 from datetime import date
 from dashboard_product.management.aggregate import aggregate
 from dashboard_product.management.breakdowns import enrich_periods
-from dashboard_product.management.enhancements import selection_views, enhance_capacity
+from dashboard_product.management.enhancements import selection_views
+from workspace_modeling.operations.personnel import DEFAULT_ORDER_STATUS_MODE, ORDER_STATUS_MODES
+
+
+def study_coverage(start_date='2026-09-01', through_date='2026-09-30'):
+    return {'snapshot_id': 'snapshot_study_fixture', 'source_sha256': 'a' * 64,
+            'start_date': start_date, 'through_date': through_date, 'no_yoy': True,
+            'cross_system_customers': 'not_aligned'}
+
 
 class EnhancementTests(unittest.TestCase):
     def base(self):
@@ -12,8 +20,8 @@ class EnhancementTests(unittest.TestCase):
         for i,g in enumerate(('青少','初中','高中')):
             for metric in ('orders','cash'):
                 facts.append(dict(fact_id=f'{g}-{metric}',event_date='2026-09-10',business_line='training',business_group='高中' if g=='高中' else '留学预备',comparison_group=g,team_id='offline_market',work_order_id=str(i),owners=['马澳'],student_id='same-student',metric=metric,value=1 if metric=='orders' else 100,first_channel='市场活动',second_channel='线下校代',school_name='学校A',grade_name=g))
-        facts.append(dict(fact_id='study',event_date='2026-09-10',business_line='abroad',business_group=None,team_id=None,owners=['马澳'],metric='orders',value=3,work_order_id='study',country='英国',line='英澳',first_channel='市场活动',second_channel='讲座',grade_name='高三'))
-        body=aggregate(facts,people,{'people':[]},targets,{}, {},date(2026,9,28))
+        facts.append(dict(fact_id='study',event_date='2026-09-10',business_line='abroad',business_group=None,team_id=None,owners=['马澳'],metric='orders',value=3,work_order_id='study',country='英国',line='英澳',first_channel='市场活动',second_channel='讲座',grade_name='高三',segment_id='unassigned',source_product='study_abroad',customer_domain='study_abroad',source_kind='study_abroad_warehouse'))
+        body=aggregate(facts,people,{'people':[]},targets,{}, {},date(2026,9,28),abroad_source=study_coverage())
         enrich_periods(body['periods'],facts,targets,{}, {})
         return facts,people,targets,body
 
@@ -58,7 +66,7 @@ class EnhancementTests(unittest.TestCase):
              'order_status':'回收','first_channel':'市场活动','second_channel':'线下校代',
              'school_name':'学校A','grade_name':'初二'},
         ]
-        body=aggregate(facts,people,{'people':[]},targets,{}, {},date(2026,9,28))
+        body=aggregate(facts,people,{'people':[]},targets,{}, {},date(2026,9,28),abroad_source=study_coverage())
         enrich_periods(body['periods'],facts,targets,{}, {})
         september=next(p for p in body['periods'] if p['id']=='2026-09')
         prep=next(t for t in september['teams'] if t['id']=='prep')
@@ -72,7 +80,13 @@ class EnhancementTests(unittest.TestCase):
         calendar_person=prep['person_calendar']['people'][0]
         self.assertEqual(person['training_actual'],0)
         self.assertEqual(calendar_person['training_actual'],0)
-        self.assertEqual(body['capacity'][0]['orders'],0)
+        self.assertEqual(DEFAULT_ORDER_STATUS_MODE,'01')
+        self.assertEqual(set(person['order_status_views']),set(ORDER_STATUS_MODES))
+        self.assertEqual(set(calendar_person['order_status_views']),set(ORDER_STATUS_MODES))
+        expected_status_actuals={'00':0,'01':0,'10':2,'11':2}
+        for mode,expected_actual in expected_status_actuals.items():
+            self.assertEqual(person['order_status_views'][mode]['training_actual'],expected_actual)
+            self.assertEqual(calendar_person['order_status_views'][mode]['training_actual'],expected_actual)
         self.assertEqual({r['name']:r['orders'] for r in body['activities']}['未填写活动'],2)
 
         views=selection_views(body['periods'],facts,people,targets)
@@ -81,11 +95,11 @@ class EnhancementTests(unittest.TestCase):
         self.assertEqual(sum(r['orders']['actual'] for r in selected['channels']),2)
         self.assertEqual(selected['people'][0]['training_actual'],0)
         self.assertEqual(selected['person_calendar']['people'][0]['training_actual'],0)
-
-        enhance_capacity(body,facts,people,{'people':[]},date(2026,9,28),{'annual_cash_by_person':800000})
-        capacity=body['capacity'][0]
-        self.assertEqual(capacity['orders_metric']['actual'],0)
-        self.assertEqual(capacity['radar']['axes'][0]['value'],0)
+        self.assertEqual(set(selected['people'][0]['order_status_views']),set(ORDER_STATUS_MODES))
+        self.assertEqual(set(selected['person_calendar']['people'][0]['order_status_views']),set(ORDER_STATUS_MODES))
+        for mode,expected_actual in expected_status_actuals.items():
+            self.assertEqual(selected['people'][0]['order_status_views'][mode]['training_actual'],expected_actual)
+            self.assertEqual(selected['person_calendar']['people'][0]['order_status_views'][mode]['training_actual'],expected_actual)
 
     def test_selection_views_filter_calendar_people_and_keep_calendar_window(self):
         facts,people,targets,_=self.base()
@@ -97,7 +111,7 @@ class EnhancementTests(unittest.TestCase):
             'display_name':'高中同事','business_group':'高中','status':'active',
             'monthly_targets':{'2026-09':{'orders':90}},
         })
-        body=aggregate(facts,people,{'people':[]},targets,{}, {},date(2026,9,28))
+        body=aggregate(facts,people,{'people':[]},targets,{}, {},date(2026,9,28),abroad_source=study_coverage())
         enrich_periods(body['periods'],facts,targets,{}, {})
         views=selection_views(body['periods'],facts,people,targets)
 
@@ -121,41 +135,56 @@ class EnhancementTests(unittest.TestCase):
             self.assertAlmostEqual(selected['person_progress'],28/30)
             self.assertEqual(sorted(person['name'] for person in selected['people']),sorted(names))
 
-    def test_grade_totals_include_all_schools_and_abroad_cash_is_missing(self):
+    def test_migrated_abroad_person_and_channels_follow_high_multiselect_masks(self):
+        facts,people,targets,_=self.base()
+        facts.append(dict(
+            fact_id='ma-yue-abroad',event_date='2026-09-10',business_line='abroad',
+            business_group=None,team_id='online_platform',work_order_id='ma-yue-abroad',
+            owners=['马玥'],virtual_owners=[],metric='orders',value=2,
+            first_channel='网络资源',second_channel='搜索',acquisition_mode='online',
+            offline_channel_eligible=False,segment_id='study_abroad_online',
+            source_product='study_abroad',customer_domain='study_abroad',
+            source_kind='study_abroad_warehouse',
+        ))
+        abroad={'people':[
+            {'display_name':'马玥','business_group':'高中'},
+            {'display_name':'邓睿','business_group':'大学'},
+        ]}
+        body=aggregate(facts,people,abroad,targets,{}, {},date(2026,9,28),abroad_source=study_coverage())
+        enrich_periods(body['periods'],facts,targets,{}, {})
+        views=selection_views(body['periods'],facts,people,targets)
+
+        for mask in ('1','2','3'):
+            period=next(p for p in views[mask] if p['id']=='2026-09')
+            team=period['teams'][0]
+            self.assertNotIn('马玥',{row['name'] for row in team['people']})
+            self.assertNotIn('马玥',{row['name'] for row in team['person_calendar']['people']})
+
+        for mask in ('4','5','6','7'):
+            period=next(p for p in views[mask] if p['id']=='2026-09')
+            team=period['teams'][0]
+            person=next(row for row in team['people'] if row['name']=='马玥')
+            calendar=next(row for row in team['person_calendar']['people']
+                          if row['name']=='马玥')
+            self.assertEqual(person['abroad_channels'][0]['name'],'搜索')
+            self.assertEqual(person['abroad_channels'][0]['orders']['actual'],2)
+            self.assertEqual(calendar['abroad_channels'][0]['orders']['actual'],2)
+            self.assertEqual(team['lines']['abroad']['orders']['status'],'not_configured')
+
+    def test_grade_totals_include_all_schools_and_covered_abroad_cash_is_zero(self):
         facts,people,targets,body=self.base()
         total=next(p for p in body['periods'] if p['id']=='2026-09')['teams'][0]
         self.assertEqual(sum(r['cash']['actual'] for r in total['grades_by_line']['training']),300)
         self.assertEqual(sum(r['orders']['actual'] for r in total['grades_by_line']['abroad']),3)
-        self.assertIsNone(total['grades_by_line']['abroad'][0]['cash']['actual'])
-
-    def test_capacity_same_window_and_original_six_axes(self):
-        facts,people,targets,body=self.base()
-        facts.append(dict(facts[0],fact_id='old',event_date='2025-09-10',value=2))
-        enhance_capacity(body,facts,people,{'people':[]},date(2026,9,28),{'annual_cash_by_person':800000})
-        p=body['capacity'][0]
-        self.assertEqual(p['orders_metric']['actual'],6)
-        self.assertEqual(p['orders_metric']['prior'],2)
-        self.assertEqual(p['orders_metric']['yoy'],2)
-        self.assertEqual(len(p['radar']['axes']),6)
-        self.assertEqual(p['radar']['axes'][0]['value'],3)
-        self.assertEqual(p['radar']['axes'][3]['value'],300)
-
-    def test_radar_peer_statistics_include_every_member(self):
-        facts,people,targets,_=self.base()
-        people['teams'][0]['groups'][0]['members'].append({'display_name':'同组同事','business_group':'留学预备','status':'active'})
-        body=aggregate(facts,people,{'people':[]},targets,{}, {},date(2026,9,28))
-        enhance_capacity(body,facts,people,{'people':[]},date(2026,9,28),{'annual_cash_by_person':800000})
-        selected=next(p for p in body['capacity'] if p['name']=='马澳')
-        self.assertEqual(selected['radar']['peer_count'],2)
-        self.assertEqual(selected['radar']['axes'][0]['mean'],1.5)
-        self.assertEqual(selected['radar']['axes'][0]['relative'],1)
+        self.assertEqual(total['grades_by_line']['abroad'][0]['cash']['actual'],0)
+        self.assertEqual(total['grades_by_line']['abroad'][0]['cash']['status'],'available')
 
     def test_grade_aliases_merge_without_changing_totals(self):
         facts,people,targets,body=self.base()
         facts[0]['grade_name']='七年级'
         facts[1]['grade_name']='初一'
         facts[2]['grade_name']='10年级(国外高中)'
-        result=aggregate(facts,people,{'people':[]},targets,{}, {},date(2026,9,28))
+        result=aggregate(facts,people,{'people':[]},targets,{}, {},date(2026,9,28),abroad_source=study_coverage())
         enrich_periods(result['periods'],facts,targets,{}, {})
         t=next(p for p in result['periods'] if p['id']=='2026-09')['teams'][0]
         rows={r['name']:r for r in t['grades_by_line']['training']}

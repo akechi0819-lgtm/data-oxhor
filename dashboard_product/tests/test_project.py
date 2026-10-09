@@ -467,3 +467,101 @@ class ProjectTest(unittest.TestCase):
         self.assertEqual(prep['monthly_targets']['2026-06']['cash'], 351034)
 
         self.assertEqual(prep['annual_targets']['orders'], 3985)
+
+    def test_offline_cocreation_splits_person_actuals_and_heads_not_team_totals(self):
+        people = {'teams': [{
+            'team_id': 'offline_market',
+            'groups': [{'display_name': '大学组', 'members': [
+                {'display_name': '共创甲', 'status': 'active', 'business_group': '大学'},
+                {'display_name': '共创乙', 'status': 'active', 'business_group': '大学'},
+            ]}],
+        }]}
+        rows = [
+            ['2026-09-10', 'offline_market', '大学', '市场活动', '异业渠道', '共创甲共创乙活动',
+             None, '某大学', '大一', 'work_orders', 100, None, None, '被动', None],
+            ['2026-09-10', 'offline_market', '大学', '市场活动', '异业渠道', '共创甲共创乙活动',
+             None, '某大学', '大一', 'passive_reported_cash', 100, 'S-1', '市场资源', '被动', '共创甲共创乙活动'],
+        ]
+
+        result = project(
+            {'result': {'rows': rows}}, {'result': {'rows': []}},
+            read(ROOT / 'config/project_targets.json'), people,
+        )
+
+        team = next(row for row in result['teams'] if row['team_id'] == 'offline_market')
+        group = next(row for row in team['groups'] if row['display_name'] == '大学')
+        members = {row['display_name']: row for row in team['people']}
+        self.assertEqual(group['monthly_actuals']['orders'][3], 100)
+        self.assertEqual(group['monthly_actuals']['cash'][3], 100)
+        for name in ('共创甲', '共创乙'):
+            self.assertEqual(members[name]['orders_actual'], 50)
+            self.assertEqual(members[name]['cash_actual'], 50)
+            self.assertEqual(members[name]['heads_actual'], 0.5)
+            self.assertEqual(members[name]['monthly_drilldowns']['2026-09']['orders']['市场活动||异业渠道'], 50)
+            self.assertEqual(members[name]['monthly_drilldowns']['2026-09']['cash']['市场活动||异业渠道'], 50)
+
+    def test_other_home_group_participant_stays_in_denominator_but_not_person_kpi(self):
+        people = {'teams': [{
+            'team_id': 'offline_market',
+            'groups': [
+                {'display_name': '大学组', 'members': [
+                    {'display_name': '大学甲', 'status': 'active', 'business_group': '大学'},
+                ]},
+                {'display_name': '高中组', 'members': [
+                    {'display_name': '高中乙', 'status': 'active', 'business_group': '高中'},
+                ]},
+            ],
+        }]}
+        rows = [
+            ['2026-09-10', 'offline_market', '大学', '市场活动', '异业渠道', '大学甲高中乙共创',
+             None, '某大学', '大一', 'work_orders', 100, None, None, '被动', None],
+            ['2026-09-10', 'offline_market', '大学', '市场活动', '异业渠道', '大学甲高中乙共创',
+             None, '某大学', '大一', 'passive_reported_cash', 100, 'S-3', '市场资源', '被动', '大学甲高中乙共创'],
+        ]
+
+        result = project(
+            {'result': {'rows': rows}}, {'result': {'rows': []}},
+            read(ROOT / 'config/project_targets.json'), people,
+        )
+
+        team = next(row for row in result['teams'] if row['team_id'] == 'offline_market')
+        university = next(row for row in team['groups'] if row['display_name'] == '大学')
+        members = {row['display_name']: row for row in team['people']}
+        self.assertEqual(university['monthly_actuals']['orders'][3], 100)
+        self.assertEqual(university['monthly_actuals']['cash'][3], 100)
+        self.assertEqual(members['大学甲']['orders_actual'], 50)
+        self.assertEqual(members['大学甲']['cash_actual'], 50)
+        self.assertEqual(members['大学甲']['heads_actual'], 0.5)
+        self.assertEqual(members['高中乙']['orders_actual'], 0)
+        self.assertEqual(members['高中乙']['cash_actual'], 0)
+        self.assertEqual(members['高中乙']['heads_actual'], 0)
+
+    def test_online_private_cocreators_each_keep_full_personal_weight(self):
+        people = {'teams': [{
+            'team_id': 'online_private',
+            'groups': [{'display_name': '大学组', 'members': [
+                {'display_name': '虚拟甲', 'status': 'active', 'business_group': '大学'},
+                {'display_name': '虚拟乙', 'status': 'active', 'business_group': '大学'},
+            ]}],
+        }]}
+        rows = [
+            ['2026-09-10', 'online_private', '大学', '市场活动', '虚拟人', '虚拟甲虚拟乙活动',
+             None, '某大学', '大一', 'work_orders', 100, None, None, '被动', None],
+            ['2026-09-10', 'online_private', '大学', '市场活动', '虚拟人', '虚拟甲虚拟乙活动',
+             None, '某大学', '大一', 'passive_reported_cash', 100, 'S-2', '市场资源', '被动', '虚拟甲虚拟乙活动'],
+        ]
+
+        result = project(
+            {'result': {'rows': rows}}, {'result': {'rows': []}},
+            read(ROOT / 'config/project_targets.json'), people,
+        )
+
+        team = next(row for row in result['teams'] if row['team_id'] == 'online_private')
+        group = next(row for row in team['groups'] if row['display_name'] == '大学')
+        members = {row['display_name']: row for row in team['people']}
+        self.assertEqual(group['monthly_actuals']['orders'][3], 100)
+        self.assertEqual(group['monthly_actuals']['cash'][3], 100)
+        for name in ('虚拟甲', '虚拟乙'):
+            self.assertEqual(members[name]['orders_actual'], 100)
+            self.assertEqual(members[name]['cash_actual'], 100)
+            self.assertEqual(members[name]['heads_actual'], 1)

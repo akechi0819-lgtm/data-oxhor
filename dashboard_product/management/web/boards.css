@@ -248,6 +248,16 @@ tbody tr:hover { background: #f7faf6; }
 .person-filter select { min-width: 142px; }
 .person-controls .person-filter { color:#405762; }
 .person-controls { display:flex; flex-wrap:wrap; align-items:center; gap:12px; }
+.order-status-control { position:relative; display:inline-flex; align-items:center; gap:8px; color:#526963; font-size:12px; font-weight:650; white-space:nowrap; cursor:pointer; }
+.order-status-bit-toggle { position:absolute; top:0; left:0; z-index:1; width:36px; height:20px; margin:0; opacity:0; cursor:pointer; }
+.order-status-track { position:relative; display:inline-block; width:36px; height:20px; flex:0 0 auto; border:1px solid #bdcbc3; border-radius:999px; background:#e8eeea; transition:background-color .15s ease,border-color .15s ease; }
+.order-status-track::after { position:absolute; top:2px; left:2px; width:14px; height:14px; border-radius:50%; background:#fff; box-shadow:0 1px 2px rgba(25,54,46,.2); content:""; transition:transform .15s ease; }
+.order-status-bit-toggle:checked + .order-status-track { border-color:#176c58; background:#176c58; }
+.order-status-bit-toggle:checked + .order-status-track::after { transform:translateX(16px); }
+.order-status-bit-toggle:focus-visible + .order-status-track { outline:3px solid rgba(45,137,109,.25); outline-offset:2px; }
+.personal-abroad-head-controls { display:flex; align-items:center; gap:12px; }
+.personal-abroad-head-controls > span { color:#657985; font-size:12px; white-space:nowrap; }
+@media(prefers-reduced-motion:reduce){.order-status-track,.order-status-track::after{transition:none}}
 .month-mode { position:relative; display:grid; grid-template-columns:1fr 1fr; padding:3px; width:158px; min-height:36px; border:1px solid #b6c6ca; border-radius:6px; background:#e9eff1; color:#405762; font:inherit; font-size:13px; font-weight:600; cursor:pointer; }
 .month-mode::before { content:""; position:absolute; top:3px; bottom:3px; left:3px; width:calc(50% - 3px); background:#214c61; border-radius:3px; transition:transform .15s ease; }
 .month-mode span { position:relative; z-index:1; align-self:center; }

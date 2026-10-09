@@ -2,11 +2,12 @@
 
 ## 负责范围
 
-使用 `dashboard_product.management.build` 按显式 Snapshot 和 run_id 生成同批共同结果与四页展示数据。示例中的 shell 变量来自当前 routine 环境；`CURRENT_SNAPSHOT_ID` 必须等于工作区 `Work/workspace.json` 当前指针。网页与七条推送必须消费这一份 `shared_result.json`，不重写 SQL、业务归属或版式。
+使用 `dashboard_product.management.build` 按显式 Snapshot 和 run_id 生成同批共同结果与四页展示数据。示例中的 shell 变量来自当前 routine 环境；`CURRENT_SNAPSHOT_ID` 必须等于工作区 `Work/workspace.json` 当前指针。网页与八条推送必须消费这一份 `shared_result.json`，不重写 SQL、业务归属或版式。高中留学个人简报与原高中语培简报共用高中通道；人员迁移、个人渠道及八条消息门禁须同步同批源码。
 
 ```bash
 python -m dashboard_product.management.build \
   --workspace "$WORKSPACE" --snapshot-id "$CURRENT_SNAPSHOT_ID" \
+  --study-abroad-snapshot-id "$CURRENT_STUDY_ABROAD_SNAPSHOT_ID" \
   --run-id "$RUN_ID" --as-of-date "$AS_OF_DATE"
 ```
 

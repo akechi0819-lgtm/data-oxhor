@@ -11,3 +11,6 @@ from dashboard_product.management.tests.test_cash_share import NewStudentCashQue
 from dashboard_product.management.tests.test_adviser_mapping import AdviserMappingQueryTests
 
 from dashboard_product.management.tests.test_market_totals import MarketTotalsTest
+from dashboard_product.management.tests.test_personnel_contribution import PersonnelContributionTests
+from dashboard_product.management.tests.test_personnel_rules import CoCreationWeightsTests
+from dashboard_product.management.tests.test_personnel_history import PersonnelHistoryTests

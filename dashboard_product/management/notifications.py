@@ -13,6 +13,7 @@ from . import aggregate as _aggregate
 CHANNELS = (
     ('prep', 'training', 'offline_youth', '线下青少语培'),
     ('high', 'training', 'offline_high_school', '线下高中语培'),
+    ('high', 'abroad', 'offline_high_school', '高中留学'),
     ('university', 'training', 'offline_university', '线下大学语培'),
     ('university', 'abroad', 'offline_university', '线下大学留学'),
     ('virtual', 'mixed', 'online_private', '线上虚拟人'),
@@ -104,26 +105,6 @@ def _facts_in_window(facts, start, end, team_id, line, kind):
     ))
 
 
-def _virtual_team_orders(facts, start, end, roster_names):
-    if not start or not end:
-        return []
-    start_date, end_date = _date(start), _date(end)
-    training = _facts_in_window(facts, start, end, 'virtual', 'training', 'orders')
-    abroad = [fact for fact in facts
-              if fact.get('business_line') == 'abroad'
-              and fact.get('metric') == 'orders'
-              and fact.get('event_date')
-              and start_date <= _date(fact['event_date']) <= end_date
-              and roster_names.intersection(fact.get('owners') or [])]
-    unique = {}
-    for fact in [*training, *abroad]:
-        unique.setdefault(fact.get('fact_id') or id(fact), fact)
-    return sorted(unique.values(), key=lambda fact: (
-        str(fact.get('event_date') or ''), str(fact.get('work_order_id') or ''),
-        str(fact.get('fact_id') or ''),
-    ))
-
-
 def _roster_index(people_config, abroad_people_config):
     return {person['name']: person
             for person in _aggregate._roster(people_config, abroad_people_config)}
@@ -151,8 +132,9 @@ def _owned_person_facts(facts, name, roster_row, line, kind, start, end):
             and fact.get('metric') == kind
             and fact.get('event_date')
             and start_date <= _date(fact['event_date']) <= end_date
-            and name in (fact.get('owners') or [])
-            and _aggregate._personal_qualification(roster_row, fact, fact.get('business_line'))]
+            and name in _aggregate._personal_owners(roster_row, fact, kind)
+            and _aggregate._personal_qualification(
+                roster_row, fact, fact.get('business_line'), kind)]
 
 
 def _remaining_workdays(after, end):
@@ -173,16 +155,39 @@ def _number_or_none(value):
     return _number(value)
 
 
-def _personal_facts(facts, person_rows, roster_index, line, kind, start, end):
+def _personal_facts(facts, person_rows, roster_index, line, kind, start, end,
+                    *, project_virtual_owners=False):
     matched = {}
     for person in person_rows:
         name = person['name']
         for fact in _owned_person_facts(facts, name, roster_index[name], line, kind, start, end):
-            matched[fact.get('fact_id') or id(fact)] = fact
+            identity = fact.get('fact_id') or id(fact)
+            if identity not in matched:
+                projected = {**fact}
+                if project_virtual_owners:
+                    projected['owners'] = []
+                projected['person_credits'] = {}
+                matched[identity] = projected
+            else:
+                projected = matched[identity]
+            if project_virtual_owners and name not in projected['owners']:
+                projected['owners'].append(name)
+            weight = _aggregate._personal_weights(fact, kind, roster_index).get(name)
+            if weight is not None:
+                projected['person_credits'][name] = {
+                    'weight': _aggregate._number(weight),
+                    'value': _aggregate._number(_value(fact) * weight),
+                }
     return sorted(matched.values(), key=lambda fact: (
         str(fact.get('event_date') or ''), str(fact.get('work_order_id') or ''),
         str(fact.get('fact_id') or ''),
     ))
+
+
+def _ledger_facts(facts):
+    """Strip calculation-only attribution fields from notification ledgers."""
+    return [{key: value for key, value in fact.items() if key != 'virtual_owners'}
+            for fact in facts]
 
 
 def _metric_actual(person, line, kind):
@@ -277,28 +282,47 @@ def _person_rows(person_team, line, message_team_id, people_config,
             orders_gap < 0 if orders_gap is not None and primary_target not in (None, 0) else None
         )
 
-        day_rows = [fact for fact in _owned_person_facts(
-            facts, name, row, line, 'orders', personal_start, personal_end,
-        ) if str(fact.get('event_date') or '')[:10] == daily_date and _included(fact)]
+        today_orders = Decimal(0)
+        for fact in _owned_person_facts(
+                facts, name, row, line, 'orders', personal_start, personal_end):
+            if str(fact.get('event_date') or '')[:10] != daily_date or not _included(fact):
+                continue
+            weight = _aggregate._personal_weights(fact, 'orders', roster_index).get(name, Decimal(0))
+            today_orders += _value(fact) * weight
         person.update({
             'expected_orders': _number_or_none(expected_orders),
             'orders_gap': _number_or_none(orders_gap),
             'remaining_orders': _number_or_none(remaining_orders),
             'remaining_workdays': remaining_workdays,
-            'today_orders': _number(sum((_value(fact) for fact in day_rows), Decimal(0))),
+            'today_orders': _number(today_orders),
             'daily_orders': _number_or_none(required_daily_orders),
         })
+        source = person.get('abroad_source_coverage')
+        if primary_line == 'abroad' and source:
+            complete = (personal_start and personal_end
+                        and source['start_date'] <= personal_start
+                        and personal_end <= source['through_date'])
+            if not complete:
+                person.update(orders_completion=None, expected_orders=None,
+                              orders_gap=None, remaining_orders=None,
+                              daily_orders=None, behind=None)
+            if not source['start_date'] <= daily_date <= source['through_date']:
+                person['today_orders'] = None
         rows.append(person)
     return rows
 
 
-def _channels(order_facts, data_through):
+def _channels(order_facts, data_through, *, person_names=()):
+    person_names = tuple(person_names)
     counts = defaultdict(Decimal)
     today_counts = defaultdict(Decimal)
     for fact in order_facts:
         second = str(fact.get('second_channel') or '').strip() or '二级渠道待确认'
         key = second
-        amount = _value(fact)
+        credits = fact.get('person_credits') or {}
+        amount = (sum((Decimal(str((credits.get(name) or {}).get('value') or 0))
+                      for name in person_names), Decimal(0))
+                  if person_names else _value(fact))
         counts[key] += amount
         if str(fact.get('event_date') or '')[:10] == data_through.isoformat():
             today_counts[key] += amount
@@ -321,6 +345,9 @@ def _team_orders_metric(metric, order_facts, data_through, natural_period):
         (_value(fact) for fact in order_facts
          if str(fact.get('event_date') or '')[:10] == data_through.isoformat()), Decimal(0)))
     actual, target = result.get('actual'), result.get('target')
+    source_coverage = result.get('source_coverage')
+    if source_coverage and not source_coverage['start_date'] <= data_through.isoformat() <= source_coverage['through_date']:
+        daily_actual = None
     period_start = _date(natural_period['start_date'])
     elapsed = max(1, (data_through - period_start).days + 1)
     month_days = calendar.monthrange(data_through.year, data_through.month)[1]
@@ -340,6 +367,8 @@ def _team_orders_metric(metric, order_facts, data_through, natural_period):
             if numeric_actual is not None and numeric_target not in (None, 0) else None
         ),
     })
+    if source_coverage and result.get('status') != 'available':
+        result.update(daily_average=None, daily_required=None, behind=None)
     return result
 
 
@@ -353,7 +382,7 @@ def _team_metrics(natural_team, line, order_facts, data_through, natural_period)
 
 
 def build_notifications(public, facts, people_config, abroad_people_config):
-    """Build seven private notification cards from the already-computed public rollups.
+    """Build eight private notification cards from the already-computed public rollups.
 
     No warehouse access, filesystem writes, or external notifications happen here.
     Team metrics use the natural month. Individual metrics come from the
@@ -370,10 +399,7 @@ def build_notifications(public, facts, people_config, abroad_people_config):
     if natural_period is None:
         raise ValueError(f'missing natural-month period: {month}')
     roster_index = _roster_index(people_config, abroad_people_config)
-    virtual_roster_names = {
-        name for name, row in roster_index.items()
-        if 'online_private' in row['team_ids']
-    }
+
 
     messages = []
     for team_id, line, channel_id, title in CHANNELS:
@@ -391,6 +417,7 @@ def build_notifications(public, facts, people_config, abroad_people_config):
         natural_through = natural_period.get('through_date')
         natural_start = natural_period.get('start_date')
         team_end = natural_through or natural_start
+        personal_only = team_id == 'high' and line == 'abroad'
         if team_id == 'online':
             person_start = person_through = person_progress = None
         else:
@@ -398,11 +425,14 @@ def build_notifications(public, facts, people_config, abroad_people_config):
             person_through = person_team.get('person_through')
             person_progress = person_team.get('person_progress')
 
-        team_orders = (_virtual_team_orders(facts, natural_start, team_end, virtual_roster_names)
-                       if team_id == 'virtual' else
-                       _facts_in_window(facts, natural_start, team_end, team_id, line, 'orders'))
-        team_cash = (_facts_in_window(facts, natural_start, team_end, team_id, 'training', 'cash')
-                     if line in ('training', 'mixed') else [])
+        if personal_only:
+            team_orders = []
+            team_cash = []
+        else:
+            team_orders = _facts_in_window(facts, natural_start, team_end, team_id,
+                                              'training' if line == 'mixed' else line, 'orders')
+            team_cash = _facts_in_window(facts, natural_start, team_end, team_id,
+                                          'training' if line == 'mixed' else line, 'cash')
         people = ([] if team_id == 'online' else _person_rows(
             person_team, line, team_id, people_config, roster_index, person_month,
             facts, data_through, person_start, person_through, person_progress,
@@ -411,15 +441,17 @@ def build_notifications(public, facts, people_config, abroad_people_config):
         personal_end = person_through
         personal_orders = _personal_facts(
             facts, people, roster_index, line, 'orders', personal_start, personal_end,
+            project_virtual_owners=team_id == 'virtual',
         )
         secondary_orders = (_personal_facts(
             facts, people, roster_index, 'abroad' if line == 'training' else 'training',
             'orders', personal_start, personal_end,
         ) if team_id == 'university' else [])
-        personal_cash = (_personal_facts(
+        personal_cash = _personal_facts(
             facts, people, roster_index, 'training' if line == 'mixed' else line,
             'cash', personal_start, personal_end,
-        ) if line in ('training', 'mixed') else [])
+            project_virtual_owners=team_id == 'virtual',
+        )
 
         metric_team, metric_line = natural_team, line
         if line == 'mixed':
@@ -431,8 +463,9 @@ def build_notifications(public, facts, people_config, abroad_people_config):
             metric_lines['training'] = training_metrics
             metric_team['lines'] = metric_lines
             metric_line = 'training'
-        team_metrics = _team_metrics(metric_team, metric_line, team_orders, data_through, natural_period)
-        messages.append({
+        team_metrics = ({} if personal_only else
+                        _team_metrics(metric_team, metric_line, team_orders, data_through, natural_period))
+        message = {
             'id': f'{team_id}.{line}',
             'channel_id': channel_id,
             'business_line': line,
@@ -452,15 +485,26 @@ def build_notifications(public, facts, people_config, abroad_people_config):
             },
             'team_metrics': team_metrics,
             'people': people,
-            'channels': _channels(team_orders, data_through),
+            'channels': (_channels(personal_orders, data_through,
+                                   person_names=(person['name'] for person in people))
+                         if personal_only else _channels(team_orders, data_through)),
             'ledgers': {
-                'personal_orders': personal_orders,
-                'personal_secondary_orders': secondary_orders,
-                'team_orders': team_orders,
-                'personal_cash': personal_cash,
-                'team_cash': team_cash,
+                'personal_orders': _ledger_facts(personal_orders),
+                'personal_secondary_orders': _ledger_facts(secondary_orders),
+                'team_orders': _ledger_facts(team_orders),
+                'personal_cash': _ledger_facts(personal_cash),
+                'team_cash': _ledger_facts(team_cash),
             },
-        })
+        }
+        if personal_only:
+            message['personal_only'] = True
+        if line == 'abroad':
+            source = dict(metadata['study_abroad_source'])
+            message['source_coverage'] = source
+            if not source['start_date'] <= data_through.isoformat() <= source['through_date']:
+                for channel in message['channels']:
+                    channel['today'] = None
+        messages.append(message)
     return {
         'schema_version': 'management_notifications.v1',
         'data_through': data_through.isoformat(),

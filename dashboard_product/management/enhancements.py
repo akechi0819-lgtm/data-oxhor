@@ -1,75 +1,10 @@
-"""Precomputed selectors and personnel comparisons; no client-side business aggregation."""
-from collections import defaultdict
-from datetime import date
-from decimal import Decimal
+"""Precomputed selectors; no client-side business aggregation."""
 from . import aggregate as a
 from . import breakdowns as b
-from dashboard_product.capacity import cash_contribution_bucket
 from dashboard_product.online_team.build import metric
 
 GROUPS = ('青少', '初中', '高中')
 ROSTER_GROUPS = {'youth':'青少', 'middle_school':'初中', 'high_school':'高中'}
-RADAR_DIMS = (('orders','工单数'),('heads','签约量'),('conversion','转化率'),
-              ('partner','渠道／校代现金'),('tmk','TMK现金'),('campaign','活动现金'))
-
-
-def comparison(current, prior, unit='条', status='available'):
-    return {'actual': current, 'prior': prior,
-            'yoy': current / prior - 1 if current is not None and prior not in (None,0) else None,
-            'status': status if current is not None else 'not_connected', 'unit': unit}
-
-
-def enhance_capacity(body, facts, people_config, abroad_people_config, through, capacity_config):
-    valid = a._valid_facts(facts, through)
-    roster = a._roster(people_config, abroad_people_config)
-    prior_end = a._shift_year(through)
-    prior = {p['name']:p for p in a._capacity(valid, roster, prior_end,
-                capacity_config.get('annual_cash_by_person',800000), start=date(2025,6,1))}
-    cash_buckets = defaultdict(lambda: defaultdict(Decimal))
-    training_orders = defaultdict(Decimal)
-    for f in valid:
-        if f['business_line'] != 'training' or not date(2026,6,1) <= f['event_date'] <= through:
-            continue
-        for owner in f['owners']:
-            if f['metric']=='orders':
-                training_orders[owner] += f['value']
-            else:
-                cash_buckets[owner][cash_contribution_bucket(f.get('first_channel'),f.get('second_channel'))] += f['value']
-    for p in body['capacity']:
-        old=prior[p['name']]
-        p['orders_metric']=comparison(p['orders'],old['orders'])
-        p['cash_metric']=comparison(p['cash'],old['cash'],'元',p['cash_status'])
-        p['heads_metric']=comparison(p['heads'],old['heads'],'人',p['cash_status'])
-        current_dest={r['name']:r['orders'] for r in p['training_destinations']}
-        prior_dest={r['name']:r['orders'] for r in old['training_destinations']}
-        p['destinations']={g:comparison(current_dest.get(g,0),prior_dest.get(g,0))
-                           for g in sorted(set(current_dest)|set(prior_dest)|{'大学','高中','留学预备'})}
-        p['abroad_metric']=comparison(p['abroad_orders'],old['abroad_orders'])
-        p['other_orders']=sum(v for g,v in current_dest.items() if g not in ('大学','高中','留学预备'))
-        p['peer_group']='|'.join((p['home_team'],p['home_group'] or '',p['business_line']))
-        orders=float(training_orders[p['name']])
-        has_training = orders > 0 or p['cash'] is not None
-        values={'orders':orders, 'heads':p['heads'],
-                'conversion':p['heads']/orders if p['heads'] is not None and orders else None,
-                **{k:float(cash_buckets[p['name']][k]) if has_training else None for k in ('partner','tmk','campaign')}}
-        p['radar_values']=values
-    peers=defaultdict(list)
-    for p in body['capacity']:peers[p['peer_group']].append(p)
-    for p in body['capacity']:
-        axes=[]
-        for key,label in RADAR_DIMS:
-            vals=[r['radar_values'][key] for r in peers[p['peer_group']] if r['radar_values'][key] is not None]
-            value=p['radar_values'][key]
-            mean=sum(vals)/len(vals) if vals else None
-            axes.append({'key':key,'label':label,'value':value,
-                         'mean':mean, 'relative':value/mean-1 if value is not None and mean else None,
-                         'scale':max(vals) if vals and max(vals)>0 else 1})
-        p['radar']={'scope':'沿用语培贡献口径；留学现金未接入', 'axes':axes,
-                    'peer_count':len(peers[p['peer_group']])}
-    for p in body['capacity']:
-        del p['radar_values']
-
-
 def _group_members(people_config):
     result={}
     for team in people_config.get('teams',[]):
@@ -79,6 +14,13 @@ def _group_members(people_config):
             if scope:
                 for person in group['members']:result[person['display_name']]=scope
     return result
+
+
+def _selected_person(person, selected, membership):
+    group = membership.get(person['name'])
+    if group is None and person.get('business_line') == 'abroad':
+        group = person.get('home_group')
+    return group in selected
 
 
 def _target(targets, period, selected, kind):
@@ -107,13 +49,14 @@ def selection_views(periods, facts, people_config, training_targets):
                 if target is None and kind!='heads' and p['status']!='future':
                     lines['training'][kind]['note']='所选组合未单独下达目标，不按比例拆分留学预备整体目标。'
                 lines['abroad'][kind]=metric(None,None,None,p['time_progress'],kind,
-                    status='not_configured' if kind=='orders' else 'not_connected',
-                    note='不纳部门留学考核；人员贡献见产能。' if kind=='orders' else '留学现金未接入')
+                    status='not_configured', note='不纳部门留学考核；个人贡献单独展示。')
+            lines['abroad']['source_coverage'] = dict(p['abroad_source'])
             originals=[t for t in p['teams'] if t['id'] in ('prep','high')]
-            persons=[r for t in originals for r in t['people'] if membership.get(r['name']) in selected]
+            persons=[r for t in originals for r in t['people']
+                     if _selected_person(r, selected, membership)]
             calendar_originals=[t['person_calendar'] for t in originals]
             calendar_persons=[r for t in calendar_originals for r in t['people']
-                              if membership.get(r['name']) in selected]
+                              if _selected_person(r, selected, membership)]
             team={'id':'total','name':'＋'.join(selected),'lines':lines,'people':persons,
                   'person_start':originals[0]['person_start'],'person_through':originals[0]['person_through'],'person_progress':originals[0]['person_progress'],
                   'person_calendar':{

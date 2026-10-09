@@ -3,7 +3,7 @@ from collections import Counter
 from copy import deepcopy
 from datetime import date, timedelta
 
-from dashboard_product.online_team.build import channel_rows, dimensions, select, study_target
+from dashboard_product.online_team.build import channel_rows, dimensions, select
 from dashboard_product.management.aggregate import _team_fact_filter
 
 
@@ -32,16 +32,20 @@ def online_view(public, facts, abroad_targets):
                         notices=[], groups=[], dimensions=[])
             if line_id == 'training':
                 line['groups'] = deepcopy(team['business_groups'])
+            elif p['status'] != 'future':
+                line['dimensions'] = dimensions([row for row in now if row['metric'] == 'orders'], [])
+                for dimension in line['dimensions']:
+                    for item in [dimension, *dimension['children']]:
+                        item.update(prior_orders=None, yoy=None)
+            if line_id == 'training':
+                line['channels'] = channel_rows(now, prior, line_id, through, p) if p['status'] != 'future' else []
             else:
-                # Preserve the previously displayed gross-sign target as a
-                # target only; actual study-abroad cash remains unconnected.
-                line['cash']['target'] = study_target(abroad_targets, p, 'cash')
-                line['cash']['note'] = ('留学现金实际未接入；目标沿用已配置毛签目标。'
-                                      if line['cash']['target'] is not None else
-                                      '留学现金实际未接入，毛签目标尚未配置。')
-                if p['status'] != 'future':
-                    line['dimensions'] = dimensions(now, prior)
-            line['channels'] = channel_rows(now, prior, line_id, through, p) if p['status'] != 'future' else []
+                line['channels'] = [{
+                    'name': row['name'], 'first_channels': [row['first_channel']],
+                    'orders': row['orders']['actual'], 'prior_orders': None, 'orders_yoy': None,
+                    'share': row['share'], 'today_orders': None,
+                    'cash': row['cash']['actual'], 'prior_cash': None, 'cash_yoy': None,
+                } for row in team.get('channels', []) if row['business_line'] == 'abroad']
             p['lines'][line_id] = line
             for f in now:
                 if f['metric'] == 'orders':
@@ -50,11 +54,13 @@ def online_view(public, facts, abroad_targets):
             day, end = date.fromisoformat(p['start_date']), date.fromisoformat(p['through_date'])
             while day <= end:
                 key = day.isoformat()
+                coverage = team['lines']['abroad']['source_coverage']
+                abroad_day = daily['abroad'][key] if coverage['start_date'] <= key <= coverage['through_date'] else None
                 p['daily'].append({'date': key, 'training_orders': daily['training'][key],
-                                   'abroad_orders': daily['abroad'][key]})
+                                   'abroad_orders': abroad_day})
                 day += timedelta(days=1)
         output.append(p)
     return {'schema_version': public['schema_version'],
             'metadata': {**public['metadata'], 'title': '线上团队 · 经营进度',
-                         'default_period': through[:7]}, 'periods': output,
+                         'default_period': min(through, public['metadata']['study_abroad_source']['through_date'])[:7]}, 'periods': output,
             'reconciliation': {'cells': [], 'notes': ['同一管理批次投影，无独立线上取数。']}}

@@ -13,7 +13,7 @@ SHARED_RESULT=<本批次>/shared_result.json \
 
 该入口校验共同结果身份和引用哈希，仅封装4页及其资源（共18个公开文件）；dry-run不读凭据、不联网。通用组包与投递适配已在P3演练并用于P5正式激活。本地dry-run不触发上传、真实发送或页面切换。发送适配说明见[监控模块](../monitoring_product/README.md)，构建产物说明见[管理融合看板](./management/README.md)。
 
-`dashboard_product/management/` 为当前唯一管理看板构建入口，涵盖市场总览、预备高中、大学、线上平台、人员产能和活动。一次受控取数生成共同事实、静态页面与7条通知payload；消息由[monitoring_product](../monitoring_product/README.md)消费同批结果。构建命令及输出见[管理看板说明](./management/README.md)，发布/激活及Grok日更见[部署说明](./DEPLOYMENT.md)。
+`dashboard_product/management/` 为当前唯一管理看板构建入口，涵盖市场总览、预备高中、大学、线上平台、人员产能和活动。一次受控取数生成共同事实、静态页面与8条通知payload；新增高中留学个人简报复用高中通道，消息由[monitoring_product](../monitoring_product/README.md)消费同批结果。构建命令及输出见[管理看板说明](./management/README.md)，发布/激活及Grok日更见[部署说明](./DEPLOYMENT.md)。
 
 业务口径沿用已验收的[封存记录](../docs/dashboard-dot-handoff-20261001.md)与当前配置；原始输入、Bridge和Snapshot不因页面重构而改写。留学现金/人头未接入时保留未接入状态，负向现金不自动解释为退款。已确认归属和目标更新在相应现有配置维护，部门去重与个人贡献不能混加。
 

@@ -54,9 +54,12 @@ python3 -m interfaces.data_platform --help
 | `interfaces.business_pack` | Workspace Modeling；Pack 文件 | validate/describe JSON，只读 | 无 |
 | `interfaces.company_bridge` | Workspace Modeling；Pack、候选/Bridge、可选 Snapshot 画像 | 校验/扫描结果或 build 正式 Bridge；按子命令写显式输出 | 无自动业务确认或发送 |
 | `interfaces.casebook` | Workspace Modeling；工作区、角色、用户选择的证据/评价 | guide/search/verify 只读；create/capture/confirm 等写本工作区 Casebook；反馈导出写本地 ZIP | 不自动上传，不自动确认案例 |
+| `data_acquisition.jobs.build_study_abroad_warehouse` | Data Acquisition；现有客户工作区、明确的完整资源与签约工作簿、run_id、snapshot_id、截止日 | 整理三张业务表，复用 Data Platform 创建 `Work/StudyAbroad/` 内独立 Snapshot 和指针 | 原文件只读；不修改 BI 工作区指针、工单或现金来源；无网络获取或发布 |
+| `dashboard_product.management.study_abroad_query` | Dashboard；显式留学 Snapshot、run_id、日期范围和命名 SQL | 经 Data Platform 受控查询写 `Output/StudyAbroad/` 的 SQL、参数、结果及回执 | 只读独立留学仓；不访问 BI 仓、不刷新页面或发送通知 |
+| `dashboard_product.management.study_abroad_channels` | Dashboard；显式留学 Snapshot、日期、当前同公司 Bridge 和渠道参考表 | 受控渠道映射预览、未命中清单、Bridge 候选及已明确确认的独立渠道 Bridge | 只读原 BI Bridge/参考；不切换正式 Bridge 或生产看板 |
 | `dashboard_product.management.build` | Dashboard；工作区、显式 Snapshot、run_id、as-of-date；通过 Data Platform 受控查询 | 写同批 `shared_result.json`、私有通知/核对引用及 18 个静态展示资源 | 本地构建；不直接发送钉钉 |
 | `dashboard_product.management.publication` | Dashboard；同批 `shared_result.json`、输出目录 | 校验引用身份与哈希，生成仅含公开资源的 release manifest | 本地组包；不上传或切 live |
-| `monitoring_product.shared_delivery` | Monitoring；同批 `shared_result.json`、as-of-date、state-dir；正式投递另需 C 层 env-file | dry-run 生成本地预览；正式投递使用共同结果的七条消息与同批附件 | 正式模式上传附件并发送已授权的钉钉通道；逐消息去重 |
+| `monitoring_product.shared_delivery` | Monitoring；同批 `shared_result.json`、as-of-date、state-dir；正式投递另需 C 层 env-file | dry-run 生成本地预览；正式投递使用共同结果的八条消息与同批附件 | 正式模式上传附件并发送已授权的钉钉通道；逐消息去重 |
 | `market_workspace/oxhor` | 市场工作面；固定数据工作区、显式 Snapshot/run | 只读 CLI 调用，写市场 Evidence；不提供导入/发布 | 无 |
 | `project_intelligence` CLI / stdio MCP | Project Intelligence；批准代码/文档、工作区结构元数据 | 只读上下文，不返回业务明细、不执行业务 SQL | 服务内无业务写入；远程接入边界见专门文档 |
 
@@ -100,6 +103,76 @@ python3 -m interfaces.data_platform query --help
 - 看板、监控、市场 CLI 已使用新查询校验读取；看板与监控最终产物保持现状，原定统一改造已取消。现有查询证据校验保留，不增加兼容运行分支。
 
 确定性组包 API 为 `workspace_modeling.delivery.create_delivery`；完整可调用示例见 [公共证据合同第 7 节](./evidence-contract.md#7-宿主确定性组包-api)。Bridge 的 `--snapshot-quality` 指向实际 quality 查询回执文件，而非 stdout JSON。
+
+### 2.2 隔离留学样本仓（2026-10-08）
+
+本阶段只验证同一客户的留学来源与 SQL。主工作区 `Work/workspace.json`、`Input/Data/br_work_orders`、`Input/Data/br_cash` 不变；留学仓使用独立 `Work/StudyAbroad/current.json`、`Work/StudyAbroad/Runs/<run_id>/data/snapshots/<snapshot_id>/warehouse.duckdb`。每次输入必须是明确指定的一份完整工作簿，不拼历史、不猜当前文件、不抓腾讯文档、不提供拖拽上传，也不接入生产看板。旧留学 Snapshot 保留；ID 不可重复，失败不切换独立指针。
+
+三张业务 Sheet 的只读读取统一在 `workspace_modeling.operations.study_abroad_source`，现有人员贡献页复用该模块。整理步骤只输出 `resources`、`contracts`、`languages` 三张结构明确的表，忽略隐藏透视表和签约尾注；原文件、花名册与整理产物留在私有运行目录，行内保留原文件哈希、Sheet、Excel 行号。部门归属由人工市场归属人、工作簿“筛选项”映射和现有花名册确定，不执行或依赖团队列公式，不从顾问、活动或描述猜归属。
+
+用户确认口径：
+
+- 空市场归属不计市场完成，原行仍保留在私有 landing 供核对；明确非市场标签同样排除。非空但无法映射的归属保留总盘单独未映射项，不静默漏算。
+- 资源按资源 ID 去重、分单日期统计；部门包含删除、回收、死单。个人投影排除删除，个人花名册状态仍遵循现行规则。
+- 只核算正向毛签：留学采用 `签约金额`、归档日期；小语种采用 `实缴金额`、业务日期。不使用净签金额或服务费收款金额，不把归档日表述为到账日。非正向源金额保留核对，不列为退款。
+- 用户确认现金归属以签约／实缴 Sheet 的人工“市场资源归属人”为准，即使与资源 Sheet 同编号的归属不同，也不由资源页覆盖现金人员或团队。资源关联仅用于来源核对和受控年级维度；缺少当月资源或资源ID不漏计已有明确现金归属的金额，不按姓名硬补资源编号。
+- 签约客户按留学 `客户ID`、小语种 `学员编号` 各自去重；同一客户多合同的正向金额全部累计，跨团队总盘独立去重，不能加总团队或个人人数。两系统没有确认的身份对照，合并金额可展示，合并唯一人数返回不可用，并同时给出两类人数；禁止按姓名猜合并。
+- `国际市场`只进入留学总盘及单独核算项，即使人员在语培或虚拟人花名册，也不进入语培、线上或线下团队。SSC 与未映射同样单列，线上、线下团队只消费各自明确归属。
+- 独立源SQL不输出同比、同期或缺失月份的伪零值；看板仅复用原已确认目标，显示已覆盖实际范围，不补配目标。人员源投影只给原始归属，不替代现行流转/共创分摊；既有人员贡献规则保持在所属产品模块。
+
+本地样本建仓：
+
+```bash
+python3 -m data_acquisition.jobs.build_study_abroad_warehouse \
+  --workspace customers/bi_operations \
+  --source-file 'customers/bi_operations/Input/Reference/人员产能/资源与签约.xlsx' \
+  --run-id run_study_abroad_sample_20261008_final \
+  --snapshot-id snapshot_study_abroad_sample_20260930_v1 \
+  --through-date 2026-09-30
+```
+
+受控查询（左闭右开，自动限制在明确来源截止日以内）：
+
+```bash
+python3 -m dashboard_product.management.study_abroad_query \
+  --workspace customers/bi_operations \
+  --snapshot-id snapshot_study_abroad_sample_20260930_v1 \
+  --run-id run_study_abroad_monthly_20261008_final \
+  --start-date 2026-06-01 --end-date 2026-10-01 --query-name monthly
+```
+
+命名 SQL 位于 `dashboard_product/management/sql/study_abroad/`：`facts` 为逐行事实，`monthly` 为总盘/分团队/单独项自然月汇总，`people` 为按人工归属人的个人源投影，`checks` 为排除与源质量核对。月汇总和个人 SQL 由入口展开公共事实 CTE；每份查询回执保存完整可重放 SQL 和参数。所有业务查询只引用独立来源 `landing.study_abroad_market__*`，通过现有 Data Platform 执行，输出根为 `Output/StudyAbroad`。需要六月份至今覆盖时，须另提供明确完整导出并发布新版本；本次九月样本不代表其他月份已接入。
+
+留学渠道适配与原 BI Bridge 隔离：`study_abroad_channels` 读取当前同公司 Bridge（本次实读为1.7.0）和 FY26 渠道参考，复用既有规范渠道名；新表一级/二级合成旧路径、三级作为旧低层渠道信号的绑定先作为候选核对。原始三层与人工渠道来源均保留，人工归属人决定团队，渠道映射不重分人员、不套旧渠道准入删除市场明细。未命中与原旧渠道范围外数据保留在对应单独项；资源和金额加总必须与未映射前相同，渠道人数不能相加替代总盘独立去重。
+
+2026-10-08用户已确认的精确三层规则统一保存于 `dashboard_product/config/study_abroad_channel_decisions.json`，使用现有 `confirmed_review` 合同，运行时优先消费该决定并生成独立 `confirmed_channel_bridge.json` v1.1.0。包括三层均为市场活动→市场活动/高校活动、小红书品牌号→网络资源/小红书、本地生活的高德门店/大众点评→网络资源/高德或大众、欧亚总部在线的知乎付费/B站免费→新媒体/SSC、异业合作其他→渠道合作/个人渠道、线下校代→其他/线下校代、无终端后缀百度搜索乐语→网络资源/百度、带推荐备注的已确认高德店铺→网络资源/高德。不使用品牌通配扩大到未确认组合，不修改原 BI Bridge。
+
+用户进一步明确：原一二三级渠道只作参考，输出沿用看板既定口径；能确定一级是市场活动而高校/中学二级尚不明确时，以对应工单年级映射。大学学段归高校活动，初中/高中学段归中学活动；已有明确细分、精确用户规则、其他渠道以及人员团队归属不改。通用策略作为 `confirmed_review` 的语义 override 进入独立渠道 Bridge v1.2.0；此前临时单资源覆盖代码和配置已删除，不维护两条路径。
+
+年级辅助模块为 `dashboard_product.management.study_abroad_grade`：只对需要分流的资源编号，按主 BI 工作区当前显式 Snapshot、manifest 的 `br_work_orders` 关系和真实表头，通过 Data Platform 查询资源键/工单ID/四个年级字段。不读姓名、电话、学校或金额，不导入原工单、现金事实，不改两个仓的指针或 Snapshot。年级缺失或同资源的有效工单年级冲突时，保留市场活动一级及待核二级；不从意向学历或顾问/人员推年级。复核批次 `review.json.grade_evidence` 同时记录 BI Snapshot、维度查询回执和解析结果，业务金额/资源仍来自独立留学 Snapshot，两个来源身份分别回查。样本中的高一资源197265843自动归中学活动，不依赖写死资源编号。
+
+其他未确认的新来源绑定仍为 `bridge_candidates.json` 中的 proposed，不自动建成正式映射。候选沿用现有合同的未确认角色 `historical_scan`；不扩展合同角色或修改 Pack。渠道参考、原 Bridge、确认决定、年级维度证据、映射预览、完整 SQL 和回执均留在同一私有核对批次。确认文件及年级来源必须与工作区公司身份一致；重复或冲突决定阻断。
+
+```bash
+python3 -m dashboard_product.management.study_abroad_channels \
+  --workspace customers/bi_operations \
+  --snapshot-id snapshot_study_abroad_sample_20260930_v1 \
+  --run-id run_study_abroad_channels_20261008_final \
+  --start-date 2026-06-01 --end-date 2026-10-01
+```
+
+管理看板实际切换：`study_abroad_facts.py`读取独立仓当前显式Snapshot，输出资源和正向毛签管理事实，保留来源产品、资源编号、客户键、来源行及本sheet归属。旧BI留学事实和旧渠道基线不再参与管理计算；语培及原BI市场总盘不变。共用结果分别保存BI和留学查询身份。总盘／线上／线下、渠道现金、个人现金、活动及通知流水均消费同批新事实；国际市场／SSC／待确认归属仅总盘单列。留学和小语种客户去重结果分别展示。来源之外的月份为未覆盖，年度／季度仅显示已覆盖实际并标注范围，不输出留学同比。
+
+```bash
+python3 -m dashboard_product.management.build \
+  --workspace customers/bi_operations \
+  --snapshot-id snapshot_bi_operations_20261003_v14audit \
+  --study-abroad-snapshot-id snapshot_study_abroad_sample_20260930_v1 \
+  --run-id run_study_board_connected_20261008 \
+  --as-of-date 2026-10-08
+```
+
+生产日更入口读取两份明确当前指针并传入两个Snapshot，缺留学仓不回退旧BI。正式通知发送还验证留学来源截至昨日；较旧样本可本地预览，但不因BI仓新鲜就发送旧留学数据。腾讯文档抓取待明确后另接现有独立仓更新入口。
 
 ## 3. Agent Host 接入
 
@@ -166,7 +239,7 @@ python3 -m interfaces.company_bridge validate \
   --pack workspace_modeling/business_pack/packs/education_training_operations_cn/pack.json
 ```
 
-当前 BI 工作区正式 Bridge 为 `bridge_bi_operations` v1.6.0。它引用当前 `landing.*` 关系，直接使用源表头名定位字段；v1.6.0 在既有现金/工单口径上增加留学线渠道映射判断，不保留 v1.5.0 运行兼容。具体运行时可额外传入同一 Snapshot 的 `--snapshot-description` 与 `--snapshot-quality` 做兼容性校验。清洗脚本和渠道看板 SQL 尚未消费该映射。
+当前 BI 工作区实读 Bridge 为 `bridge_bi_operations` v1.7.0。它引用当前 `landing.*` 关系，直接使用源表头名定位字段；在 v1.6.0 留学渠道映射基础上增加线上主动网络资源补充完成口径。具体运行时可额外传入同一 Snapshot 的 `--snapshot-description` 与 `--snapshot-quality` 做兼容性校验。旧清洗脚本和看板尚未完整消费所有渠道规则，例如根别名和市场活动细分仍存在实现差异；隔离留学渠道核对按第2.2节处理，不原地修改旧来源契约。
 
 历史扫描使用 `scan-history`，但输出角色是 `historical_scan`，不能直接构建正式 Bridge。只有人工复核后的 `confirmed_review` 可以传给 `build`；未确认项必须保留为 `unresolved` 或拒收，不能静默选择。完整合同见 [Company Bridge v1 合同](./company-bridge-contract.md)。
 
@@ -225,6 +298,7 @@ RUN_ID="run_management_$(TZ=Asia/Shanghai date +%Y%m%d_%H%M%S)"
 AS_OF_DATE="$(TZ=Asia/Shanghai date +%F)"
 python -m dashboard_product.management.build \
   --workspace "$WORKSPACE" --snapshot-id "$CURRENT_SNAPSHOT_ID" \
+  --study-abroad-snapshot-id "$CURRENT_STUDY_ABROAD_SNAPSHOT_ID" \
   --run-id "$RUN_ID" --as-of-date "$AS_OF_DATE"
 BATCH_DIR="$WORKSPACE/Output/DashboardManagement/$RUN_ID"
 SHARED_RESULT="$BATCH_DIR/shared_result.json"
@@ -235,6 +309,6 @@ python -m monitoring_product.shared_delivery \
   --state-dir "$WORKSPACE/Work/DeliveryState" --dry-run
 ```
 
-正式批次投递由 `monitoring_product/deploy/deliver_management_batch.sh` 读取 `Work/ManagementDelivery/batch.json`，再次核对同批身份后调用 `shared_delivery`；该模式需要显式 `--env-file` 所指向的原 C 层文件。七条消息投递到原五个通道：`offline_youth`、`offline_high_school`、`offline_university`、`online_private`、`online_platform`。大学与线上平台的两条消息分别共用原群。10:24 投递 routine 当前暂停，不能由本接入说明触发恢复。
+正式批次投递由 `monitoring_product/deploy/deliver_management_batch.sh` 读取 `Work/ManagementDelivery/batch.json`，再次核对同批身份后调用 `shared_delivery`；该模式需要显式 `--env-file` 所指向的原 C 层文件。八条消息投递到原五个通道：`offline_youth`、`offline_high_school`、`offline_university`、`online_private`、`online_platform`。高中、大学与线上平台的两条消息分别共用原群；高中留学简报只消费本组留学个人完成、个人渠道与个人流水，不生成部门完成。10:24 投递 routine 当前暂停，不能由本接入说明触发恢复。
 
 Grok 09:45 Routine 使用 `dashboard_product/deploy/run_management_daily.sh`，环境变量指向 warehouse Python、dashroot、whcustomer 和原 C 文件，`REMOTE_NGINX_CONF` 采用已确认的 `/etc/nginx/sites-available/dashboard`。P3/P4/P5已完成，09:45看板日更启用，10:24日推仍暂停；上线回执见[看板施工计划第32节](./dashboard-static-rebuild-plan.md)。页面发布边界见 [`dashboard_product/DEPLOYMENT.md`](../dashboard_product/DEPLOYMENT.md)，共同结果合同见 [`management/README.md`](../dashboard_product/management/README.md)，投递状态见 [`monitoring_product/README.md`](../monitoring_product/README.md)。Webhook 属于 C 层，不在本接入指南展开。

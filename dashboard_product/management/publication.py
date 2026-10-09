@@ -27,6 +27,7 @@ PACKAGE_FILES = frozenset({
 # are source fragments already folded into the four public CSS/JS bundles.
 SEALED_SITE_FILES = PACKAGE_FILES | frozenset({
     'capacity-view.css', 'capacity-view.js', 'flat-tables.css', 'flat-tables.js',
+    'capacity-radar.css', 'capacity-radar.js',
     'suite-nav.css', 'suite-nav.js',
 })
 
