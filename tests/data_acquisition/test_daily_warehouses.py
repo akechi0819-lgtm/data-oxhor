@@ -247,6 +247,8 @@ class DailyWarehousesTests(unittest.TestCase):
             result = self._refresh()
 
         self.assertEqual("failed", result["status"])
+        self.assertEqual("failed", result["sources"]["bi"]["status"])
+        self.assertEqual("failed", result["sources"]["study_abroad"]["status"])
         bi_call.assert_called_once()
         study_call.assert_called_once()
         receipt_text = Path(result["receipt_path"]).read_text(encoding="utf-8")
@@ -275,7 +277,42 @@ class DailyWarehousesTests(unittest.TestCase):
         self.assertFalse((self.workspace / "Work/workspace.json").exists())
         self.assertEqual("failed", result["status"])
         receipt = json.loads(Path(result["receipt_path"]).read_text(encoding="utf-8"))
+        self.assertEqual("failed", receipt["sources"]["bi"]["status"])
+        self.assertEqual("failed", receipt["sources"]["study_abroad"]["status"])
         self.assertIn("not initialized", receipt["sources"]["bi"]["error"])
+
+    def test_bi_failure_still_publishes_successful_tencent_source(self) -> None:
+        _, update = self._success_mocks()
+        with (
+            patch.object(daily_warehouses.rebuild_bi_warehouse, "rebuild", side_effect=TimeoutError("login")),
+            patch.object(daily_warehouses.update_tencent_study_abroad, "update", side_effect=update) as study_call,
+        ):
+            result = self._refresh()
+
+        self.assertEqual("failed", result["status"])
+        self.assertEqual("failed", result["sources"]["bi"]["status"])
+        self.assertEqual("success", result["sources"]["study_abroad"]["status"])
+        study_call.assert_called_once()
+        with self.assertRaisesRegex(ValueError, "did not pass"):
+            daily_warehouses.assert_daily_ready(self.workspace, AS_OF)
+
+    def test_tencent_failure_keeps_successful_bi_terminal_status(self) -> None:
+        rebuild, _ = self._success_mocks()
+        with (
+            patch.object(daily_warehouses.rebuild_bi_warehouse, "rebuild", side_effect=rebuild),
+            patch.object(
+                daily_warehouses.update_tencent_study_abroad,
+                "update",
+                side_effect=RuntimeError("signed_url=must-not-be-stored"),
+            ) as study_call,
+        ):
+            result = self._refresh()
+
+        self.assertEqual("failed", result["status"])
+        self.assertEqual("success", result["sources"]["bi"]["status"])
+        self.assertEqual("failed", result["sources"]["study_abroad"]["status"])
+        self.assertNotIn("must-not-be-stored", Path(result["receipt_path"]).read_text(encoding="utf-8"))
+        study_call.assert_called_once()
 
     def test_receipt_hash_and_snapshot_pointers_are_checked(self) -> None:
         rebuild, update = self._success_mocks()

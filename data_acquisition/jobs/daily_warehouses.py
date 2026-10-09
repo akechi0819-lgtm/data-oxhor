@@ -281,6 +281,7 @@ def refresh_daily(*, workspace: Path, as_of_date: str, run_id: str,
         publish_current("running")
 
         if initialization_error:
+            bi["status"] = "failed"
             bi["error"] = f"ValueError: {initialization_error}"
         else:
             try:
@@ -303,6 +304,7 @@ def refresh_daily(*, workspace: Path, as_of_date: str, run_id: str,
                     "company_id": company_id,
                 })
             except Exception as error:
+                bi["status"] = "failed"
                 bi["error"] = _safe_source_error("BI", error)
 
         try:
@@ -329,6 +331,7 @@ def refresh_daily(*, workspace: Path, as_of_date: str, run_id: str,
                 "value_sha256": _study_capture_sha256(result),
             })
         except Exception as error:
+            study["status"] = "failed"
             study["error"] = _safe_source_error("Tencent study-abroad", error)
 
         final_company_id, final_init_error = _workspace_company(workspace)
