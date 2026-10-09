@@ -82,8 +82,23 @@ python3 -m data_acquisition.jobs.update_tencent_study_abroad \
 
 本轮证据：`.local/audits/study-history-678-20261009/`；前轮抓取证据：`.local/audits/tencent-study-capture-20261009/`。会话与原始请求位于私有忽略目录，不进入Git或公开交付。
 
-## 调度与发布边界
+## 每日双仓更新与消费者门禁
 
-一键更新CLI已实跑，并不意味着腾讯每日抓取已接入平台例行。现有看板日更脚本只读当前留学指针，随后构建、写生产batch、发布并尝试激活；它不调用腾讯更新CLI。未来持续更新需把腾讯更新放在看板构建之前并验证失败处理。当前本次未激活不阻止既有例行下一次成功运行尝试发布；平台启停必须实际核对，本说明不替用户暂停或恢复任务。
+来源生产者为 `data_acquisition/deploy/run_daily_warehouses.sh`，并列调用现有BI重建与腾讯更新；两源各尝试一次，任一失败即整体失败。保持各自已成功的不可变Snapshot，不回滚或伪造另一仓；`Work/DailyWarehouseRefresh/current.json`记录最新尝试，`last_good.json`保留上一成功配对。刷新期间及失败状态不允许新发布／投递。
 
-腾讯当前导出不提供删除／回收状态列，不能推断每条记录的状态。个人状态开关保留，只影响源中有明确状态的行；缺状态行不会因开关自动识别为删除或回收。
+看板日常和日推日常不重复抓取来源：前者先校验当天联合回执及两仓当前身份后构建／发布；后者校验同一联合配对与同批通知再投递。腾讯历史从已标准化仓受控读取，只替换上海当天所在月份，不因新月份导出缺旧月而清空历史。月底迟到历史需明确来源另补，不无证推数据。
+
+数仓例行调用环境（ID、URL取已核验腾讯文档，Cookie使用Grok本人的云端会话）：
+
+```bash
+PYTHON='<warehouse虚拟环境Python>' PROJECT_ROOT='<warehouse根>' \
+WORKSPACE='<客户工作区>' TENCENT_DOC_ID='<已核验docId>' \
+TENCENT_DOC_URL='<已核验页面URL>' TENCENT_COOKIE_FILE='<云端私有0600 Cookie>' \
+bash data_acquisition/deploy/run_daily_warehouses.sh
+```
+
+脚本默认按上海日期与时分秒生成新run和两仓Snapshot身份；也可显式传入AS_OF_DATE、RUN_ID、BI_SNAPSHOT_ID、STUDY_SNAPSHOT_ID。有必要时通过TENCENT_CA_FILE指定信任CA，证书校验保持开启。来源任务每天先从云端已登录腾讯会话刷新私有Cookie，不上传或显示凭据；登录无法续期时报告需本人登录，来源失败阻断后续消费者。
+
+现有数仓09:30、看板09:45、日推10:24为三条原例行；本次只更新执行正文，不另建任务、不改时刻／启停／通道。代码及失败门禁本地已实现，平台更新与真实双仓运行须以本次云端安装／Routine操作／业务回执验收，不能仅凭提交副本或平台任务succeeded声称业务成功。
+
+腾讯当前导出不提供删除／回收状态列。个人状态开关保留，只影响源中有明确状态的行；缺状态行不被推断为删除或回收。

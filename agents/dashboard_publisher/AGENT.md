@@ -25,11 +25,12 @@ python -m monitoring_product.shared_delivery \
 
 `management.build` 使用 Data Platform 受控查询并写入 `Output/DashboardManagement/<run_id>/`。`dashboard_product.refresh.py` 中被导入的代码只作内部 source helper；它不是受支持的命令行入口。
 
-## 部署状态
+## 日常入口与门禁
 
-- Grok 9:45 routine 已启用；调用 `dashboard_product/deploy/run_management_daily.sh`，统一构建、同批 dry-run、组包和 release 流程。
-- 10:24 钉钉 routine 保持暂停。正式批次投递由 `monitoring_product/deploy/deliver_management_batch.sh` 消费当天显式 batch 指针，并使用原 C 层凭据；不得独立取数。
-- P3/P4/P5已完成。正式页面已激活并通过独立页面检查；09:45管理Routine已启用，10:24钉钉Routine仍暂停。完整回执见[施工计划第32节](../../docs/dashboard-static-rebuild-plan.md)。
+- 原09:45看板例行调用核心 `dashboard_product/deploy/run_management_daily.sh`，不是不存在的根目录wrapper。数仓09:30先通过每日双仓来源入口抓取BI／腾讯；看板本身不重复抓取。
+- 看板先核验当天联合回执、两仓身份和共同结果，任一来源失败或仍刷新即停止，不写新生产batch、不发布。门禁通过后才构建、空跑、组包和尝试激活；预览不等于已上线。
+- 10:24投递例行只消费对应共同批次，正式调用 `monitoring_product/deploy/deliver_management_batch.sh`，使用原C层凭据，并核验同一双仓配对。
+- 2026-10-09平台基线实读三条原任务均启用，09:30／09:45／10:24（Asia/Shanghai）；旧10月3日暂停记录不能覆写现状。任务正文只按本次授权修改，不新建重复任务、不变时刻／启停。原P3/P4/P5属于此前服务上线，具体新批次是否已激活须查相应回执。
 
 发布只组包 manifest 内 18 个静态资源；不上传 `shared_result.json`、通知、明细、查询回执或工作区数据。激活使用显式 `REMOTE_NGINX_CONF=/etc/nginx/sites-available/dashboard`，沿用当前 vhost、认证、healthz 和 `/notify/` 访问边界。旧线上文件未在此步骤删除。
 

@@ -4,7 +4,7 @@
 
 2026-10-03原管理服务已正式激活；2026-10-09腾讯源最新批次 `run_grok_tencent_view_final_20261009` 仅完成构建、8条空跑及18文件组包，未在本次执行激活或真发。最近回传的生产batch仍为 `run_management_20261009_111619`，回执未提供实时公网current链接，版本状态需实际activation与站点验证。
 
-09:45看板、10:24投递为原节奏，当前启停须从Grok平台实读；不能沿用旧暂停描述。`run_management_daily.sh` **会发布并激活**，只读取当前两仓、不运行腾讯下载。因此手工验证勿调用该脚本；如果例行启用，后续成功运行会尝试发布当时当前数据，不能将“本次未激活”理解为未来例行被禁止。腾讯日抓尚无接入调度链回执。
+09:30数仓生产者并列抓取BI与腾讯，09:45看板、10:24投递只消费联合验证成功的两仓／同批结果。三条为原节奏，当前启停以平台实读为准。数仓入口见[腾讯来源与双仓日更](../docs/tencent-docs-study-source.md)；消费者强制校验当天 `Work/DailyWarehouseRefresh/current.json`。任一源失败或刷新中不会生成新的生产batch、发布或发送；上一正式网页保留。`run_management_daily.sh`本身不抓来源，门禁通过后会发布并激活，手工验证不要直接运行它。平台接入以更新及运行回执验收。
 
 09:45例行若已启用，配置的入口为 `dashboard_product/deploy/run_management_daily.sh`。环境变量指向已有 warehouse Python、dashboard 根目录、whcustomer 工作区和原 C 层凭据文件；Nginx 配置路径使用已核实的 `/etc/nginx/sites-available/dashboard`：
 

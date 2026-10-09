@@ -9,6 +9,8 @@ export PATH="$(dirname "$PYTHON"):$PATH"
 AS_OF_DATE="${AS_OF_DATE:-$(TZ=Asia/Shanghai date +%F)}"
 RUN_ID="${RUN_ID:-run_management_$(TZ=Asia/Shanghai date +%Y%m%d_%H%M%S)}"
 cd "$PROJECT_ROOT"
+"$PYTHON" -m data_acquisition.jobs.daily_warehouses check \
+  --workspace "$WORKSPACE" --as-of-date "$AS_OF_DATE"
 snapshot_id="$("$PYTHON" - "$WORKSPACE/Work/workspace.json" "$AS_OF_DATE" <<'PY'
 import json,sys
 from datetime import date
@@ -40,9 +42,14 @@ from datetime import date,timedelta
 from pathlib import Path
 from monitoring_product.shared_preview import _read_shared_notifications
 from monitoring_product.shared_delivery import _validate_contract,_today_shanghai
+from data_acquisition.jobs.daily_warehouses import assert_daily_ready
 ws=Path(sys.argv[1]).resolve(); shared=Path(sys.argv[2]).resolve()
 body,notifications=_read_shared_notifications(shared)
 _validate_contract(body,notifications,sys.argv[3],sending=False)
+study=(body['metadata'].get('study_abroad_source') or {}).get('snapshot_id')
+if not study:
+    raise ValueError('management batch has no study-abroad Snapshot')
+assert_daily_ready(ws,sys.argv[3],bi_snapshot_id=body['metadata']['snapshot_id'],study_snapshot_id=study)
 as_of=date.fromisoformat(sys.argv[3])
 if as_of != _today_shanghai() or body['metadata']['data_through'] != (as_of-timedelta(days=1)).isoformat():
     raise ValueError('daily dashboard requires fresh BI data through yesterday')

@@ -23,13 +23,13 @@ PROJECT_ROOT="/path/to/dashroot" WORKSPACE="/path/to/whcustomer" ENV_FILE="/path
 bash /path/to/dashroot/monitoring_product/deploy/deliver_management_batch.sh
 ```
 
-正式投递要求新 Snapshot、`data_through` 为昨天、完整五通道配置及显式 C 层 env-file。成功消息按日期/通道/message_id 去重；结果未知的消息阻断重发并记录回执。10:24 钉钉 routine 当前暂停，保持暂停；不得因为 9:45 管理 routine 已启用而恢复它。
+正式投递要求新 Snapshot、`data_through` 为昨天、完整五通道配置及显式 C 层 env-file。成功消息按日期/通道/message_id 去重；结果未知的消息阻断重发并记录回执。2026-10-09平台实读日推例行已启用，保留原10:24时刻／开关；不能用旧暂停描述改变现状。只有当天双仓来源成功配对、生产批次与配对一致时才允许投递，不在本例行抓取或重建。
 
-Grok 09:45 routine 调用 `dashboard_product/deploy/run_management_daily.sh`，构建共同结果并生成同批预览和 batch 指针；该Routine已启用，页面P3/P4/P5均已完成并上线。10:24钉钉Routine仍暂停；预览不代表正式投递。实际上线回执见[施工计划第32节](../../docs/dashboard-static-rebuild-plan.md)。
+Grok 09:30来源日常并列更新BI与腾讯，09:45看板日常在联合门禁通过后构建并发布，10:24投递读取同批结果；三条原任务的时刻、群与凭据不变。平台例行succeeded不等于业务成功，须核对脚本退出值、共同回执和发送回执；缺配对或不新鲜则停止，不补发旧批次。
 
 ## 权限与边界
 
-- 只读 `shared_result.json` 及其同批 `notifications_ref`；核对引用哈希、run_id、Snapshot、截止日和七消息合同。
+- 只读 `shared_result.json` 及其同批 `notifications_ref`；核对引用哈希、run_id、Snapshot、截止日和八条／五通道合同。
 - dry-run 不读取凭据、不上传、不发送；正式投递只从显式 C 层 env-file 读取授权通道。
 - 只写批次预览、投递状态与本次回执。仅上传本次消息需要的 PNG/XLSX，不上传业务数据、共享结果、明细 JSON 或查询证据。
 - 业务窗口、目标、实际、人头、落后与日均值由管理共同计算层确定；不得修改结果或恢复已退役的独立通知查询链。

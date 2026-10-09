@@ -19,7 +19,7 @@ python3 -m monitoring_product.shared_delivery \
 
 ## Grok例行接入
 
-生产调用 `deploy/deliver_management_batch.sh`，工作目录设为现有dashboard源码目录，显式传入 `PROJECT_ROOT`、`WORKSPACE`、warehouse虚拟环境 `PYTHON` 和原 `ENV_FILE`。入口读取 `Work/ManagementDelivery/batch.json` 指定的run、Snapshot、日期及结果路径，核对同批身份后投递，不通过目录时间选结果，不重新查仓。
+生产调用 `deploy/deliver_management_batch.sh`，工作目录设为现有dashboard源码目录，显式传入 `PROJECT_ROOT`、`WORKSPACE`、warehouse虚拟环境 `PYTHON` 和原 `ENV_FILE`。入口先核验当天双仓共同回执，再读取 `Work/ManagementDelivery/batch.json` 指定的run、Snapshot、日期及结果路径，核对同批身份后投递，不通过目录时间选结果，不重新查仓。
 
 原投递节奏为每天10:24（Asia/Shanghai）；10月3日的假期暂停是历史状态，不能据它断言现在仍暂停。平台启停、实际发送和构建预览分别核对，本文不改变例行。当前源码合同为8条消息、原5通道；高中、大学和线上各有同群双消息。高中留学简报消费本组个人完成、渠道及流水，不生成部门留学完成；虚拟人工单按已确认混合贡献。网页期间选择不改变固定通知窗口。腾讯版已经源码同步／预览通过，本次未真实发送；这不意味着当天其他任务未曾发送。
 

@@ -106,7 +106,7 @@ python3 -m interfaces.data_platform query --help
 
 ### 2.2 隔离留学仓与腾讯更新（现行）
 
-留学仓与原BI工单／现金仓隔离，使用独立 `Work/StudyAbroad/current.json` 和不可变运行目录。腾讯完整Excel导出、6—9月标准历史及10月实抓已验证并在Grok入仓；最新预览已构建，正式激活与每日腾讯抓取调度接入未由本次验收确认。原 `Work/workspace.json`、`Input/Data/br_work_orders`、`Input/Data/br_cash` 不写入。
+留学仓与原BI工单／现金仓隔离，使用独立 `Work/StudyAbroad/current.json` 和不可变运行目录。腾讯完整Excel导出、6—9月标准历史及10月实抓已验证并在Grok入仓；最新预览已构建，此前腾讯数据批次未手动激活；本次日常接入以平台更新及真实双仓回执验收。原 `Work/workspace.json`、`Input/Data/br_work_orders`、`Input/Data/br_cash` 不写入。
 
 日常更新使用 `data_acquisition.jobs.update_tencent_study_abroad`，从明确的当前留学Snapshot受控读取标准历史，下载后只替换指定月份；不用旧颜色表反复计算，不按目录时间猜当前文件。一次性历史清洗、标准三表导入与准确命令见 [腾讯来源说明](./tencent-docs-study-source.md)。下文单工作簿命令保留作该输入方式示例，ID须换成当前任务的新唯一值；不能把九月样本示例误当当前运行指针。
 
@@ -174,7 +174,7 @@ python3 -m dashboard_product.management.build \
   --as-of-date 2026-10-08
 ```
 
-生产日更入口读取两份明确当前指针并传入两个Snapshot，缺留学仓不回退旧BI。正式通知发送还验证留学来源截至昨日；较旧样本可本地预览，但不因BI仓新鲜就发送旧留学数据。腾讯抓取入口已实现并实抓通过；`run_management_daily.sh`仅消费当前两仓，不自动抓腾讯。每天抓取的调度链尚无接入验证；平台例行启停和实际激活以各自权威状态及回执为准。
+生产日更入口读取两份明确当前指针并传入两个Snapshot，缺留学仓不回退旧BI。正式通知发送还验证留学来源截至昨日；较旧样本可本地预览，但不因BI仓新鲜就发送旧留学数据。腾讯抓取入口已实现并实抓通过；每日抓取由 `data_acquisition/deploy/run_daily_warehouses.sh`并列更新两源并生成当天成功配对；`run_management_daily.sh`不重复抓源，核验联合回执才构建发布。平台例行启停和实际激活以各自权威状态及回执为准。
 
 ## 3. Agent Host 接入
 
