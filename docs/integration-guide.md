@@ -1,6 +1,6 @@
 # 核心 CLI 接入指南
 
-> 当前经营批次由 `dashboard_product.management.build` 生成同批共同结果，页面与 `monitoring_product.shared_delivery` 共用其通知引用。Grok 09:45 看板 Routine 已启用，10:24 钉钉 Routine 仍暂停；P3/P4/P5已完成，正式上线回执见[看板施工计划](./dashboard-static-rebuild-plan.md)。共享花名册位于 `workspace_modeling/operations/people.json`。
+> 管理批次由 `dashboard_product.management.build` 绑定明确BI及留学Snapshot；页面与8条／5通道通知消费同批结果。腾讯新版已构建／组包，本次未激活或发送；原例行节奏09:45／10:24的当前启停以平台为准。发布与调度边界见[部署说明](../dashboard_product/DEPLOYMENT.md)，共享花名册位于 `workspace_modeling/operations/people.json`。
 
 ## 1. 当前公开入口
 
@@ -104,25 +104,25 @@ python3 -m interfaces.data_platform query --help
 
 确定性组包 API 为 `workspace_modeling.delivery.create_delivery`；完整可调用示例见 [公共证据合同第 7 节](./evidence-contract.md#7-宿主确定性组包-api)。Bridge 的 `--snapshot-quality` 指向实际 quality 查询回执文件，而非 stdout JSON。
 
-### 2.2 隔离留学样本仓（2026-10-08）
+### 2.2 隔离留学仓与腾讯更新（现行）
 
-2026-10-09新增腾讯完整Excel导出与月份保留能力，运行入口及当前验收边界见 [腾讯文档留学来源抓取](./tencent-docs-study-source.md)。下文单工作簿命令仍可用于明确完整输入；本次新抓取仅在候选目录验证，正式持续更新尚未切换。
+留学仓与原BI工单／现金仓隔离，使用独立 `Work/StudyAbroad/current.json` 和不可变运行目录。腾讯完整Excel导出、6—9月标准历史及10月实抓已验证并在Grok入仓；最新预览已构建，正式激活与每日腾讯抓取调度接入未由本次验收确认。原 `Work/workspace.json`、`Input/Data/br_work_orders`、`Input/Data/br_cash` 不写入。
 
-本阶段只验证同一客户的留学来源与 SQL。主工作区 `Work/workspace.json`、`Input/Data/br_work_orders`、`Input/Data/br_cash` 不变；留学仓使用独立 `Work/StudyAbroad/current.json`、`Work/StudyAbroad/Runs/<run_id>/data/snapshots/<snapshot_id>/warehouse.duckdb`。每次输入必须是明确指定的一份完整工作簿，不拼历史、不猜当前文件、不抓腾讯文档、不提供拖拽上传，也不接入生产看板。旧留学 Snapshot 保留；ID 不可重复，失败不切换独立指针。
+日常更新使用 `data_acquisition.jobs.update_tencent_study_abroad`，从明确的当前留学Snapshot受控读取标准历史，下载后只替换指定月份；不用旧颜色表反复计算，不按目录时间猜当前文件。一次性历史清洗、标准三表导入与准确命令见 [腾讯来源说明](./tencent-docs-study-source.md)。下文单工作簿命令保留作该输入方式示例，ID须换成当前任务的新唯一值；不能把九月样本示例误当当前运行指针。
 
-三张业务 Sheet 的只读读取统一在 `workspace_modeling.operations.study_abroad_source`，现有人员贡献页复用该模块。整理步骤只输出 `resources`、`contracts`、`languages` 三张结构明确的表，忽略隐藏透视表和签约尾注；原文件、花名册与整理产物留在私有运行目录，行内保留原文件哈希、Sheet、Excel 行号。部门归属由人工市场归属人、工作簿“筛选项”映射和现有花名册确定，不执行或依赖团队列公式，不从顾问、活动或描述猜归属。
+标准行保留原文件SHA、真实页签与Excel行号、归属、客户键和技术记录键。当前输入整体SHA与各历史行原始SHA用途不同；消费者从已通过Snapshot摘要校验的规范表读取合法来源白名单，不把历史行SHA改成当月原件SHA。人员贡献和主看板消费同一个留学Snapshot；资源流转及确认历史人员汇总继续使用原参考材料。
 
 用户确认口径：
 
 - 空市场归属不计市场完成，原行仍保留在私有 landing 供核对；明确非市场标签同样排除。非空但无法映射的归属保留总盘单独未映射项，不静默漏算。
-- 资源按资源 ID 去重、分单日期统计；部门包含删除、回收、死单。个人投影排除删除，个人花名册状态仍遵循现行规则。
-- 只核算正向毛签：留学采用 `签约金额`、归档日期；小语种采用 `实缴金额`、业务日期。不使用净签金额或服务费收款金额，不把归档日表述为到账日。非正向源金额保留核对，不列为退款。
+- 资源按资源 ID 去重、分单日期统计；部门包含删除、回收、死单。个人默认排除删除／回收、包含死单，个人花名册状态仍遵循现行规则；状态筛选只作用于来源明确提供状态的行，腾讯当前表缺状态列时不推断删除／回收。六月无业务资源ID的CRM行保留技术记录键；同业务ID跨日期保留最新分单日，同日冲突拒绝。
+- 现金只计正向签约／实缴金额：留学采用 `签约金额`、归档日期；小语种采用 `实缴金额`、业务日期。不使用净签金额或服务费收款金额，不把归档日表述为到账日。非正向源金额保留核对，不列为退款。
 - 用户确认现金归属以签约／实缴 Sheet 的人工“市场资源归属人”为准，即使与资源 Sheet 同编号的归属不同，也不由资源页覆盖现金人员或团队。资源关联仅用于来源核对和受控年级维度；缺少当月资源或资源ID不漏计已有明确现金归属的金额，不按姓名硬补资源编号。
-- 签约客户按留学 `客户ID`、小语种 `学员编号` 各自去重；同一客户多合同的正向金额全部累计，跨团队总盘独立去重，不能加总团队或个人人数。两系统没有确认的身份对照，合并金额可展示，合并唯一人数返回不可用，并同时给出两类人数；禁止按姓名猜合并。
-- `国际市场`只进入留学总盘及单独核算项，即使人员在语培或虚拟人花名册，也不进入语培、线上或线下团队。SSC 与未映射同样单列，线上、线下团队只消费各自明确归属。
+- 签约客户按留学 `客户ID`、小语种 `学员编号` 各自优先去重；缺编号时按用户确认暂用姓名同域去重，唯一姓名能对应已知编号时桥接，歧义不硬选编号；同一客户多合同的正向金额全部累计，跨团队总盘独立去重，不能加总团队或个人人数。两系统没有确认的身份对照，合并金额可展示，合并唯一人数返回不可用，并同时给出两类人数；不按姓名跨两个业务系统猜合并。
+- `国际市场`直接计入留学总完成，界面不单列；即使人员在语培或虚拟人花名册，也不进入语培、线上或线下团队。SSC在界面单列，未映射归属留在总盘和私有核对明细，线上、线下团队只消费各自明确归属。
 - 独立源SQL不输出同比、同期或缺失月份的伪零值；看板仅复用原已确认目标，显示已覆盖实际范围，不补配目标。人员源投影只给原始归属，不替代现行流转/共创分摊；既有人员贡献规则保持在所属产品模块。
 
-本地样本建仓：
+单工作簿输入示例（旧九月样本，仅作参数说明）：
 
 ```bash
 python3 -m data_acquisition.jobs.build_study_abroad_warehouse \
@@ -143,7 +143,7 @@ python3 -m dashboard_product.management.study_abroad_query \
   --start-date 2026-06-01 --end-date 2026-10-01 --query-name monthly
 ```
 
-命名 SQL 位于 `dashboard_product/management/sql/study_abroad/`：`facts` 为逐行事实，`monthly` 为总盘/分团队/单独项自然月汇总，`people` 为按人工归属人的个人源投影，`checks` 为排除与源质量核对。月汇总和个人 SQL 由入口展开公共事实 CTE；每份查询回执保存完整可重放 SQL 和参数。所有业务查询只引用独立来源 `landing.study_abroad_market__*`，通过现有 Data Platform 执行，输出根为 `Output/StudyAbroad`。需要六月份至今覆盖时，须另提供明确完整导出并发布新版本；本次九月样本不代表其他月份已接入。
+命名 SQL 位于 `dashboard_product/management/sql/study_abroad/`：`facts` 为逐行事实，`monthly` 为总盘/分团队/单独项自然月汇总，`people` 为按人工归属人的个人源投影，`checks` 为排除与源质量核对。月汇总和个人 SQL 由入口展开公共事实 CTE；每份查询回执保存完整可重放 SQL 和参数。所有业务查询只引用独立来源 `landing.study_abroad_market__*`，通过现有 Data Platform 执行，输出根为 `Output/StudyAbroad`。当前6—9月历史已标准化入仓，10月按腾讯最新实抓刷新；额外补历史须提供明确来源并发布新版本，缺资料不外推。
 
 留学渠道适配与原 BI Bridge 隔离：`study_abroad_channels` 读取当前同公司 Bridge（本次实读为1.7.0）和 FY26 渠道参考，复用既有规范渠道名；新表一级/二级合成旧路径、三级作为旧低层渠道信号的绑定先作为候选核对。原始三层与人工渠道来源均保留，人工归属人决定团队，渠道映射不重分人员、不套旧渠道准入删除市场明细。未命中与原旧渠道范围外数据保留在对应单独项；资源和金额加总必须与未映射前相同，渠道人数不能相加替代总盘独立去重。
 
@@ -163,7 +163,7 @@ python3 -m dashboard_product.management.study_abroad_channels \
   --start-date 2026-06-01 --end-date 2026-10-01
 ```
 
-管理看板实际切换：`study_abroad_facts.py`读取独立仓当前显式Snapshot，输出资源和正向毛签管理事实，保留来源产品、资源编号、客户键、来源行及本sheet归属。旧BI留学事实和旧渠道基线不再参与管理计算；语培及原BI市场总盘不变。共用结果分别保存BI和留学查询身份。总盘／线上／线下、渠道现金、个人现金、活动及通知流水均消费同批新事实；国际市场／SSC／待确认归属仅总盘单列。留学和小语种客户去重结果分别展示。来源之外的月份为未覆盖，年度／季度仅显示已覆盖实际并标注范围，不输出留学同比。
+管理看板实际切换：`study_abroad_facts.py`读取独立仓当前显式Snapshot，输出工单、正向现金和人头管理事实，保留来源产品、资源编号、客户键、来源行及本sheet归属。旧BI留学事实和旧渠道基线不再参与管理计算；语培及原BI市场总盘不变。共用结果分别保存BI和留学查询身份。总盘／线上／线下、渠道现金、个人现金、活动及通知流水均消费同批新事实；国际市场／SSC／待确认归属仅计留学总盘，展示层只单列SSC。留学和小语种客户去重结果分别展示。来源之外的月份为未覆盖，年度／季度仅显示已覆盖实际并标注范围，不输出留学同比。
 
 ```bash
 python3 -m dashboard_product.management.build \
@@ -174,7 +174,7 @@ python3 -m dashboard_product.management.build \
   --as-of-date 2026-10-08
 ```
 
-生产日更入口读取两份明确当前指针并传入两个Snapshot，缺留学仓不回退旧BI。正式通知发送还验证留学来源截至昨日；较旧样本可本地预览，但不因BI仓新鲜就发送旧留学数据。腾讯文档抓取待明确后另接现有独立仓更新入口。
+生产日更入口读取两份明确当前指针并传入两个Snapshot，缺留学仓不回退旧BI。正式通知发送还验证留学来源截至昨日；较旧样本可本地预览，但不因BI仓新鲜就发送旧留学数据。腾讯抓取入口已实现并实抓通过；`run_management_daily.sh`仅消费当前两仓，不自动抓腾讯。每天抓取的调度链尚无接入验证；平台例行启停和实际激活以各自权威状态及回执为准。
 
 ## 3. Agent Host 接入
 
@@ -295,6 +295,7 @@ python3 -m interfaces.casebook guide --workspace customers/company_customer
 
 ```bash
 WORKSPACE="/path/to/whcustomer"
+CURRENT_STUDY_ABROAD_SNAPSHOT_ID="$(python -c 'import json,sys;print(json.load(open(sys.argv[1]))["snapshot_id"])' "$WORKSPACE/Work/StudyAbroad/current.json")"
 CURRENT_SNAPSHOT_ID="$(python -c 'import json,sys;print(json.load(open(sys.argv[1]))["current_snapshot_id"])' "$WORKSPACE/Work/workspace.json")"
 RUN_ID="run_management_$(TZ=Asia/Shanghai date +%Y%m%d_%H%M%S)"
 AS_OF_DATE="$(TZ=Asia/Shanghai date +%F)"
@@ -311,6 +312,6 @@ python -m monitoring_product.shared_delivery \
   --state-dir "$WORKSPACE/Work/DeliveryState" --dry-run
 ```
 
-正式批次投递由 `monitoring_product/deploy/deliver_management_batch.sh` 读取 `Work/ManagementDelivery/batch.json`，再次核对同批身份后调用 `shared_delivery`；该模式需要显式 `--env-file` 所指向的原 C 层文件。八条消息投递到原五个通道：`offline_youth`、`offline_high_school`、`offline_university`、`online_private`、`online_platform`。高中、大学与线上平台的两条消息分别共用原群；高中留学简报只消费本组留学个人完成、个人渠道与个人流水，不生成部门完成。10:24 投递 routine 当前暂停，不能由本接入说明触发恢复。
+正式批次投递由 `monitoring_product/deploy/deliver_management_batch.sh` 读取 `Work/ManagementDelivery/batch.json`，再次核对同批身份后调用 `shared_delivery`；该模式需要显式 `--env-file` 所指向的原 C 层文件。八条消息投递到原五个通道：`offline_youth`、`offline_high_school`、`offline_university`、`online_private`、`online_platform`。高中、大学与线上平台的两条消息分别共用原群；高中留学简报只消费本组留学个人完成、个人渠道与个人流水，不生成部门完成。本说明不改变10:24投递例行启停；当前状态须从平台核对，不能沿用10月3日暂停记录。
 
-Grok 09:45 Routine 使用 `dashboard_product/deploy/run_management_daily.sh`，环境变量指向 warehouse Python、dashroot、whcustomer 和原 C 文件，`REMOTE_NGINX_CONF` 采用已确认的 `/etc/nginx/sites-available/dashboard`。P3/P4/P5已完成，09:45看板日更启用，10:24日推仍暂停；上线回执见[看板施工计划第32节](./dashboard-static-rebuild-plan.md)。页面发布边界见 [`dashboard_product/DEPLOYMENT.md`](../dashboard_product/DEPLOYMENT.md)，共同结果合同见 [`management/README.md`](../dashboard_product/management/README.md)，投递状态见 [`monitoring_product/README.md`](../monitoring_product/README.md)。Webhook 属于 C 层，不在本接入指南展开。
+Grok 09:45 Routine 使用 `dashboard_product/deploy/run_management_daily.sh`，环境变量指向 warehouse Python、dashroot、whcustomer 和原 C 文件，`REMOTE_NGINX_CONF` 采用已确认的 `/etc/nginx/sites-available/dashboard`。P3/P4/P5于2026-10-03完成；09:45看板日更和10:24日推为既有节奏，当前启停需平台实读。腾讯数据新批次已组包、未在本次激活；历史上线回执见[看板施工计划第32节](./dashboard-static-rebuild-plan.md)。页面发布边界见 [`dashboard_product/DEPLOYMENT.md`](../dashboard_product/DEPLOYMENT.md)，共同结果合同见 [`management/README.md`](../dashboard_product/management/README.md)，投递状态见 [`monitoring_product/README.md`](../monitoring_product/README.md)。Webhook 属于 C 层，不在本接入指南展开。

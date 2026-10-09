@@ -10,16 +10,22 @@
 
 | 模块 | 目录 | 状态 | 说明 |
 |---|---|---|---|
-| 数据接入 | `data_acquisition/` | 已落地 | 来源 manifest、BI 下载和仓库重建任务 |
+| 数据接入 | `data_acquisition/` | 已落地 | BI下载、腾讯完整导出、留学标准历史与月份更新；腾讯每日调度尚未验证 |
 | 数据平台 | `data_platform/` | 已落地 | landing、不可变 Snapshot、schema、quality、受控只读 SQL |
 | 工作区建模 | `workspace_modeling/` | 已落地 | Pack、Bridge、对齐向导、首次部署、Casebook、内测反馈 |
 | 自由分析交付 | 宿主 Agent + `workspace_modeling.delivery` | 已落地 | 分析编排与文件生成由宿主完成，确定性组包由 `workspace_modeling.delivery` 完成；PPT 调用宿主全局 `ppt-master` |
-| 固定看板 | `dashboard_product/` | 已落地/持续增强 | `management.build` 生成的四页已在Grok上线；09:45看板日更启用，监控消费同批结果 |
+| 固定看板 | `dashboard_product/` | 已落地/持续增强 | 原四页服务已上线；腾讯新版已构建／组包，未在本次激活；监控消费同批结果 |
 | 日常监控 | `monitoring_product/` | 已落地 | 人员进度、落后判断、明细证据与钉钉日报；定时由宿主触发 |
+
+## 当前主线
+
+2026-10-09完成口径与运行描述独立审核：纠正旧九月覆盖、未接入、国际市场单列、旧暂停及预览即上线等表述；构建元数据文字与现行姓名临时去重、SSC展示一致，数值算法和数据指针未改。腾讯每日调度尚未验证，现有看板日更会尝试发布当前仓版本，文档明确二者区别。两个8月旧工作树提交已在main，移除检出后仅保留主线；唯一未提交PPT脚本已按摘要保留到 `.local/history/worktrees/20261009/308f/`，未混入核心。246项及67subtests通过；审核与工作树记录见 `.local/audits/contract-cleanup-20261009/`。
+
+本地当前留学Snapshot为 `snapshot_study_abroad_cloud_aligned_20261009_v5`；云端为 `snapshot_grok_tencent_study_20261009`，仓数据截至10月9日。最新云预览 `run_grok_tencent_view_final_20261009` 共用BI截至10月8日，构建／8空跑／18组包通过，本次未激活或发送。回传的生产batch仍为 `run_management_20261009_111619`，实时公网current与平台例行启停未由本次回执确认。腾讯一键CLI可运行但未验证每日调度接入；看板日更不抓腾讯，会从当时当前仓构建并尝试发布。现行口径见[腾讯来源说明](./docs/tencent-docs-study-source.md)、[管理说明](./dashboard_product/management/README.md)。
 
 2026-10-09腾讯留学源与6—9月标准历史已在Grok同步入仓，代码935fa89c＋补丁73ae88b6：实际腾讯导出后只刷新10月，新留学Snapshot截至10月9日，233工单、451,960元现金、人头留学12／小语种10；6—9月不变。修复单来源SHA假设，以已冻结规范资料白名单校验真实多来源；37＋3目标摘要及18文件清单均独立核对。云端final build和人员同源验证通过，5＋210测试、8消息／5通道空跑、18文件组包通过，未激活／真发／改例行。原BI截至10月8日，工作区BI身份和来源不改；本机v5标准历史仓也已用回传原件对齐云端10月。本轮整体本地246项及67subtests通过；详见 [同步边界](./SYNC.md) 和 [.local验收](./.local/audits/study-history-678-20261009/final_sync_verification.json)。
 
-## 当前主线
+## 阶段记录（历史，不作为当前运行入口）
 
 2026-10-09用户确认6—8月历史一次性清洗入隔离留学仓：颜色归属/未标色排除、6/7小语种签约金额视实收、无编号暂按姓名同域去重、日期冲突采用完整7月7日。已写入标准Snapshot `snapshot_study_abroad_standard_history_20261009_v4`，保留9月及已抓10月；新增标准源校验、标准Snapshot历史受控复用、一键腾讯下载月份刷新，看板人员贡献改为同Snapshot消费。原BI指针、官方记分卡及历史确认人员产能不变，2条8月空金额保留待补。用户另授权将抓包源码与6—9月清洗历史一并同步Grok，并在云端重新抓取10月；同步回执未返回前不视为云端完成，不激活网页或真发钉钉。实现与证据见 [腾讯文档留学来源抓取](./docs/tencent-docs-study-source.md)。
 
@@ -37,9 +43,9 @@
 
 2026-10-08人员产能页及个人工单筛选已在本地完成：6—8月沿用8名既有线下留学人员的24个业务确认月份结果，原表“语培”按用户澄清纳入小语种，不进入Snapshot或通知。人员页提供留学＋小语种合计／留学／小语种筛选；所有个人完成区域（总览、虚拟人、大学、预备高中、个人留学渠道及产能）提供两个独立滑块：删除／回收默认关闭，死单默认开启。共享人员规则统一四种状态组合，只改变工单与相关工单率，现金、人头、目标、原时间窗、通知和部门总量保持原值；历史合计缺状态拆分时不推造数量。按用户要求删除人员页常驻的数据覆盖、流转、现金来源、品类和历史口径解释，保留筛选、数值、必要缺失状态及顶部更新时间；说明转由维护文档和私有证据保存。最终批次 `run_personnel_clean_ui_20261008` 绑定 `snapshot_bi_operations_20261003_v14audit`，数据截至10月2日。四态计算349项测试、1564个个人期间投影、24个历史人员月份与456项9月逐笔汇总回查通过；删说明后的同Snapshot期间、产能、活动和分组数据完全一致，JS语法、桌面浏览器和18文件本地组包通过。9月8名留学人员按00/01/10/11分别为121/128/125/132条，现金各态均381500元。本轮未同步Grok、正式发布或发送；证据见 `.local/audits/personnel-status-split-20261008/`，历史对账见 `.local/audits/personnel-history-20261008/`，现行口径见 [管理看板说明](./dashboard_product/management/README.md)。
 
-2026-10-08留学渠道逐项确认和年级通用分流已落地：用户确认小红书品牌号、本地生活高德/大众、知乎付费/B站免费归SSC、异业合作归个人渠道、线下校代、百度无终端后缀、带推荐备注的高德等映射，与此前高校活动规则共用标准 `confirmed_review` 决定文件。用户再明确原三级只作参考，模糊市场活动按对应工单年级分高校/中学；新增语义策略生成独立渠道 Bridge v1.2.0，删除临时单资源覆盖路径。年级只通过 Data Platform 对需要分流的资源读取明确 BI Snapshot 的年级维度，查询身份与留学事实身份分别留证，不合并原工单/现金事实。样本高一会销资源自动归中学活动；缺年级或有冲突仍待核，不更改已有明确渠道及人员团队。5个范围资源数及毛签与修订前一致，原 BI 仓/Bridge哈希不变；本次全套346项测试通过，验收记录为 `.local/audits/study-abroad-sample-20261008/grade_verification.json`，复核批次为客户 `Output/StudyAbroad/run_study_abroad_channels_20261008_grade_final/`。证据及调用约束见 [接入指南第2.2节](./docs/integration-guide.md#22-隔离留学样本仓2026-10-08)。未切换生产看板或接腾讯文档抓取。
+2026-10-08留学渠道逐项确认和年级通用分流已落地：用户确认小红书品牌号、本地生活高德/大众、知乎付费/B站免费归SSC、异业合作归个人渠道、线下校代、百度无终端后缀、带推荐备注的高德等映射，与此前高校活动规则共用标准 `confirmed_review` 决定文件。用户再明确原三级只作参考，模糊市场活动按对应工单年级分高校/中学；新增语义策略生成独立渠道 Bridge v1.2.0，删除临时单资源覆盖路径。年级只通过 Data Platform 对需要分流的资源读取明确 BI Snapshot 的年级维度，查询身份与留学事实身份分别留证，不合并原工单/现金事实。样本高一会销资源自动归中学活动；缺年级或有冲突仍待核，不更改已有明确渠道及人员团队。5个范围资源数及毛签与修订前一致，原 BI 仓/Bridge哈希不变；本次全套346项测试通过，验收记录为 `.local/audits/study-abroad-sample-20261008/grade_verification.json`，复核批次为客户 `Output/StudyAbroad/run_study_abroad_channels_20261008_grade_final/`。证据及调用约束见 [接入指南第2.2节](./docs/integration-guide.md#22-隔离留学仓与腾讯更新现行)。未切换生产看板或接腾讯文档抓取。
 
-2026-10-08隔离留学样本仓与渠道适配已在本地完成：资源与签约工作簿和现行人员贡献页共用 `workspace_modeling.operations.study_abroad_source`，专用整理后通过 Data Platform 进入 `Work/StudyAbroad/` 独立 Snapshot、指针与运行目录，不改原 BI 工单/现金来源或 `Work/workspace.json`。新增逐行事实、自然月总盘/团队/单独项、个人源投影和核对 SQL；空人工归属排除，部门资源包含删除，个人源资源排除删除，正向毛签只用留学签约金额/小语种实缴金额；签约客户按客户ID/学员编号分别去重，跨系统唯一人数未确认时不拼总。国际市场仅留学总盘单列，不进入语培或线上/线下分团队；无同比、历史补零、抓取、拖拽上传或发布。旧渠道适配实读 Bridge v1.7.0 与 FY26 参考，只复用规范名，新增来源绑定为候选；用户已明确确认三层均为市场活动的资源归高校活动，该规则单独生成留学渠道 Bridge，原 BI Bridge 不改。样本绑定 `snapshot_study_abroad_sample_20260930_v1`，原工作簿独立计算与SQL的25项核对通过，BI配置/仓库/Input哈希前后相同；全部326项回归通过。验收见 `.local/audits/study-abroad-sample-20261008/verification.json` 与客户 `Output/StudyAbroad/run_study_abroad_channels_20261008_verified/channel_review/`；调用及待确认边界见 [接入指南第2.2节](./docs/integration-guide.md#22-隔离留学样本仓2026-10-08)。本阶段只完成样本数据逻辑与SQL，现行人员页流转/共创计算、主看板和通知均未切换新仓，未同步Grok或上线。
+2026-10-08隔离留学样本仓与渠道适配已在本地完成：资源与签约工作簿和现行人员贡献页共用 `workspace_modeling.operations.study_abroad_source`，专用整理后通过 Data Platform 进入 `Work/StudyAbroad/` 独立 Snapshot、指针与运行目录，不改原 BI 工单/现金来源或 `Work/workspace.json`。新增逐行事实、自然月总盘/团队/单独项、个人源投影和核对 SQL；空人工归属排除，部门资源包含删除，个人源资源排除删除，正向毛签只用留学签约金额/小语种实缴金额；签约客户按客户ID/学员编号分别去重，跨系统唯一人数未确认时不拼总。国际市场仅留学总盘单列，不进入语培或线上/线下分团队；无同比、历史补零、抓取、拖拽上传或发布。旧渠道适配实读 Bridge v1.7.0 与 FY26 参考，只复用规范名，新增来源绑定为候选；用户已明确确认三层均为市场活动的资源归高校活动，该规则单独生成留学渠道 Bridge，原 BI Bridge 不改。样本绑定 `snapshot_study_abroad_sample_20260930_v1`，原工作簿独立计算与SQL的25项核对通过，BI配置/仓库/Input哈希前后相同；全部326项回归通过。验收见 `.local/audits/study-abroad-sample-20261008/verification.json` 与客户 `Output/StudyAbroad/run_study_abroad_channels_20261008_verified/channel_review/`；调用及待确认边界见 [接入指南第2.2节](./docs/integration-guide.md#22-隔离留学仓与腾讯更新现行)。本阶段只完成样本数据逻辑与SQL，现行人员页流转/共创计算、主看板和通知均未切换新仓，未同步Grok或上线。
 
 2026-10-08马玥高中留学迁移已在本地完成：原留学名单增加显式 `business_group`，马玥为高中，其余成员大学；移除代码中的大学默认归属，双名单人员保留原语培主岗优先级。马玥从大学个人列表移到高中，在含高中多选组合中显示个人完成与渠道构成；渠道页按经营期间自然窗口，人员页按独立月份及绩效/自然月展示，不建立高中留学部门总量，学校与部门计算不变。新增 `high.abroad` 个人简报复用 `offline_high_school`，大学留学简报移除马玥；简报及附件只显示本人实际工单、当日新增、个人渠道与相关流水，未配置目标不补猜，留学现金仍未接入。生成、预览和投递门禁统一八条消息、原五通道，日期新鲜度、引用哈希及逐消息去重保持原样。看板145项、监控23项回归通过；17期间、68个人窗口及7多选组合回放核验通过，浏览器验证桌面/手机、未来窗口及个人月份独立性，学校内容与布局无差异。工作区同时有另行更新的高中语培月目标，核验以相同最新配置仅切换马玥所属组比较，保留这些既有修改。数据回放绑定 `snapshot_bi_operations_20261003_v14audit`、截至10月2日，不代表线上10月7日数据。证据见 `.local/audits/ma-yue-high-20261008/verification.json`、`browser-check.json`；业务口径见 [管理看板说明](./dashboard_product/management/README.md)。本轮未同步Grok、正式发布、发送或恢复暂停的10:24日推。
 

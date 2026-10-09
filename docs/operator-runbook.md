@@ -1,6 +1,6 @@
 # 本地运维手册
 
-> 2026-10-03：P3 已在 Grok 现有云电脑完成同批构建和只读投递/发布演练。9:45 管理 routine 已启用；10:24 钉钉 routine 保持暂停。P4 旧入口清理收尾中，P5 尚无页面激活成功回执，不把 staging 或 routine enabled 状态当成 live。
+> 2026-10-09验收：腾讯更新脚本、标准历史与10月数据已在Grok验证入仓，新批次仅构建／组包／空跑，尚无本次激活回执。原服务2026-10-03已上线，不能再称P5未完成，也不能把旧暂停记录当当前启停。现有日更会消费当前两仓并发布，尚不调用腾讯抓取；具体状态见 `SYNC.md` 与 `dashboard_product/DEPLOYMENT.md`。
 
 ## 1. 版本和路径
 
@@ -25,7 +25,7 @@ sh tools/install_runtime.sh full
 ```
 
 可选profile为 `core`（DuckDB数据运行时）、`test`（工作簿/图片/日期及项目测试）和 `full`（再增加BI浏览器和通知传输）。`full`不包含宿主PPT、文档转换、音视频或模型SDK。全量测试统一使用 `sh tools/run_tests.sh`，覆盖主测试、看板和监控；PPT Master由宿主全局Skill管理，不在项目extras或预检脚本中安装。已有 `.venv` 不因依赖声明精简被自动卸载，环境更新时按新profile重建即可。
-| Git | 本地 `main` 已包含 Bridge 对齐向导 S3.5；当前工作树状态以 `git status` 为准 |
+| Git | 当前代码版本与改动分别以 `git rev-parse HEAD` 和 `git status` 为准；工作树以 `git worktree list` 核对 |
 
 Harness 是全局工具，不安装到项目目录。`/Users/akechi/.dsh` 可能包含机器配置和凭据，不纳入项目版本控制。
 

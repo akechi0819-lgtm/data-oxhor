@@ -2,9 +2,11 @@
 
 ## 当前状态
 
-Grok 云电脑上的 9:45 routine 已启用，10:24 钉钉投递 routine 保持暂停。P3、P4、P5已完成：2026-10-03正式激活 `run_grok_release_20261003`，18文件哈希与独立HTTP检查通过，旧页面退出。初始Snapshot为 `snapshot_bi_operations_20261002`、数据截至2026-10-01；后续09:45在当天数仓就绪后日更。10:24投递仍暂停。
+2026-10-03原管理服务已正式激活；2026-10-09腾讯源最新批次 `run_grok_tencent_view_final_20261009` 仅完成构建、8条空跑及18文件组包，未在本次执行激活或真发。最近回传的生产batch仍为 `run_management_20261009_111619`，回执未提供实时公网current链接，版本状态需实际activation与站点验证。
 
-9:45 routine 运行 `dashboard_product/deploy/run_management_daily.sh`。环境变量指向已有 warehouse Python、dashboard 根目录、whcustomer 工作区和原 C 层凭据文件；Nginx 配置路径使用已核实的 `/etc/nginx/sites-available/dashboard`：
+09:45看板、10:24投递为原节奏，当前启停须从Grok平台实读；不能沿用旧暂停描述。`run_management_daily.sh` **会发布并激活**，只读取当前两仓、不运行腾讯下载。因此手工验证勿调用该脚本；如果例行启用，后续成功运行会尝试发布当时当前数据，不能将“本次未激活”理解为未来例行被禁止。腾讯日抓尚无接入调度链回执。
+
+09:45例行若已启用，配置的入口为 `dashboard_product/deploy/run_management_daily.sh`。环境变量指向已有 warehouse Python、dashboard 根目录、whcustomer 工作区和原 C 层凭据文件；Nginx 配置路径使用已核实的 `/etc/nginx/sites-available/dashboard`：
 
 ```bash
 PYTHON="/path/to/warehouse-venv/bin/python" \
@@ -42,7 +44,7 @@ PROJECT_ROOT="/path/to/dashroot" WORKSPACE="/path/to/whcustomer" ENV_FILE="/path
 bash /path/to/dashroot/monitoring_product/deploy/deliver_management_batch.sh
 ```
 
-当前源码投递合同覆盖原 5 个钉钉通道（`offline_youth`、`offline_high_school`、`offline_university`、`online_private`、`online_platform`）和 8 条消息。2026-10-08新增高中留学个人简报；高中、大学与线上平台各有两条消息共用各自原群。高中留学只展示该组留学人员的个人完成、渠道构成与个人流水，不生成部门完成。该变更需与监控投递校验同批同步，旧七条消息批次不用于新合同投递。10:24 routine 仍暂停，不在部署中恢复它。
+当前源码投递合同覆盖原 5 个钉钉通道（`offline_youth`、`offline_high_school`、`offline_university`、`online_private`、`online_platform`）和 8 条消息。2026-10-08新增高中留学个人简报；高中、大学与线上平台各有两条消息共用各自原群。高中留学只展示该组留学人员的个人完成、渠道构成与个人流水，不生成部门完成。该变更需与监控投递校验同批同步，旧七条消息批次不用于新合同投递。本部署说明不启停投递例行；实际状态以平台为准。
 
 ## 静态发布与激活
 
