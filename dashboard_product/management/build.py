@@ -209,7 +209,16 @@ def build(args):
     body = aggregate(facts, people, abroad_people, targets, read(abroad_target_path), read(online_target_path), through, abroad_source=abroad_source)
     personnel_resource_path = ws / SOURCE_DIRECTORY / RESOURCE_FILENAME
     personnel_transfer_path = ws / SOURCE_DIRECTORY / TRANSFER_FILENAME
-    personnel_sources = load_sources(personnel_resource_path, personnel_transfer_path)
+    from data_acquisition.jobs.study_abroad_snapshot_history import load_normalized_history
+    personnel_standard = load_normalized_history(ws, args.study_abroad_snapshot_id, args.run_id + '_personnel')
+    personnel_sources = load_sources(personnel_resource_path, personnel_transfer_path,
+                                    normalized_source=personnel_standard,
+                                    normalized_source_hashes={str(path): sha(path) for path in study_source['source_paths']})
+    history_receipts = personnel_standard['source_metadata']
+    for kind, receipt in history_receipts['query_receipts'].items():
+        receipts.append({'schema_version': 'controlled_query_result.v2', 'status': 'passed',
+                         'snapshot_id': args.study_abroad_snapshot_id,
+                         'run_id': history_receipts['query_run_ids'][kind], 'receipt': receipt})
     personnel_months = [period['id'] for period in body['periods']
                         if re.fullmatch(r'\d{4}-\d{2}', period['id']) and period['id'] <= as_of[:7]]
     personnel_coverage = {**coverage, 'orders_end': min(coverage['orders_end'], through.isoformat()),

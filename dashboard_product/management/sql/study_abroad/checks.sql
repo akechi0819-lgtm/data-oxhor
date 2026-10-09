@@ -23,6 +23,7 @@ SELECT source_kind, COUNT(*) AS source_rows,
   SUM(CASE WHEN market_eligible AND resource_status = '删除' THEN 1 ELSE 0 END) AS deleted_resource_rows,
   SUM(CASE WHEN market_eligible AND amount = 0 THEN 1 ELSE 0 END) AS zero_amount_rows,
   SUM(CASE WHEN market_eligible AND amount < 0 THEN 1 ELSE 0 END) AS negative_amount_rows,
+  SUM(CASE WHEN market_eligible AND source_kind <> 'resources' AND amount IS NULL THEN 1 ELSE 0 END) AS missing_amount_rows,
   MIN(event_date) AS first_date, MAX(event_date) AS last_date
 FROM combined c CROSS JOIN params p
 WHERE c.event_date >= p.start_date AND c.event_date < p.end_date

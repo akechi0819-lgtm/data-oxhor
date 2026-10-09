@@ -355,15 +355,15 @@ class StudyAbroadWarehouseTests(unittest.TestCase):
                           if row.get("scope") == "supplemental"
                           and row.get("segment_id") == "unassigned")
 
-        # Department counts include deleted records; personal counts exclude only them.
+        # Department counts include deleted/recalled records; personal counts exclude both.
         self.assertEqual(3, offline["resource_count"])
-        self.assertEqual(2, offline["personal_resource_count"])
+        self.assertEqual(1, offline["personal_resource_count"])
         self.assertEqual(1, online["resource_count"])
         self.assertEqual(1, international["resource_count"])
         self.assertEqual(1, ssc["resource_count"])
         self.assertEqual(1, unassigned["resource_count"])
         self.assertEqual(7, total["resource_count"])
-        self.assertEqual(6, total["personal_resource_count"])
+        self.assertEqual(5, total["personal_resource_count"])
 
         # Eight contracts for one person contribute eight amounts and one customer.
         # The same customer also signs online, so the total remains one customer.

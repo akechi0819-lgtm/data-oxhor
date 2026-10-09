@@ -162,6 +162,45 @@ def _snapshot_sources(workspace: Path, snapshot_id: str, expected_company_id: st
     for kind, path in lineage_files.items():
         if source_hashes.get(kind) != _sha256(path):
             raise ValueError(f"留学冻结来源hash与source_lineage不一致：{kind}")
+    historical_sources = []
+    for row in lineage.get("origin_files", []):
+        frozen_path = _safe_relative(run_root, row.get("path"), allowed_root=run_root,
+                                     label="留学月份来源")
+        if row.get("sha256") != _sha256(frozen_path):
+            raise ValueError("留学月份原始来源与source_lineage摘要不一致")
+        historical_sources.append(frozen_path)
+    if "history_reader" in source_hashes:
+        history_reader = project_root / "data_acquisition/jobs/study_abroad_history.py"
+        if source_hashes["history_reader"] != _sha256(history_reader):
+            raise ValueError("留学月份保留reader与source_lineage摘要不一致")
+        historical_sources.append(history_reader)
+    for key, filename in (("identity_reader", "study_abroad_identity.py"),
+                          ("legacy_reader", "study_abroad_legacy.py"),
+                          ("standard_source_reader", "study_abroad_standard_source.py"),
+                          ("snapshot_history_reader", "study_abroad_snapshot_history.py")):
+        if key in source_hashes:
+            helper = project_root / "data_acquisition/jobs" / filename
+            if source_hashes[key] != _sha256(helper):
+                raise ValueError(f"留学历史清洗源码与source_lineage不一致：{key}")
+            historical_sources.append(helper)
+    normalized_history = lineage.get("normalized_history")
+    if normalized_history:
+        parent = Path(normalized_history["warehouse"]).resolve()
+        if (not parent.is_relative_to(runs_root.resolve()) or parent.name != "warehouse.duckdb"
+                or parent.parent.name != normalized_history["source_snapshot_id"]):
+            raise ValueError("标准化留学历史Snapshot路径不匹配")
+        parent_manifest = parent.parent / "snapshot_manifest.json"
+        parent_lineage = parent.parents[3] / "source_lineage.json"
+        if (_sha256(parent_manifest) != normalized_history["snapshot_manifest_sha256"]
+                or _sha256(parent_lineage) != normalized_history["source_lineage_sha256"]):
+            raise ValueError("标准化留学历史Snapshot证据发生变化")
+        historical_sources.extend([parent_manifest, parent_lineage])
+        for kind, receipt in normalized_history["query_receipts"].items():
+            read_query_result({"schema_version": "controlled_query_result.v2", "status": "passed", "snapshot_id": normalized_history["source_snapshot_id"],
+                               "run_id": normalized_history["query_run_ids"][kind], "receipt": receipt},
+                              output_root=workspace / "Output/StudyAbroad/历史查询回执")
+            historical_sources.append(workspace / "Output/StudyAbroad/历史查询回执" /
+                                      normalized_history["query_run_ids"][kind] / receipt["path"])
     snapshot_source_sha = prepared_sources[0].get("sha256")
     if not isinstance(snapshot_source_sha, str) or _sha256(prepared_source) != snapshot_source_sha:
         raise ValueError("Snapshot规范化来源SHA与source_lineage不一致")
@@ -176,6 +215,7 @@ def _snapshot_sources(workspace: Path, snapshot_id: str, expected_company_id: st
     source_paths = _unique_paths([
         workspace_config_path, pointer_path, lineage_path, snapshot_manifest_path,
         raw_source, prepared_source, people_roster, abroad_roster,
+        *historical_sources,
         normalizer_path, reader_path,
         bridge_path, reference_path, decision_path, sql_path,
         Path(__file__), Path(__file__).with_name("study_abroad_channels.py"),

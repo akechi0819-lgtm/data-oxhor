@@ -39,14 +39,14 @@ LANGUAGE_HEADERS = [
 REQUIRED_HEADERS = {
     "资源": (
         "资源ID\n（跟系统一致）", "分单日期\n（跟系统一致）",
-        "市场资源归属人\n需要市场老师判定", "线下组资源\n是否退回", "市场活动",
+        "市场资源归属人\n需要市场老师判定",
     ),
     "留学签约": (
         "记录id", "合同编号", "归档月份", "归档日期",
-        "市场资源归属人\n需要市场老师判定", "签约金额", "91资源市场活动",
+        "市场资源归属人\n需要市场老师判定", "签约金额",
     ),
     "小语种签约": (
-        "资源ID", "工单ID", "业务日期", "市场资源归属人\n需要市场老师判定", "实缴金额",
+        "工单ID", "业务日期", "市场资源归属人\n需要市场老师判定", "实缴金额",
     ),
 }
 
@@ -272,7 +272,10 @@ class StudyAbroadReaderTests(unittest.TestCase):
                     headers = {name: list(items) for name, items in default_headers.items()}
                     headers[sheet_name].remove(missing_header)
                     _write_workbook(path, headers=headers)
-                    with self.assertRaisesRegex(ValueError, f"{sheet_name} 缺少关键字段"):
+                    expected_error = (f"{sheet_name}前10行未找到关键字段表头"
+                                      if sheet_name == "资源"
+                                      else f"{sheet_name} 缺少关键字段")
+                    with self.assertRaisesRegex(ValueError, expected_error):
                         read_sources(path)
 
     def test_source_hash_is_checked_before_and_after_reading(self) -> None:

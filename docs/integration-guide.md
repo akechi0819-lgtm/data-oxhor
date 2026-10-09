@@ -106,6 +106,8 @@ python3 -m interfaces.data_platform query --help
 
 ### 2.2 隔离留学样本仓（2026-10-08）
 
+2026-10-09新增腾讯完整Excel导出与月份保留能力，运行入口及当前验收边界见 [腾讯文档留学来源抓取](./tencent-docs-study-source.md)。下文单工作簿命令仍可用于明确完整输入；本次新抓取仅在候选目录验证，正式持续更新尚未切换。
+
 本阶段只验证同一客户的留学来源与 SQL。主工作区 `Work/workspace.json`、`Input/Data/br_work_orders`、`Input/Data/br_cash` 不变；留学仓使用独立 `Work/StudyAbroad/current.json`、`Work/StudyAbroad/Runs/<run_id>/data/snapshots/<snapshot_id>/warehouse.duckdb`。每次输入必须是明确指定的一份完整工作簿，不拼历史、不猜当前文件、不抓腾讯文档、不提供拖拽上传，也不接入生产看板。旧留学 Snapshot 保留；ID 不可重复，失败不切换独立指针。
 
 三张业务 Sheet 的只读读取统一在 `workspace_modeling.operations.study_abroad_source`，现有人员贡献页复用该模块。整理步骤只输出 `resources`、`contracts`、`languages` 三张结构明确的表，忽略隐藏透视表和签约尾注；原文件、花名册与整理产物留在私有运行目录，行内保留原文件哈希、Sheet、Excel 行号。部门归属由人工市场归属人、工作簿“筛选项”映射和现有花名册确定，不执行或依赖团队列公式，不从顾问、活动或描述猜归属。

@@ -88,16 +88,54 @@ def _number(value, money=False):
     return int(value) if value == value.to_integral_value() else float(value)
 
 
-def load_sources(resource_path: Path, transfer_path: Path):
-    """只读页内参考输入，不导入Snapshot、Bridge或管理事实。"""
+def _personnel_snapshot_rows(kind, rows):
+    result = []
+    for row in rows:
+        if not isinstance(row, dict):
+            raise ValueError(f'标准留学来源 {kind} 包含无效记录')
+        origin_row_number = row.get('origin_row_number')
+        if origin_row_number in (None, ''):
+            raise ValueError(f'标准留学来源 {kind} 缺少原始行号')
+        converted = {**row, 'source_row_number': origin_row_number,
+                     '_normalized_snapshot_row': True}
+        if kind == 'resources':
+            converted['date'] = row.get('event_date')
+        elif kind == 'contracts':
+            converted['archive_date'] = row.get('event_date')
+        else:
+            converted['date'] = row.get('event_date')
+        result.append(converted)
+    return result
+
+
+def _has_resource_record(row):
+    return bool(resource_id(row.get('resource_id')) or _text(row.get('record_key')))
+
+
+def load_sources(resource_path: Path, transfer_path: Path, *,
+                 normalized_source=None, normalized_source_hashes=None):
+    """Read the explicit standard source when supplied, otherwise the page workbook."""
     import openpyxl
     result = {'resources': [], 'contracts': [], 'languages': [], 'transfers': [],
-              'resources_connected': resource_path.is_file(),
+              'resources_connected': False,
               'transfers_connected': transfer_path.is_file(), 'source_hashes': {}}
-    if result['resources_connected']:
+    normalized_tables = (normalized_source.get('tables')
+                         if isinstance(normalized_source, dict) else None)
+    if normalized_tables is not None:
+        if not isinstance(normalized_tables, dict):
+            raise ValueError('标准留学来源 tables 必须是对象')
+        for key in ('resources', 'contracts', 'languages'):
+            rows = normalized_tables.get(key)
+            if not isinstance(rows, list):
+                raise ValueError(f'标准留学来源缺少 {key} 记录表')
+            result[key] = _personnel_snapshot_rows(key, rows)
+        result['resources_connected'] = True
+        result['source_hashes'].update(dict(normalized_source_hashes or {}))
+    elif resource_path.is_file():
         study_abroad = read_sources(resource_path)
         for key in ('resources', 'contracts', 'languages'):
             result[key] = study_abroad[key]
+        result['resources_connected'] = True
         result['source_hashes'][str(resource_path)] = study_abroad['source_sha256']
     if result['transfers_connected']:
         result['source_hashes'][str(transfer_path)] = hashlib.sha256(
@@ -267,21 +305,64 @@ def _events(facts, order_rows, sources, people, diagnostics):
                'campaign': source.get('campaign_name') or fact.get('campaign_name'),
                'entry_person': source.get('resource_entry_person'), 'description': source.get('resource_description')}
     seen = {}
+    resource_rows = []
+    latest_resource_dates = {}
+    for row in sources['resources']:
+        rid = resource_id(row.get('resource_id'))
+        record_key = _text(row.get('record_key'))
+        if not rid and not record_key:
+            diagnostics['invalid_abroad_resource_id'] += 1
+            continue
+        owner = _name(row.get('owner'), people)
+        if not owner:
+            diagnostics['blank_abroad_owner' if not _text(row.get('owner')) else 'owner_outside_roster'] += 1
+            continue
+        day = _day(row.get('date'))
+        if not day:
+            raise ValueError('已归属的留学记录缺少统计月份')
+        resource_rows.append((row, rid, record_key, owner, day))
+        if rid:
+            latest_resource_dates[rid] = max(day, latest_resource_dates.get(rid, day))
+
+    rows_by_kind = {
+        'resources': resource_rows,
+        'contracts': [(row, None, _text(row.get('record_key')), None, None)
+                      for row in sources['contracts']],
+        'languages': [(row, None, _text(row.get('record_key')), None, None)
+                      for row in sources['languages']],
+    }
     for kind, metric in (('resources', 'orders'), ('contracts', 'cash'), ('languages', 'cash')):
-        for row in sources[kind]:
+        for row, row_resource_id, record_key, resolved_owner, resource_day in rows_by_kind[kind]:
+            if row.get('_normalized_snapshot_row') and (
+                    row.get('market_eligible') == 'false'
+                    or row.get('personal_eligible') == 'false'
+                    or row.get('segment_id') in {'international_market', 'ssc', 'unassigned'}):
+                continue
             if kind == 'contracts' and not _text(row.get('contract_id')):
                 continue  # 无合同编号的工作表尾部辅助单元格不是签约记录。
-            if kind == 'resources' and not resource_id(row.get('resource_id')):
-                diagnostics['invalid_abroad_resource_id'] += 1
+            if kind == 'resources' and row_resource_id and resource_day < latest_resource_dates[row_resource_id]:
+                diagnostics['superseded_abroad_resource_rows'] += 1
                 continue
+            if kind != 'resources' and row.get('_normalized_snapshot_row'):
+                amount_status = _text(row.get('amount_status')).casefold()
+                if amount_status == 'missing' or row.get('amount') is None:
+                    diagnostics['diagnostics_missing_amount'] += 1
+                    continue
             order_status = _text(row.get('status')) or None if kind == 'resources' else None
             if kind == 'resources' and order_status == '删除':
                 diagnostics['deleted_abroad_orders'] += 1
-            owner = _name(row.get('owner'), people)
+            owner = resolved_owner if kind == 'resources' else _name(row.get('owner'), people)
             if not owner:
                 diagnostics['blank_abroad_owner' if not _text(row.get('owner')) else 'owner_outside_roster'] += 1
                 continue
-            month = _month(row.get('month')) if kind == 'contracts' else _month(_day(row.get('date')))
+            if kind == 'contracts':
+                archive_date = _day(row.get('archive_date'))
+                if not archive_date:
+                    raise ValueError('已归属的留学签约记录缺少归档日期')
+                month = _month(row.get('month'))
+            else:
+                day = resource_day if kind == 'resources' else _day(row.get('date'))
+                month = _month(day)
             if not month:
                 raise ValueError('已归属的留学记录缺少统计月份')
             if kind == 'resources':
@@ -289,9 +370,12 @@ def _events(facts, order_rows, sources, people, diagnostics):
             else:
                 product_scope = 'study_abroad' if kind == 'contracts' else 'small_language'
             value = Decimal(1) if metric == 'orders' else _amount(row.get('amount'))
-            key = (kind, _text(row.get('resource_id')) if kind == 'resources' else
-                   _text(row.get('contract_id')) if kind == 'contracts' else str(row['source_row_number']))
-            identity = (product_scope, month, owner, value)
+            business_key = (row_resource_id or record_key if kind == 'resources' else
+                            _text(row.get('contract_id')) if kind == 'contracts' else
+                            record_key or str(row['source_row_number']))
+            key = (kind, business_key)
+            identity = (product_scope, month, owner, value, order_status,
+                        _text(row.get('campaign')) if kind == 'resources' else '')
             if key in seen:
                 if seen[key] != identity:
                     raise ValueError(f'同一留学记录存在冲突：{key}')
@@ -303,17 +387,22 @@ def _events(facts, order_rows, sources, people, diagnostics):
                    'order_status': order_status,
                    'metric': metric, 'month': month, 'value': value,
                    'owner': owner, 'resource_id': resource_id(row.get('resource_id')),
-                   'work_order_id': row.get('work_order_id'), 'campaign': row.get('campaign')}
+                   'work_order_id': row.get('work_order_id'), 'campaign': row.get('campaign'),
+                   'record_key': row.get('record_key'),
+                   'origin_sha256': row.get('origin_sha256'),
+                   'origin_filename': row.get('origin_filename'),
+                   'origin_sheet': row.get('origin_sheet'),
+                   'origin_row_number': row.get('origin_row_number')}
 
 
 def _validate_resource_scopes(sources, people):
     for row in sources['resources']:
-        if not resource_id(row.get('resource_id')):
+        if not _has_resource_record(row):
             continue
         if not _name(row.get('owner'), people):
             continue
         if not row.get('date'):
-            continue
+            raise ValueError('已归属的留学资源缺少日期')
         _day(row.get('date'))
         _resource_product_scope(row)
 
@@ -324,7 +413,7 @@ def _end(month):
 
 
 def _coverage(sources, month, bi_coverage):
-    abroad_order_months = {_month(_day(r.get('date'))) for r in sources['resources'] if resource_id(r.get('resource_id'))}
+    abroad_order_months = {_month(_day(r.get('date'))) for r in sources['resources'] if _has_resource_record(r)}
     abroad_cash_months = {_month(r.get('month')) for r in sources['contracts'] if _text(r.get('contract_id'))}
     abroad_cash_months |= {_month(_day(r.get('date'))) for r in sources['languages'] if _day(r.get('date'))}
     source_dates = [_day(r.get('date')) for r in sources['transfers'] if r.get('date')]
@@ -333,7 +422,7 @@ def _coverage(sources, month, bi_coverage):
         start, end = bi_coverage[f'{metric}_start'], bi_coverage[f'{metric}_end']
         training[f'{metric}_through'] = min(end, _end(month)) if start[:7] <= month <= end[:7] else None
     order_dates = [_day(r.get('date')) for r in sources['resources']
-                   if resource_id(r.get('resource_id')) and _month(_day(r.get('date'))) == month]
+                   if _has_resource_record(r) and _month(_day(r.get('date'))) == month]
     cash_dates = [_day(r.get('archive_date')) for r in sources['contracts']
                   if _text(r.get('contract_id')) and _month(r.get('month')) == month and r.get('archive_date')]
     cash_dates += [_day(r.get('date')) for r in sources['languages'] if _month(_day(r.get('date'))) == month]
@@ -348,7 +437,7 @@ def _coverage(sources, month, bi_coverage):
 def _scope_coverage(sources, month, people):
     dates = {scope: {'orders': [], 'cash': []} for scope in PRODUCT_SCOPES}
     for row in sources['resources']:
-        if not resource_id(row.get('resource_id')):
+        if not _has_resource_record(row):
             continue
         day = _day(row.get('date'))
         if not day or _month(day) != month:
@@ -438,7 +527,7 @@ def build_contribution(facts, order_rows, people_config, abroad_people_config, s
                                        or order_status_allowed(
                                            event.get('order_status'), DEFAULT_ORDER_STATUS_MODE))
                     if pending_allowed:
-                        pending.append({**{key: event.get(key) for key in ('key', 'source', 'source_row_number', 'month', 'resource_id', 'work_order_id', 'line', 'metric', 'product_scope', 'order_status')},
+                        pending.append({**{key: event.get(key) for key in ('key', 'source', 'source_row_number', 'month', 'resource_id', 'work_order_id', 'line', 'metric', 'product_scope', 'order_status', 'record_key', 'origin_sha256', 'origin_filename', 'origin_sheet', 'origin_row_number')},
                                     'reason': reason, 'affected_people': affected,
                                     'source_value': str(event['value']), 'campaign_name': event.get('campaign')})
                         for name in affected:
@@ -461,7 +550,7 @@ def build_contribution(facts, order_rows, people_config, abroad_people_config, s
                     status_totals[mode][(event['month'], name)][bucket][event['metric']] += amount
                     for scope in scopes:
                         status_scope_totals[mode][(event['month'], name, scope)][bucket][event['metric']] += amount
-                ledger.append({**{key: event.get(key) for key in ('key', 'source', 'source_row_number', 'month', 'resource_id', 'work_order_id', 'line', 'metric', 'product_scope', 'order_status')},
+                ledger.append({**{key: event.get(key) for key in ('key', 'source', 'source_row_number', 'month', 'resource_id', 'work_order_id', 'line', 'metric', 'product_scope', 'order_status', 'record_key', 'origin_sha256', 'origin_filename', 'origin_sheet', 'origin_row_number')},
                                'person': name, 'bucket': bucket, 'weight': str(weight),
                                'source_value': str(event['value']), 'credited_value': str(amount), 'rule': rule,
                                'inclusion': included,

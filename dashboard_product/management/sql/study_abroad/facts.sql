@@ -3,13 +3,15 @@
 WITH params AS (
   SELECT CAST(? AS DATE) AS start_date, CAST(? AS DATE) AS end_date
 ), resources AS (
-  SELECT *, ROW_NUMBER() OVER (PARTITION BY resource_id ORDER BY CAST(origin_row_number AS BIGINT)) AS key_row
+  SELECT *, ROW_NUMBER() OVER (
+    PARTITION BY COALESCE(NULLIF(resource_id, ''), record_key)
+    ORDER BY TRY_CAST(event_date AS DATE) DESC, CAST(origin_row_number AS BIGINT)) AS key_row
   FROM landing.study_abroad_market__resources
 ), contracts AS (
   SELECT *, ROW_NUMBER() OVER (PARTITION BY contract_id ORDER BY CAST(origin_row_number AS BIGINT)) AS key_row
   FROM landing.study_abroad_market__contracts
 ), combined AS (
-  SELECT 'resource' AS fact_type, 'resources:' || resource_id AS fact_id,
+  SELECT 'resource' AS fact_type, 'resources:' || COALESCE(NULLIF(resource_id, ''), record_key) AS fact_id,
     CASE WHEN consultation_type = '小语种' THEN 'small_language' ELSE 'study_abroad' END AS business_line,
     TRY_CAST(event_date AS DATE) AS event_date, owner, source_owner, market_group, segment_id,
     CAST(team_eligible AS BOOLEAN) AS team_eligible,
@@ -45,7 +47,7 @@ WITH params AS (
 SELECT c.*,
   CASE WHEN fact_type = 'resource' THEN 1 ELSE 0 END AS resource_count,
   CASE WHEN fact_type = 'resource' AND personal_eligible
-    AND COALESCE(resource_status, '') <> '删除' THEN 1 ELSE 0 END AS personal_resource_count,
+    AND COALESCE(resource_status, '') NOT IN ('删除', '回收') THEN 1 ELSE 0 END AS personal_resource_count,
   CASE WHEN fact_type = 'signature' AND gross_amount > 0 THEN gross_amount
     ELSE 0::DECIMAL(38,2) END AS gross_signing_amount,
   fact_type = 'signature' AND gross_amount > 0 AS positive_signature
