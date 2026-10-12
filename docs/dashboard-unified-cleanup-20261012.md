@@ -31,3 +31,9 @@ BI完整当前Snapshot为 `snapshot_bi_operations_20261012_full_orders_1640`，�
 Grok美国云端的BI Cookie注入适配保留在云端；本机继续现有弹窗登录／下载。五份专用差异（auth_sessions、bi_downloads、rebuild_bi_warehouse、daily_warehouses、run_daily_warehouses）已回传inbox备查，不纳入本机源码合并，也不由本次A包覆盖。不得用这些差异证明本机需要改登录方式。
 
 同步只安装源码、数据并构建验收，不自动激活公网或补发通知。今天本机已发送的8条消息不得重发，云端现有凭据、共享软链、原例行时刻／启停保持原状。实际安装成功以回传逐文件SHA、快照门禁与构建回执为准，包已准备不等于安装完成。
+
+## Grok真实安装验收
+
+v2包源码提交`aabe6fcb`。A包53文件／73目标摘要全部匹配；B包81文件，两个指针的已用Snapshot编号并集是唯一预期差异，两个原文已回传并在本机核对，其他79文件含完整不可变两仓全部字节一致。包SHA、5份受保护云端登录适配和4项规范业务摘要均独立比对通过。云端显式同名新批次`run_management_unified_portable_20261012`截至10月11日，208项测试、77子测试、8条空跑和18文件组包通过。
+
+云端原生产通知batch仍为`run_management_20261011_095118`，本次安装与预览没有公网激活、真实发送、重新抓数或改例行。回执位于`.local/sync/inbox/dashboard-unified-20261012/receipt.json`；独立核验位于`.local/audits/dashboard-unified-20261012/cloud_sync_verification.json`。费用后续继续由用户传表，无自动费用抓取。本机弹窗下载与云端注入保持各自适配。
