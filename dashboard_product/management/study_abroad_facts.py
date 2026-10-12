@@ -18,6 +18,8 @@ from dashboard_product.management.study_abroad_channels import (
 from dashboard_product.management.study_abroad_grade import load_grade_evidence
 from dashboard_product.management.study_abroad_query import SQL_ROOT, query_sample
 from data_platform.query.evidence import read_query_result, resolve_file, verify_receipt
+from data_platform.snapshots.ingest import SNAPSHOT_ID
+from interfaces.data_platform import RUN_ID
 
 
 SOURCE_ID = "study_abroad_market"
@@ -25,6 +27,7 @@ SOURCE_SCHEMA = "study_abroad_warehouse.v1"
 START_DATE = date(2026, 6, 1)
 PENDING_CHANNEL = "渠道待确认"
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
+_HISTORY_KINDS = ("resources", "contracts", "languages")
 _RESOURCE_ID_PREFIX = re.compile(r"^(?:资源\s*ID|ID)\s*[:：]\s*", re.IGNORECASE)
 
 
@@ -210,23 +213,68 @@ def _snapshot_sources(workspace: Path, snapshot_id: str, expected_company_id: st
                 raise ValueError(f"留学历史清洗源码与source_lineage不一致：{key}")
             historical_sources.append(helper)
     normalized_history = lineage.get("normalized_history")
-    if normalized_history:
-        parent = Path(normalized_history["warehouse"]).resolve()
-        if (not parent.is_relative_to(runs_root.resolve()) or parent.name != "warehouse.duckdb"
-                or parent.parent.name != normalized_history["source_snapshot_id"]):
-            raise ValueError("标准化留学历史Snapshot路径不匹配")
+    if "normalized_history" in lineage:
+        if not isinstance(normalized_history, dict):
+            raise ValueError("标准化留学历史Snapshot证据格式无效")
+        source_run_id = normalized_history.get("source_run_id")
+        source_snapshot_id = normalized_history.get("source_snapshot_id")
+        if not isinstance(source_run_id, str) or not RUN_ID.fullmatch(source_run_id):
+            raise ValueError("标准化留学历史source_run_id无效")
+        if not isinstance(source_snapshot_id, str) or not SNAPSHOT_ID.fullmatch(source_snapshot_id):
+            raise ValueError("标准化留学历史source_snapshot_id无效")
+        if normalized_history.get("company_id") != expected_company_id:
+            raise ValueError("标准化留学历史Snapshot客户身份不匹配")
+        # `warehouse` is the producer machine's captured path. Resolve the
+        # actual artifact only from validated IDs inside this workspace.
+        if not isinstance(normalized_history.get("warehouse"), str) or not normalized_history["warehouse"]:
+            raise ValueError("标准化留学历史warehouse捕获位置缺失")
+        runs_root_resolved = runs_root.resolve()
+        parent_run_root = runs_root_resolved / source_run_id
+        parent = parent_run_root / "data" / "snapshots" / source_snapshot_id / "warehouse.duckdb"
+        resolved_parent = parent.resolve()
+        if (resolved_parent != parent or not resolved_parent.is_relative_to(runs_root_resolved)
+                or not resolved_parent.is_file()):
+            raise ValueError("标准化留学历史Snapshot在当前工作区中的路径无效")
         parent_manifest = parent.parent / "snapshot_manifest.json"
-        parent_lineage = parent.parents[3] / "source_lineage.json"
-        if (_sha256(parent_manifest) != normalized_history["snapshot_manifest_sha256"]
-                or _sha256(parent_lineage) != normalized_history["source_lineage_sha256"]):
+        parent_lineage = parent_run_root / "source_lineage.json"
+        manifest, _ = _read_json(parent_manifest)
+        parent_lineage_data, _ = _read_json(parent_lineage)
+        if (manifest.get("run_id") != source_run_id
+                or manifest.get("snapshot_id") != source_snapshot_id
+                or parent_lineage_data.get("schema_version") != SOURCE_SCHEMA
+                or parent_lineage_data.get("company_id") != expected_company_id
+                or parent_lineage_data.get("run_id") != source_run_id
+                or parent_lineage_data.get("snapshot_id") != source_snapshot_id):
+            raise ValueError("标准化留学历史Snapshot的本地manifest/lineage身份不匹配")
+        manifest_sha256 = normalized_history.get("snapshot_manifest_sha256")
+        lineage_sha256 = normalized_history.get("source_lineage_sha256")
+        if (not isinstance(manifest_sha256, str) or not _SHA256.fullmatch(manifest_sha256)
+                or not isinstance(lineage_sha256, str) or not _SHA256.fullmatch(lineage_sha256)
+                or _sha256(parent_manifest) != manifest_sha256
+                or _sha256(parent_lineage) != lineage_sha256):
             raise ValueError("标准化留学历史Snapshot证据发生变化")
         historical_sources.extend([parent_manifest, parent_lineage])
-        for kind, receipt in normalized_history["query_receipts"].items():
+        query_receipts = normalized_history.get("query_receipts")
+        query_run_ids = normalized_history.get("query_run_ids")
+        if (not isinstance(query_receipts, dict) or set(query_receipts) != set(_HISTORY_KINDS)
+                or not isinstance(query_run_ids, dict) or set(query_run_ids) != set(_HISTORY_KINDS)):
+            raise ValueError("标准化留学历史查询证据不完整")
+        if (any(not isinstance(query_run_ids[kind], str)
+                or not query_run_ids[kind].endswith(f"_history_{kind}") for kind in _HISTORY_KINDS)
+                or len(set(query_run_ids.values())) != len(_HISTORY_KINDS)):
+            raise ValueError("标准化留学历史查询run_id与查询类型不匹配")
+        history_output_root = workspace / "Output/StudyAbroad/历史查询回执"
+        for kind in _HISTORY_KINDS:
+            query_run_id = query_run_ids[kind]
+            receipt = query_receipts[kind]
+            if not isinstance(query_run_id, str) or not RUN_ID.fullmatch(query_run_id):
+                raise ValueError(f"标准化留学历史{kind} query_run_id无效")
+            if not isinstance(receipt, dict):
+                raise ValueError(f"标准化留学历史{kind} query_receipt无效")
             read_query_result({"schema_version": "controlled_query_result.v2", "status": "passed", "snapshot_id": normalized_history["source_snapshot_id"],
-                               "run_id": normalized_history["query_run_ids"][kind], "receipt": receipt},
-                              output_root=workspace / "Output/StudyAbroad/历史查询回执")
-            historical_sources.append(workspace / "Output/StudyAbroad/历史查询回执" /
-                                      normalized_history["query_run_ids"][kind] / receipt["path"])
+                               "run_id": query_run_id, "receipt": receipt},
+                              output_root=history_output_root)
+            historical_sources.append(history_output_root / query_run_id / receipt["path"])
     snapshot_source_sha = prepared_sources[0].get("sha256")
     if not isinstance(snapshot_source_sha, str) or _sha256(prepared_source) != snapshot_source_sha:
         raise ValueError("Snapshot规范化来源SHA与source_lineage不一致")

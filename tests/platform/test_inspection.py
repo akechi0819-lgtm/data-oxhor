@@ -171,13 +171,13 @@ class WorkbookInspectionTests(unittest.TestCase):
         extras = project["optional-dependencies"]
         self.assertEqual(
             extras["test"],
-            ["openpyxl==3.1.5", "Pillow==12.3.0", "python-dateutil==2.9.0.post0"],
+            ["openpyxl==3.1.5", "Pillow==12.3.0", "python-dateutil==2.9.0.post0", "pytest==9.1.1"],
         )
         self.assertEqual(
             extras["full"],
             [
                 "openpyxl==3.1.5", "Pillow==12.3.0", "python-dateutil==2.9.0.post0",
-                "playwright==1.62.0", "pexpect==4.9.0", "certifi==2026.7.22",
+                "pytest==9.1.1", "playwright==1.62.0", "pexpect==4.9.0", "certifi==2026.7.22",
             ],
         )
         self.assertNotIn("ppt", extras)

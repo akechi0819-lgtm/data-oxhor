@@ -64,7 +64,7 @@ python3 -m data_acquisition.jobs.build_study_abroad_warehouse \
 
 一次性原件清洗使用 `--legacy-file` 明确提供六月、七月、八月原件，并以 `--legacy-date-preference full` 采用已确认日期规则。规范源的三张表为 `resources/contracts/languages`，保留日期、金额、归属、团队、客户键、技术记录键及原文件摘要／页签／行号。`--standardized-source` 直接校验并导入已清洗的三表源，适用于Grok的B包，不重新解析旧原件或颜色。
 
-后续通过 `--history-snapshot-id` 从明确的当前留学Snapshot受控读取标准历史，保留非刷新月份；只替换指定月份，空月也明确清空，不逐日追加。历史查询回执、父Snapshot的manifest/lineage摘要及读取器版本均记录到新版本。
+后续通过 `--history-snapshot-id` 从明确的当前留学Snapshot受控读取标准历史，保留非刷新月份；只替换指定月份，空月也明确清空，不逐日追加。历史查询回执、父Snapshot的manifest/lineage摘要及读取器版本均记录到新版本。`normalized_history.warehouse`保留读取时捕获的原机器路径作为历史证据；跨工作区读取时只按`source_run_id`与`source_snapshot_id`在当前`Work/StudyAbroad/Runs/`中定位父Snapshot，并核验本地manifest、lineage及三份受控查询证据，不使用捕获路径定位数据。
 
 一键下载与月份更新入口：
 

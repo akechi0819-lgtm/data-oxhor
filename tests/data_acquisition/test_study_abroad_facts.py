@@ -4,12 +4,13 @@ from __future__ import annotations
 import hashlib
 import json
 from pathlib import Path
+import shutil
 import tempfile
 import unittest
 from unittest.mock import patch
 
 from data_acquisition.jobs.work_order_cleaning import WorkOrderReference
-from dashboard_product.management.study_abroad_facts import load_study_abroad_facts
+from dashboard_product.management.study_abroad_facts import _snapshot_sources, load_study_abroad_facts
 
 
 COMPANY_ID = "company_study_facts_test"
@@ -198,6 +199,85 @@ def _fact_row(*, fact_type, fact_id, business_line, event_date, segment_id,
 
 
 class StudyAbroadFactsTests(unittest.TestCase):
+    def test_normalized_history_resolves_local_snapshot_by_ids_after_workspace_copy(self):
+        from data_acquisition.jobs.study_abroad_snapshot_history import load_normalized_history
+        from tests.data_acquisition.test_study_abroad_snapshot_history import _seed_normalized_snapshot
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            mac_workspace, source_snapshot = _seed_normalized_snapshot(root / "mac-workspace")
+            history_run_id = "run_study_abroad_cross_root_history"
+            history = load_normalized_history(mac_workspace, source_snapshot["snapshot_id"], history_run_id)
+            metadata = history["source_metadata"]
+
+            paths = _make_workspace(root / "grok-workspace")
+            workspace = paths["workspace"]
+            # Copy the frozen parent run and the three query-evidence directories
+            # into the other workspace, as done by the sync package.
+            source_run = mac_workspace / "Work/StudyAbroad/Runs" / metadata["source_run_id"]
+            local_run = workspace / "Work/StudyAbroad/Runs" / metadata["source_run_id"]
+            shutil.copytree(source_run, local_run)
+            source_output = mac_workspace / "Output/StudyAbroad/历史查询回执"
+            local_output = workspace / "Output/StudyAbroad/历史查询回执"
+            local_output.mkdir(parents=True)
+            for query_run_id in metadata["query_run_ids"].values():
+                shutil.copytree(source_output / query_run_id, local_output / query_run_id)
+
+            # The child workspace belongs to the same company as the copied
+            # parent Snapshot, while its captured Mac warehouse path stays intact.
+            company_id = metadata["company_id"]
+            workspace_config_path = workspace / "Work/workspace.json"
+            workspace_config = json.loads(workspace_config_path.read_text(encoding="utf-8"))
+            workspace_config["company_id"] = company_id
+            workspace_config_path.write_text(json.dumps(workspace_config), encoding="utf-8")
+            pointer_path = paths["pointer"]
+            pointer = json.loads(pointer_path.read_text(encoding="utf-8"))
+            pointer["company_id"] = company_id
+            pointer_path.write_text(json.dumps(pointer), encoding="utf-8")
+            lineage_path = paths["lineage"]
+            lineage = json.loads(lineage_path.read_text(encoding="utf-8"))
+            lineage["company_id"] = company_id
+            lineage["source_hashes"]["snapshot_history_reader"] = _sha(
+                Path(__file__).resolve().parents[2] / "data_acquisition/jobs/study_abroad_snapshot_history.py"
+            )
+            lineage["normalized_history"] = metadata
+            lineage_path.write_text(json.dumps(lineage, ensure_ascii=False), encoding="utf-8")
+            bridge_path = paths["bridge"]
+            bridge = json.loads(bridge_path.read_text(encoding="utf-8"))
+            bridge["company_id"] = company_id
+            bridge_path.write_text(json.dumps(bridge), encoding="utf-8")
+
+            captured_path = Path(metadata["warehouse"])
+            local_warehouse = local_run / "data/snapshots" / metadata["source_snapshot_id"] / "warehouse.duckdb"
+            self.assertNotEqual(captured_path, local_warehouse)
+            self.assertTrue(local_warehouse.is_file())
+            context = _snapshot_sources(workspace, SNAPSHOT_ID, company_id)
+
+            self.assertEqual(context["lineage"]["normalized_history"]["warehouse"], str(captured_path))
+            self.assertIn(local_run / "data/snapshots" / metadata["source_snapshot_id"] / "snapshot_manifest.json",
+                          context["source_paths"])
+            self.assertIn(local_run / "source_lineage.json", context["source_paths"])
+            self.assertNotIn(captured_path, context["source_paths"])
+
+            for field, invalid in (("source_run_id", "../../outside"),
+                                   ("source_snapshot_id", "snapshot_../outside")):
+                changed = json.loads(lineage_path.read_text(encoding="utf-8"))
+                changed["normalized_history"][field] = invalid
+                lineage_path.write_text(json.dumps(changed, ensure_ascii=False), encoding="utf-8")
+                with self.assertRaisesRegex(ValueError, f"{field}无效"):
+                    _snapshot_sources(workspace, SNAPSHOT_ID, company_id)
+                lineage_path.write_text(json.dumps(lineage, ensure_ascii=False), encoding="utf-8")
+
+            moved_run = local_run.with_name(local_run.name + "_local_copy")
+            local_run.rename(moved_run)
+            try:
+                local_run.symlink_to(source_run, target_is_directory=True)
+                with self.assertRaisesRegex(ValueError, "当前工作区中的路径无效"):
+                    _snapshot_sources(workspace, SNAPSHOT_ID, company_id)
+            finally:
+                local_run.unlink()
+                moved_run.rename(local_run)
+
     def test_independent_source_facts_keep_supplemental_amounts_and_grade_channels(self):
         with tempfile.TemporaryDirectory() as directory:
             paths = _make_workspace(Path(directory))
