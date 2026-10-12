@@ -11,6 +11,4 @@ fi
 
 export PYTHONDONTWRITEBYTECODE=1
 cd "$repo_root"
-"$venv/bin/python" -B -m unittest discover -s tests -t . -p 'test_*.py' "$@"
-"$venv/bin/python" -B -m unittest discover -s dashboard_product/tests -p 'test_*.py' "$@"
-"$venv/bin/python" -B -m unittest discover -s monitoring_product/tests -p 'test_*.py' "$@"
+"$venv/bin/python" -B -m pytest tests dashboard_product/tests dashboard_product/management/tests monitoring_product/tests "$@"

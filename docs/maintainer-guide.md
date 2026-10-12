@@ -6,7 +6,7 @@
 
 - Python 要求 `>=3.12`；运行时核心依赖 DuckDB `1.5.5`。
 - 安装开发测试环境：`sh tools/install_runtime.sh test`。
-- 运行完整回归：`sh tools/run_tests.sh -v`；覆盖主测试、看板（含管理融合）和监控，默认不生成字节码缓存。Project Intelligence的MCP协议测试在未独立安装SDK时明确skip。
+- 运行完整回归：`sh tools/run_tests.sh -v`；入口使用项目 `.venv` 中的 pytest，覆盖 `tests`、`dashboard_product/tests`、`dashboard_product/management/tests`、`monitoring_product/tests`，默认不生成字节码缓存。Project Intelligence的MCP协议测试在未独立安装SDK时明确skip。
 - CLI 冒烟：`python3 -m interfaces.data_platform --help`、`python3 -m interfaces.business_pack validate`、`python3 -m interfaces.workspace_modeling --help`、`python3 -m dashboard_product.management.build --help`、`python3 -m monitoring_product.shared_delivery --help`。
 - `dashboard_product/refresh.py` 是仍被管理构建导入的内部 source helper，不是命令行库；不要将 `python -m dashboard_product.refresh` 当作 CLI。
 - 看板回归：`python3 -m unittest discover -s dashboard_product/tests -v`。

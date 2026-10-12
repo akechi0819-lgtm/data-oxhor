@@ -75,7 +75,7 @@
     const calendar=team?.person_calendar;
     const people=board==='prep_high'&&(state.mask&4)?(calendar?.people||[]).filter(r=>r.home_group==='高中'&&r.business_line==='abroad').map(withOrderStatus):[];
     const personalAbroad=people.length?{people,start:calendar.person_start,through:calendar.person_through,caption:'自然期间',showStatusToggle:true,statusMode:state.orderStatusMode}:undefined;
-    FlatTables.render($('flat-board-details'),team,{mode:'both',key:state.period+'|'+state.mask,noAbroad:board==='prep_high',personalAbroad});
+    FlatTables.render($('flat-board-details'),team,{mode:'both',key:state.period+'|'+state.mask,showHeads:board==='university',noAbroad:board==='prep_high',personalAbroad});
   }
   function peopleTable(t) {
     const header='<tr><th>人员</th><th>语培目标</th><th>语培完成</th><th>留学目标</th><th>留学完成</th><th>现金目标（元）</th><th>现金完成</th><th>现金完成率</th><th>人头</th></tr>';

@@ -129,9 +129,10 @@ def build(args):
     from dashboard_product.management.market_totals import attach_market_orders
     from dashboard_product.management.enhancements import selection_views
     from dashboard_product.management.study_abroad_progress import attach_progress
+    from dashboard_product.management.team_scopes import attach_team_scope_views
     from dashboard_product.management.capacity_radar import build_radar
     from dashboard_product.management.personnel_contribution import (
-        SOURCE_DIRECTORY, RESOURCE_FILENAME, TRANSFER_FILENAME,
+        SOURCE_DIRECTORY, RESOURCE_FILENAME,
         load_sources, build_contribution,
     )
     from dashboard_product.management.personnel_history import HISTORY_FILENAME, load_history, apply_history
@@ -208,12 +209,13 @@ def build(args):
     targets = read(training_target_path)
     body = aggregate(facts, people, abroad_people, targets, read(abroad_target_path), read(online_target_path), through, abroad_source=abroad_source)
     personnel_resource_path = ws / SOURCE_DIRECTORY / RESOURCE_FILENAME
-    personnel_transfer_path = ws / SOURCE_DIRECTORY / TRANSFER_FILENAME
     from data_acquisition.jobs.study_abroad_snapshot_history import load_normalized_history
     personnel_standard = load_normalized_history(ws, args.study_abroad_snapshot_id, args.run_id + '_personnel')
-    personnel_sources = load_sources(personnel_resource_path, personnel_transfer_path,
-                                    normalized_source=personnel_standard,
-                                    normalized_source_hashes={str(path): sha(path) for path in study_source['source_paths']})
+    personnel_sources = load_sources(
+        personnel_resource_path,
+        normalized_source=personnel_standard,
+        normalized_source_hashes={str(path): sha(path) for path in study_source['source_paths']},
+    )
     history_receipts = personnel_standard['source_metadata']
     for kind, receipt in history_receipts['query_receipts'].items():
         receipts.append({'schema_version': 'controlled_query_result.v2', 'status': 'passed',
@@ -238,20 +240,21 @@ def build(args):
     old_rows = fetch(HERE / 'sql/baseline_training.sql',
                      ['2025-06-01', (through + timedelta(days=1)).isoformat()], 'baseline')
     market_order_rows = fetch(HERE / 'sql/market_orders.sql',
-                              ['2025-06-01', (through + timedelta(days=1)).isoformat()], 'market_orders')
+                              ['2025-06-01', (through + timedelta(days=1)).isoformat(), study_advisers], 'market_orders')
     attach_market_orders(body['periods'], market_order_rows)
     attach_passive_cash_share(body['periods'], new_student_cash_rows)
+    attach_team_scope_views(body['periods'], facts, market_order_rows, targets, new_student_cash_rows)
     segments = selection_views(body['periods'], facts, people, targets)
     notes = [
-        '市场总盘工单按原被动有效工单范围统计，包含业务组暂无法拆分；业务线按已确认范围独立统计，不与总盘相加。',
+        '语培市场总盘按逐ID被动工单统计，排除明确留学及空团队已确认留学顾问工单；保留真实业务组暂无法拆分和全部状态。',
         '团队按自然月，个人业绩按上月26日至本月25日；线下跨部门工单只计产能，线上虚拟人个人工单和现金按活动、录入人、描述中的姓名独立认领，不改团队归属。',
         '大学原本业务线工单目标不变，另一业务线目标为原月目标10%四舍五入；其他团队不强制下跨业务线目标。',
         '语培人头按被动新生正向报入现金的学员编号去重，不设1500元门槛；同一人员重复学员取最大分摊权重。',
         '留学工单、现金和人头消费独立留学仓，替换旧BI留学来源；小语种计入留学专项。客户ID/学员编号优先，缺编号按确认姓名规则同域暂定去重，跨系统不合成唯一人数；活动现金按各来源实际覆盖，不是利润率。',
         f"活动按当前Snapshot可用历史累计；工单起于{coverage['orders_start']}，现金起于{coverage['cash_start']}，均截至{through}，不保证覆盖活动完整生命周期。",
-        'SSC、国际市场及待确认归属只计留学总盘，不计线上/线下留学团队；界面只单列SSC，国际市场直接计入总完成，私有核对保留归属分项。国际市场不进入语培、虚拟人或个人归属；原BI语培市场总盘不因留学换仓改变。',
+        'SSC及待确认归属只计留学总盘，不计线上/线下留学团队；国际市场资源按真实来源标记进入人员产能，SSC和unassigned范围保持既定规则；语培市场总盘不混入已确认留学工单。',
         '删除、回收工单计入总盘和各团队核算，但不计原个人业绩；现金资格不因关联工单状态改变。',
-        '新版人员产能按自然月、语培/留学本业务拆分自创、接收和输出；删除／回收与死单独立切换，默认排除删除／回收、包含死单，仅影响工单及相关率；人员产能共创算法保留，主看板与通知留学工单、现金及人头消费独立仓事实。',
+        '新版人员产能按自然月、语培/留学本业务拆分自创、接收和输出；BI一级渠道“双分”标记留学到语培，留学Snapshot国际市场标记语培到留学，关联现金保留签约/实缴本行归属；删除／回收与死单独立切换，默认排除删除／回收、包含死单，仅影响工单及相关率；主看板与通知留学工单、现金及人头消费独立仓事实。',
         '留学团队归属以本sheet市场归属人为权威，通过花名册/已确认映射拆分；现金不从关联资源覆盖归属。缺覆盖期间不补零，留学不做同比。',
     ]
     public = {'schema_version': 'dashboard_rebuild.v1', 'metadata': {
@@ -276,7 +279,7 @@ def build(args):
                 'baseline': official, 'current': actual, 'difference': None if actual is None else actual-official,
                 'status': 'not_comparable', 'scope_note': scope_note})
     validate_public_data(public)
-    sources = [Path(__file__), HERE / 'facts.py', HERE / 'aggregate.py', HERE / 'breakdowns.py', HERE / 'cash_share.py', HERE / 'market_totals.py', HERE / 'enhancements.py', HERE / 'study_abroad_progress.py', HERE / 'capacity_radar.py', capacity_target_path, HERE / 'personnel_contribution.py', HERE / 'personnel_history.py', HERE / 'notifications.py', HERE / 'online_view.py',
+    sources = [Path(__file__), HERE / 'facts.py', HERE / 'aggregate.py', HERE / 'breakdowns.py', HERE / 'cash_share.py', HERE / 'market_totals.py', HERE / 'team_scopes.py', HERE / 'enhancements.py', HERE / 'study_abroad_progress.py', HERE / 'capacity_radar.py', capacity_target_path, HERE / 'personnel_contribution.py', HERE / 'personnel_history.py', HERE / 'notifications.py', HERE / 'online_view.py',
                ROOT / 'dashboard_product/refresh.py', ROOT / 'dashboard_product/online_team/build.py', ROOT / 'workspace_modeling/operations/personnel.py', ROOT / 'workspace_modeling/operations/study_abroad_source.py', people_path, abroad_people_path,
                training_target_path, abroad_target_path, online_target_path, cash_override_path, MAPPING, reference_path,
                ws / 'Work/Bridge/reference.json',
@@ -295,6 +298,12 @@ def build(args):
                                  'preview_only': True}
     write(out / 'notifications.json', notifications)
     online_data = online_view(public, facts, read(online_target_path))
+    from dashboard_product.management.advertising_costs import attach_advertising
+    receipts.append(attach_advertising(online_data, facts, ws, args.snapshot_id, args.run_id, out))
+    sources.extend([HERE/'advertising_costs.py', HERE/'advertising_sources.py', HERE/'platforms.py', HERE/'sql/advertising_rollup.sql'])
+    expense_manifest = ws/'Input/AdvertisingCosts/sources.json'
+    if expense_manifest.exists():
+        sources.append(expense_manifest)
     write(out / 'online_shared_result.json', online_data)
     private = {'schema_version': 'management_details.v1', 'metadata': public['metadata'], 'records': facts,
                'personnel_contribution': personnel_details,

@@ -161,6 +161,9 @@ def _personal_facts(facts, person_rows, roster_index, line, kind, start, end,
     for person in person_rows:
         name = person['name']
         for fact in _owned_person_facts(facts, name, roster_index[name], line, kind, start, end):
+            weight = _aggregate._personal_weights(fact, kind, roster_index).get(name)
+            if weight is None or weight <= 0:
+                continue
             identity = fact.get('fact_id') or id(fact)
             if identity not in matched:
                 projected = {**fact}
@@ -172,13 +175,11 @@ def _personal_facts(facts, person_rows, roster_index, line, kind, start, end,
                 projected = matched[identity]
             if project_virtual_owners and name not in projected['owners']:
                 projected['owners'].append(name)
-            weight = _aggregate._personal_weights(fact, kind, roster_index).get(name)
-            if weight is not None:
-                projected['person_credits'][name] = {
-                    'weight': _aggregate._number(weight),
-                    'value': _aggregate._number(_value(fact) * weight),
-                }
-    return sorted(matched.values(), key=lambda fact: (
+            projected['person_credits'][name] = {
+                'weight': _aggregate._number(weight),
+                'value': _aggregate._number(_value(fact) * weight),
+            }
+    return sorted((fact for fact in matched.values() if fact['person_credits']), key=lambda fact: (
         str(fact.get('event_date') or ''), str(fact.get('work_order_id') or ''),
         str(fact.get('fact_id') or ''),
     ))
@@ -188,6 +189,20 @@ def _ledger_facts(facts):
     """Strip calculation-only attribution fields from notification ledgers."""
     return [{key: value for key, value in fact.items() if key != 'virtual_owners'}
             for fact in facts]
+
+
+def _unassigned_cash_reason(fact, people, roster_index, team_id):
+    if fact.get('team_inferred') is True:
+        return '团队归属由渠道推断'
+    owners = fact.get('virtual_owners') if team_id == 'virtual' else fact.get('owners')
+    owner_names = {str(name).strip() for name in owners or [] if str(name).strip()}
+    if not owner_names:
+        return '未匹配当前人员'
+    recognized_names = owner_names.intersection(roster_index)
+    current_names = {str(person.get('name') or '').strip() for person in people}
+    if recognized_names and recognized_names.isdisjoint(current_names):
+        return '归属人员不在本消息考核名单'
+    return '不满足个人计入资格'
 
 
 def _metric_actual(person, line, kind):
@@ -452,6 +467,23 @@ def build_notifications(public, facts, people_config, abroad_people_config):
             'cash', personal_start, personal_end,
             project_virtual_owners=team_id == 'virtual',
         )
+        unassigned_cash = []
+        if team_id != 'online' and not personal_only:
+            cash_line = 'training' if line == 'mixed' else line
+            personal_fact_ids = {
+                fact.get('fact_id') for fact in personal_cash
+                if fact.get('fact_id') and fact.get('person_credits')
+            }
+            for fact in _facts_in_window(
+                    facts, person_start, person_through, team_id, cash_line, 'cash'):
+                if fact.get('fact_id') in personal_fact_ids:
+                    continue
+                unassigned_cash.append({
+                    **fact,
+                    'attribution_reason': _unassigned_cash_reason(
+                        fact, people, roster_index, team_id,
+                    ),
+                })
 
         metric_team, metric_line = natural_team, line
         if line == 'mixed':
@@ -494,6 +526,7 @@ def build_notifications(public, facts, people_config, abroad_people_config):
                 'team_orders': _ledger_facts(team_orders),
                 'personal_cash': _ledger_facts(personal_cash),
                 'team_cash': _ledger_facts(team_cash),
+                'unassigned_cash': _ledger_facts(unassigned_cash),
             },
         }
         if personal_only:

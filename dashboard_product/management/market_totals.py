@@ -123,7 +123,7 @@ def _apply_total(period, team, market_rows):
     market_prior = {'market': sum(prior_source.values(), Decimal(0))}
     team['market_orders'] = _set_orders(
         'market', market_current, market_prior, period, target,
-        note='传统被动工单包含未归因团队及删除/回收，按工单ID去重；留学专项清洗不改变总盘纳入范围，个人业绩剔除删除/回收。',
+        note='传统被动工单包含未归因团队及删除/回收，按工单ID去重；原团队为留学或空团队且顾问已确认为留学的工单从语培总盘排除，个人业绩剔除删除/回收。',
     )
 
     business_rows = team.setdefault('business_groups', [])

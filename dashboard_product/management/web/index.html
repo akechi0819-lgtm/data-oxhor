@@ -62,7 +62,25 @@
             </section>
 
 
-            <div class="core-tabs" role="tablist" aria-label="业务组指标"><button id="core-targets" role="tab" aria-selected="true">目标与完成进度</button><button id="core-yoy" role="tab" aria-selected="false">业务组同期对比</button><button id="core-channels" role="tab" aria-selected="false">二级渠道同比</button><button id="core-schools" role="tab" aria-selected="false">学校排名</button><button id="core-grades" role="tab" aria-selected="false">年级表现</button><button id="core-people" role="tab" aria-selected="false">个人贡献</button><button id="core-countries" role="tab" aria-selected="false">国家条线</button></div><section class="report-section restored-section" id="target-panel"><div class="section-heading"><h2>业务组目标与完成进度</h2></div><div id="business-groups" class="table-scroll"></div><div id="abroad-target-section"><div class="section-heading"><h2>留学目标与完成进度</h2><span id="abroad-target-coverage"></span></div><div id="abroad-targets" class="table-scroll"></div></div></section>
+            <div class="core-tabs" role="tablist" aria-label="业务组指标"><button id="core-targets" role="tab" aria-selected="true">目标与完成进度</button><button id="core-yoy" role="tab" aria-selected="false">业务组同期对比</button><button id="core-channels" role="tab" aria-selected="false">二级渠道同比</button><button id="core-schools" role="tab" aria-selected="false">学校排名</button><button id="core-grades" role="tab" aria-selected="false">年级表现</button><button id="core-people" role="tab" aria-selected="false">个人贡献</button><button id="core-countries" role="tab" aria-selected="false">国家条线</button></div>
+            <section class="report-section restored-section" id="target-panel">
+              <div class="section-heading">
+                <h2>业务组目标与完成进度</h2>
+                <label class="control-group" id="team-scope-control" for="team-scope-select" hidden>
+                  <span>市场团队</span>
+                  <select id="team-scope-select" aria-label="市场团队">
+                    <option value="all">全部</option>
+                    <option value="online">线上</option>
+                    <option value="offline">线下</option>
+                  </select>
+                </label>
+              </div>
+              <div id="business-groups" class="table-scroll"></div>
+              <div id="abroad-target-section">
+                <div class="section-heading"><h2>留学目标与完成进度</h2><span id="abroad-target-coverage"></span></div>
+                <div id="abroad-targets" class="table-scroll"></div>
+              </div>
+            </section>
             <section class="report-section restored-section" id="yoy-panel" hidden><div class="section-heading"><h2>业务组同期对比</h2></div><div id="yoy-groups" class="table-scroll"></div></section>
             <section id="channels-panel" class="report-section" hidden><h2>二级渠道同比与业务组拆解</h2><div id="channel-comparison" class="table-scroll"></div></section>
             <section id="schools-panel" class="report-section" hidden><h2>学校排名</h2><div id="school-comparison"></div></section>

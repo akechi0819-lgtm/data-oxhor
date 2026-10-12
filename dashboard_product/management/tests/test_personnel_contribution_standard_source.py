@@ -5,7 +5,6 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-from openpyxl import Workbook
 
 from dashboard_product.management.personnel_contribution import (
     build_contribution,
@@ -13,8 +12,14 @@ from dashboard_product.management.personnel_contribution import (
 )
 
 
-def _rosters(name="留学甲"):
-    people = {"teams": []}
+def _rosters(name="留学甲", training=()):
+    people = {"teams": ([{
+        "team_id": "offline_market",
+        "groups": [{"display_name": "大学组", "members": [
+            {"display_name": person, "business_group": "大学", "status": "active"}
+            for person in training
+        ]}],
+    }] if training else [])}
     abroad_people = {
         "people": [{"display_name": name, "business_group": "大学", "status": "active"}]
     }
@@ -35,9 +40,7 @@ def _sources(*, resources=(), contracts=(), languages=()):
         "resources": list(resources),
         "contracts": list(contracts),
         "languages": list(languages),
-        "transfers": [],
         "resources_connected": True,
-        "transfers_connected": True,
         "source_hashes": {},
     }
 
@@ -105,8 +108,8 @@ def _language(*, amount, event_date="2026-10-05", row_number=3,
     }
 
 
-def _build(source_rows, months):
-    people, abroad_people = _rosters()
+def _build(source_rows, months, training=()):
+    people, abroad_people = _rosters(training=training)
     return build_contribution(
         [], [], people, abroad_people, source_rows, months, _bi_coverage(),
     )
@@ -117,21 +120,18 @@ def _person_rows(result, month):
     return period, {row["name"]: row for row in period["people"]}
 
 
-def test_snapshot_tables_override_old_reference_reader_and_map_lineage(tmp_path: Path) -> None:
+def test_snapshot_marker_rows_load_without_any_legacy_flow_input(tmp_path: Path) -> None:
     hash_path = tmp_path / "snapshot-source.json"
     hash_path.write_text("immutable snapshot source", encoding="utf-8")
     source_hashes = {str(hash_path): hashlib.sha256(hash_path.read_bytes()).hexdigest()}
-    transfer_path = tmp_path / "transfers.xlsx"
-    transfer_book = Workbook()
-    transfer_sheet = transfer_book.active
-    transfer_sheet.title = "数据表"
-    transfer_sheet.append(["资源ID", "资源标签", "市场活动名称", "提交时间"])
-    transfer_sheet.append(["1001", "双分", "留学甲", "2026-06-10"])
-    transfer_book.save(transfer_path)
-    transfer_book.close()
+    marker_row = _resource(event_date="2026-06-12", resource_id="1001", owner="留学甲")
+    marker_row.update({
+        "source_owner": "语培甲", "market_group": "国际市场",
+        "segment_id": "international_market",
+    })
     normalized_source = {
         "tables": {
-            "resources": [_resource(event_date="2026-06-12")],
+            "resources": [marker_row],
             "contracts": [_contract(contract_id="C-1", amount="200", event_date="2026-06-13", month="2026-06")],
             "languages": [_language(amount="75", event_date="2026-06-14")],
         }
@@ -143,28 +143,116 @@ def test_snapshot_tables_override_old_reference_reader_and_map_lineage(tmp_path:
     ):
         loaded = load_sources(
             tmp_path / "old-reference.xlsx",
-            transfer_path,
             normalized_source=normalized_source,
             normalized_source_hashes=source_hashes,
         )
 
     assert loaded["resources_connected"] is True
-    assert loaded["transfers_connected"] is True
-    assert loaded["source_hashes"] == {
-        **source_hashes,
-        str(transfer_path): hashlib.sha256(transfer_path.read_bytes()).hexdigest(),
-    }
-    assert loaded["transfers"][0]["resource_id"] == "1001"
-    assert loaded["transfers"][0]["tag"] == "双分"
+    assert "transfers" not in loaded
+    assert "transfers_connected" not in loaded
+    assert loaded["source_hashes"] == source_hashes
     assert loaded["resources"][0]["source_row_number"] == 3
     assert loaded["resources"][0]["date"] == "2026-06-12"
     assert loaded["resources"][0]["record_key"] == "sha:resources:3"
     assert loaded["resources"][0]["origin_sha256"] == "a" * 64
     assert loaded["resources"][0]["origin_sheet"] == "crm"
+    assert loaded["resources"][0]["source_owner"] == "语培甲"
+    assert loaded["resources"][0]["market_group"] == "国际市场"
+    assert loaded["resources"][0]["segment_id"] == "international_market"
     assert loaded["contracts"][0]["archive_date"] == "2026-06-13"
     assert loaded["contracts"][0]["month"] == "2026-06"
     assert loaded["languages"][0]["date"] == "2026-06-14"
     assert loaded["languages"][0]["origin_filename"] == "history.xlsx"
+
+
+def test_normalized_international_resource_uses_source_owner_and_has_zero_without_cash() -> None:
+    row = _resource(resource_id="1001", owner="留学甲")
+    row.update({
+        "source_owner": "语培甲", "market_group": "国际市场",
+        "source_group": "国际市场", "segment_id": "international_market",
+        "personal_eligible": "true", "campaign": "语培甲（留学甲）",
+    })
+    source_rows = _sources(resources=[row])
+
+    result, details = _build(source_rows, ["2026-06"], training=["语培甲"])
+
+    _, people = _person_rows(result, "2026-06")
+    assert people["语培甲"]["output"]["orders"] == 0.5
+    assert people["留学甲"]["received"]["orders"] == 0.5
+    assert people["留学甲"]["self"]["cash"] == 0
+    marker_record = next(record for record in details["records"]
+                         if record["key"] == "resources:1001" and record["bucket"] == "output")
+    assert marker_record["cross_business_marker"]["direction"] == "training_to_abroad"
+    assert marker_record["marker_source_owner"] == "语培甲"
+    assert marker_record["marker_source_row_number"] == 3
+
+
+def test_canonical_group_wins_over_conflicting_raw_source_group() -> None:
+    row = _resource(resource_id="1002", owner="留学甲")
+    row.update({
+        "source_owner": "语培甲", "market_group": "线下组",
+        "source_group": "国际市场", "segment_id": "study_abroad_offline",
+        "personal_eligible": "true", "campaign": "",
+    })
+
+    result, details = _build(_sources(resources=[row]), ["2026-06"], training=["语培甲"])
+
+    _, people = _person_rows(result, "2026-06")
+    assert people["留学甲"]["self"]["orders"] == 1
+    assert people["留学甲"]["received"]["orders"] == 0
+    assert people["语培甲"]["output"]["orders"] == 0
+    assert details["diagnostics"]["international_marker_mapping_conflicts"] == 1
+    assert all(record["cross_business_marker"] is None for record in details["records"])
+
+
+def test_linked_international_marker_does_not_bypass_ssc_cash_exclusion() -> None:
+    resource_row = _resource(resource_id="1003", owner="留学甲", event_date="2026-10-05")
+    resource_row.update({
+        "source_owner": "语培甲", "market_group": "国际市场",
+        "segment_id": "international_market", "personal_eligible": "true",
+    })
+    cash_row = _contract(contract_id="C-SSC", amount="900")
+    cash_row.update({
+        "resource_id": "1003", "segment_id": "ssc",
+        "personal_eligible": "true", "market_eligible": "true",
+    })
+
+    result, details = _build(
+        _sources(resources=[resource_row], contracts=[cash_row]),
+        ["2026-10"], training=["语培甲"],
+    )
+
+    _, people = _person_rows(result, "2026-10")
+    assert people["语培甲"]["output"]["orders"] == 1
+    assert people["留学甲"]["received"]["orders"] == 0
+    assert people["留学甲"]["self"]["cash"] == 0
+    assert people["留学甲"]["received"]["cash"] == 0
+    assert people["语培甲"]["output"]["cash"] == 0
+    assert not any(record["source"] == "contracts" for record in details["records"])
+
+
+def test_ineligible_international_resource_cannot_mark_associated_cash() -> None:
+    resource_row = _resource(resource_id="1004", owner="留学甲")
+    resource_row.update({
+        "source_owner": "语培甲", "market_group": "国际市场",
+        "segment_id": "international_market", "personal_eligible": "false",
+    })
+    cash_row = _contract(contract_id="C-NO-MARKER", amount="900")
+    cash_row.update({
+        "resource_id": "1004", "market_group": "线下组",
+        "segment_id": "study_abroad_offline", "personal_eligible": "true",
+    })
+
+    result, details = _build(
+        _sources(resources=[resource_row], contracts=[cash_row]),
+        ["2026-10"], training=["语培甲"],
+    )
+
+    _, people = _person_rows(result, "2026-10")
+    assert people["留学甲"]["self"]["cash"] == 900
+    assert people["语培甲"]["output"]["cash"] == 0
+    cash_event = next(record for record in details["records"] if record["source"] == "contracts")
+    assert cash_event["cross_business_marker"] is None
 
 
 def test_anonymous_crm_record_key_counts_as_one_resource_without_fake_resource_id() -> None:

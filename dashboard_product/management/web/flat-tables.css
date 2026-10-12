@@ -38,11 +38,24 @@
   [data-board="prep_high"] .flat-scroll { max-height:174px; }
 }
 .flat-table.is-channel-comparison { min-width:920px; table-layout:auto; }
-.flat-table.is-channel-comparison thead th { width:auto; white-space:nowrap; }
+.flat-table.is-channel-comparison thead th { width:9.5%; white-space:nowrap; }
 .flat-table.is-channel-comparison thead th:first-child { width:22%; }
-.flat-table.is-channel-comparison thead th:nth-child(n+2):nth-child(-n+7) { width:9.5%; }
 .flat-table.is-channel-comparison thead th:last-child { width:21%; }
 .flat-table.is-channel-comparison tbody td:nth-child(n+2):nth-child(-n+7) { font-variant-numeric:tabular-nums; white-space:nowrap; }
+.flat-table.is-channel-comparison.is-heads-table { min-width:1180px; table-layout:fixed; }
+.flat-table.is-channel-comparison.is-heads-table thead th:first-child { width:20%; }
+.flat-table.is-channel-comparison.is-heads-table thead th { width:7.2%; }
+.flat-table.is-channel-comparison.is-heads-table thead th:nth-child(5),
+.flat-table.is-channel-comparison.is-heads-table thead th:nth-child(6) { width:10%; }
+.flat-table.is-channel-comparison.is-heads-table thead th:last-child { width:9.6%; }
+.flat-table.is-channel-comparison.is-heads-table tbody td:nth-child(n+2):nth-child(-n+10) { font-variant-numeric:tabular-nums; }
+.flat-table.is-schools.is-heads-table { min-width:900px; }
+.flat-table.is-schools.is-heads-table thead th:nth-child(2) { width:22%; }
+.flat-table.is-schools.is-heads-table thead th:nth-child(3) { width:18%; }
+.flat-table.is-schools.is-heads-table thead th:nth-child(4) { width:23%; }
+.flat-table.is-schools.is-heads-table thead th:nth-child(5) { width:19%; }
+.flat-table.is-schools.is-heads-table thead th:last-child { width:14%; }
+body[data-board="university"] .is-school-grid { grid-template-columns:minmax(0,1fr); }
 body[data-board="university"] .is-channel-grid,
 body[data-board="prep_high"] .is-channel-grid { grid-template-columns:minmax(0,1fr); }
 body[data-board="university"] .is-channel-grid .is-channel-card .flat-scroll,

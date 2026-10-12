@@ -424,6 +424,73 @@ class SharedPreviewTests(unittest.TestCase):
             self.assertIn('[查看看板](http://127.0.0.1:8778/prep_high.html)', high_markdown)
             self.assertNotIn('团队自然月', high_markdown)
 
+    def test_unassigned_cash_sheet_keeps_review_rows_separate_from_personal_cash(self):
+        payload = notifications_payload()
+        unassigned = {
+            'fact_id': 'unassigned-cash-fact', 'business_line': 'training',
+            'metric': 'cash', 'event_date': '2026-09-27',
+            'work_order_id': 'unassigned-work-order', 'value': 987.65,
+            'owners': [], 'attribution_reason': '未匹配当前人员',
+            'order_status': '删除', 'counts_toward_completion': False,
+            'exclusion_reason': '删除状态不计个人业绩',
+            'source_record': {
+                'ID': 'source-unassigned-001', '分配时间': 46293,
+                '合同编号': 'contract-unassigned-001', '金额': 987.65,
+                '学员姓名': 'RAW_STUDENT_SECRET_UNASSIGNED',
+            },
+        }
+        training = next(row for row in payload['messages']
+                        if row['id'] == 'university.training')
+        training['ledgers']['unassigned_cash'] = [unassigned]
+        payload['messages'] = [training]
+
+        with TemporaryDirectory() as directory:
+            item = render_notifications(payload, Path(directory))['messages'][0]
+            book = load_workbook(item['xlsx'], data_only=True)
+            try:
+                self.assertEqual(book.sheetnames, [
+                    '个人进度', '工单明细', '现金明细', '未分配签约',
+                ])
+                personal_cash = book['现金明细']
+                personal_headers = {cell.value: cell.column for cell in personal_cash[4]}
+                self.assertEqual(personal_cash.cell(5, personal_headers['工单ID']).value,
+                                 'cash-row')
+                self.assertFalse(any(personal_cash.cell(row, personal_headers['工单ID']).value
+                                     == 'unassigned-work-order'
+                                     for row in range(5, personal_cash.max_row + 1)))
+
+                sheet = book['未分配签约']
+                headers = {cell.value: cell.column for cell in sheet[4]}
+                self.assertEqual(sheet.cell(5, headers['发生日期']).value, '2026-09-27')
+                self.assertEqual(sheet.cell(5, headers['工单ID']).value,
+                                 'unassigned-work-order')
+                self.assertEqual(sheet.cell(5, headers['数量/金额']).value, 987.65)
+                self.assertEqual(sheet.cell(5, headers['未分配原因']).value,
+                                 '未匹配当前人员')
+                self.assertEqual(sheet.cell(5, headers['ID']).value, 'source-unassigned-001')
+                self.assertEqual(sheet.cell(5, headers['合同编号']).value,
+                                 'contract-unassigned-001')
+                self.assertEqual(sheet.cell(5, headers['金额']).value, 987.65)
+                self.assertIn('仅供核对，未计入个人业绩', sheet.cell(2, 1).value)
+                self.assertIn('2026-09-26 至 2026-10-25', sheet.cell(2, 1).value)
+            finally:
+                book.close()
+
+            online_payload = notifications_payload()
+            online = next(row for row in online_payload['messages']
+                          if row['id'] == 'online.training')
+            online['ledgers']['unassigned_cash'] = [unassigned]
+            online_payload['messages'] = [online]
+            online_item = render_notifications(
+                online_payload, Path(directory) / 'online-preview',
+            )['messages'][0]
+            online_book = load_workbook(online_item['xlsx'], read_only=True, data_only=True)
+            try:
+                self.assertEqual(list(online_book.sheetnames),
+                                 ['进度汇总', '工单明细', '现金明细'])
+            finally:
+                online_book.close()
+
     def test_channel_mapping_is_validated(self):
         payload = notifications_payload()
         next(message for message in payload['messages']

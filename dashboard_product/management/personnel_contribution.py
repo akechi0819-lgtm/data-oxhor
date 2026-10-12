@@ -1,4 +1,4 @@
-"""人员贡献：BI语培事实与页内留学工作簿分别取数，只在资源ID上核对双分。"""
+"""人员贡献：BI语培事实与标准留学Snapshot通过真实来源标记核算。"""
 from __future__ import annotations
 
 from calendar import monthrange
@@ -14,11 +14,10 @@ from workspace_modeling.operations.personnel import (
     DEFAULT_ORDER_STATUS_MODE, ORDER_STATUS_MODES, co_creation_weights,
     match_person_names, order_status_allowed,
 )
-from workspace_modeling.operations.study_abroad_source import read_sheet_rows, read_sources
+from workspace_modeling.operations.study_abroad_source import read_sources
 
 SOURCE_DIRECTORY = 'Input/Reference/人员产能'
 RESOURCE_FILENAME = '资源与签约.xlsx'
-TRANSFER_FILENAME = '资源流转.xlsx'
 BRACKETS = re.compile(r'（([^）]*)）|\(([^)]*)\)')
 SOURCE_LABELS = {'resources': '留学资源', 'contracts': '留学签约', 'languages': '小语种签约'}
 PRODUCT_SCOPES = ('study_abroad', 'small_language')
@@ -112,13 +111,10 @@ def _has_resource_record(row):
     return bool(resource_id(row.get('resource_id')) or _text(row.get('record_key')))
 
 
-def load_sources(resource_path: Path, transfer_path: Path, *,
-                 normalized_source=None, normalized_source_hashes=None):
+def load_sources(resource_path: Path, *, normalized_source=None, normalized_source_hashes=None):
     """Read the explicit standard source when supplied, otherwise the page workbook."""
-    import openpyxl
-    result = {'resources': [], 'contracts': [], 'languages': [], 'transfers': [],
-              'resources_connected': False,
-              'transfers_connected': transfer_path.is_file(), 'source_hashes': {}}
+    result = {'resources': [], 'contracts': [], 'languages': [],
+              'resources_connected': False, 'source_hashes': {}}
     normalized_tables = (normalized_source.get('tables')
                          if isinstance(normalized_source, dict) else None)
     if normalized_tables is not None:
@@ -137,35 +133,10 @@ def load_sources(resource_path: Path, transfer_path: Path, *,
             result[key] = study_abroad[key]
         result['resources_connected'] = True
         result['source_hashes'][str(resource_path)] = study_abroad['source_sha256']
-    if result['transfers_connected']:
-        result['source_hashes'][str(transfer_path)] = hashlib.sha256(
-            transfer_path.read_bytes()).hexdigest()
-        book = openpyxl.load_workbook(transfer_path, read_only=True, data_only=True)
-        try:
-            result['transfers'] = read_sheet_rows(book, '数据表', {
-                'resource_id': '资源ID', 'tag': '资源标签', 'campaign': '市场活动名称',
-                'date': '提交时间'})
-        finally:
-            book.close()
     for path, digest in result['source_hashes'].items():
         if hashlib.sha256(Path(path).read_bytes()).hexdigest() != digest:
             raise ValueError('人员贡献输入在读取过程中发生变化')
     return result
-
-
-def _transfers(rows, diagnostics):
-    index = {}
-    for row in rows:
-        rid = resource_id(row.get('resource_id'))
-        if not rid:
-            diagnostics['transfer_without_resource_id'] += 1
-            continue
-        entry = {'double': _text(row.get('tag')).startswith('双分'),
-                 'campaign': _text(row.get('campaign')), 'source_row_number': row['source_row_number']}
-        if rid in index and any(index[rid][k] != entry[k] for k in ('double', 'campaign')):
-            raise ValueError(f'同一资源的流转登记冲突：{rid}')
-        index[rid] = entry
-    return index
 
 
 def _name(value, people):
@@ -175,8 +146,8 @@ def _name(value, people):
     return matches[0] if len(matches) == 1 else None
 
 
-def _participants(event, transfer, people):
-    campaign = transfer['campaign'] if transfer and transfer['double'] else event.get('campaign', '')
+def _participants(event, people):
+    campaign = event.get('campaign', '')
     outside = BRACKETS.sub(' ', _text(campaign))
     description = BRACKETS.sub(' ', _text(event.get('description')))
     names = list(people)
@@ -233,17 +204,118 @@ def _activity_market_handoff(event, primary, secondary, people):
             for name, weight in creator_weights.items()]
 
 
-def _allocation(event, transfer, people, diagnostics):
-    if transfer and transfer['double']:
-        primary, secondary = _participants(event, transfer, people)
-        if event['source'] != 'bi' and event.get('owner') not in set(primary + secondary):
-            return _ordinary_allocation(event, [event['owner']], people)
-        return _registered_double_allocation(event, primary, secondary, people, diagnostics)
+def _cross_business_marker(row, *, source):
+    if source == 'bi':
+        if _text(row.get('first_channel')) != '双分':
+            return None
+        return {
+            'kind': 'bi_first_channel', 'value': '双分',
+            'direction': 'abroad_to_training',
+            'source_business_line': 'abroad', 'destination_business_line': 'training',
+            'source_owner': row.get('resource_entry_person'),
+            'source_key': _text(row.get('work_order_id')) or None,
+            'source_row_number': row.get('source_row_number'),
+        }
+    market_group = _text(row.get('market_group'))
+    source_group = _text(row.get('source_group'))
+    segment_id = _text(row.get('segment_id'))
+    if market_group or segment_id:
+        if ((market_group and market_group != '国际市场')
+                or (segment_id and segment_id != 'international_market')):
+            return None
+        if market_group != '国际市场' and segment_id != 'international_market':
+            return None
+    elif source_group != '国际市场':
+        return None
+    marker_value = ('国际市场' if market_group == '国际市场' else
+                    '国际市场' if source_group == '国际市场' else segment_id)
+    return {
+        'kind': 'study_abroad_international_market', 'value': marker_value,
+        'direction': 'training_to_abroad',
+        'source_business_line': 'training', 'destination_business_line': 'abroad',
+        'source_owner': row.get('source_owner'),
+        'source_key': _text(row.get('record_key')) or None,
+        'source_row_number': row.get('origin_row_number') or row.get('source_row_number'),
+        'source_sha256': row.get('origin_sha256'),
+        'source_filename': row.get('origin_filename'),
+        'source_sheet': row.get('origin_sheet'),
+        'campaign': row.get('campaign'),
+        'description': row.get('description'),
+        'resource_id': resource_id(row.get('resource_id')),
+    }
 
-    # A non-double or missing flow row does not itself split anything. An
-    # actual opposite-business source can still support a handoff by its own
-    # activity text, but only where that text includes the source owner.
-    primary, secondary = _participants(event, None, people)
+
+def _standard_personnel_row_eligible(row):
+    if not row.get('_normalized_snapshot_row'):
+        return True
+    return (_text(row.get('market_eligible')).casefold() != 'false'
+            and _text(row.get('personal_eligible')).casefold() != 'false'
+            and row.get('segment_id') not in {'ssc', 'unassigned'})
+
+
+def _marker_receivers(event, marker, people):
+    destination = marker['destination_business_line']
+    eligible = [name for name, person in people.items()
+                if person['business_line'] == destination
+                and (person['abroad_roster'] or 'offline_market' in person['team_ids'])]
+    return match_person_names(eligible, event.get('campaign'), '', event.get('description'))
+
+
+def _marker_source_participants(event, marker, people):
+    source_line = marker['source_business_line']
+    eligible = [name for name, person in people.items()
+                if person['business_line'] == source_line]
+    authoritative = match_person_names(eligible, '', marker.get('source_owner'), '')
+    activity = match_person_names(eligible, event.get('campaign'), '', event.get('description'))
+    conflict = (marker.get('kind') == 'study_abroad_international_market'
+                and bool(authoritative) and bool(activity)
+                and not set(authoritative).intersection(activity))
+    return authoritative, activity, conflict
+
+
+def _marker_source_creators(event, marker, people):
+    authoritative, activity, conflict = _marker_source_participants(event, marker, people)
+    if not authoritative:
+        return []
+    if conflict:
+        return authoritative
+    return list(dict.fromkeys(authoritative + activity))
+
+
+def _marked_allocation(event, marker, people):
+    source_line = marker['source_business_line']
+    if event['line'] != marker['destination_business_line']:
+        return []
+    authoritative, activity, conflict = _marker_source_participants(event, marker, people)
+    if conflict:
+        return [(name, 'output', weight, 'source_marker_owner_authoritative')
+                for name, weight in co_creation_weights(authoritative, people).items()]
+    source_creators = (list(dict.fromkeys(authoritative + activity))
+                       if authoritative else [])
+    source_weights = co_creation_weights(source_creators, people)
+    receivers = _marker_receivers(event, marker, people)
+    if source_weights and receivers:
+        return ([(name, 'output', weight * Decimal('0.5'), 'source_marker_handoff')
+                 for name, weight in source_weights.items()] +
+                [(name, 'received', weight * Decimal('0.5'), 'source_marker_handoff')
+                 for name, weight in co_creation_weights(receivers, people).items()])
+    if source_weights:
+        return [(name, 'output', weight, 'source_marker_independent_output')
+                for name, weight in source_weights.items()]
+    if receivers:
+        return [(name, 'received', weight * Decimal('0.5'), 'source_marker_without_active_source_owner')
+                for name, weight in co_creation_weights(receivers, people).items()]
+    return []
+
+
+def _allocation(event, people):
+    marker = event.get('cross_business_marker')
+    if marker and event.get('apply_cross_business_marker', True):
+        return _marked_allocation(event, marker, people)
+
+    # Only a real opposite-business source plus explicit activity names
+    # supports an unmarked activity handoff.
+    primary, secondary = _participants(event, people)
     if event['source'] != 'bi':
         owner = event.get('owner')
         if not owner or not primary or owner not in set(primary + secondary):
@@ -259,84 +331,91 @@ def _allocation(event, transfer, people, diagnostics):
     return _ordinary_allocation(event, primary, people)
 
 
-def _registered_double_allocation(event, primary, secondary, people, diagnostics):
-    """Keep existing double-split rules for a resource-ID matched flow row."""
-    if not primary:
-        # 主办方已不在当前名单时，不把括号内人员反推为主办；在职接收方仍取明确的半份。
-        receivers = [name for name in secondary if people[name]['business_line'] == event['line']]
-        return [(name, 'received', weight * Decimal('0.5'), 'double_received_without_active_creator')
-                for name, weight in co_creation_weights(receivers, people).items()]
-    lines = {people[name]['business_line'] for name in primary}
-    if len(lines) != 1:
-        diagnostics['ambiguous_double_primary'] += 1
-        return []
-    own_line = next(iter(lines))
-    opposite = [name for name in secondary if people[name]['business_line'] != own_line]
-    if event['line'] == own_line:
-        return [(name, 'self', weight, 'double_own_business')
-                for name, weight in co_creation_weights(primary, people).items()]
-    # 线上虚拟人有独立本业务贡献，不分走线下主办者的跨业务输出份额。
-    creators = [name for name in primary if 'offline_market' in people[name]['team_ids']]
-    output_weights = co_creation_weights(creators, people)
-    if opposite:
-        return ([(name, 'output', weight * Decimal('0.5'), 'double_activity_output')
-                 for name, weight in output_weights.items()] +
-                [(name, 'received', weight * Decimal('0.5'), 'double_activity_received')
-                 for name, weight in co_creation_weights(opposite, people).items()])
-    return [(name, 'output', weight, 'double_without_opposite_person')
-            for name, weight in output_weights.items()]
-
-
 def _events(facts, order_rows, sources, people, diagnostics):
     orders = {_text(row.get('work_order_id')): row for row in order_rows}
+    for kind in ('resources', 'contracts', 'languages'):
+        for row in sources[kind]:
+            market_group = _text(row.get('market_group'))
+            source_group = _text(row.get('source_group'))
+            segment_id = _text(row.get('segment_id'))
+            if ((market_group and segment_id
+                 and (market_group == '国际市场') != (segment_id == 'international_market'))
+                    or (source_group == '国际市场'
+                        and ((market_group and market_group != '国际市场')
+                             or (segment_id and segment_id != 'international_market')))):
+                diagnostics['international_marker_mapping_conflicts'] += 1
+    latest_resource_dates = {}
+    for row in sources['resources']:
+        rid = resource_id(row.get('resource_id'))
+        day = _day(row.get('date')) if row.get('date') else None
+        if rid and day:
+            latest_resource_dates[rid] = max(day, latest_resource_dates.get(rid, day))
+    resource_markers = {}
+    for row in sources['resources']:
+        if not _standard_personnel_row_eligible(row):
+            continue
+        rid = resource_id(row.get('resource_id'))
+        marker = _cross_business_marker(row, source='standard')
+        if not rid or marker is None:
+            continue
+        day = _day(row.get('date')) if row.get('date') else None
+        if day != latest_resource_dates.get(rid):
+            continue
+        prior = resource_markers.get(rid)
+        if prior and (prior.get('source_owner'), prior.get('source_key')) != (
+                marker.get('source_owner'), marker.get('source_key')):
+            raise ValueError(f'同一留学资源的国际市场标记冲突：{rid}')
+        resource_markers[rid] = marker
+
     for fact in facts:
         if fact['business_line'] != 'training':
             continue  # BI留学事实绝不进入新版人员贡献。
         source = orders.get(_text(fact.get('work_order_id')), {})
+        marker = _cross_business_marker(source, source='bi') if source else None
+        if marker:
+            marker['source_row_number'] = source.get('source_row_number') or fact.get('source_row_number')
         order_status = _text(fact.get('order_status') or source.get('order_status')) or None
         if fact['metric'] == 'orders' and order_status == '删除':
             diagnostics['deleted_training_orders'] += 1
-        yield {'key': fact['fact_id'], 'source': 'bi', 'source_row_number': fact.get('source_row_number'),
-               'line': 'training', 'product_scope': 'training',
-               'metric': fact['metric'], 'month': fact['event_date'][:7],
-               'order_status': order_status,
-               'value': Decimal(str(fact['value'])), 'resource_id': resource_id(source.get('resource_id')),
-               'work_order_id': fact.get('work_order_id'),
-               'campaign': source.get('campaign_name') or fact.get('campaign_name'),
-               'entry_person': source.get('resource_entry_person'), 'description': source.get('resource_description')}
+        event = {'key': fact['fact_id'], 'source': 'bi', 'source_row_number': fact.get('source_row_number'),
+                 'line': 'training', 'product_scope': 'training',
+                 'metric': fact['metric'], 'month': fact['event_date'][:7],
+                 'order_status': order_status,
+                 'value': Decimal(str(fact['value'])), 'resource_id': resource_id(source.get('resource_id')),
+                 'work_order_id': fact.get('work_order_id'),
+                 'campaign': source.get('campaign_name') or fact.get('campaign_name'),
+                 'entry_person': source.get('resource_entry_person'), 'description': source.get('resource_description'),
+                 'cross_business_marker': marker, 'apply_cross_business_marker': bool(marker)}
+        yield event
     seen = {}
     resource_rows = []
-    latest_resource_dates = {}
     for row in sources['resources']:
         rid = resource_id(row.get('resource_id'))
         record_key = _text(row.get('record_key'))
         if not rid and not record_key:
             diagnostics['invalid_abroad_resource_id'] += 1
             continue
+        marker = _cross_business_marker(row, source='standard')
         owner = _name(row.get('owner'), people)
-        if not owner:
+        if not owner and not marker:
             diagnostics['blank_abroad_owner' if not _text(row.get('owner')) else 'owner_outside_roster'] += 1
             continue
         day = _day(row.get('date'))
         if not day:
             raise ValueError('已归属的留学记录缺少统计月份')
-        resource_rows.append((row, rid, record_key, owner, day))
-        if rid:
-            latest_resource_dates[rid] = max(day, latest_resource_dates.get(rid, day))
+        resource_rows.append((row, rid, record_key, owner, day, marker))
 
     rows_by_kind = {
         'resources': resource_rows,
-        'contracts': [(row, None, _text(row.get('record_key')), None, None)
+        'contracts': [(row, resource_id(row.get('resource_id')), _text(row.get('record_key')), None, None, None)
                       for row in sources['contracts']],
-        'languages': [(row, None, _text(row.get('record_key')), None, None)
+        'languages': [(row, resource_id(row.get('resource_id')), _text(row.get('record_key')), None, None, None)
                       for row in sources['languages']],
     }
     for kind, metric in (('resources', 'orders'), ('contracts', 'cash'), ('languages', 'cash')):
-        for row, row_resource_id, record_key, resolved_owner, resource_day in rows_by_kind[kind]:
-            if row.get('_normalized_snapshot_row') and (
-                    row.get('market_eligible') == 'false'
-                    or row.get('personal_eligible') == 'false'
-                    or row.get('segment_id') in {'international_market', 'ssc', 'unassigned'}):
+        for row, row_resource_id, record_key, resolved_owner, resource_day, direct_marker in rows_by_kind[kind]:
+            marker = direct_marker if kind == 'resources' else resource_markers.get(row_resource_id)
+            if not _standard_personnel_row_eligible(row):
                 continue
             if kind == 'contracts' and not _text(row.get('contract_id')):
                 continue  # 无合同编号的工作表尾部辅助单元格不是签约记录。
@@ -352,7 +431,7 @@ def _events(facts, order_rows, sources, people, diagnostics):
             if kind == 'resources' and order_status == '删除':
                 diagnostics['deleted_abroad_orders'] += 1
             owner = resolved_owner if kind == 'resources' else _name(row.get('owner'), people)
-            if not owner:
+            if not owner and (kind != 'resources' or marker is None):
                 diagnostics['blank_abroad_owner' if not _text(row.get('owner')) else 'owner_outside_roster'] += 1
                 continue
             if kind == 'contracts':
@@ -375,31 +454,50 @@ def _events(facts, order_rows, sources, people, diagnostics):
                             record_key or str(row['source_row_number']))
             key = (kind, business_key)
             identity = (product_scope, month, owner, value, order_status,
-                        _text(row.get('campaign')) if kind == 'resources' else '')
+                        _text(row.get('campaign')) if kind == 'resources' else '',
+                        marker.get('kind') if marker else None,
+                        marker.get('source_owner') if marker else None)
             if key in seen:
                 if seen[key] != identity:
                     raise ValueError(f'同一留学记录存在冲突：{key}')
                 diagnostics['exact_duplicate_abroad_rows'] += 1
                 continue
             seen[key] = identity
+            apply_marker = bool(marker)
+            if metric == 'cash' and marker:
+                event_candidate = {'line': 'abroad', 'source': kind, 'owner': owner,
+                                   'campaign': row.get('campaign') or marker.get('campaign'),
+                                   'description': row.get('description') or marker.get('description')}
+                apply_marker = bool(owner and people[owner]['business_line'] == marker['source_business_line']
+                                    and owner in _marker_source_creators(event_candidate, marker, people))
+            activity_campaign = row.get('campaign')
+            activity_description = row.get('description')
+            if metric == 'cash' and marker and apply_marker:
+                activity_campaign = activity_campaign or marker.get('campaign')
+                activity_description = activity_description or marker.get('description')
             yield {'key': ':'.join(key), 'source': kind, 'source_row_number': row['source_row_number'],
                    'line': 'abroad', 'product_scope': product_scope,
                    'order_status': order_status,
                    'metric': metric, 'month': month, 'value': value,
                    'owner': owner, 'resource_id': resource_id(row.get('resource_id')),
-                   'work_order_id': row.get('work_order_id'), 'campaign': row.get('campaign'),
+                   'work_order_id': row.get('work_order_id'),
+                   'campaign': activity_campaign,
+                   'description': activity_description,
                    'record_key': row.get('record_key'),
                    'origin_sha256': row.get('origin_sha256'),
                    'origin_filename': row.get('origin_filename'),
                    'origin_sheet': row.get('origin_sheet'),
-                   'origin_row_number': row.get('origin_row_number')}
+                   'origin_row_number': row.get('origin_row_number'),
+                   'source_owner': row.get('source_owner'),
+                   'cross_business_marker': marker,
+                   'apply_cross_business_marker': apply_marker}
 
 
 def _validate_resource_scopes(sources, people):
     for row in sources['resources']:
         if not _has_resource_record(row):
             continue
-        if not _name(row.get('owner'), people):
+        if not _name(row.get('owner'), people) and not _cross_business_marker(row, source='standard'):
             continue
         if not row.get('date'):
             raise ValueError('已归属的留学资源缺少日期')
@@ -416,7 +514,6 @@ def _coverage(sources, month, bi_coverage):
     abroad_order_months = {_month(_day(r.get('date'))) for r in sources['resources'] if _has_resource_record(r)}
     abroad_cash_months = {_month(r.get('month')) for r in sources['contracts'] if _text(r.get('contract_id'))}
     abroad_cash_months |= {_month(_day(r.get('date'))) for r in sources['languages'] if _day(r.get('date'))}
-    source_dates = [_day(r.get('date')) for r in sources['transfers'] if r.get('date')]
     training = {'label': '语培'}
     for metric in ('orders', 'cash'):
         start, end = bi_coverage[f'{metric}_start'], bi_coverage[f'{metric}_end']
@@ -429,9 +526,7 @@ def _coverage(sources, month, bi_coverage):
     abroad = {'label': '留学（含小语种）', 'connected': month in abroad_order_months or month in abroad_cash_months,
               'orders_through': max(order_dates) if order_dates else None,
               'cash_through': max(cash_dates) if cash_dates else None}
-    flow = {'connected': sources['transfers_connected'],
-            'from': min(source_dates) if source_dates else None, 'through': max(source_dates) if source_dates else None}
-    return {'training': training, 'abroad': abroad, 'transfers': flow}
+    return {'training': training, 'abroad': abroad}
 
 
 def _scope_coverage(sources, month, people):
@@ -502,59 +597,79 @@ def build_contribution(facts, order_rows, people_config, abroad_people_config, s
                if row['abroad_roster'] or 'offline_market' in row['team_ids']}
     diagnostics = Counter()
     _validate_resource_scopes(sources, people)
-    transfer_index = _transfers(sources['transfers'], diagnostics)
     status_totals = {mode: _new_totals() for mode in ORDER_STATUS_MODES}
     status_scope_totals = {mode: _new_totals() for mode in ORDER_STATUS_MODES}
     ledger = []
     pending = []
+    marker_diagnostics = []
     pending_counts = Counter()
     pending_groups = Counter()
-    if sources['transfers_connected']:
-        for event in _events(facts, order_rows, sources, people, diagnostics):
-            if event['month'] not in months:
-                continue
-            transfer = transfer_index.get(event['resource_id'])
-            allocation = _allocation(event, transfer, people, diagnostics)
-            if not allocation:
-                diagnostics['unattributed_events'] += 1
-                primary, secondary = _participants(event, transfer, people)
-                affected = sorted({name for name in primary + secondary + [event.get('owner')]
+    for event in _events(facts, order_rows, sources, people, diagnostics):
+        if event['month'] not in months:
+            continue
+        allocation = _allocation(event, people)
+        if not allocation:
+            diagnostics['unattributed_events'] += 1
+            if event.get('cross_business_marker'):
+                reason = '标记来源人员或明确接收人员未匹配当前名单'
+                source = SOURCE_LABELS.get(
+                    event['source'], '语培工单' if event['metric'] == 'orders' else '语培现金')
+                marker = event['cross_business_marker']
+                source_people = {name: person for name, person in people.items()
+                                 if person['business_line'] == marker['source_business_line']}
+                source_owner = _name(marker.get('source_owner'), source_people)
+                receivers = _marker_receivers(event, marker, people)
+                affected = sorted({name for name in receivers + [source_owner, event.get('owner')]
                                    if name in offline})
-                if affected and transfer and transfer['double']:
-                    reason = '主办或接收人员不明确'
-                    source = SOURCE_LABELS.get(event['source'], '语培工单' if event['metric'] == 'orders' else '语培现金')
+                marker_record = {**{key: event.get(key) for key in (
+                    'key', 'source', 'source_row_number', 'month', 'resource_id', 'work_order_id',
+                    'line', 'metric', 'product_scope', 'order_status', 'record_key',
+                    'origin_sha256', 'origin_filename', 'origin_sheet', 'origin_row_number',
+                    'cross_business_marker')},
+                    'reason': reason, 'affected_people': affected,
+                    'source_label': source, 'source_value': str(event['value']),
+                    'campaign_name': event.get('campaign')}
+                marker_diagnostics.append(marker_record)
+                if affected:
                     pending_allowed = (event['metric'] != 'orders'
                                        or order_status_allowed(
                                            event.get('order_status'), DEFAULT_ORDER_STATUS_MODE))
                     if pending_allowed:
-                        pending.append({**{key: event.get(key) for key in ('key', 'source', 'source_row_number', 'month', 'resource_id', 'work_order_id', 'line', 'metric', 'product_scope', 'order_status', 'record_key', 'origin_sha256', 'origin_filename', 'origin_sheet', 'origin_row_number')},
-                                    'reason': reason, 'affected_people': affected,
-                                    'source_value': str(event['value']), 'campaign_name': event.get('campaign')})
+                        pending.append(marker_record)
                         for name in affected:
                             pending_counts[(event['month'], name)] += 1
                             pending_groups[(event['month'], name, source, reason)] += 1
-            for name, bucket, weight, rule in allocation:
-                if name not in offline:
+                else:
+                    diagnostics['marker_outside_personnel_scope'] += 1
+        for name, bucket, weight, rule in allocation:
+            if name not in offline:
+                continue
+            amount = event['value'] * weight
+            scopes = PRODUCT_SCOPES if event['product_scope'] == 'training' else (event['product_scope'],)
+            order_status = event.get('order_status')
+            is_order = event['metric'] == 'orders'
+            included = {
+                mode: (not is_order or order_status_allowed(order_status, mode))
+                for mode in ORDER_STATUS_MODES
+            }
+            for mode in ORDER_STATUS_MODES:
+                if not included[mode]:
                     continue
-                amount = event['value'] * weight
-                scopes = PRODUCT_SCOPES if event['product_scope'] == 'training' else (event['product_scope'],)
-                order_status = event.get('order_status')
-                is_order = event['metric'] == 'orders'
-                included = {
-                    mode: (not is_order or order_status_allowed(order_status, mode))
-                    for mode in ORDER_STATUS_MODES
-                }
-                for mode in ORDER_STATUS_MODES:
-                    if not included[mode]:
-                        continue
-                    status_totals[mode][(event['month'], name)][bucket][event['metric']] += amount
-                    for scope in scopes:
-                        status_scope_totals[mode][(event['month'], name, scope)][bucket][event['metric']] += amount
-                ledger.append({**{key: event.get(key) for key in ('key', 'source', 'source_row_number', 'month', 'resource_id', 'work_order_id', 'line', 'metric', 'product_scope', 'order_status', 'record_key', 'origin_sha256', 'origin_filename', 'origin_sheet', 'origin_row_number')},
-                               'person': name, 'bucket': bucket, 'weight': str(weight),
-                               'source_value': str(event['value']), 'credited_value': str(amount), 'rule': rule,
-                               'inclusion': included,
-                               'transfer_row_number': transfer.get('source_row_number') if transfer else None})
+                status_totals[mode][(event['month'], name)][bucket][event['metric']] += amount
+                for scope in scopes:
+                    status_scope_totals[mode][(event['month'], name, scope)][bucket][event['metric']] += amount
+            marker = event.get('cross_business_marker') or {}
+            ledger.append({**{key: event.get(key) for key in (
+                'key', 'source', 'source_row_number', 'month', 'resource_id', 'work_order_id',
+                'line', 'metric', 'product_scope', 'order_status', 'record_key', 'origin_sha256',
+                'origin_filename', 'origin_sheet', 'origin_row_number')},
+                'person': name, 'bucket': bucket, 'weight': str(weight),
+                'source_value': str(event['value']), 'credited_value': str(amount), 'rule': rule,
+                'inclusion': included,
+                'cross_business_marker': event.get('cross_business_marker'),
+                'marker_source_owner': marker.get('source_owner'),
+                'marker_source_key': marker.get('source_key'),
+                'marker_source_row_number': marker.get('source_row_number')})
     periods = []
     for month in sorted(set(months)):
         coverage = _coverage(sources, month, bi_coverage)
@@ -569,11 +684,13 @@ def build_contribution(facts, order_rows, people_config, abroad_people_config, s
                    'peer_group': own + '|' + (person['home_group'] if own == 'training' else '留学')}
             targets = person['targets'][own].get(month) or {}
             own_connected = {
-                metric: sources['transfers_connected'] and (sources['resources_connected'] if own == 'abroad' else bool(coverage[own][f'{metric}_through']))
+                metric: (sources['resources_connected'] if own == 'abroad'
+                         else bool(coverage[own][f'{metric}_through']))
                 for metric in ('orders', 'cash')
             }
             output_connected = {
-                metric: sources['transfers_connected'] and (sources['resources_connected'] if other == 'abroad' else bool(coverage[other][f'{metric}_through']))
+                metric: (sources['resources_connected'] if other == 'abroad'
+                         else bool(coverage[other][f'{metric}_through']))
                 for metric in ('orders', 'cash')
             }
             row['order_status_views'] = {}
@@ -587,12 +704,12 @@ def build_contribution(facts, order_rows, people_config, abroad_people_config, s
                     if own == 'training':
                         component_own_connected = own_connected
                         component_output_connected = {
-                            metric: sources['transfers_connected'] and sources['resources_connected']
+                            metric: sources['resources_connected']
                             for metric in ('orders', 'cash')
                         }
                     else:
                         component_own_connected = {
-                            metric: sources['transfers_connected'] and sources['resources_connected']
+                            metric: sources['resources_connected']
                             for metric in ('orders', 'cash')
                         }
                         component_output_connected = output_connected
@@ -617,4 +734,5 @@ def build_contribution(facts, order_rows, people_config, abroad_people_config, s
                                     for (m, name, source, reason), count in sorted(pending_groups.items()) if m == month]})
     return ({'schema_version': 'personnel_contribution.v1', 'periods': periods},
             {'schema_version': 'personnel_contribution_details.v1', 'records': ledger, 'pending': pending,
+             'marker_diagnostics': marker_diagnostics,
              'diagnostics': dict(diagnostics), 'source_hashes': sources['source_hashes']})

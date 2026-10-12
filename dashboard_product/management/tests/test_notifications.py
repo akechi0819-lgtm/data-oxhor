@@ -3,6 +3,7 @@ from __future__ import annotations
 import unittest
 from datetime import date
 from decimal import Decimal
+from unittest.mock import patch
 
 from dashboard_product.management.aggregate import aggregate
 from dashboard_product.management.notifications import build_notifications
@@ -380,6 +381,57 @@ class ManagementNotificationsTest(unittest.TestCase):
         self.assertEqual([row['fact_id'] for row in abroad['ledgers']['personal_cash']], ['study-cash'])
         self.assertEqual(person['cash_actual']['actual'], 320)
         self.assertEqual(person['cash_actual']['status'], 'available')
+
+    def test_unassigned_cash_uses_personal_window_without_changing_cash_totals(self):
+        personal = cash('cash-personal', 'training', 'offline_market', 100,
+                        owners=['大学同事'])
+        unmatched = cash('cash-unmatched', 'training', 'offline_market', 40, owners=[])
+        other_person = cash('cash-other-person', 'training', 'offline_market', 60,
+                            owners=['留学同事'])
+        inferred = cash('cash-inferred', 'training', 'offline_market', 80,
+                        owners=['大学同事'])
+        outside_performance_window = cash(
+            'cash-natural-only', 'training', 'offline_market', 30, owners=[],
+        )
+        for fact in (personal, unmatched, other_person, inferred, outside_performance_window):
+            fact['business_group'] = '大学'
+            fact['event_date'] = '2026-09-27'
+        inferred['team_inferred'] = True
+        outside_performance_window['event_date'] = '2026-09-25'
+        facts = [personal, unmatched, other_person, inferred, outside_performance_window]
+        public = public_aggregate(facts, self.people, self.abroad_people, date(2026, 9, 28))
+
+        result = build_notifications(public, facts, self.people, self.abroad_people)
+        message = next(row for row in result['messages'] if row['id'] == 'university.training')
+        person = next(row for row in message['people'] if row['name'] == '大学同事')
+        unassigned = {row['fact_id']: row for row in message['ledgers']['unassigned_cash']}
+
+        self.assertEqual(set(unassigned), {
+            'cash-unmatched', 'cash-other-person', 'cash-inferred',
+        })
+        self.assertEqual(unassigned['cash-unmatched']['attribution_reason'], '未匹配当前人员')
+        self.assertEqual(unassigned['cash-other-person']['attribution_reason'],
+                         '归属人员不在本消息考核名单')
+        self.assertEqual(unassigned['cash-inferred']['attribution_reason'], '团队归属由渠道推断')
+        self.assertEqual([row['fact_id'] for row in message['ledgers']['personal_cash']],
+                         ['cash-personal'])
+        self.assertEqual(person['cash_actual']['actual'], 100)
+        self.assertEqual(message['team_metrics']['cash']['actual'], 310)
+
+    def test_zero_weight_cash_is_not_returned_as_personal(self):
+        fact = cash('cash-zero-weight', 'training', 'offline_market', 100,
+                    owners=['大学同事'])
+        fact['business_group'] = '大学'
+        public = public_aggregate([fact], self.people, self.abroad_people, date(2026, 9, 28))
+
+        with patch('dashboard_product.management.notifications._aggregate._personal_weights',
+                   return_value={'大学同事': Decimal('0')}):
+            result = build_notifications(public, [fact], self.people, self.abroad_people)
+        message = next(row for row in result['messages'] if row['id'] == 'university.training')
+
+        self.assertEqual(message['ledgers']['personal_cash'], [])
+        self.assertEqual([row['fact_id'] for row in message['ledgers']['unassigned_cash']],
+                         ['cash-zero-weight'])
 
     def test_abroad_notification_daily_values_are_unknown_outside_source_coverage(self):
         facts = [order('september-order', 'abroad', 'online_platform',

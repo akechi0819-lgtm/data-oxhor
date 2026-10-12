@@ -30,6 +30,7 @@
     capacityScope: "all",
     orderStatusMode: "01",
     unitId: "total",
+    teamScope: "all",
     activeView: "overview",
     activityQuery: "",
     activityPage: 1,
@@ -39,6 +40,8 @@
   const ui = {
     periodSelect: byId("period-select"),
     unitSelect: byId("unit-select"),
+    teamScopeControl: byId("team-scope-control"),
+    teamScopeSelect: byId("team-scope-select"),
     capacityScope: byId("capacity-scope"),
     periodCaption: byId("period-caption"),
     freshness: byId("freshness"),
@@ -448,8 +451,13 @@
   }
 
   function renderRestored(team) {
-    byId("business-groups").innerHTML = compareTable(team && team.business_groups, true);
-    const abroadRows = safeArray(team?.abroad_progress);
+    const isMarketTotal = state.unitId === "total";
+    const scopeView = isMarketTotal ? team?.team_scope_views?.[state.teamScope] : null;
+    ui.teamScopeControl.hidden = !isMarketTotal;
+    ui.teamScopeSelect.value = state.teamScope;
+    const businessGroups = isMarketTotal ? scopeView?.business_groups : team?.business_groups;
+    byId("business-groups").innerHTML = compareTable(businessGroups, true);
+    const abroadRows = safeArray(isMarketTotal ? scopeView?.study_abroad_progress : team?.abroad_progress);
     byId("abroad-target-section").hidden = !abroadRows.length;
     byId("abroad-targets").innerHTML = renderAbroadProgress(abroadRows);
     const coverage = team?.lines?.abroad?.source_coverage;
@@ -799,6 +807,12 @@
     state.unitId = Object.prototype.hasOwnProperty.call(UNIT_LABELS, ui.unitSelect.value) ? ui.unitSelect.value : "total";
     setView('overview');
     renderCapacity();
+  });
+  ui.teamScopeSelect.addEventListener("change", () => {
+    state.teamScope = ["all", "online", "offline"].includes(ui.teamScopeSelect.value)
+      ? ui.teamScopeSelect.value
+      : "all";
+    renderOverview();
   });
   ui.capacityScope.addEventListener("change", () => {
     state.capacityScope = ui.capacityScope.value;

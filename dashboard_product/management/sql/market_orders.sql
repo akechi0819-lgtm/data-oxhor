@@ -1,5 +1,8 @@
--- 原语培市场总盘：按原表被动工单和业务组映射统计，含删除/回收，按ID去重；不套用留学专项SSC排除。
-WITH params AS (SELECT CAST(? AS DATE) AS start_date, CAST(? AS DATE) AS end_date),
+-- 原语培市场总盘：按原表被动工单和业务组映射统计，含删除/回收，按ID去重；排除原团队为留学，或原团队为空且顾问已确认为留学的工单。
+WITH params AS (
+ SELECT CAST(? AS DATE) AS start_date, CAST(? AS DATE) AS end_date,
+        CAST(? AS VARCHAR[]) AS study_advisers
+),
 orders_raw AS (
  SELECT NULLIF(TRIM(ID),'') AS work_order_id,
  DATE '1899-12-30'+CAST(TRY_CAST(分配时间 AS DOUBLE) AS INTEGER) AS event_date,
@@ -65,7 +68,13 @@ orders_raw AS (
  NULL AS cash_channel, r.active_type AS work_order_active_type, NULL AS cash_campaign_name
  FROM mapped_orders r
  JOIN orders_dim o ON r.work_order_id = o.work_order_id
- CROSS JOIN params
- WHERE r.rn=1 AND r.work_order_id IS NOT NULL AND r.active_type='被动' AND event_date>=start_date AND event_date<end_date
+ CROSS JOIN params p
+ WHERE r.rn=1 AND r.work_order_id IS NOT NULL AND r.active_type='被动'
+ AND event_date>=p.start_date AND event_date<p.end_date
+ AND NOT (
+   COALESCE(r.source_team, '')='留学'
+   OR (COALESCE(r.source_team, '')=''
+       AND COALESCE(list_contains(p.study_advisers, r.follow_adviser), FALSE))
+ )
 )
 SELECT * FROM orders ORDER BY event_date, work_order_id

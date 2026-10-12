@@ -11,6 +11,91 @@ def study_coverage(start_date='2026-09-01', through_date='2026-09-30'):
 
 
 class BreakdownTests(unittest.TestCase):
+    def test_channel_groups_and_school_grades_expose_headcount_semantics(self):
+        facts = []
+        for year, label in ((2025, 'prior'), (2026, 'current')):
+            for day, student, grade, suffix in (
+                    (1, 'S1', '七年级', 'first'),
+                    (2, 'S1', '七年级', 'repeat'),
+                    (3, 'S1', '八年级', 'other_grade'),
+                    (4, 'S2', '七年级', 'second_student')):
+                if year == 2025 and student == 'S2':
+                    continue
+                facts.append({
+                    'fact_id': f'{label}-{suffix}',
+                    'event_date': f'{year}-09-{day:02d}',
+                    'business_line': 'training',
+                    'business_group': '留学预备',
+                    'comparison_group': '青少',
+                    'team_id': 'offline_market',
+                    'work_order_id': f'{label}-{suffix}',
+                    'owners': [],
+                    'metric': 'cash',
+                    'value': 100,
+                    'first_channel': '市场活动',
+                    'second_channel': '校代',
+                    'school_name': '主学校',
+                    'grade_name': grade,
+                    'student_id': student,
+                })
+
+        for product, student in (('study_abroad', 'A1'), ('small_language', 'A2')):
+            facts.append({
+                'fact_id': f'abroad-{product}',
+                'event_date': '2026-09-10',
+                'business_line': 'abroad',
+                'business_group': '大学',
+                'team_id': 'offline_market',
+                'work_order_id': f'abroad-{product}',
+                'owners': [],
+                'metric': 'cash',
+                'value': 100,
+                'first_channel': '市场活动',
+                'second_channel': '校代',
+                'school_name': '留学学校',
+                'grade_name': '大二',
+                'student_id': student,
+                'segment_id': 'study_abroad_offline',
+                'source_product': product,
+                'customer_domain': product,
+                'source_kind': 'study_abroad_warehouse',
+                'offline_channel_eligible': True,
+            })
+
+        targets = {}
+        data = aggregate(
+            facts, {'teams': []}, {'people': []}, targets, {}, {},
+            date(2026, 9, 28), abroad_source=study_coverage(),
+        )
+        enrich_periods(data['periods'], facts, targets, {}, {})
+        period = next(row for row in data['periods'] if row['id'] == '2026-09')
+
+        prep = next(team for team in period['teams'] if team['id'] == 'prep')
+        channel = next(row for row in prep['channels']
+                       if row['business_line'] == 'training' and row['name'] == '校代')
+        group = next(row for row in channel['groups'] if row['name'] == '青少')
+        self.assertEqual((group['heads']['actual'], group['heads']['prior'],
+                          group['heads']['yoy']), (2, 1, 1))
+
+        school = prep['schools_by_line']['training'][0]
+        self.assertEqual((school['heads']['actual'], school['heads']['prior'],
+                          school['heads']['yoy']), (2, 1, 1))
+        self.assertEqual(sum(grade['heads']['actual'] for grade in school['grades']), 3)
+        self.assertEqual(sum(grade['heads']['prior'] for grade in school['grades']), 2)
+
+        university = next(team for team in period['teams'] if team['id'] == 'university')
+        abroad_channel = next(row for row in university['channels']
+                              if row['business_line'] == 'abroad')
+        abroad_group = abroad_channel['groups'][0]
+        abroad_school = university['schools_by_line']['abroad'][0]
+        abroad_grade = abroad_school['grades'][0]
+        for metric in (abroad_group['heads'], abroad_school['heads'], abroad_grade['heads']):
+            self.assertIsNone(metric['actual'])
+            self.assertIsNone(metric['prior'])
+            self.assertIsNone(metric['yoy'])
+            self.assertEqual(metric['status'], 'separate_counts')
+            self.assertTrue(metric['source_coverage']['no_yoy'])
+
     def test_subgroups_channels_and_country_folds_preserve_scope(self):
         facts=[]
         for ident, group, student in [('a','青少','s1'),('b','初中','s1')]:

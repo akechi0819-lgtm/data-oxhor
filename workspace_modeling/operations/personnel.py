@@ -63,6 +63,48 @@ def co_creation_weights(names, roster_by_name):
         result.update({name: weight for name in offline})
     return result
 
+
+ACTIVITY_BRACKETS = re.compile(r'（([^）]*)）|\(([^)]*)\)')
+
+
+def activity_co_creation_weights(names, roster_by_name, business_line, campaign):
+    """本业务主办者全计；明确括号跨业务接收只分实际跨业务成果。
+
+    活动名不是业务线证据，业务线来自事实。只在已识别归属人员内区分
+    括号外主办与括号内接收；没有明确双方或主办业务不唯一时沿用共创。
+    虚拟人仍独立全计，不参与线下分母。
+    """
+    weights = co_creation_weights(names, roster_by_name)
+    text = str(campaign or '')
+    outside = ACTIVITY_BRACKETS.sub(' ', text)
+    bracket_text = ' '.join(match.group(1) or match.group(2) or ''
+                            for match in ACTIVITY_BRACKETS.finditer(text))
+    offline = [name for name in weights
+               if 'online_private' not in roster_by_name[name]['team_ids']]
+    primary = [name for name in offline if name in outside]
+    secondary = [name for name in offline if name not in primary and name in bracket_text]
+    primary_lines = {roster_by_name[name].get('business_line') for name in primary}
+    if (not primary or not secondary or len(primary_lines) != 1
+            or not primary_lines <= {'training', 'abroad'}):
+        return weights
+    own_line = next(iter(primary_lines))
+    creators = primary + [name for name in secondary
+                          if roster_by_name[name].get('business_line') == own_line]
+    receivers = [name for name in secondary
+                 if roster_by_name[name].get('business_line') == business_line
+                 and roster_by_name[name].get('business_line') != own_line]
+    # 未能归入明确双方的已识别人名不能被活动解析静默丢弃。
+    if set(creators + secondary) != set(offline):
+        return weights
+    virtual = {name: weight for name, weight in weights.items() if name not in offline}
+    creator_weights = co_creation_weights(creators, roster_by_name)
+    if business_line == own_line or not receivers:
+        return {**virtual, **creator_weights}
+    receiver_weights = co_creation_weights(receivers, roster_by_name)
+    return {**virtual,
+            **{name: weight * Decimal('0.5') for name, weight in creator_weights.items()},
+            **{name: weight * Decimal('0.5') for name, weight in receiver_weights.items()}}
+
 def date_to_perf_month(date_str):
     """将日期转换为绩效月（YYYY-MM格式）
     绩效月定义：每月26日到次月25日算作次月的绩效月

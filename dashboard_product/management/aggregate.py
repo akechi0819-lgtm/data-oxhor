@@ -10,7 +10,7 @@ from workspace_modeling.operations.personnel import (
     BUSINESS_GROUP_BY_ROSTER_GROUP,
     ORDER_STATUS_MODES,
     ORDER_STATUS_VALUES,
-    co_creation_weights,
+    activity_co_creation_weights,
     is_displayable_person,
     order_status_allowed,
 )
@@ -491,7 +491,9 @@ def _personal_weights(fact, kind, roster_by_name):
     names = list(fact.get('owners') or [])
     if kind in ('orders', 'cash'):
         names.extend(fact.get('virtual_owners') or [])
-    return co_creation_weights(names, roster_by_name)
+    return activity_co_creation_weights(
+        names, roster_by_name, fact.get('business_line'), fact.get('campaign_name'),
+    )
 
 
 def _personal_weighted_facts(facts, person, line, kind, start, end, roster_by_name,

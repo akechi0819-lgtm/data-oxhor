@@ -899,6 +899,18 @@ def _ledger_rows(message: dict, key: str, kind: str) -> list[dict]:
     return output
 
 
+def _unassigned_cash_rows(message: dict) -> list[dict]:
+    ledgers = message.get('ledgers') or {}
+    rows = []
+    for fact in ledgers.get('unassigned_cash') or []:
+        if not isinstance(fact, dict):
+            continue
+        row = _detail_row(fact, len(rows) + 1, '现金', team_scope=True)
+        row['未分配原因'] = str(fact.get('attribution_reason') or '')
+        rows.append(row)
+    return rows
+
+
 def _person_xlsx_rows(message: dict, data_through: str) -> tuple[list[str], list[list]]:
     if message.get('personal_only'):
         labels = ['人员', '业务团队', '工单完成', '当日新增']
@@ -1054,6 +1066,15 @@ def _write_xlsx(message: dict, data_through: str, path: Path) -> Path:
     if not message.get('personal_only') or cash:
         cash_scope = scope if cash else scope + '；当前范围没有已接入金额流水。'
         _write_detail_sheet(book, '现金明细', cash, cash_scope, show_business_line=_team_key(message) != 'virtual')
+    if not _message_is_online(message):
+        unassigned_cash = _unassigned_cash_rows(message)
+        if unassigned_cash:
+            person_window, _, _ = _personal_window_text(message, data_through)
+            unassigned_scope = f'{person_window}；仅供核对，未计入个人业绩。'
+            _write_detail_sheet(
+                book, '未分配签约', unassigned_cash, unassigned_scope,
+                show_business_line=_team_key(message) != 'virtual',
+            )
     path.parent.mkdir(parents=True, exist_ok=True)
     book.save(path)
     return path

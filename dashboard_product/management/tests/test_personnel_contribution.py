@@ -40,23 +40,24 @@ def rosters(training=(), online=(), abroad=()):
     return {'teams': teams}, {'people': list(abroad)}
 
 
-def sources(*, resources=(), contracts=(), languages=(), transfers=(),
-            resources_connected=True, transfers_connected=True):
+def sources(*, resources=(), contracts=(), languages=(), resources_connected=True):
     return {
         'resources': list(resources),
         'contracts': list(contracts),
         'languages': list(languages),
-        'transfers': list(transfers),
         'resources_connected': resources_connected,
-        'transfers_connected': transfers_connected,
         'source_hashes': {},
     }
 
 
-def resource(rid, day, owner, status='正常', campaign='', consultation_type='留学'):
+def resource(rid, day, owner, status='正常', campaign='', consultation_type='留学',
+             source_owner=None, market_group='', source_group='', segment_id=''):
     return {
         'resource_id': rid, 'date': day, 'owner': owner, 'status': status,
         'campaign': campaign, 'consultation_type': consultation_type, 'source_row_number': 2,
+        'record_key': f'test:resources:{rid}',
+        'source_owner': source_owner, 'market_group': market_group,
+        'source_group': source_group, 'segment_id': segment_id,
     }
 
 
@@ -75,13 +76,6 @@ def language(rid, work_order_id, day, owner, amount):
     }
 
 
-def transfer(rid, tag, campaign, day='2026-09-10', row=2):
-    return {
-        'resource_id': rid, 'tag': tag, 'campaign': campaign,
-        'date': day, 'source_row_number': row,
-    }
-
-
 def bi_fact(fid, line, metric, day, value, work_order_id, source_row_number=2,
             order_status=None):
     row = {
@@ -95,11 +89,12 @@ def bi_fact(fid, line, metric, day, value, work_order_id, source_row_number=2,
 
 
 def order_row(work_order_id, rid, campaign, entry_person='', description='', source_row_number=2,
-              order_status=None):
+              order_status=None, first_channel=''):
     row = {
         'work_order_id': work_order_id, 'resource_id': rid,
         'campaign_name': campaign, 'resource_entry_person': entry_person,
         'resource_description': description, 'source_row_number': source_row_number,
+        'first_channel': first_channel,
     }
     if order_status is not None:
         row['order_status'] = order_status
@@ -117,122 +112,169 @@ def rows_for(result, month):
 
 
 class PersonnelContributionTests(unittest.TestCase):
-    def test_bidirectional_double_split_and_natural_month_amounts(self):
-        training_targets = {
-            '2026-08': {'orders': 2, 'cash': 200},
-            '2026-09': {'orders': 4, 'cash': 2000},
-        }
-        abroad_targets = {
-            '2026-08': {'orders': 4, 'cash': 4000},
-            '2026-09': {'orders': 6, 'cash': 5000},
-        }
+    def test_source_markers_split_both_directions_and_preserve_cash_owner(self):
         people, abroad_people = rosters(
-            training=[member('语培甲', targets=training_targets)],
-            abroad=[member('留学乙', targets=abroad_targets)],
+            training=[member('语培甲'), member('语培乙')],
+            abroad=[member('留学乙')],
         )
         facts = [
-            bi_fact('training-aug-order', 'training', 'orders', '2026-08-20', 1, 'wo-aug'),
-            bi_fact('training-aug-cash', 'training', 'cash', '2026-08-20', 100, 'wo-aug'),
-            bi_fact('training-sep-order', 'training', 'orders', '2026-09-12', 1, 'wo-sep'),
-            bi_fact('training-sep-cash', 'training', 'cash', '2026-09-12', 200, 'wo-sep'),
+            bi_fact('bi-marker-order', 'training', 'orders', '2026-09-10', 1, 'wo-bi-marker'),
+            bi_fact('bi-marker-cash', 'training', 'cash', '2026-09-10', 200, 'wo-bi-marker'),
+            bi_fact('plain-order', 'training', 'orders', '2026-09-11', 1, 'wo-plain'),
         ]
-        # BI may contain many study-abroad facts. The new page takes those records
-        # from its own workbook and must ignore the BI copies.
-        facts.extend(
-            bi_fact(f'bi-abroad-{i}', 'abroad', 'orders', '2026-09-15', 1000, f'foreign-{i}')
-            for i in range(20)
-        )
-        original_facts = copy.deepcopy(facts)
+        orphan_cash = bi_fact('orphan-cash', 'training', 'cash', '2026-09-11', 50, 'wo-no-order-row')
+        orphan_cash.update({'first_channel': '双分', 'campaign_name': '语培甲'})
+        facts.append(orphan_cash)
         order_rows = [
-            order_row('wo-aug', '1001', '语培甲（留学乙）', '语培甲'),
-            order_row('wo-sep', '1002', '留学乙（语培甲）', '留学乙'),
+            order_row('wo-bi-marker', '1000', '留学乙（语培甲）', '留学乙', first_channel='双分'),
+            order_row('wo-plain', '1001', '语培甲（双分）', '语培甲', first_channel='普通渠道'),
         ]
         source_rows = sources(
             resources=[
-                # This resource was assigned in August; its September contract
-                # still belongs to September by its archive month.
-                resource('1001', '2026-08-15', '语培甲'),
-                resource('1002', '2026-09-03', '留学乙'),
-                resource('1004', '2026-09-10', '语培甲'),
+                resource('2001', '2026-09-12', '留学乙',
+                         campaign='语培甲/语培乙（留学乙）', source_owner='语培甲',
+                         market_group='国际市场'),
+                resource('2002', '2026-09-13', '留学乙', campaign='普通活动'),
             ],
             contracts=[
-                contract('1001', 'C-1001', '2026-09', '语培甲', 300, '2026-09-16'),
-                contract('1002', 'C-1002', '2026-09', '留学乙', 500, '2026-09-18'),
-            ],
-            languages=[language('1003', 'L-1003', '2026-09-20', '留学乙', 700)],
-            transfers=[
-                transfer('1001', '双分', '语培甲（留学乙）', '2026-08-15', 2),
-                transfer('1002', '双分', '留学乙（语培甲）', '2026-09-03', 3),
-                transfer('1003', '双分', '留学乙（语培甲）', '2026-09-20', 4),
-                transfer('1004', '双分', '语培甲（留学乙）', '2026-09-10', 5),
+                contract('2001', 'C-marker-owned-by-abroad', '2026-09', '留学乙', 300,
+                         '2026-09-14'),
             ],
         )
-        original_sources = copy.deepcopy(source_rows)
 
         result, details = build_contribution(
             facts, order_rows, people, abroad_people, source_rows,
-            ['2026-08', '2026-09'], targets_for(None),
+            ['2026-09'], targets_for(None),
         )
 
-        self.assertEqual(facts, original_facts)
-        self.assertEqual(source_rows, original_sources)
-        august, august_people = rows_for(result, '2026-08')
-        self.assertEqual(august_people['语培甲']['self']['orders'], 1)
-        self.assertEqual(august_people['语培甲']['output']['orders'], 0.5)
-        self.assertEqual(august_people['留学乙']['received']['orders'], 0.5)
-        self.assertEqual(august_people['语培甲']['targets']['orders'], 2)
-        self.assertEqual(august_people['语培甲']['completion']['orders'], 0.5)
-        self.assertEqual(august_people['语培甲']['self_rate']['orders'], 1)
-        self.assertEqual(august['coverage']['abroad']['orders_through'], '2026-08-15')
+        _, rows = rows_for(result, '2026-09')
+        self.assertEqual(rows['留学乙']['output']['orders'], 0.5)
+        self.assertEqual(rows['语培甲']['received']['orders'], 0.5)
+        self.assertEqual(rows['留学乙']['output']['cash'], 100)
+        self.assertEqual(rows['语培甲']['received']['cash'], 100)
+        # The international resource marker is training-to-abroad. Two explicit
+        # training creators share the output half; the assigned abroad owner gets
+        # the receiving half. The associated contract keeps its own owner.
+        self.assertEqual(rows['语培甲']['output']['orders'], 0.25)
+        self.assertEqual(rows['语培乙']['output']['orders'], 0.25)
+        self.assertEqual(rows['留学乙']['received']['orders'], 0.5)
+        self.assertEqual(rows['留学乙']['self']['cash'], 300)
+        self.assertEqual(rows['语培甲']['self']['orders'], 1)
+        self.assertEqual(rows['语培甲']['received']['orders'], 0.5)
+        self.assertEqual(rows['语培乙']['self']['orders'], 0)
+        marker_records = [row for row in details['records']
+                          if row.get('cross_business_marker')]
+        self.assertTrue(marker_records)
+        self.assertEqual({row['cross_business_marker']['direction'] for row in marker_records},
+                         {'abroad_to_training', 'training_to_abroad'})
+        self.assertTrue(all(row['marker_source_key'] for row in marker_records))
+        ordinary = [row for row in details['records'] if row['key'] in {'plain-order', 'resources:2002'}]
+        self.assertTrue(ordinary)
+        self.assertTrue(all(row['cross_business_marker'] is None for row in ordinary))
+        orphan = next(row for row in details['records'] if row['key'] == 'orphan-cash')
+        self.assertEqual((orphan['person'], orphan['bucket']), ('语培甲', 'self'))
+        self.assertIsNone(orphan['cross_business_marker'])
+        contract_event = next(row for row in details['records']
+                              if row['key'] == 'contracts:C-marker-owned-by-abroad')
+        self.assertEqual(contract_event['person'], '留学乙')
+        self.assertEqual(contract_event['bucket'], 'self')
+        self.assertEqual(contract_event['cross_business_marker']['direction'], 'training_to_abroad')
+        self.assertFalse(any(row['source'] == 'bi' and row['key'].startswith('bi-abroad-')
+                             for row in details['records']))
 
-        september, september_people = rows_for(result, '2026-09')
-        training = september_people['语培甲']
-        abroad = september_people['留学乙']
-        # Reverse split: the abroad owner receives half of the training order;
-        # the training owner receives half of the abroad resource.
-        self.assertEqual(training['self']['orders'], 0)
-        self.assertEqual(training['received']['orders'], 0.5)
-        self.assertEqual(training['output']['orders'], 0.5)
-        self.assertEqual(training['own_total']['orders'], 0.5)
-        self.assertEqual(training['created_total']['orders'], 0.5)
-        self.assertEqual(training['targets']['orders'], 4)
-        self.assertEqual(training['completion']['orders'], 0.125)
-        self.assertEqual(training['self_rate']['orders'], 0)
-        self.assertEqual(abroad['self']['orders'], 1)
-        self.assertEqual(abroad['received']['orders'], 0.5)
-        self.assertEqual(abroad['output']['orders'], 0.5)
-        self.assertEqual(abroad['own_total']['orders'], 1.5)
-        self.assertEqual(abroad['created_total']['orders'], 1.5)
-        self.assertEqual(abroad['targets']['orders'], 6)
-        self.assertAlmostEqual(abroad['completion']['orders'], 0.25)
-        self.assertAlmostEqual(abroad['self_rate']['orders'], 2 / 3)
-
-        # BI cash follows the same split weights. Contract cash uses its archive
-        # month even for an older resource; language cash uses its business date.
-        self.assertEqual(training['self']['cash'], 0)
-        self.assertEqual(training['received']['cash'], 100)
-        self.assertEqual(training['output']['cash'], 150)
-        self.assertEqual(training['own_total']['cash'], 100)
-        self.assertEqual(training['created_total']['cash'], 150)
-        self.assertEqual(training['targets']['cash'], 2000)
-        self.assertAlmostEqual(training['completion']['cash'], 0.05)
-        self.assertEqual(training['self_rate']['cash'], 0)
-        self.assertEqual(abroad['self']['cash'], 1200)
-        self.assertEqual(abroad['received']['cash'], 150)
-        self.assertEqual(abroad['output']['cash'], 100)
-        self.assertEqual(abroad['own_total']['cash'], 1350)
-        self.assertEqual(abroad['created_total']['cash'], 1300)
-        self.assertEqual(abroad['targets']['cash'], 5000)
-        self.assertAlmostEqual(abroad['completion']['cash'], 0.27)
-        self.assertAlmostEqual(abroad['self_rate']['cash'], 1200 / 1350)
-        self.assertEqual(september['coverage']['abroad']['cash_through'], '2026-09-20')
-        old_resource_contract = next(
-            row for row in details['records']
-            if row['source'] == 'contracts' and row['key'] == 'contracts:C-1001'
-            and row['person'] == '语培甲'
+    def test_international_marker_keeps_source_owner_when_activity_names_another_creator(self):
+        people, abroad_people = rosters(
+            training=[member('语培甲'), member('语培乙')],
+            abroad=[member('留学丙')],
         )
-        self.assertEqual(old_resource_contract['month'], '2026-09')
-        self.assertEqual(old_resource_contract['credited_value'], '150.0')
+        source_rows = sources(resources=[resource(
+            '2003', '2026-09-12', '留学丙', campaign='语培乙（留学丙）',
+            source_owner='语培甲', market_group='国际市场',
+        )])
+
+        result, details = build_contribution(
+            [], [], people, abroad_people, source_rows,
+            ['2026-09'], targets_for(None),
+        )
+
+        _, rows = rows_for(result, '2026-09')
+        self.assertEqual(rows['语培甲']['output']['orders'], 1)
+        self.assertEqual(rows['语培乙']['output']['orders'], 0)
+        self.assertEqual(rows['留学丙']['received']['orders'], 0)
+        credited = [row for row in details['records'] if row['key'] == 'resources:2003']
+        self.assertEqual(len(credited), 1)
+        self.assertEqual(credited[0]['person'], '语培甲')
+        self.assertEqual(credited[0]['rule'], 'source_marker_owner_authoritative')
+
+    def test_international_marker_splits_when_activity_only_names_receiver(self):
+        people, abroad_people = rosters(
+            training=[member('语培甲')], abroad=[member('留学丙')],
+        )
+        source_rows = sources(resources=[resource(
+            '2004', '2026-09-12', '留学丙', campaign='留学丙',
+            source_owner='语培甲', market_group='国际市场',
+        )])
+
+        result, _ = build_contribution(
+            [], [], people, abroad_people, source_rows,
+            ['2026-09'], targets_for(None),
+        )
+
+        _, rows = rows_for(result, '2026-09')
+        self.assertEqual(rows['语培甲']['output']['orders'], 0.5)
+        self.assertEqual(rows['留学丙']['received']['orders'], 0.5)
+
+    def test_out_of_scope_marker_diagnostics_do_not_raise_personnel_pending(self):
+        people, abroad_people = rosters(
+            training=[member('语培甲')], abroad=[member('留学丙')],
+        )
+        facts = [bi_fact('bi-outside', 'training', 'orders', '2026-09-10', 1, 'wo-outside')]
+        order_rows = [order_row(
+            'wo-outside', '4002', '张晓萌（史鹏如）', '张晓萌', first_channel='双分',
+        )]
+        source_rows = sources(resources=[resource(
+            '4001', '2026-09-11', '张晓萌', campaign='张晓萌（史鹏如）',
+            source_owner='刘思', market_group='国际市场',
+        )])
+
+        result, details = build_contribution(
+            facts, order_rows, people, abroad_people, source_rows,
+            ['2026-09'], targets_for(None),
+        )
+
+        period, rows = rows_for(result, '2026-09')
+        assert period['pending_count'] == 0
+        assert period['pending'] == []
+        assert all(person['pending_count'] == 0 for person in rows.values())
+        assert details['pending'] == []
+        assert details['diagnostics']['marker_outside_personnel_scope'] == 2
+        diagnostics = {row['key']: row for row in details['marker_diagnostics']}
+        assert diagnostics['resources:4001']['resource_id'] == '4001'
+        assert diagnostics['bi-outside']['work_order_id'] == 'wo-outside'
+        assert diagnostics['bi-outside']['source_label'] == '语培工单'
+
+    def test_marker_conflict_with_current_person_remains_public_pending(self):
+        people, abroad_people = rosters(
+            training=[member('语培甲')], abroad=[member('留学丙')],
+        )
+        source_rows = sources(resources=[resource(
+            '4003', '2026-09-12', '语培甲', source_owner='名单外主办',
+            market_group='国际市场',
+        )])
+
+        result, details = build_contribution(
+            [], [], people, abroad_people, source_rows,
+            ['2026-09'], targets_for(None),
+        )
+
+        period, rows = rows_for(result, '2026-09')
+        assert period['pending_count'] == 1
+        assert period['pending'] == [
+            {'name': '语培甲', 'source': '留学资源',
+             'reason': '标记来源人员或明确接收人员未匹配当前名单', 'count': 1}
+        ]
+        assert rows['语培甲']['pending_count'] == 1
+        assert details['pending'][0]['affected_people'] == ['语培甲']
 
     def test_abroad_and_small_language_scopes_split_source_events(self):
         training_targets = {'2026-09': {'orders': 4, 'cash': 2000}}
@@ -245,24 +287,24 @@ class PersonnelContributionTests(unittest.TestCase):
             bi_fact('scope-bi-order', 'training', 'orders', '2026-09-10', 1, 'wo-bi'),
             bi_fact('scope-bi-cash', 'training', 'cash', '2026-09-10', 100, 'wo-bi'),
         ]
-        order_rows = [order_row('wo-bi', '9000', '留学乙（语培甲）')]
+        order_rows = [order_row('wo-bi', '9000', '留学乙（语培甲）', '留学乙', first_channel='双分')]
         source_rows = sources(
             resources=[
                 resource('9001', '2026-09-11', '语培甲',
-                         campaign='语培甲（留学乙）', consultation_type='留学'),
+                         campaign='语培甲（留学乙）', consultation_type='留学',
+                         source_owner='语培甲', market_group='国际市场'),
                 resource('9002', '2026-09-12', '语培甲',
-                         campaign='语培甲（留学乙）', consultation_type='小语种'),
+                         campaign='语培甲（留学乙）', consultation_type='小语种',
+                         source_owner='语培甲', market_group='国际市场'),
                 resource('9003', '2026-09-13', '留学乙', consultation_type='留学'),
                 resource('9004', '2026-09-14', '留学乙', consultation_type='小语种'),
+                resource('9005', '2026-09-14', '语培甲', status='删除',
+                         campaign='语培甲（留学乙）', consultation_type='小语种',
+                         source_owner='语培甲', market_group='国际市场'),
             ],
             contracts=[contract('cash-study', 'C-study', '2026-09', '留学乙', 100, '2026-09-15')],
-            languages=[language('9005', 'L-small', '2026-09-16', '语培甲', 200)],
-            transfers=[
-                transfer('9000', '双分', '留学乙（语培甲）', row=2),
-                transfer('9001', '双分', '语培甲（留学乙）', row=3),
-                transfer('9002', '双分', '语培甲（留学乙）', row=4),
-                transfer('9005', '双分', '语培甲（留学乙）', row=5),
-            ],
+            languages=[{**language('9005', 'L-small', '2026-09-16', '语培甲', 200),
+                        'campaign': '语培甲（留学乙）'}],
         )
 
         result, details = build_contribution(
@@ -320,6 +362,7 @@ class PersonnelContributionTests(unittest.TestCase):
              'resources:9002': 'small_language',
              'resources:9003': 'study_abroad',
              'resources:9004': 'small_language',
+             'resources:9005': 'small_language',
              'contracts:C-study': 'study_abroad',
              'languages:2': 'small_language'},
         )
@@ -336,7 +379,7 @@ class PersonnelContributionTests(unittest.TestCase):
         people, abroad_people = rosters(abroad=[member('留学乙')])
         source_rows = sources(resources=[resource(
             '9999', '2026-09-10', '留学乙', consultation_type='其他',
-        )], transfers_connected=False)
+        )], resources_connected=False)
 
         with self.assertRaisesRegex(ValueError, '咨询类型必须为留学或小语种'):
             build_contribution(
@@ -384,17 +427,15 @@ class PersonnelContributionTests(unittest.TestCase):
                 resource('1301', '2026-09-11', '留学乙', consultation_type='留学'),
                 resource('1302', '2026-09-12', '留学乙', status='删除', consultation_type='留学'),
                 resource('1303', '2026-09-13', '语培甲', status='死单',
-                         campaign='语培甲（留学乙）', consultation_type='小语种'),
+                         campaign='语培甲（留学乙）', consultation_type='小语种',
+                         source_owner='语培甲', market_group='国际市场'),
                 resource('1304', '2026-09-14', '留学乙', status='回收', consultation_type='小语种'),
                 resource('1305', '2026-09-15', '留学乙', status='删除',
-                         campaign='语培甲/留学乙（留学乙）', consultation_type='留学'),
+                         campaign='语培甲/留学乙（留学乙）', consultation_type='留学',
+                         source_owner='语培甲', market_group='国际市场'),
             ],
             contracts=[contract('cash-study', 'C-status-study', '2026-09', '留学乙', 500, '2026-09-16')],
             languages=[language('cash-small', 'L-status-small', '2026-09-17', '留学乙', 300)],
-            transfers=[
-                transfer('1303', '双分', '语培甲（留学乙）', row=3),
-                transfer('1305', '双分', '语培甲/留学乙（留学乙）', row=5),
-            ],
         )
 
         result, details = build_contribution(
@@ -406,9 +447,10 @@ class PersonnelContributionTests(unittest.TestCase):
         training = rows['语培甲']
         abroad = rows['留学乙']
         expected_training_self = {'00': 1, '01': 2, '10': 3, '11': 4}
-        expected_training_output = {'00': 0, '01': 0.5, '10': 0, '11': 0.5}
+        expected_training_output = {'00': 0, '01': 0.5, '10': 0.5, '11': 1}
+        expected_small_language_output = {'00': 0, '01': 0.5, '10': 0, '11': 0.5}
         expected_abroad_self = {'00': 1, '01': 1, '10': 3, '11': 3}
-        expected_abroad_received = {'00': 0, '01': 0.5, '10': 0, '11': 0.5}
+        expected_abroad_received = {'00': 0, '01': 0.5, '10': 0.5, '11': 1}
         for person_row in (training, abroad):
             self.assertEqual(set(person_row['order_status_views']), set(ORDER_STATUS_MODES))
             default_view = person_row['order_status_views'][DEFAULT_ORDER_STATUS_MODE]
@@ -431,9 +473,9 @@ class PersonnelContributionTests(unittest.TestCase):
             self.assertEqual(abroad_view['self']['orders'], expected_abroad_self[mode])
             self.assertEqual(abroad_view['received']['orders'], expected_abroad_received[mode])
             self.assertEqual(abroad_view['breakdowns']['small_language']['received']['orders'],
-                             expected_abroad_received[mode])
+                             expected_small_language_output[mode])
             self.assertEqual(training_view['breakdowns']['small_language']['output']['orders'],
-                             expected_training_output[mode])
+                             expected_small_language_output[mode])
         self.assertEqual(abroad['breakdowns']['small_language']['received']['orders'], 0.5)
         self.assertEqual(training['breakdowns']['small_language']['output']['orders'], 0.5)
 
@@ -477,9 +519,10 @@ class PersonnelContributionTests(unittest.TestCase):
             abroad=[member('邓睿')],
         )
         source_rows = sources(
-            resources=[resource('2101', '2026-09-18', '师顺盈')],
+            resources=[resource('2101', '2026-09-18', '邓睿',
+                                campaign='师顺盈/高勃然（邓睿）', source_owner='师顺盈',
+                                market_group='国际市场')],
             contracts=[contract('2101', 'C-2101', '2026-09', '师顺盈', 200, '2026-09-19')],
-            transfers=[transfer('2101', '双分', '师顺盈/高勃然（邓睿）')],
         )
 
         result, _ = build_contribution(
@@ -513,8 +556,6 @@ class PersonnelContributionTests(unittest.TestCase):
                 contract('469', 'C-469', '2026-09', '邓睿', 200, '2026-09-11', campaign),
             ],
             languages=[language('599', 'L-599', '2026-09-15', '师顺盈', 300)],
-            # The flow workbook is connected, but these resources have no ID-matched flow rows.
-            transfers=[],
         )
 
         result, details = build_contribution(
@@ -560,7 +601,7 @@ class PersonnelContributionTests(unittest.TestCase):
         )]
 
         result, details = build_contribution(
-            facts, order_rows, people, abroad_people, sources(transfers=[]),
+            facts, order_rows, people, abroad_people, sources(),
             ['2026-09'], targets_for(None),
         )
 
@@ -589,7 +630,7 @@ class PersonnelContributionTests(unittest.TestCase):
         source_rows = sources(resources=[
             resource('8400', '2026-09-10', '语培甲', campaign='语培甲（留学乙）'),
             resource('8401', '2026-09-11', '语培甲', campaign='语培甲（留学乙）'),
-        ], transfers=[])
+        ])
 
         result, details = build_contribution(
             facts, order_rows, people, abroad_people, source_rows,
@@ -605,7 +646,7 @@ class PersonnelContributionTests(unittest.TestCase):
         self.assertEqual(len(training_records), 10)
         self.assertEqual({row['key'] for row in abroad_records}, {'resources:8400', 'resources:8401'})
 
-    def test_non_double_flow_does_not_block_real_handoff_or_split_own_side_training(self):
+    def test_unmarked_source_keeps_real_handoff_and_ordinary_training(self):
         people, abroad_people = rosters(
             training=[member('语培甲')], abroad=[member('留学乙')],
         )
@@ -616,7 +657,6 @@ class PersonnelContributionTests(unittest.TestCase):
         )]
         source_rows = sources(
             resources=[resource('8601', '2026-09-10', '语培甲', campaign='语培甲（留学乙）')],
-            transfers=[transfer('8601', '非双分', '不用于覆盖来源活动')],
         )
 
         result, details = build_contribution(
@@ -649,7 +689,7 @@ class PersonnelContributionTests(unittest.TestCase):
             '8802', '2026-09-11', '留学丙', campaign='语培甲（语培乙）',
         )
         unrelated_activity['data_provider'] = '语培甲'
-        source_rows = sources(resources=[blank_owner, unrelated_activity], transfers=[])
+        source_rows = sources(resources=[blank_owner, unrelated_activity])
 
         result, details = build_contribution(
             [], [], people, abroad_people, source_rows,
@@ -678,7 +718,7 @@ class PersonnelContributionTests(unittest.TestCase):
         row['consultant'] = '邓睿'
 
         result, details = build_contribution(
-            [], [], people, abroad_people, sources(resources=[row], transfers=[]),
+            [], [], people, abroad_people, sources(resources=[row]),
             ['2026-09'], targets_for(None),
         )
 
@@ -703,10 +743,6 @@ class PersonnelContributionTests(unittest.TestCase):
         ]
         source_rows = sources(
             resources=[resource('3002', '2026-09-12', '王洪霞')],
-            transfers=[
-                transfer('3001', '双分', '校代渠道活动'),
-                transfer('3002', '双分', '（双分）王洪霞'),
-            ],
         )
 
         result, _ = build_contribution(
@@ -720,15 +756,13 @@ class PersonnelContributionTests(unittest.TestCase):
         self.assertEqual(person['output']['orders'], 1)
         self.assertEqual(person['received']['orders'], 0)
 
-    def test_explicit_non_double_transfer_tag_overrides_double_campaign_text(self):
+    def test_campaign_text_does_not_create_a_source_marker(self):
         people, abroad_people = rosters(
             training=[member('语培甲')], abroad=[member('留学乙')],
         )
         facts = [bi_fact('single-order', 'training', 'orders', '2026-09-10', 1, 'wo-single')]
         order_rows = [order_row('wo-single', '4001', '语培甲（留学乙）双分', '语培甲')]
-        source_rows = sources(transfers=[
-            transfer('4001', '非双分', '留学乙（语培甲）双分'),
-        ])
+        source_rows = sources()
 
         result, _ = build_contribution(
             facts, order_rows, people, abroad_people, source_rows,
@@ -742,7 +776,7 @@ class PersonnelContributionTests(unittest.TestCase):
         self.assertEqual(period['pending_count'], 0)
         self.assertEqual(period['pending'], [])
 
-    def test_same_activity_name_without_matching_resource_transfer_stays_self_owned(self):
+    def test_same_activity_without_an_opposite_source_stays_self_owned(self):
         people, abroad_people = rosters(
             training=[member('语培甲')], abroad=[member('留学乙')],
         )
@@ -753,10 +787,7 @@ class PersonnelContributionTests(unittest.TestCase):
         order_rows = [order_row(
             'wo-pending', '8101', '语培甲（留学乙）', '语培甲', source_row_number=41,
         )]
-        source_rows = sources(transfers=[
-            # Matching activity text cannot substitute for a matching resource ID.
-            transfer('8102', '双分', '语培甲（留学乙）', row=9),
-        ])
+        source_rows = sources()
         original_facts = copy.deepcopy(facts)
         original_sources = copy.deepcopy(source_rows)
 
@@ -782,7 +813,7 @@ class PersonnelContributionTests(unittest.TestCase):
             for row in details['records']
         ))
 
-    def test_connected_empty_abroad_source_reports_zero_without_inventing_credit(self):
+    def test_bi_marker_runs_without_a_connected_abroad_workbook(self):
         people, abroad_people = rosters(
             training=[member('语培甲')], abroad=[member('留学乙')],
         )
@@ -791,11 +822,9 @@ class PersonnelContributionTests(unittest.TestCase):
             bi_fact('training-only-cash', 'training', 'cash', '2026-09-10', 100, 'wo-training-only'),
         ]
         order_rows = [order_row(
-            'wo-training-only', '8701', '语培甲（留学乙）', '语培甲',
+            'wo-training-only', '8701', '留学乙（语培甲）', '留学乙', first_channel='双分',
         )]
-        source_rows = sources(transfers=[
-            transfer('8701', '双分', '语培甲（留学乙）'),
-        ])
+        source_rows = sources()
 
         result, details = build_contribution(
             facts, order_rows, people, abroad_people, source_rows,
@@ -806,17 +835,19 @@ class PersonnelContributionTests(unittest.TestCase):
         training = rows['语培甲']
         abroad = rows['留学乙']
         self.assertFalse(period['coverage']['abroad']['connected'])
-        self.assertEqual(training['self']['orders'], 1)
-        self.assertEqual(training['self']['cash'], 100)
+        self.assertEqual(training['self']['orders'], 0)
+        self.assertEqual(training['self']['cash'], 0)
+        self.assertEqual(training['received']['orders'], 0.5)
+        self.assertEqual(training['received']['cash'], 50)
         self.assertEqual(training['output']['orders'], 0)
         self.assertEqual(training['output']['cash'], 0)
-        self.assertEqual(training['created_total']['orders'], 1)
-        self.assertEqual(training['created_total']['cash'], 100)
+        self.assertEqual(training['created_total']['orders'], 0)
+        self.assertEqual(training['created_total']['cash'], 0)
         self.assertEqual(abroad['self']['orders'], 0)
-        self.assertEqual(abroad['received']['orders'], 0)
+        self.assertEqual(abroad['output']['orders'], 0.5)
         self.assertEqual(abroad['self']['cash'], 0)
-        self.assertEqual(abroad['received']['cash'], 0)
-        self.assertTrue(all(row['person'] == '语培甲' and row['bucket'] == 'self'
+        self.assertEqual(abroad['output']['cash'], 50)
+        self.assertTrue(all(row['cross_business_marker']['kind'] == 'bi_first_channel'
                             for row in details['records']))
         self.assertEqual(details['pending'], [])
 
@@ -938,11 +969,10 @@ class PersonnelContributionTests(unittest.TestCase):
             f'wo-{index}', f'840{index}', '语培甲（留学乙）', '语培甲',
         ) for index in range(10)]
         source_rows = sources(
-            resources=[resource(f'840{index}', '2026-09-10', '留学乙') for index in range(3)],
-            transfers=[
-                transfer(f'840{index}', '双分', '语培甲（留学乙）', row=index + 2)
-                for index in range(3)
-            ],
+            resources=[resource(f'840{index}', '2026-09-10', '留学乙',
+                                campaign='语培甲（留学乙）', source_owner='语培甲',
+                                market_group='国际市场')
+                       for index in range(3)],
         )
 
         result, details = build_contribution(
@@ -979,8 +1009,9 @@ class PersonnelContributionTests(unittest.TestCase):
             'wo-two-primary', '8601', '语培甲/语培乙（留学丙）', '语培甲',
         )]
         source_rows = sources(
-            resources=[resource('8601', '2026-09-10', '留学丙')],
-            transfers=[transfer('8601', '双分', '语培甲/语培乙（留学丙）')],
+            resources=[resource('8601', '2026-09-10', '留学丙',
+                                campaign='语培甲/语培乙（留学丙）', source_owner='语培甲',
+                                market_group='国际市场')],
         )
 
         result, details = build_contribution(
@@ -1012,10 +1043,10 @@ class PersonnelContributionTests(unittest.TestCase):
         )]
         order_rows = [order_row(
             'wo-departed-primary', '8601', '离职主办（语培甲）', '离职主办',
+            first_channel='双分',
         )]
         source_rows = sources(
             resources=[resource('8699', '2026-09-01', '语培甲', '删除')],
-            transfers=[transfer('8601', '双分', '离职主办（语培甲）')],
         )
 
         result, details = build_contribution(
@@ -1039,15 +1070,14 @@ class PersonnelContributionTests(unittest.TestCase):
             '00': False, '01': False, '10': True, '11': True,
         })
 
-    def test_customer_id_prefix_cannot_match_a_resource_transfer(self):
+    def test_bi_marker_uses_work_order_identity_not_resource_id(self):
         people, abroad_people = rosters(
             training=[member('语培甲')], abroad=[member('留学乙')],
         )
         facts = [bi_fact('customer-order', 'training', 'orders', '2026-09-10', 1, 'wo-customer')]
-        order_rows = [order_row('wo-customer', '客户ID:5002', '语培甲', '语培甲')]
-        source_rows = sources(transfers=[
-            transfer('5002', '双分', '留学乙（语培甲）'),
-        ])
+        order_rows = [order_row('wo-customer', '客户ID:5002', '留学乙（语培甲）',
+                                '留学乙', first_channel='双分')]
+        source_rows = sources()
 
         result, _ = build_contribution(
             facts, order_rows, people, abroad_people, source_rows,
@@ -1055,9 +1085,9 @@ class PersonnelContributionTests(unittest.TestCase):
         )
 
         _, rows = rows_for(result, '2026-09')
-        self.assertEqual(rows['语培甲']['self']['orders'], 1)
-        self.assertEqual(rows['语培甲']['received']['orders'], 0)
-        self.assertEqual(rows['留学乙']['output']['orders'], 0)
+        self.assertEqual(rows['语培甲']['self']['orders'], 0)
+        self.assertEqual(rows['语培甲']['received']['orders'], 0.5)
+        self.assertEqual(rows['留学乙']['output']['orders'], 0.5)
 
     def test_default_mode_includes_dead_but_excludes_deleted_and_recalled_resources(self):
         people, abroad_people = rosters(abroad=[member('留学乙')])
@@ -1093,7 +1123,7 @@ class PersonnelContributionTests(unittest.TestCase):
 
         result, _ = build_contribution(
             facts, order_rows, people, abroad_people,
-            sources(transfers_connected=True), ['2026-09'], targets_for(None),
+            sources(), ['2026-09'], targets_for(None),
         )
         period, rows = rows_for(result, '2026-09')
         self.assertFalse(period['coverage']['abroad']['connected'])
@@ -1103,20 +1133,21 @@ class PersonnelContributionTests(unittest.TestCase):
         self.assertEqual(rows['语培甲']['output']['orders'], 0)
         self.assertEqual(rows['语培甲']['output']['cash'], 0)
 
-        disconnected = sources(
-            resources=[resource('7002', '2026-09-12', '留学乙')],
-            transfers_connected=False,
-        )
+        disconnected = sources(resources_connected=False)
         result, details = build_contribution(
             facts, order_rows, people, abroad_people, disconnected,
             ['2026-09'], targets_for(None),
         )
         _, rows = rows_for(result, '2026-09')
-        for person in rows.values():
-            for bucket in ('self', 'received', 'own_total', 'output', 'created_total'):
-                self.assertIsNone(person[bucket]['orders'])
-                self.assertIsNone(person[bucket]['cash'])
-        self.assertEqual(details['records'], [])
+        self.assertEqual(rows['语培甲']['self']['orders'], 1)
+        self.assertEqual(rows['语培甲']['self']['cash'], 0)
+        self.assertIsNone(rows['语培甲']['output']['orders'])
+        self.assertIsNone(rows['语培甲']['output']['cash'])
+        self.assertIsNone(rows['留学乙']['self']['orders'])
+        self.assertIsNone(rows['留学乙']['self']['cash'])
+        self.assertEqual(rows['留学乙']['output']['orders'], 0)
+        self.assertEqual(rows['留学乙']['output']['cash'], 0)
+        self.assertEqual(len(details['records']), 1)
 
     def test_abroad_month_with_target_and_no_events_is_zero_then_updates_without_changing_prior_month(self):
         people, abroad_people = rosters(abroad=[member('留学乙', targets={
@@ -1126,7 +1157,6 @@ class PersonnelContributionTests(unittest.TestCase):
         source_rows = sources(
             resources=[resource('9101', '2026-09-10', '留学乙')],
             contracts=[contract('9101', 'C-9101', '2026-09', '留学乙', 10000, '2026-09-12')],
-            transfers=[],
         )
 
         initial, _ = build_contribution(
@@ -1168,9 +1198,9 @@ class PersonnelContributionTests(unittest.TestCase):
             training=[member('语培甲')], abroad=[member('留学乙')],
         )
         source_rows = sources(
-            resources=[resource('7101', '2026-09-10', '语培甲', campaign='语培甲（留学乙）')],
+            resources=[resource('7101', '2026-09-10', '语培甲', campaign='语培甲（留学乙）',
+                                source_owner='语培甲', market_group='国际市场')],
             contracts=[contract('7101', 'C-7101', '2026-09', '', 900, '2026-09-20', '语培甲（留学乙）')],
-            transfers=[transfer('7101', '双分', '语培甲（留学乙）')],
         )
 
         result, details = build_contribution(
@@ -1193,7 +1223,6 @@ class PersonnelContributionTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             resource_path = root / 'resources.xlsx'
-            transfer_path = root / 'missing-transfers.xlsx'
             workbook = Workbook()
             resource_sheet = workbook.active
             resource_sheet.title = '资源'
@@ -1220,10 +1249,11 @@ class PersonnelContributionTests(unittest.TestCase):
                     archive.writestr(name, content)
             rewritten.replace(resource_path)
 
-            loaded = load_sources(resource_path, transfer_path)
+            loaded = load_sources(resource_path)
 
         self.assertTrue(loaded['resources_connected'])
-        self.assertFalse(loaded['transfers_connected'])
+        self.assertNotIn('transfers', loaded)
+        self.assertNotIn('transfers_connected', loaded)
         self.assertEqual(len(loaded['resources']), 1)
         self.assertEqual(loaded['resources'][0]['resource_id'], '8001')
         self.assertEqual(loaded['resources'][0]['source_row_number'], 2)

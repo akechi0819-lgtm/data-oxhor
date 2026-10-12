@@ -58,14 +58,16 @@ window.FlatTables = (() => {
   function panel(s,line,schools){
     const gradeMode=s.options.mode==='grades';
     const channelComparison=!schools&&s.options.mode==='both';
+    const showHeads=s.options.showHeads;
     const label=line==='training'?'语培':'留学', result=rows(s,line,schools);
     const headers=gradeMode?'<th>年级</th>':schools?'<th class="rank-col">排名</th><th>学校</th>':'<th>二级渠道</th>';
     const cashLabel='现金';
-    const metricHeaders=channelComparison?`<th>工单·当期</th><th>工单·同期</th><th>工单·同比</th><th>${cashLabel}·当期（元）</th><th>${cashLabel}·同期（元）</th><th>${cashLabel}·同比</th><th>占比</th>`:`<th>工单 · 当期／同期／同比</th><th>${cashLabel}（元）· 当期／同期／同比</th><th>占比</th>`;
-    const body=result.rows.map(r=>`<tr>${schools&&!gradeMode?`<td class="rank-col">${r.rank}</td>`:''}<th>${esc(r.name)}${r.subname?`<small>${schools?'年级':'业务组'}：${esc(r.subname)}</small>`:''}${!schools?`<small>${esc(r.first_channel||'')}</small>`:''}</th>${channelComparison?`${comparisonMetric(r.orders)}${comparisonMetric(r.cash)}`:`<td>${metric(r.orders)}</td><td>${metric(r.cash)}</td>`}<td>${share(r)}</td></tr>`).join('');
+    const metricHeaders=channelComparison?`<th>工单·当期</th><th>工单·同期</th><th>工单·同比</th><th>${cashLabel}·当期（元）</th><th>${cashLabel}·同期（元）</th><th>${cashLabel}·同比</th>${showHeads?'<th>人头·当期</th><th>人头·同期</th><th>人头·同比</th>':''}<th>占比</th>`:`<th>工单 · 当期／同期／同比</th><th>${cashLabel}（元）· 当期／同期／同比</th>${showHeads?'<th>人头 · 当期／同期／同比</th>':''}<th>占比</th>`;
+    const body=result.rows.map(r=>`<tr>${schools&&!gradeMode?`<td class="rank-col">${r.rank}</td>`:''}<th>${esc(r.name)}${r.subname?`<small>${schools?'年级':'业务组'}：${esc(r.subname)}</small>`:''}${!schools?`<small>${esc(r.first_channel||'')}</small>`:''}</th>${channelComparison?`${comparisonMetric(r.orders)}${comparisonMetric(r.cash)}${showHeads?comparisonMetric(r.heads):''}`:`<td>${metric(r.orders)}</td><td>${metric(r.cash)}</td>${showHeads?`<td>${metric(r.heads)}</td>`:''}`}<td>${share(r)}</td></tr>`).join('');
     const info=gradeMode?`${result.total}个年级`:schools?`${s.more[line]?'全部':'前30所'} · 共${result.total}所`:`${result.total}个渠道`;
     const empty=line==='abroad'&&s.options.noAbroad?'本板块不汇总部门留学，个人完成请看人员贡献。':'本期暂无记录';
-    return `<section class="flat-card ${channelComparison?'is-channel-card':''}"><header><h3>${label} · ${gradeMode?'年级表现':schools?'学校排名':'渠道表现'}</h3><span>${info}</span></header><div class="flat-scroll"><table class="flat-table ${schools&&!gradeMode?'is-schools':''} ${channelComparison?'is-channel-comparison':''}"><thead><tr>${headers}${metricHeaders}</tr></thead><tbody>${body||`<tr><td colspan="${channelComparison?8:schools&&!gradeMode?5:4}">${empty}</td></tr>`}</tbody></table></div>${schools&&!gradeMode&&result.total>30?`<button type="button" data-more="${line}" class="flat-more">${s.more[line]?'收起，仅看前30所':`查看更多学校（30名以后，共${result.total-30}所）`}</button>`:''}</section>`;
+    const columnCount=(channelComparison?8:schools&&!gradeMode?5:4)+(showHeads?(channelComparison?3:1):0);
+    return `<section class="flat-card ${channelComparison?'is-channel-card':''}"><header><h3>${label} · ${gradeMode?'年级表现':schools?'学校排名':'渠道表现'}</h3><span>${info}</span></header><div class="flat-scroll"><table class="flat-table ${schools&&!gradeMode?'is-schools':''} ${channelComparison?'is-channel-comparison':''} ${showHeads?'is-heads-table':''}"><thead><tr>${headers}${metricHeaders}</tr></thead><tbody>${body||`<tr><td colspan="${columnCount}">${empty}</td></tr>`}</tbody></table></div>${schools&&!gradeMode&&result.total>30?`<button type="button" data-more="${line}" class="flat-more">${s.more[line]?'收起，仅看前30所':`查看更多学校（30名以后，共${result.total-30}所）`}</button>`:''}</section>`;
   }
   function draw(container,s){
     let html='';
@@ -79,7 +81,7 @@ window.FlatTables = (() => {
       const abroadPanel=personal?.people?.length?personalAbroadPanels(personal.people,personal):panel(s,'abroad',false);
       html+=`<div class="flat-controls"><strong>渠道表现</strong><label>展示粒度 <select aria-label="渠道展示粒度" data-setting="channelMode"><option value="channel" ${s.channelMode==='channel'?'selected':''}>按渠道</option><option value="group" ${s.channelMode==='group'?'selected':''}>渠道 × 业务组</option></select></label></div><div class="flat-grid ${s.options.mode==='both'?'is-channel-grid':''}">${panel(s,'training',false)}${abroadPanel}</div>`;
     }
-    if(s.options.mode!=='channels')html+=`<div class="flat-controls"><strong>学校排名</strong><label>排序 <select aria-label="学校排序" data-setting="sort"><option value="orders" ${s.sort==='orders'?'selected':''}>工单量降序</option><option value="cash" ${s.sort==='cash'?'selected':''}>现金降序</option></select></label><label>展示粒度 <select aria-label="学校展示粒度" data-setting="schoolMode"><option value="school" ${s.schoolMode==='school'?'selected':''}>学校</option><option value="grade" ${s.schoolMode==='grade'?'selected':''}>学校 × 年级</option></select></label></div><div class="flat-grid">${panel(s,'training',true)}${panel(s,'abroad',true)}</div>`;
+    if(s.options.mode!=='channels')html+=`<div class="flat-controls"><strong>学校排名</strong><label>排序 <select aria-label="学校排序" data-setting="sort"><option value="orders" ${s.sort==='orders'?'selected':''}>工单量降序</option><option value="cash" ${s.sort==='cash'?'selected':''}>现金降序</option></select></label><label>展示粒度 <select aria-label="学校展示粒度" data-setting="schoolMode"><option value="school" ${s.schoolMode==='school'?'selected':''}>学校</option><option value="grade" ${s.schoolMode==='grade'?'selected':''}>学校 × 年级</option></select></label></div><div class="flat-grid ${s.options.showHeads?'is-school-grid':''}">${panel(s,'training',true)}${panel(s,'abroad',true)}</div>`;
     container.innerHTML=html;
   }
   function render(container,data,options={}){

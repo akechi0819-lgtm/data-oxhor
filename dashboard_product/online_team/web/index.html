@@ -76,40 +76,51 @@
             <div class="section-heading">
               <div>
                 <p class="section-kicker">02 / 走势与来源</p>
-                <h2 id="trend-title">每日工单量与渠道</h2>
+                <h2 id="trend-title">每日花费、毛签与工单</h2>
               </div>
               <span class="section-side-note" id="trend-period-note">自然日</span>
             </div>
 
-            <div class="analysis-grid">
-              <article class="panel trend-panel" aria-labelledby="daily-title">
-                <div class="panel-heading">
-                  <div><h3 id="daily-title">每日工单量</h3></div>
-                  <div class="legend" id="trend-legend" aria-label="图例"></div>
-                </div>
-                <div class="chart-wrap" id="daily-chart">
-                  <div class="empty-chart">当前期间暂无趋势数据</div>
-                </div>
-              </article>
-
-              <article class="panel channel-panel" aria-labelledby="channels-title">
+            <div class="trend-layout">
+              <div class="daily-charts" id="daily-charts" role="group" aria-label="按业务线查看每日花费、毛签与工单">
+                <article class="panel trend-panel daily-chart-panel training-daily" id="training-daily-panel" aria-labelledby="training-daily-title">
+                  <div class="panel-heading">
+                    <div><h3 id="training-daily-title">语培每日经营走势</h3><p>柱形为花费（元），实线为毛签（元），虚线为工单（单）</p></div>
+                    <div class="legend" aria-label="图例"><span class="legend-item"><i class="legend-bar training-bar" aria-hidden="true"></i>花费（元）</span><span class="legend-item"><i class="legend-line training-line" aria-hidden="true"></i>毛签（元）</span><span class="legend-item"><i class="legend-order-line" aria-hidden="true"></i>工单（单）</span></div>
+                  </div>
+                  <p class="chart-cutoff-summary" id="training-cutoff-summary" aria-live="polite">等待每日摘要</p>
+                  <div class="chart-wrap" id="training-daily-chart"><div class="empty-chart">当前期间暂无趋势数据</div></div>
+                  <div class="daily-details" id="training-daily-details" hidden></div>
+                </article>
+                <article class="panel trend-panel daily-chart-panel abroad-daily" id="abroad-daily-panel" aria-labelledby="abroad-daily-title">
+                  <div class="panel-heading">
+                    <div><h3 id="abroad-daily-title">留学每日经营走势</h3><p>柱形为花费（元），实线为毛签（元），虚线为工单（单）</p></div>
+                    <div class="legend" aria-label="图例"><span class="legend-item"><i class="legend-bar abroad-bar" aria-hidden="true"></i>花费（元）</span><span class="legend-item"><i class="legend-line abroad-line" aria-hidden="true"></i>毛签（元）</span><span class="legend-item"><i class="legend-order-line" aria-hidden="true"></i>工单（单）</span></div>
+                  </div>
+                  <p class="chart-cutoff-summary" id="abroad-cutoff-summary" aria-live="polite">等待每日摘要</p>
+                  <div class="chart-wrap" id="abroad-daily-chart"><div class="empty-chart">当前期间暂无趋势数据</div></div>
+                  <div class="daily-details" id="abroad-daily-details" hidden></div>
+                </article>
+              </div>
+              <p class="chart-footnote">ROI＝同日期窗口毛签÷费用，单条工单成本＝同窗口费用÷工单；每日图只展示有日花费的数据，期间总表费用不拆到自然日。</p>
+              <div class="channel-panel platform-workspace">
                 <div class="panel-heading channel-heading">
-                  <div><h3 id="channels-title">渠道表现</h3></div>
-                  <span class="channel-total" id="channel-count">0 个渠道</span>
+                  <div><h3 id="channels-title">平台表现</h3></div>
+                  <span class="channel-total" id="channel-count" aria-live="polite">0 个平台</span>
                 </div>
                 <div class="table-controls">
                   <label class="search-field" for="channel-search">
                     <span class="search-icon" aria-hidden="true"></span>
-                    <input id="channel-search" type="search" placeholder="搜索渠道名称" autocomplete="off" disabled />
+                    <input id="channel-search" type="search" placeholder="搜索平台或来源" autocomplete="off" disabled />
                   </label>
-                  <label class="channel-line-control" for="channel-line-select"><span>渠道业务线</span>
+                  <label class="channel-line-control" for="channel-line-select"><span>平台业务线</span>
                     <select id="channel-line-select" disabled>
                       <option value="all">全部可见业务线</option>
                       <option value="training">语培</option>
                       <option value="abroad">留学</option>
                     </select>
                   </label>
-                  <label class="sort-control" for="channel-sort"><span class="visually-hidden">渠道排序</span>
+                  <label class="sort-control" for="channel-sort"><span class="visually-hidden">平台排序</span>
                     <select id="channel-sort" disabled>
                       <option value="orders">工单量优先</option>
                       <option value="share">占比优先</option>
@@ -118,13 +129,33 @@
                     </select>
                   </label>
                 </div>
-                <div class="table-scroll" tabindex="0" aria-label="渠道表现表，可横向滚动">
-                  <table class="data-table channel-table">
-                    <thead><tr><th scope="col">业务线</th><th scope="col">渠道</th><th scope="col">工单</th><th scope="col">同比</th><th scope="col">资源占比</th><th scope="col">截止日新增</th><th scope="col">现金</th></tr></thead>
-                    <tbody id="channel-body"><tr><td colspan="7" class="table-empty">等待加载结果</td></tr></tbody>
-                  </table>
+                <div class="platform-tables" id="platform-tables" role="group" aria-label="语培与留学平台表现">
+                  <article class="panel platform-panel training-platform" id="training-platform-table" data-line="training" aria-labelledby="training-platform-title">
+                    <div class="panel-heading channel-heading">
+                      <h3 id="training-platform-title">语培平台表现</h3>
+                      <span class="channel-total" id="training-platform-count">0 个平台</span>
+                    </div>
+                    <div class="table-scroll" tabindex="0" aria-label="语培平台表现表，可横向滚动">
+                      <table class="data-table channel-table">
+                        <thead><tr><th scope="col">平台</th><th scope="col">工单</th><th scope="col">同比</th><th scope="col">占比</th><th scope="col">截止日新增</th><th scope="col">毛签</th><th scope="col">花费</th><th scope="col">ROI（倍）</th><th scope="col">单条工单成本</th></tr></thead>
+                        <tbody id="training-platform-body" data-line="training"><tr><td colspan="9" class="table-empty">等待加载结果</td></tr></tbody>
+                      </table>
+                    </div>
+                  </article>
+                  <article class="panel platform-panel abroad-platform" id="abroad-platform-table" data-line="abroad" aria-labelledby="abroad-platform-title">
+                    <div class="panel-heading channel-heading">
+                      <h3 id="abroad-platform-title">留学平台表现</h3>
+                      <span class="channel-total" id="abroad-platform-count">0 个平台</span>
+                    </div>
+                    <div class="table-scroll" tabindex="0" aria-label="留学平台表现表，可横向滚动">
+                      <table class="data-table channel-table">
+                        <thead><tr><th scope="col">平台</th><th scope="col">工单</th><th scope="col">同比</th><th scope="col">占比</th><th scope="col">截止日新增</th><th scope="col">毛签</th><th scope="col">花费</th><th scope="col">ROI（倍）</th><th scope="col">单条工单成本</th></tr></thead>
+                        <tbody id="abroad-platform-body" data-line="abroad"><tr><td colspan="9" class="table-empty">等待加载结果</td></tr></tbody>
+                      </table>
+                    </div>
+                  </article>
                 </div>
-              </article>
+              </div>
             </div>
           </section>
 
@@ -140,8 +171,8 @@
                 <div class="panel-heading"><div><h3 id="groups-title">语培业务组</h3></div><span class="business-tag training-tag">语培</span></div>
                 <div class="table-scroll" tabindex="0" aria-label="语培业务组表，可横向滚动">
                   <table class="data-table group-table">
-                    <thead><tr><th scope="col">业务组</th><th scope="col">工单完成</th><th scope="col">目标</th><th scope="col">差额</th><th scope="col">现金完成</th></tr></thead>
-                    <tbody id="group-body"><tr><td colspan="5" class="table-empty">等待加载结果</td></tr></tbody>
+                    <thead><tr><th scope="col">业务组</th><th scope="col">工单完成</th><th scope="col">目标</th><th scope="col">差额</th><th scope="col">现金完成</th><th scope="col">花费</th><th scope="col">ROI（倍）</th><th scope="col">单条工单成本</th></tr></thead>
+                    <tbody id="group-body"><tr><td colspan="8" class="table-empty">等待加载结果</td></tr></tbody>
                   </table>
                 </div>
                 <div class="panel-empty-note" id="group-note" hidden></div>

@@ -106,12 +106,12 @@ def _fact_matches(fact, predicate, *, field=None, value=None):
     return field is None or value is None or fact.get(field) == value
 
 
-def _training_targets(training_targets, period, team_id, group, kind):
+def _training_targets(training_targets, period, team_id, group, kind, config_teams=None):
     if group not in BUSINESS_GROUPS:
         return None
     helper = (_aggregate._department_training_cash_target if kind == 'cash'
               else _aggregate._department_training_target)
-    configs = {
+    configs = config_teams if config_teams is not None else {
         'total': ('offline_market', 'online_private', 'online_platform'),
         'prep': ('offline_market',) if group == '留学预备' else (),
         'high': ('offline_market',) if group == '高中' else (),
@@ -131,7 +131,7 @@ def _has_facts(facts, line, start, through, predicate):
                and predicate(fact) for fact in facts)
 
 
-def _business_groups(facts, team_id, period, training_targets):
+def _business_groups(facts, team_id, period, training_targets, config_teams=None):
     scope = _aggregate._team_fact_filter(team_id, 'training')
     bounds = _period_bounds(period)
     names = [_aggregate.GROUP_BY_TEAM[team_id]] if team_id in _aggregate.GROUP_BY_TEAM else list(BUSINESS_GROUPS)
@@ -149,7 +149,7 @@ def _business_groups(facts, team_id, period, training_targets):
         group_filter = lambda fact, name=name: scope(fact) and _business_group(fact) == name
         metrics = {}
         for kind in ('orders', 'cash', 'heads'):
-            target = (_training_targets(training_targets, period, team_id, name, kind)
+            target = (_training_targets(training_targets, period, team_id, name, kind, config_teams)
                       if kind in ('orders', 'cash') else None)
             metrics[kind] = _measure(
                 facts, 'training', kind, group_filter, period, team_id, target,
@@ -226,6 +226,7 @@ def _channels(facts, team, period):
                     'name': group_name,
                     'orders': _measure(channel_facts, line, 'orders', group_filter, period, team_id),
                     'cash': _measure(channel_facts, line, 'cash', group_filter, period, team_id),
+                    'heads': _measure(channel_facts, line, 'heads', group_filter, period, team_id),
                 })
             for group in groups:
                 group['share'] = group['orders']['actual'] / all_orders['actual'] if all_orders.get('actual') and group['orders']['actual'] is not None else None
@@ -272,13 +273,13 @@ def _school_grade_rows(facts, team, period, line="training"):
     for (school, grade), rows in sorted(grouped.items()):
         by_school[school].append({'name': grade, **{
             kind: _measure(rows, line, kind, lambda fact: True, period, team['id'])
-            for kind in ('orders', 'cash')}})
+            for kind in ('orders', 'cash', 'heads')}})
     result = []
     for school, grades in sorted(by_school.items()):
         rows = [fact for (name, _), bucket in grouped.items() if name == school for fact in bucket]
         result.append({'name': school, 'grades': grades, 'business_line': line, **{
             kind: _measure(rows, line, kind, lambda fact: True, period, team['id'])
-            for kind in ('orders', 'cash')}})
+            for kind in ('orders', 'cash', 'heads')}})
     totals = {kind: sum(row[kind]['actual'] or 0 for row in result) for kind in ('orders', 'cash')}
     for row in result:
         for item in [row, *row['grades']]:

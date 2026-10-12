@@ -146,7 +146,7 @@ window.CapacityView = (() => {
     const history = person?.source_kind === "confirmed_history";
     const own = person.business_line === "training" ? "training" : "abroad";
     const other = own === "training" ? "abroad" : "training";
-    const missingFor = line => history ? "未提供" : coverage?.transfers?.connected === false ? "未接入" : (!coverage?.[line]?.orders_through || !coverage?.[line]?.cash_through) ? "未覆盖" : "未提供";
+    const missingFor = line => history ? "未提供" : (!coverage?.[line]?.orders_through || !coverage?.[line]?.cash_through) ? "未覆盖" : "未提供";
     const missing = missingFor(own);
     const outputMissing = missingFor(other);
     const createdMissing = missing === "未覆盖" || outputMissing === "未覆盖" ? "未覆盖" : missing;
