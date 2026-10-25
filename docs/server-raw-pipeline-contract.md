@@ -46,3 +46,6 @@ manifest `shadow_raw_inputs.v1`字段固定：batch_id、company_id、as_of_date
 | worker触发 | 安装一个固定队列consumer服务/触发器，只运行收件校验及`raw_compute prepare`至prepared | 自动切current、清理旧成品或发送钉钉 |
 
 上述目录与独立服务身份的最小读写权限也属于需确认的扩展；本轮没有创建生产服务账号、ACL、路由或队列consumer。当前候选只提供适配函数和离线入口，并未安装常驻原始输入自动化。正式接线时需单独确认唯一生产者方案；Mac bi-2仍启用，Grok仍停用。
+
+
+部署前尚须补齐并测试固定队列consumer（当前代码仅有路由适配和离线prepare入口），再安装一对固定raw队列path/service单元；不增加第二套定时日更。正式非root服务身份和目录ACL尚未创建/验证，不能把候选维护身份运行当作降权权限已验收。receiver只需读取`raw-compute/<batch>/state.json`状态，不应取得工作簿、库或私有日志读取权限；该精确状态文件权限须随consumer原子写状态一并补测。worker不授予生产current/releases、原成品发布队列或通知目录的写权限。

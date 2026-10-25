@@ -36,3 +36,9 @@
 另专跑既有通知合同、receiver HTTP、shared_delivery、release_notifications与成品receiver，连同上述skip核查：**60 passed、10 skipped、26 subtests passed**。通知请求校验、同批约束、状态/去重/失败恢复、预览与发送边界均保留回归；外部发送为mock，未发钉钉。未覆盖真实通知再次发送、真实raw HTTPS安装/鉴权扩展、固定队列consumer上线、唯一生产者切换或完整隔离Superset UI验收。
 
 候选源码与本次生产计算版本分别留有明确hash；封存时实际运行的源码保存在候选根`sealed-build-source-v2`，后续recheck工具版本不冒充当时计算版本。权限差异与未部署能力见[输入合同](server-raw-pipeline-contract.md)。
+
+## 后续只读/隔离补验
+
+候选根`http-adapter-isolated/result.json`：使用合成Excel、仅监听127.0.0.1临时端口的独立WSGI进程，7项真实TCP HTTP检查通过（未认证POST/GET拒绝、合法上传仅queued、状态查询、同字节幂等单标记、异hash拒绝、旧日期拒绝）；测试鉴权是明确的非秘密标记，未读取现token。监听已停止，没有安装consumer或注册生产路由。此结果不覆盖生产TLS/反代/现token贯通。
+
+利用既有P4 `--verify-only`实读现网Superset当前current，版本身份、页眉覆盖与6项业务值核对通过，未切current；这不等于候选实例激活测试。固定Superset运行时另跑原认证模块，6 tests通过；因此核心环境原10 skip中对应认证模块已在正确环境补验，9项可选MCP协议仍未覆盖。证据在任务4本地`evidence/http-adapter-isolated.json`、`live-current-readonly.json`、`superset-auth-fixed-runtime.txt`。
