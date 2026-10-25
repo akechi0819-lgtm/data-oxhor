@@ -1,7 +1,6 @@
--- 原语培市场总盘：按原表被动工单和业务组映射统计，含删除/回收，按ID去重；排除原团队为留学，或原团队为空且顾问已确认为留学的工单。
+-- 语培市场总盘以观远工单总看板的原始团队白名单为准；不以顾问推断补入空团队。
 WITH params AS (
- SELECT CAST(? AS DATE) AS start_date, CAST(? AS DATE) AS end_date,
-        CAST(? AS VARCHAR[]) AS study_advisers
+ SELECT CAST(? AS DATE) AS start_date, CAST(? AS DATE) AS end_date
 ),
 orders_raw AS (
  SELECT NULLIF(TRIM(ID),'') AS work_order_id,
@@ -71,10 +70,6 @@ orders_raw AS (
  CROSS JOIN params p
  WHERE r.rn=1 AND r.work_order_id IS NOT NULL AND r.active_type='被动'
  AND event_date>=p.start_date AND event_date<p.end_date
- AND NOT (
-   COALESCE(r.source_team, '')='留学'
-   OR (COALESCE(r.source_team, '')=''
-       AND COALESCE(list_contains(p.study_advisers, r.follow_adviser), FALSE))
- )
+ AND r.source_team IN ('塘沽','大学','无法判断','校区资源无法归属','武清','留学预备','需要判定','高中')
 )
 SELECT * FROM orders ORDER BY event_date, work_order_id

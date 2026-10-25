@@ -10,7 +10,7 @@ import duckdb
 
 from data_platform.query.evidence import read_query_result, verify_receipt
 from data_platform.query.service import execute_query
-from dashboard_product.management.build import _confirmed_adviser_lists
+from dashboard_product.management.calculation import _confirmed_adviser_lists
 from dashboard_product.online_team.build import MAPPING
 from tests.evidence_helpers import manifest
 
@@ -35,7 +35,7 @@ CASH_COLUMNS = [
     ('source_row_number', 'BIGINT'), ('工单ID', 'VARCHAR'), ('业务日期', 'DOUBLE'),
     ('团队', 'VARCHAR'), ('渠道', 'VARCHAR'), ('市场活动名称', 'VARCHAR'),
     ('生源校', 'VARCHAR'), ('学员年级', 'VARCHAR'), ('学员编号', 'VARCHAR'),
-    ('报入现金收入', 'VARCHAR'), ('渠道属性', 'VARCHAR'), ('新老生类型', 'VARCHAR'),
+    ('班级编码', 'VARCHAR'), ('报名人次', 'VARCHAR'), ('报入现金收入', 'VARCHAR'), ('渠道属性', 'VARCHAR'), ('新老生类型', 'VARCHAR'),
 ]
 
 
@@ -106,12 +106,12 @@ class AdviserMappingQueryTests(unittest.TestCase):
         names = ', '.join(f'"{name}"' for name, _ in columns)
         values = ', '.join('?' for _ in columns)
         sql = f'INSERT INTO landing."{table}" ({names}) VALUES ({values})'
-        connection.executemany(sql, [[row[name] for name, _ in columns] for row in rows])
+        connection.executemany(sql, [[row.get(name) for name, _ in columns] for row in rows])
 
     def run_training_query(self, mapping_config):
         study_advisers, prep_advisers = _confirmed_adviser_lists(mapping_config)
         sql_path = ROOT / 'dashboard_product/management/sql/training_details.sql'
-        parameters = ['2026-06-01', '2026-06-10', '2026-06-01', study_advisers, prep_advisers]
+        parameters = ['2026-06-01', '2026-06-10', '2026-06-01', study_advisers, prep_advisers, ['被动']]
         result = execute_query(
             warehouse=self.db, snapshot_id=SNAPSHOT, sql=sql_path.read_text(encoding='utf-8'),
             parameters=parameters, run_id='run_adviser_mapping_test', output_root=self.output,

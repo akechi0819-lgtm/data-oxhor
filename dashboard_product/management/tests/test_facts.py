@@ -57,6 +57,34 @@ class NormalizeFactsTests(unittest.TestCase):
         self.assertEqual(diagnostics["training_study_order_excluded"], 1)
         self.assertEqual(diagnostics["training_unconfirmed_blank_team_excluded"], 1)
 
+    def test_personal_history_keeps_confirmed_prep_blank_team_independently(self):
+        people, abroad_people = configs()
+        training = [{"source_row_number": 1, "work_order_id": "blank-prep",
+            "event_date": "2025-07-01", "business_group": "初中",
+            "metric": "work_orders", "actual_value": 1}]
+        orders = [{"work_order_id": "blank-prep", "source_team": "",
+                   "adviser": "预备顾问", "source_row_number": 1}]
+        market, _ = normalize_facts(training, orders, people, abroad_people,
+                                    {"预备顾问": "留学预备"})
+        personal, _ = normalize_facts(training, orders, people, abroad_people,
+                                    {"预备顾问": "留学预备"}, personal_qualification=True)
+        self.assertEqual(market, [])
+        self.assertEqual([f['work_order_id'] for f in personal], ['blank-prep'])
+        unknown, _ = normalize_facts(training, orders, people, abroad_people,
+                                    {}, personal_qualification=True)
+        self.assertEqual(unknown, [])
+
+    def test_guanyuan_scope_excludes_blank_team_even_with_confirmed_prep_adviser(self):
+        people, abroad_people = configs()
+        training = [{"source_row_number": 1, "work_order_id": "blank-prep",
+            "event_date": "2026-09-01", "business_group": "初中",
+            "metric": "work_orders", "actual_value": 1}]
+        orders = [{"work_order_id": "blank-prep", "source_team": "",
+            "adviser": "预备顾问"}]
+        facts, _ = normalize_facts(training, orders, people, abroad_people,
+                                   {"预备顾问": "留学预备"})
+        self.assertEqual(facts, [])
+
     def test_bi_study_abroad_order_rows_never_create_management_abroad_facts(self):
         people, abroad_people = configs()
         orders = [{

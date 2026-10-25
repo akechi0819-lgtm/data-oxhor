@@ -19,7 +19,7 @@ class EnhancementTests(unittest.TestCase):
         facts=[]
         for i,g in enumerate(('青少','初中','高中')):
             for metric in ('orders','cash'):
-                facts.append(dict(fact_id=f'{g}-{metric}',event_date='2026-09-10',business_line='training',business_group='高中' if g=='高中' else '留学预备',comparison_group=g,team_id='offline_market',work_order_id=str(i),owners=['马澳'],student_id='same-student',metric=metric,value=1 if metric=='orders' else 100,first_channel='市场活动',second_channel='线下校代',school_name='学校A',grade_name=g))
+                facts.append(dict(fact_id=f'{g}-{metric}',event_date='2026-09-10',business_line='training',business_group='高中' if g=='高中' else '留学预备',comparison_group=g,team_id='offline_market',work_order_id=str(i),owners=['马澳'],student_id='same-student',class_code='fixture-class',registration_count=1,metric=metric,value=1 if metric=='orders' else 100,first_channel='市场活动',second_channel='线下校代',school_name='学校A',grade_name=g))
         facts.append(dict(fact_id='study',event_date='2026-09-10',business_line='abroad',business_group=None,team_id=None,owners=['马澳'],metric='orders',value=3,work_order_id='study',country='英国',line='英澳',first_channel='市场活动',second_channel='讲座',grade_name='高三',segment_id='unassigned',source_product='study_abroad',customer_domain='study_abroad',source_kind='study_abroad_warehouse'))
         body=aggregate(facts,people,{'people':[]},targets,{}, {},date(2026,9,28),abroad_source=study_coverage())
         enrich_periods(body['periods'],facts,targets,{}, {})
@@ -32,7 +32,7 @@ class EnhancementTests(unittest.TestCase):
         def selected(mask):return next(p for p in views[mask] if p['id']=='2026-09')['teams'][0]
         combined=selected('3');single=selected('1');all_groups=selected('7')
         self.assertEqual(combined['lines']['training']['orders']['actual'],2)
-        self.assertEqual(combined['lines']['training']['heads']['actual'],1)
+        self.assertEqual(combined['lines']['training']['heads']['actual'],0)
         self.assertEqual(combined['lines']['training']['orders']['target'],100)
         self.assertIsNone(single['lines']['training']['orders']['target'])
         self.assertEqual(all_groups['lines']['training']['orders']['target'],150)

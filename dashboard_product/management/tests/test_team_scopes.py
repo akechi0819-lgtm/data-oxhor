@@ -23,7 +23,7 @@ class TeamScopeTests(unittest.TestCase):
             facts.append(row)
             market.append(row)
             facts.append({**row, 'fact_id': 'cash' + str(i), 'metric': 'cash',
-                          'value': 100, 'student_id': 'shared-online' if i < 2 else str(i)})
+                          'value': 100, 'class_code':'fixture-class','registration_count':1, 'student_id': 'shared-online' if i < 2 else str(i)})
         # Repeated raw order ID and an order absent from training still follow market baseline.
         market += [market[0], {**market[2], 'work_order_id': 'raw-only'}]
         targets = {'business_groups': {'college': {'display_name': '大学', 'months': {
@@ -51,7 +51,7 @@ class TeamScopeTests(unittest.TestCase):
         self.assertEqual(groups['offline']['orders']['actual'], 2)
         self.assertEqual(groups['online']['orders']['target'], 30)
         self.assertEqual(groups['offline']['orders']['target'], 30)
-        self.assertEqual(groups['online']['heads']['actual'], 1)
+        self.assertEqual(groups['online']['heads']['actual'], 0)
         self.assertEqual(groups['online']['cash']['actual'], 200)
         self.assertEqual(groups['online']['passive_cash_share']['ratio'], 0.2)
         self.assertEqual([r['id'] for r in views['online']['study_abroad_progress']], ['online'])

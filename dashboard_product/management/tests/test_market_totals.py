@@ -195,7 +195,7 @@ class MarketTotalsTest(unittest.TestCase):
         self.assertEqual(market['completion'], 37 / 75)
         self.assertEqual(market['unit'], '单')
         for phrase in (
-            '未归因团队', '删除/回收', '按工单ID去重', '原团队为留学或空团队且顾问已确认为留学的工单从语培总盘排除',
+            '8类原始团队白名单', '排除空团队', '删除/回收', '按工单ID去重',
             '个人业绩剔除删除/回收',
         ):
             self.assertIn(phrase, market['note'])

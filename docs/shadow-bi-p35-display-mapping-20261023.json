@@ -1,0 +1,92 @@
+{
+  "channels": {
+    "source_parent": "{page}_channels",
+    "source_child": "{page}_channels_child",
+    "surfaces": "native_{page}_channel_tree_training / abroad",
+    "fields": {
+      "渠道": "父行首格，一级渠道同格次行",
+      "业务组名称": "展开子行首格",
+      "现金/工单/人头": "对应同格主值，人头优先保留分域人数",
+      "现金同期/工单同期/人头同期": "同格同期",
+      "现金同比/工单同比/人头同比": "同格同比",
+      "工单占比": "父子行：占本业务线工单",
+      "现金占比": "父子行：占本业务线现金",
+      "渠道内现金占比": "仅子行：占本渠道现金"
+    },
+    "denominator_source": "management/breakdowns.py: group share/cash_share/channel_cash_share，未经改算"
+  },
+  "grades_abroad": {
+    "source": "management/breakdowns.py:_grade_rows",
+    "provided": [
+      "orders",
+      "cash",
+      "share",
+      "cash_share"
+    ],
+    "heads": "源未计算heads；人头/分域人数是NULL投影，不新增无源人数构成，不从学校或总量推算"
+  },
+  "school_tree": "原学校树已同格保留工单占比/现金占比/同期同比及分域人数，大学被动排名保留两类占比",
+  "personal_summary": "人头表现保留原heads_actual.display，未以NULL数值覆盖原分域展示",
+  "removed_presentation_fields": "已提供类状态、重复窗口、技术排序辅助值；不是业务占比或分域人数",
+  "platforms": {
+    "source_parent": "online_platforms",
+    "source_child": "online_platform_groups",
+    "surfaces": [
+      "native_online_platform_training",
+      "native_online_platform_abroad"
+    ],
+    "fields": {
+      "平台": "父行首格",
+      "业务组名称": "语培展开子行；选择平台业务组时直接显示选中组",
+      "花费": "首格本期花费，保留整期原值",
+      "同窗费用/同窗现金": "第二格同窗投入/收入；无有效覆盖日期时收入显示—",
+      "回收倍数/单条工单成本": "第二格ROI/单条成本，直接使用相同组原值",
+      "工单/现金": "第三格本期主值",
+      "工单同期/现金同期/工单同比/现金同比": "第三格次行；组同比仅被动有真实来源，主动/全部不借用被动同期",
+      "工单占比": "第四格；父占业务线工单、子占本业务组工单",
+      "截止日新增/同窗工单": "第四格次行",
+      "费用状态/费用窗口开始/费用窗口结束/费用说明": "保留受控数据字段，不逐行显示技术状态和重复日期；缺费用显示—"
+    },
+    "scope": "平台业务组仅作用语培平台图，清空回全部；留学只有整体×平台费用，无条线/语种费用，不分摊不补零",
+    "sort_columns": [
+      "平台",
+      "花费",
+      "同窗费用",
+      "同窗收入",
+      "回收倍数",
+      "单条工单成本",
+      "工单",
+      "工单同期",
+      "工单同比",
+      "工单占比",
+      "截止日新增",
+      "现金",
+      "现金同期",
+      "现金同比"
+    ]
+  },
+  "country_tree": {
+    "pages": [
+      "overview",
+      "virtual",
+      "university",
+      "online"
+    ],
+    "sources": [
+      "{page}_countries",
+      "{page}_countries_child"
+    ],
+    "surfaces": "native_{page}_country_tree",
+    "fields": "条线父行→国家子行。总览/虚拟人/大学保留合计/线上/线下/待确认工单；线上保留工单/同期/同比。均为工单，非现金。",
+    "removed_control": "线上国家条线页取消无意义业务线控件"
+  },
+  "daily_split": {
+    "source": "online_daily",
+    "surfaces": [
+      "native_online_daily_training",
+      "native_online_daily_abroad"
+    ],
+    "fields": "日期/工单/现金/花费/回收倍数原值保留，业务线移为板块标题。期间及原业务线控制仍作用日明细和趋势。",
+    "unchanged": "原工单/费用/现金/回收趋势图保留"
+  }
+}

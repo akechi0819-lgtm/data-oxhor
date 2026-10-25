@@ -4,13 +4,30 @@ from copy import deepcopy
 from datetime import date, timedelta
 
 from dashboard_product.online_team.build import channel_rows, dimensions, select
-from dashboard_product.management.aggregate import _team_fact_filter
+from dashboard_product.management.advertising_costs import classified_facts
 
 
-def online_view(public, facts, abroad_targets):
+def platform_rows(now, prior, through, period):
+    """品牌平台及业务组叶子共用同一事实分桶；费用由独立费用步骤提供。"""
+    rows = channel_rows(now, prior, 'training', through, period)
+    for row in rows:
+        a = [f for f in now if f['second_channel'] == row['name']]
+        b = [f for f in prior if f['second_channel'] == row['name']]
+        row['groups'] = []
+        for group in sorted({f.get('business_group') or '业务组暂无法拆分' for f in a+b}):
+            selected = lambda values: [f for f in values if (f.get('business_group') or '业务组暂无法拆分') == group]
+            child = channel_rows(selected(a), selected(b), 'training', through, period)[0]
+            row['groups'].append({k: child[k] for k in
+                                  ('orders','prior_orders','today_orders','cash','prior_cash')})
+            row['groups'][-1]['name'] = group
+    return rows
+
+
+def online_view(public, facts, abroad_targets, *, order_facts=None):
     through = public['metadata']['data_through']
-    scopes = {line: _team_fact_filter('online', line) for line in ('training', 'abroad')}
-    valid = [f for f in facts if scopes[f['business_line']](f)]
+    # 与既有费用匹配完全复用平台分类；主被动视图不能重新退回原始二级渠道。
+    valid = [dict(f, second_channel=classification['platform'])
+             for f, classification in classified_facts(facts, order_facts=order_facts)]
     output = []
     for period in public['periods']:
         p = {k: deepcopy(v) for k, v in period.items()
@@ -38,7 +55,7 @@ def online_view(public, facts, abroad_targets):
                     for item in [dimension, *dimension['children']]:
                         item.update(prior_orders=None, yoy=None)
             if line_id == 'training':
-                line['channels'] = channel_rows(now, prior, line_id, through, p) if p['status'] != 'future' else []
+                line['channels'] = platform_rows(now, prior, through, p) if p['status'] != 'future' else []
             else:
                 line['channels'] = [{
                     'name': row['name'], 'first_channels': [row['first_channel']],

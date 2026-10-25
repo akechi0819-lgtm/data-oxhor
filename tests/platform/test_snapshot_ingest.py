@@ -106,6 +106,55 @@ class SnapshotIngestTests(unittest.TestCase):
             self.assertTrue(artifact_lines)
             self.assertTrue(all(str(root) not in line for line in artifact_lines))
 
+    def test_late_csv_quotes_and_newlines_are_loaded_without_losing_rows(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "csv_quote_regression.xlsx"
+            workbook = Workbook()
+            sheet = workbook.active
+            sheet.title = "Quoted rows"
+            sheet.append(["row_id", "simple_value", "notes"])
+            preamble_rows = 30_000
+            for index in range(preamble_rows):
+                sheet.append([f"plain-{index}", "plain", f"value-{index}"])
+            expected = [
+                ("late-comma", "plain", 'comma, and "double quote"'),
+                ("late-newline", "plain", 'first line\nsecond, with "quote"'),
+            ]
+            for row in expected:
+                sheet.append(row)
+            workbook.save(source)
+
+            digest = hashlib.sha256(source.read_bytes()).hexdigest()
+            manifest = root / "manifest.json"
+            manifest.write_text(json.dumps({"sources": {
+                "csv_quote_regression": {"filename": source.name, "sha256": digest},
+            }}), encoding="utf-8")
+            output = root / "runs"
+            result = ingest_sources(
+                run_id="run_csv_quote_regression",
+                snapshot_id="snapshot_csv_quote_regression",
+                output_root=output,
+                manifest_path=manifest,
+                source_values=[f"csv_quote_regression={source}"],
+            )
+
+            self.assertEqual(result["status"], "passed", result["errors"])
+            snapshot = output / "run_csv_quote_regression/data/snapshots/snapshot_csv_quote_regression"
+            with duckdb.connect(str(snapshot / "warehouse.duckdb"), read_only=True) as connection:
+                table = connection.execute(
+                    "SELECT target_table, landing_rows FROM ingest.sheets WHERE source_id='csv_quote_regression'"
+                ).fetchone()
+                self.assertEqual(table[1], preamble_rows + len(expected))
+                self.assertEqual(connection.execute(
+                    f'SELECT count(*) FROM landing."{table[0]}"'
+                ).fetchone()[0], preamble_rows + len(expected))
+                self.assertEqual(connection.execute(
+                    f'SELECT "row_id", "simple_value", "notes" FROM landing."{table[0]}" '
+                    "WHERE source_row_number > ? ORDER BY source_row_number",
+                    [preamble_rows + 1],
+                ).fetchall(), expected)
+
     def test_failed_publish_leaves_no_snapshot_or_temporary_directory(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

@@ -1,0 +1,37 @@
+<!doctype html><html lang="zh"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>市场活动</title>
+<style>:root{color:#193d49;background:#f4f7f8;font:15px -apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif}body{max-width:1500px;margin:0 auto;padding:28px}header{border-bottom:3px solid #176779;margin-bottom:26px}h1{font-size:28px;font-weight:650;margin-bottom:8px}a{color:#176779}p{line-height:1.8}.note{color:#536772}.toolbar,nav{display:flex;align-items:center;gap:14px;flex-wrap:wrap}input,button{font:inherit;padding:9px 12px;border:1px solid #a9bec7;border-radius:4px;background:#fff;color:#193d49}input:focus-visible,button:focus-visible,a:focus-visible{outline:2px solid #176779;outline-offset:2px}button{cursor:pointer}button:hover{background:#e5f1f3}button:disabled{color:#84959c;cursor:default}input[type=number]{width:110px}.scroll{overflow:auto;background:white;margin:22px 0;border:1px solid #d5e0e4}table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}td,th{padding:12px 14px;border-bottom:1px solid #e0e8eb;text-align:right;white-space:nowrap}th{font-size:13px;background:#edf3f5}td:first-child,th:first-child{text-align:left;min-width:280px;max-width:460px;white-space:normal}tbody tr:hover{background:#f3f8f9}.state{color:#6b7e86;font-size:12px}.error{color:#a5352a}#status{min-height:24px}@media(max-width:700px){body{padding:16px}h1{font-size:24px}.toolbar{align-items:stretch}input[type=search]{max-width:70vw}}
+.team-nav{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px}.team-nav a{padding:10px 14px;text-decoration:none;border:1px solid #cbd9df;background:white;border-radius:4px}.team-nav a[aria-current]{background:#1e3349;color:white}</style>
+<nav aria-label="返回看板"><a href="/p3/">返回市场经营看板</a></nav><header><p><a href="/p3/">市场经营工作台</a> / 市场活动</p><h1>市场活动</h1><p class="note">历史累计 · 语培截至 2026-10-21 · 留学截至 2026-10-13</p></header>
+<p class="note">活动累计独立于经营期间。投入仅在本标签页保存，搜索和翻页后保留；留学与小语种人数按各自身份域展示。</p>
+<div class="toolbar"><label for="search">活动名称 <input id="search" type="search" placeholder="输入关键词"></label><button id="find">搜索</button><span id="count" aria-live="polite"></span></div>
+<div class="scroll"><table><thead><tr><th>活动</th><th>语培工单</th><th>留学工单</th><th>合计工单</th><th>人头</th><th>现金（元）</th><th>临时投入（元）</th><th>回收倍数</th></tr></thead><tbody id="rows"></tbody></table></div>
+<nav aria-label="活动分页"><button id="prev">上一页</button><span id="page"></span><button id="next">下一页</button></nav><p id="status" role="status"></p>
+<script>
+let offset=0,query='',csrf='',total=0,version=0;const ds=__ACTIVITY_DATASET_ID__,size=50;
+const key='shadow-bi-p3:activity-investment';let inputs={};try{inputs=JSON.parse(sessionStorage.getItem(key)||'{}')}catch{}
+const fmt=v=>v==null?'未提供':Number(v).toLocaleString('zh-CN',{maximumFractionDigits:2});
+function cell(row,value){const td=document.createElement('td');td.textContent=value??'未提供';row.append(td);return td}
+function heads(item){if(item['分域人数'])return item['分域人数'];let parts=[];try{parts=JSON.parse(item['分域明细']||'[]')}catch{}return parts.length?parts.map(p=>(p.label||'')+' '+fmt(p.actual)+'人').join('／'):fmt(item['人头'])}
+async function load(){
+ const ticket=++version;document.querySelector('#status').textContent='正在读取活动…';
+ try{
+ if(!csrf)csrf=(await(await fetch('/api/v1/security/csrf_token/')).json()).result;
+ // Escape SQL LIKE wildcards so keyword search is literal containment.
+ const term=query.replace(/[\\%_]/g,'\\$&');const filters=query?[{col:'活动',op:'ILIKE',val:'%'+term+'%'}]:[];
+ const q={columns:['活动','语培工单','留学工单','合计工单','现金','人头','分域人数','分域明细','现金状态'],metrics:[],filters,orderby:[['活动',true]],row_limit:size,row_offset:offset,time_range:'No filter'};
+ const res=await fetch('/api/v1/chart/data',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':csrf},body:JSON.stringify({datasource:{id:ds,type:'table'},force:true,queries:[q,{...q,columns:[],orderby:[],metrics:[{expressionType:'SQL',sqlExpression:'COUNT(*)',label:'项数',optionName:'activity_count',hasCustomLabel:true}],row_offset:0,row_limit:1}],result_format:'json',result_type:'full'})});
+ const data=await res.json();if(ticket!==version)return;if(!res.ok||data.result?.some(r=>r.error))throw Error('活动数据暂时无法读取，请重试');
+ const result=data.result[0];total=data.result[1].data[0]['项数'];document.querySelector('#rows').replaceChildren();
+ for(const item of result.data){const tr=document.createElement('tr');cell(tr,item['活动']);for(const k of ['语培工单','留学工单','合计工单'])cell(tr,fmt(item[k]));cell(tr,heads(item));const cash=cell(tr,fmt(item['现金']));if(item['现金状态']!=='available'){const small=document.createElement('div');small.className='state';small.textContent=({partial:'部分覆盖',missing:'未提供',not_covered:'该期间未覆盖'})[item['现金状态']]||item['现金状态'];cash.append(small)}
+ const td=cell(tr,'');const input=document.createElement('input');input.type='number';input.step='0.01';input.setAttribute('aria-label','投入 '+item['活动']);input.value=inputs[item['活动']]??'';td.append(input);const ratio=cell(tr,'');
+ function calc(){const v=Number(input.value);ratio.textContent=input.value===''?'未填写':!Number.isFinite(v)||v<=0?'投入需大于0':item['现金']==null?'现金未提供':(Number(item['现金'])/v).toFixed(2)+'×'}
+ input.oninput=()=>{inputs[item['活动']]=input.value;try{sessionStorage.setItem(key,JSON.stringify(inputs))}catch{}calc()};calc();document.querySelector('#rows').append(tr)}
+ if(!result.data.length){const tr=document.createElement('tr');const td=cell(tr,'没有匹配的活动');td.colSpan=8;document.querySelector('#rows').append(tr)}
+ document.querySelector('#count').textContent=`共 ${total.toLocaleString()} 项`;
+ document.querySelector('#page').textContent=total?`第 ${offset/size+1} / ${Math.ceil(total/size)} 页`:'第 0 / 0 页';
+ document.querySelector('#prev').disabled=offset===0;document.querySelector('#next').disabled=offset+size>=total;
+ document.querySelector('#status').textContent='';document.querySelector('#status').className='';
+ }catch(e){if(ticket!==version)return;document.querySelector('#status').textContent=e.message;document.querySelector('#status').className='error'}
+}
+document.querySelector('#find').onclick=()=>{query=document.querySelector('#search').value.trim();offset=0;load()};document.querySelector('#search').onkeydown=e=>{if(e.key==='Enter')document.querySelector('#find').click()};document.querySelector('#prev').onclick=()=>{offset=Math.max(0,offset-size);load()};document.querySelector('#next').onclick=()=>{offset+=size;load()};load();
+</script></html>

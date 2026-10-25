@@ -62,6 +62,28 @@ class ExcelSerialTests(unittest.TestCase):
 
 
 class MergeOrdersTests(unittest.TestCase):
+    def test_duplicate_order_keeps_first_source_row_across_period_boundary(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            prior, export = root / "prior.parquet", root / "fresh.xlsx"
+            headers = ["ID", "分配时间", "主被动"]
+            _write_parquet(prior, headers, [
+                ["history", "2025-06-01", "被动"],
+                ["history", "2025-05-31", "被动"],
+                ["updated", "2025-06-01", "被动"],
+            ])
+            _write_xlsx(export, headers, [
+                ["updated", "2026-06-01", "主动"],
+                ["updated", "2026-05-31", "被动"],
+            ])
+            _, _, rows, _ = merge_orders(
+                export_xlsx=export, prior_parquet=prior, start=date(2026, 4, 24))
+            by_id = {row["ID"]: row for row in rows}
+            self.assertEqual(len(rows), 2)
+            self.assertEqual(by_id["history"]["分配时间"], "2025-06-01")
+            self.assertEqual(by_id["updated"]["分配时间"], "2026-06-01")
+            self.assertEqual(by_id["updated"]["主被动"], "主动")
+
     def test_outside_kept_and_near_overrides_id(self) -> None:
         start = date(2026, 3, 16)
         with tempfile.TemporaryDirectory() as tmp:

@@ -323,3 +323,8 @@ python -m monitoring_product.shared_delivery \
 正式批次投递由 `monitoring_product/deploy/deliver_management_batch.sh` 读取 `Work/ManagementDelivery/batch.json`，再次核对同批身份后调用 `shared_delivery`；该模式需要显式 `--env-file` 所指向的原 C 层文件。八条消息投递到原五个通道：`offline_youth`、`offline_high_school`、`offline_university`、`online_private`、`online_platform`。高中、大学与线上平台的两条消息分别共用原群；高中留学简报只消费本组留学个人完成、个人渠道与个人流水，不生成部门完成。本说明不改变10:24投递例行启停；当前状态须从平台核对，不能沿用10月3日暂停记录。
 
 Grok 09:45 Routine 使用 `dashboard_product/deploy/run_management_daily.sh`，环境变量指向 warehouse Python、dashroot、whcustomer 和原 C 文件，`REMOTE_NGINX_CONF` 采用已确认的 `/etc/nginx/sites-available/dashboard`。P3/P4/P5于2026-10-03完成；09:45看板日更和10:24日推为既有节奏，当前启停需平台实读。腾讯数据新批次已组包、未在本次激活；历史上线回执见[看板施工计划第32节](./dashboard-static-rebuild-plan.md)。页面发布边界见 [`dashboard_product/DEPLOYMENT.md`](../dashboard_product/DEPLOYMENT.md)，共同结果合同见 [`management/README.md`](../dashboard_product/management/README.md)，投递状态见 [`monitoring_product/README.md`](../monitoring_product/README.md)。Webhook 属于 C 层，不在本接入指南展开。
+
+
+## 影子 BI 派生查询库（P2，本地施工）
+
+业务批次不是原始Snapshot。Agent读取已封口的派生库使用 `python3 -B -m interfaces.business_library describe|query --library <明确目录> --batch-id <明确批次>`；查询必须带run-id及输出目录，不直接连接DuckDB。来源绑定、表粒度、限制和 `business_query_receipt.v1` 见[业务查询库合同](shadow-bi-p2-query-contract.md)。现有Snapshot查询入口与生产发布/推送保持原合同。

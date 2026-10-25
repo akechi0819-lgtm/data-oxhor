@@ -31,7 +31,7 @@ class BreakdownTests(unittest.TestCase):
                     'work_order_id': f'{label}-{suffix}',
                     'owners': [],
                     'metric': 'cash',
-                    'value': 100,
+                    'value': 1500, 'class_code':'fixture-class','registration_count':1,
                     'first_channel': '市场活动',
                     'second_channel': '校代',
                     'school_name': '主学校',
@@ -99,7 +99,7 @@ class BreakdownTests(unittest.TestCase):
     def test_subgroups_channels_and_country_folds_preserve_scope(self):
         facts=[]
         for ident, group, student in [('a','青少','s1'),('b','初中','s1')]:
-            base=dict(fact_id=ident,event_date='2026-09-01',business_line='training',business_group='留学预备',comparison_group=group,team_id='offline_market',work_order_id=ident,owners=[],first_channel='市场活动',second_channel='校代',school_name='学校A',grade_name=group,student_id=student)
+            base=dict(fact_id=ident,event_date='2026-09-01',business_line='training',business_group='留学预备',comparison_group=group,team_id='offline_market',work_order_id=ident,owners=[],first_channel='市场活动',second_channel='校代',school_name='学校A',grade_name=group,student_id=student,class_code='fixture-class',registration_count=1)
             facts += [dict(base,metric='orders',value=1),dict(base,fact_id=ident+'cash',metric='cash',value=100)]
         facts.append(dict(fact_id='foreign',event_date='2026-09-01',business_line='abroad',business_group='大学',team_id='offline_market',work_order_id='c',owners=['孙伟'],metric='orders',value=1,first_channel='市场活动',second_channel='讲座',country='英国',line='英澳条线',acquisition_mode='online',offline_channel_eligible=True,segment_id='study_abroad_offline',source_product='study_abroad',customer_domain='study_abroad',source_kind='study_abroad_warehouse'))
         people={'teams':[]};abroad={'people':[{'display_name':'孙伟','business_group':'大学'}]};targets={'business_groups':{'prep':{'display_name':'留学预备','months':{'2026-09':{'offline_market':{'work_order_target':20,'passive_cash_target':1000}}}}}}
@@ -108,7 +108,7 @@ class BreakdownTests(unittest.TestCase):
         p=next(p for p in data['periods'] if p['id']=='2026-09')
         t=next(t for t in p['teams'] if t['id']=='prep')
         self.assertEqual([r['orders']['actual'] for r in t['yoy_groups']],[1,1])
-        self.assertEqual(t['business_groups'][0]['heads']['actual'],1)
+        self.assertEqual(t['business_groups'][0]['heads']['actual'],0)
         self.assertEqual(t['business_groups'][0]['orders']['target'],20)
         self.assertEqual(sum(r['orders']['actual'] for r in t['channels']),2)
         self.assertEqual(t['channels'][0]['cash']['actual'],200)

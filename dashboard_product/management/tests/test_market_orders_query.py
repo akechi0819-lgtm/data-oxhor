@@ -123,7 +123,7 @@ class MarketOrdersQueryTests(unittest.TestCase):
             warehouse=warehouse,
             snapshot_id=SNAPSHOT,
             sql=sql_path.read_text(encoding='utf-8'),
-            parameters=['2025-10-01', '2026-10-12', study_advisers],
+            parameters=['2025-10-01', '2026-10-12'],
             run_id='run_market_orders_test',
             output_root=output,
             max_rows=1000,
@@ -138,22 +138,19 @@ class MarketOrdersQueryTests(unittest.TestCase):
         ids = [row['work_order_id'] for row in queried]
         self.assertEqual(len(ids), len(set(ids)))
         self.assertEqual(set(ids), {
-            'prep-current', 'training-team-kept', 'unknown-adviser-kept',
-            'undetermined-team-kept', 'campus-unowned-kept', 'deleted-kept',
+            'prep-current', 'training-team-kept',
+            'undetermined-team-kept', 'campus-unowned-kept',
             'recovered-kept', 'duplicate-training-first', 'prep-prior',
-            'unknown-prior', 'deleted-prior', 'recovered-prior',
+            'recovered-prior',
         })
         by_id = {row['work_order_id']: row for row in queried}
         self.assertEqual(by_id['prep-current']['business_group'], '初中')
         self.assertEqual(by_id['prep-prior']['business_group'], '初中')
         self.assertEqual(by_id['training-team-kept']['business_group'], '高中')
         self.assertEqual(by_id['duplicate-training-first']['business_group'], '高中')
-        self.assertEqual(by_id['unknown-adviser-kept']['business_group'], '业务组暂无法拆分')
         self.assertEqual(by_id['undetermined-team-kept']['business_group'], '业务组暂无法拆分')
         self.assertEqual(by_id['campus-unowned-kept']['business_group'], '业务组暂无法拆分')
-        self.assertEqual(by_id['deleted-kept']['business_group'], '业务组暂无法拆分')
         self.assertEqual(by_id['recovered-kept']['business_group'], '大学')
-        self.assertEqual(by_id['deleted-prior']['business_group'], '业务组暂无法拆分')
         self.assertEqual(by_id['recovered-prior']['business_group'], '大学')
 
 

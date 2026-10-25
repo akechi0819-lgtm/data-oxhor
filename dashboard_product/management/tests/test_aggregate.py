@@ -50,7 +50,7 @@ def fact(fid, metric, line, day, value, *, group=None, team='offline_market',
         'event_date': day,
         'value': value,
         'work_order_id': fid,
-        'student_id': student,
+        'student_id': student, 'class_code': 'fixture-class', 'registration_count': 1,
         'team_id': team,
         'business_group': group,
         'campaign_name': campaign,
@@ -815,7 +815,7 @@ class ManagementAggregateTest(unittest.TestCase):
         high_person = by_person(high, '高中同事')
         self.assertEqual(high_person['training_actual'], 2)
         self.assertEqual(high_person['cash_actual']['actual'], 0)
-        self.assertEqual(university['lines']['training']['heads']['actual'], 1)
+        self.assertEqual(university['lines']['training']['heads']['actual'], 0)
 
     def test_offline_cocreators_share_across_home_groups_without_reallocation(self):
         people = inputs(
@@ -844,7 +844,7 @@ class ManagementAggregateTest(unittest.TestCase):
 
         self.assertEqual(total['lines']['training']['orders']['actual'], 2)
         self.assertEqual(total['lines']['training']['cash']['actual'], 200)
-        self.assertEqual(total['lines']['training']['heads']['actual'], 1)
+        self.assertEqual(total['lines']['training']['heads']['actual'], 0)
         self.assertEqual(total_people['大学同事']['training_actual'], 0.5)
         self.assertEqual(total_people['高中同事']['training_actual'], 0.5)
         self.assertEqual(total_people['虚拟甲']['training_actual'], 2)

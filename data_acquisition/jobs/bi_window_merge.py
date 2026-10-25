@@ -3,7 +3,9 @@
 Orders (工单): unique key ``ID``. Outside-window rows come from the previous
 landing where ``分配时间`` (Excel serial or date-like) converts to a date ``< start``.
 Near-window rows come from the fresh export xlsx in full. On ID conflict, near-window
-rows win.
+rows win. Within each source, the first physical row wins, matching the business
+queries' source_row_number ordering. A later duplicate must not move a historical
+order across a reporting-period boundary.
 
 Cash (现金): do **not** invent a hard unique key for upsert — landing may contain
 fully duplicate business rows. Outside-window = prior landing rows whose
@@ -257,8 +259,9 @@ def merge_orders(
             continue
         if key not in by_id:
             order.append(key)
-        by_id[key] = row
+            by_id[key] = row
 
+    near_ids: set[str] = set()
     for row in near:
         key = _id_key(row)
         if key is None:
@@ -266,6 +269,9 @@ def merge_orders(
             by_id[synth] = row
             order.append(synth)
             continue
+        if key in near_ids:
+            continue
+        near_ids.add(key)
         if key not in by_id:
             order.append(key)
         by_id[key] = row  # near wins

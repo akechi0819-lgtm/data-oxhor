@@ -114,9 +114,11 @@ def _load_landing_csv(
     for name, kind in zip(columns, types):
         quoted = _quote(name)
         projections.append(quoted if kind == "VARCHAR" else f"TRY_CAST({quoted} AS {kind}) AS {quoted}")
+    # 与上游 csv.writer 方言一致；采样可能看不到后段才出现的逗号或换行。
     connection.execute(
         f"CREATE TABLE landing.{_quote(table)} AS SELECT {', '.join(projections)} "
-        f"FROM read_csv('{escaped_path}', header=true, all_varchar=true, nullstr='')"
+        f"FROM read_csv('{escaped_path}', header=true, all_varchar=true, delim=',', quote='\"', escape='\"', "
+        f"nullstr='', ignore_errors=false, strict_mode=true)"
     )
 
 

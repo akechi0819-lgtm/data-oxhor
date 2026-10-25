@@ -13,22 +13,22 @@ HERE = Path(__file__).resolve().parent
 TEMPLATE = HERE / 'sql/advertising_rollup.sql'
 
 
-def classified_facts(facts):
+def classified_facts(facts, *, order_facts=None):
     predicates = {line: _team_fact_filter('online', line) for line in ('training', 'abroad')}
-    order_labels = {str(f['work_order_id']).strip():classify_business_fact(f)['raw_labels'] for f in facts
+    order_labels = {str(f['work_order_id']).strip():classify_business_fact(f)['raw_labels'] for f in (facts if order_facts is None else order_facts)
                     if f.get('business_line')=='training' and f.get('metric')=='orders' and f.get('work_order_id')}
     return [(f,classify_business_fact(f,order_labels)) for f in facts
             if f.get('business_line') in predicates and f.get('metric') in ('orders','cash')
             and predicates[f['business_line']](f)]
 
 
-def business_daily(facts, periods):
+def business_daily(facts, periods, *, order_facts=None):
     starts = [p['prior_start_date'] for p in periods if p.get('through_date')]
     ends = [p['through_date'] for p in periods if p.get('through_date')]
     grouped = defaultdict(lambda: [Decimal(0), Decimal(0)])
     if not starts:
         return []
-    for fact, classification in classified_facts(facts):
+    for fact, classification in classified_facts(facts, order_facts=order_facts):
         line = fact['business_line']
         if not min(starts) <= fact['event_date'] <= max(ends):
             continue
@@ -127,6 +127,8 @@ def apply_result(online, rows, costs, classifications):
                     'cash_yoy':row['cash']/row['prior_cash']-1 if line_id=='training' and row['prior_cash'] else None,
                     'advertising':_advertising(row,line_id,costs),
                     'groups':[{'name':r['business_group'],'orders':int(r['orders']),'cash':r['cash'],
+                               'prior_orders':r['prior_orders'],'prior_cash':r['prior_cash'],
+                               'today_orders':int(r['today_orders']) if line_id=='training' and period['through_date']==online['metadata']['data_through'] else None,
                                'advertising':_advertising(r,line_id,costs)} for r in groups] if line_id=='training' else []})
             line['channels'] = sorted(channels,key=lambda r:(-r['orders'],r['name']))
             for group in line['groups']:
@@ -147,12 +149,12 @@ def apply_result(online, rows, costs, classifications):
     return online
 
 
-def attach_advertising(online, facts, workspace, snapshot_id, run_id, output):
+def attach_advertising(online, facts, workspace, snapshot_id, run_id, output, *, order_facts=None):
     workspace, output = Path(workspace), Path(output)
     manifest = workspace / 'Input/AdvertisingCosts/sources.json'
     costs = load_sources(manifest if manifest.exists() else None)
-    classifications = classified_facts(facts)
-    daily = business_daily(facts, online['periods'])
+    classifications = classified_facts(facts, order_facts=order_facts)
+    daily = business_daily(facts, online['periods'], order_facts=order_facts)
     sql_path = output / 'advertising.sql'
     sql_path.write_text(render_sql(online['periods'],daily,costs),encoding='utf-8')
     config = json.loads((workspace/'Work/workspace.json').read_text(encoding='utf-8'))

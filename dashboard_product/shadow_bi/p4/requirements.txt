@@ -1,0 +1,3 @@
+-r ../requirements-p1.txt
+psycopg2-binary==2.9.11
+gunicorn==23.0.0

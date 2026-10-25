@@ -1,0 +1,67 @@
+# 影子 BI：P3.5 原生 Superset 工作台
+
+当前入口：http://127.0.0.1:18089/p3/ ，登录后跳转到 `/superset/dashboard/shadow-bi-native/?standalone=1`。只在 c373 工作树施工与运行。当前回执见 `docs/shadow-bi-p35-native-validation-20261023.md`。
+
+## 结构与运行
+
+- `p3/catalog.py`：原数据查询、批次和筛选口径。
+- `p35/native_catalog.py`：原生表格与横向现金对比图的展示投影，复用已有本期、同期、目标、差额及学校父/年级子值。
+- `p35/bootstrap_native.py`：建立七个原生团队 Tabs、原生图表、筛选栏和布局。
+- `p35/native_theme.css`、`p35/assets/`：仪表盘主题与用户提供的素材，许可文件随附。
+- `p3/extension.py`：登录保护、入口跳转、素材路由与请求审计；没有替代 HTML 看板或自定义取数循环。
+- `p3/activity.html`：沿用 P1 的临时投入计算工具；活动累计主列表使用原生 Table。
+
+在工作树中设置现有本地 Superset 配置后运行：
+
+```bash
+export SUPERSET_CONFIG_PATH="$PWD/dashboard_product/shadow_bi/p3/config.py"
+export SUPERSET_HOME="$PWD/.local/audits/shadow-bi-p3-20261022/runtime/home"
+export FLASK_APP=superset
+.local/audits/shadow-bi-p1-20261022/runtime/venv/bin/python -B -m dashboard_product.shadow_bi.p35.bootstrap_native
+.local/audits/shadow-bi-p1-20261022/runtime/venv/bin/superset run --host 127.0.0.1 -p 18089 --with-threads
+```
+
+不要重复启动端口；停止只操作本次启动进程。凭据留在私有 runtime，不写进日志。
+
+## 交互
+
+顶部七个原生团队标签切换；筛选使用 Superset 原生选择与“应用”。目标团队与管理单元独立，主动/全部没有被动目标；留学不分主被动。个人月份、状态及产能局部筛选保持独立。
+
+现金与进度页用横向分组柱图并排显示本期、同期、目标；每业务组一行，现金、工单、人头各自聚合显示。缺失值保留空缺标记，不补零。费用说明、重复状态列不进入主表；线上投入与回收保留实际费用指标。
+
+市场总览学校默认使用学校全盘“全部”父值，可由学校页独立“主被动”筛选切换，学校“＋”展开主动/被动，再展开对应年级；不受经营页管理单元或语培范围筛选截断，人数父值直接读同批结果，不相加。大学页学校恢复固定被动的学校占比排名，不再混入全校主动或未归属现金分支。其他团队学校保持各自原范围。学校树使用 Superset 原生 Table 服务端分页，每页50所学校，单元格内“＋”保留主被动和年级展开；完整数据可翻页访问。查询保留结构化学校树用于数字回查，不再把所有学校的折叠节点一次挂入DOM。
+
+学校和整体年级都有独立的“排序依据”“排序方向”原生选择框。每个表格可选其展示字段，金额/数量/比例按数值、名称按文本排序。年级默认自然升序，包含幼儿园、小学、初中、高中、大学、研究生、博士；学校展开内的年级也采用同一自然顺序。“明细核对”已从经营看板移除，后台查询与证据保留。
+
+线上经营总览集中显示总花费、两条业务线的投入/回收/单条工单成本及费用覆盖日期；不同窗口的 ROI 不相加。全年留学目标单独标 FY27，禁止充作月度目标。长表独占整行并增加可读高度，1100px 以下并排图表改为纵排。原生网格仍需要图表高度配置，未声称实现无限自动增高。
+
+## 复验
+
+```bash
+.local/audits/shadow-bi-p1-20261022/runtime/venv/bin/python -B -m dashboard_product.shadow_bi.p35.verify_native
+python3 -B -m dashboard_product.shadow_bi.p35.verify_batch
+python3 -B -m dashboard_product.shadow_bi.p35.map_coverage
+```
+
+历史定制 HTML 已撤销，旧回执仅供追溯。本地 SQLite、管理员和开发服务不代表生产部署或独立验收；未授权 P4。
+
+筛选按当前子看板的图表作用域显示；跨页筛选目录不出现在“更多”中。学校和人员选择只在适用页面出现，常用期间、主被动及当前业务维度在前，低频状态选择在后；宽度不足时仍由原生“更多”承载当前页剩余控件。学校树保存的排序固定读取“排列顺序”升序，该序号由用户选择的依据和方向计算。原生Table计数请求清除无意义的排序，避免隐藏排序列触发DuckDB聚合校验。
+
+学校真实保存配置回归：`python3 -B -m dashboard_product.shadow_bi.p35.verify_school_saved`。该检查读取实际图表配置验证三个学校树的排序、分页总数/次页、总览主动/被动分支及固定全市场口径。
+
+学校分页表移除冗余原生搜索/每页数量工具栏，保留顶部学校筛选和分页；展开区域使用图表剩余高度，避免收起行高限制年级内容。样式在`p35/school_tree.css`，不依赖额外前端脚本或重测循环。
+
+### 业务线分区与原生展开（2026-10-23）
+
+`p35/breakdown_views.py`复用原父子查询，在原生Table内合并渠道和业务组；渠道/学校/年级按语培、留学及小语种各自展示，排序控件只控制该页两块，不混排业务线。高中个人留学渠道仅放在预备高中团队。ROI使用线上已提供费用，语培展开原三个业务组；留学条线只展示已提供的本期工单，费用目前仅归属留学整体，不推算国家或语种ROI。总费用单独保留，不给合计虚构ROI。
+
+个人工单是既有分摊贡献，原值不取整；表格统一最多两位小数。重复状态与每行日期在bootstrap的最终展示列清理中剔除，选择窗口单独显示一次。`verify_breakdowns.py`对原父子指标、两块分区完整性及保存的列配置做真实API核对；详细回执见原生验证文档。
+
+渠道紧凑格必须保留原业务占比：工单/现金占本业务线，子现金还占本渠道；不能因合并原父子表而丢掉。display-mapping JSON逐字段描述位置，verify_breakdowns按原查询核对实际生成HTML中的显示值。年级源未计算人头，不添加空人数构成；有源的分域人数在渠道、学校树与个人主表保留。
+
+
+### 平台与相邻维度整改（2026-10-24）
+
+`p35/platform_views.py`把平台父行/业务组叶子合并为四格原生展开，按两业务线分区；平台业务组仅绑定语培，清除恢复全部。费用/ROI直接取匹配组源，不借用全盘费用；被动组同期来自同批广告叶子，主动/全部不借被动同期。费用窗口用于计算，同窗收入缺覆盖时显示—。留学只有整体费用，细分缺失按用户确认保留，不分摊。
+
+`p35/dimension_views.py`合并四页条线/国家父子表，并拆分线上两业务线日明细；趋势原值与作用域保留。`python3 -B -m dashboard_product.shadow_bi.p35.verify_platforms`核对真实HTML全业务字段、组范围、排序、缺失及相邻维度原值。当前交验回执见`.local/audits/shadow-bi-p35-20261024/platform-receipt.json`；字段位置见display-mapping JSON，待独立复验。

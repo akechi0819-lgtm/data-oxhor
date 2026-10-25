@@ -2,6 +2,10 @@
 
 本机核心源码是 `/Users/akechi/Desktop/manager -CowH`。同步按明确文件清单与 SHA-256 执行，不将云端角色积累、临时程序或工作数据混入核心代码。
 
+## 2026-10-15学校排名排序微调同步
+
+用户授权后，固定A包 `school-sort-20261015-A.tar.gz` 已经既有Grok本机执行／CopyToBox安装到 `/home/box/oxhor/dashboard`。包SHA-256为 `b2521fbbe8c25137841e1ec2bff5dd73831b5288cd9576a879a04f3151abf87b`，仅含学校排名脚本与对应管理说明两个安装目标；云端预检、安装、Node语法与五指标／双顺序／双业务线模拟校验均退出0，2/2文件摘要与本机固定包及当前源码一致，原共享软链保留。回执时间2026-10-15 14:11:11（上海），回执见 `.local/sync/inbox/school-sort-20261015/receipt.json`，本机独立核验见 `.local/audits/school-sort-20261015/cloud-sync-verification.json`。此次只完成源码同步，不重抓数据、不重建或激活公网、不发通知，不改Snapshot、例行、凭据或DeliveryState；线上当前静态页面仍需后续正常重建发布才应用本次交互。
+
 ## 2026-10-12本轮统一源码与完整当前双仓同步
 
 用户已明确授权：三个看板改造统一清理、Git提交，并将本机完整当前BI／留学Snapshot及配套输入同步到既有Grok工作区。当前BI为 `snapshot_bi_operations_20261012_full_orders_1640`，留学为 `snapshot_study_abroad_20261012_local_1138`；本次传完整当前仓的历史数据，不仅增量工单。A源码、B客户数据分包，不传C凭据、不提交客户数据到Git。旧日期段落描述各轮当时状态，不限制本轮明确授权。

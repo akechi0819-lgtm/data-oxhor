@@ -1,0 +1,43 @@
+/* 观近主题：只使用Superset仪表盘CSS入口，不替换原生组件。 */
+.dashboard-content{background:#eaf0fb;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif;color:#21395f}
+.dashboard-component-chart-holder{background:#f9fbff;border:1px solid #d6e1f4;border-radius:8px}
+.dashboard-component-header{font-weight:650;color:#244b88}
+.dashboard-component-header a{color:#244b88}
+.dashboard-component-tabs{background:#edf3ff;border-radius:8px}
+.ant-tabs-nav{background:#e7eefc;border-bottom:1px solid #c9d7f0}
+.ant-tabs-tab.ant-tabs-tab-active{background:#d7e5ff;border-radius:5px 5px 0 0}
+.ant-tabs-tab.ant-tabs-tab-active .ant-tabs-tab-btn{color:#245bb7;font-weight:650}
+th{white-space:nowrap;background:#e9f0fc!important;color:#385c93}
+tbody tr:nth-child(even){background:#eef4ff}
+.dashboard-markdown .dashboard-component-chart-holder{background:linear-gradient(110deg,#dce8ff,#f2f5ff);border-color:#c5d6f5;padding:8px 18px}
+.dashboard-markdown img[alt="观近头像"]{float:left;width:44px;height:44px;object-fit:contain;margin:0 12px 0 0}
+.dashboard-markdown img[alt="观近数据助手"]{float:right;width:72px;height:72px;object-fit:contain;margin-top:-4px}
+.dashboard-markdown h2{font-size:19px;line-height:1.4;margin:0 0 4px;color:#234d91}
+.dashboard-markdown p{font-size:12px;color:#48628b;line-height:1.5;margin:3px 0}
+
+/* 一组指标在同格分行，保留原生表格的排序与筛选。 */
+.dashboard-component-chart-holder td {white-space: pre-line; line-height: 1.65; vertical-align: top;}
+
+/* 宽度随原生网格，窄屏将并列图表纵向排列。 */
+@media(max-width:1100px){
+  .dashboard-content .grid-row{flex-wrap:wrap;}
+  .dashboard-content .grid-row>.dragdroppable-column{width:100%;margin-bottom:12px;}
+  .dashboard-content .grid-row>.dragdroppable-column>.resizable-container{width:100%!important;max-width:100%!important;}
+}
+
+/* 小型摘要/业务组始终少于50行；保留手工数值排序，收起多余分页检索工具栏。 */
+__COMPOSITE_CHART__ .row:has(>.dt-select-page-size){display:none;}
+
+/* “更多”只收纳当前页放不下的控件；原生跨页筛选目录不属于业务操作区。 */
+.ant-popover .ant-collapse:has([id^="NATIVE_FILTER-"]){display:none;}
+/* 缩短下拉框以让期间、业务范围、学校与双排序常用项优先可见。 */
+.filter-item-wrapper .select-container {min-width:150px;max-width:190px;}
+
+/* 固定50条分页统一由翻页器操作，不再显示“0序列”等实现选项。 */
+.dashboard-component-chart-holder .dt-select-page-size{display:none;}
+/* 原生中文翻译的计数占位符会显示“异常”，搜索含义由旁边标签明确表达。 */
+.dashboard-component-chart-holder input::placeholder{color:transparent;}
+
+/* 原生表格的空值有dt-is-null标记；仅替换N/A字样，保留SQL NULL及数值排序。 */
+.dashboard-component-chart-holder td.dt-is-null {font-size:0;}
+.dashboard-component-chart-holder td.dt-is-null::after {content:"—";font-size:14px;color:#71809b;}

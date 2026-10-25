@@ -231,6 +231,11 @@ def _sum_fact_values(facts, business_line, metric_name, start, end, predicate=No
 
 
 def _unique_heads(facts, business_line, start, end, predicate=None):
+    if business_line == 'training':
+        from .heads import qualified_students
+        return len(qualified_students(f for f in facts if f['business_line']=='training'
+            and f['metric']=='cash' and _in_window(f,start,end)
+            and (predicate is None or predicate(f))))
     students = set()
     for fact in facts:
         if (fact['business_line'] != business_line or fact['metric'] != 'cash'
@@ -821,7 +826,7 @@ def _countries(facts, start, through):
 
 
 def aggregate(facts, people_config, abroad_people_config, training_targets,
-              abroad_targets, online_abroad_targets, through, *, abroad_source):
+              abroad_targets, online_abroad_targets, through, *, abroad_source, person_facts=None):
     """Aggregate normalized facts without reading source data or changing ownership.
 
     Team actuals use calendar periods. Person actuals keep the selected period's
@@ -829,7 +834,9 @@ def aggregate(facts, people_config, abroad_people_config, training_targets,
     """
     through = _date(through)
     team_facts = _valid_facts(facts, through, include_non_completion=True)
-    personal_facts = _valid_facts(facts, through)
+    personal_source = facts if person_facts is None else person_facts
+    personal_facts = _valid_facts(personal_source, through)
+    personal_status_facts = _valid_facts(personal_source, through, include_non_completion=True)
     roster = _roster(people_config, abroad_people_config)
     configs = (training_targets, abroad_targets, online_abroad_targets)
     period_rows = []
@@ -837,11 +844,11 @@ def aggregate(facts, people_config, abroad_people_config, training_targets,
         period = {**source_period, 'abroad_source': dict(abroad_source)}
         team_rows = []
         person_start, person_through, people_rows, person_progress = _people_for_period(
-            personal_facts, roster, period, through, order_status_facts=team_facts,
+            personal_facts, roster, period, through, order_status_facts=personal_status_facts,
         )
         calendar_start, calendar_through, calendar_people_rows, calendar_progress = _people_for_period(
             personal_facts, roster, period, through, mode='calendar',
-            order_status_facts=team_facts,
+            order_status_facts=personal_status_facts,
         )
         people_map = {person['name']: person for person in roster}
         for team_id, name in TEAM_DEFS:

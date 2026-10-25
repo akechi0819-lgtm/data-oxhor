@@ -1,0 +1,971 @@
+[
+  {
+    "page": "总览",
+    "control": "统计期间",
+    "affected": "目标/顶部/对应分析",
+    "default": "FY27",
+    "unaffected": "活动累计；独立个人月/产能月/年度六维",
+    "values": "17个FY27期间",
+    "old_code": "dashboard_product/management/web/app.js:658",
+    "p0_status": "代码与基准已固定；关键交互见ui-checks.json",
+    "p3_controls": [
+      "overview/期间"
+    ],
+    "native_bindings": {
+      "overview/期间": {
+        "id": "NATIVE_FILTER-p3-overview-0",
+        "chart_ids": [
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          20,
+          21,
+          23,
+          15,
+          16,
+          17,
+          18,
+          19,
+          74,
+          75
+        ],
+        "excluded": [
+          22,
+          67
+        ],
+        "cascadeParentIds": [],
+        "required": true
+      }
+    },
+    "p3_status": "已映射；见实际API边界与浏览器记录；待用户确认",
+    "p35_native_location": "http://127.0.0.1:18089/superset/dashboard/shadow-bi-native/?standalone=1 → 原生筛选栏/对应图表控件",
+    "p35_scope_contract": "原始图表限定集合保留；新增原生投影继承其源视图的筛选合同。原生分页随筛选复测，不使用自定义offset。"
+  },
+  {
+    "page": "总览",
+    "control": "管理单元",
+    "affected": "顶部与分析对应团队",
+    "default": "total",
+    "unaffected": "活动；独立产能；单管理单元隐藏市场团队",
+    "values": "total/virtual/online",
+    "old_code": "dashboard_product/management/web/app.js:127",
+    "p0_status": "代码与基准已固定；关键交互见ui-checks.json",
+    "p3_controls": [
+      "overview/管理单元"
+    ],
+    "native_bindings": {
+      "overview/管理单元": {
+        "id": "NATIVE_FILTER-p3-overview-1",
+        "chart_ids": [
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          20,
+          21,
+          22,
+          15,
+          16,
+          17,
+          18,
+          19,
+          75
+        ],
+        "excluded": [
+          23,
+          67,
+          74
+        ],
+        "cascadeParentIds": [],
+        "required": true
+      }
+    },
+    "p3_status": "已映射；见实际API边界与浏览器记录；待用户确认",
+    "p35_native_location": "http://127.0.0.1:18089/superset/dashboard/shadow-bi-native/?standalone=1 → 原生筛选栏/对应图表控件",
+    "p35_scope_contract": "原始图表限定集合保留；新增原生投影继承其源视图的筛选合同。原生分页随筛选复测，不使用自定义offset。"
+  },
+  {
+    "page": "总览",
+    "control": "市场团队",
+    "affected": "仅目标与完成进度及留学目标区",
+    "default": "all",
+    "unaffected": "顶部/其他分析；被动现金占比分母固定",
+    "values": "all/online/offline",
+    "old_code": "dashboard_product/management/web/app.js:453",
+    "p0_status": "代码与基准已固定；关键交互见ui-checks.json",
+    "p3_controls": [
+      "overview/目标团队"
+    ],
+    "native_bindings": {
+      "overview/目标团队": {
+        "id": "NATIVE_FILTER-p3-overview-2",
+        "chart_ids": [
+          13,
+          14
+        ],
+        "excluded": [
+          9,
+          10,
+          11,
+          12,
+          20,
+          21,
+          22,
+          23,
+          67,
+          15,
+          16,
+          17,
+          18,
+          19,
+          74,
+          75
+        ],
+        "cascadeParentIds": [
+          "NATIVE_FILTER-p3-overview-1"
+        ],
+        "required": true
+      }
+    },
+    "p3_status": "已映射；见实际API边界与浏览器记录；待用户确认",
+    "p3_note": "原生级联管理单元；非市场总计时只提供全部（原版隐藏控件），不提供对该单元无意义的线上/线下选择。",
+    "p35_native_location": "http://127.0.0.1:18089/superset/dashboard/shadow-bi-native/?standalone=1 → 原生筛选栏/对应图表控件",
+    "p35_scope_contract": "原始图表限定集合保留；新增原生投影继承其源视图的筛选合同。原生分页随筛选复测，不使用自定义offset。"
+  },
+  {
+    "page": "总览/虚拟人",
+    "control": "个人月份",
+    "affected": "本人完成、相关渠道",
+    "default": "截止月2026-10",
+    "unaffected": "经营期间/活动/目标规则",
+    "values": "月列表",
+    "old_code": "dashboard_product/management/web/app.js:360",
+    "p0_status": "代码与基准已固定；关键交互见ui-checks.json",
+    "p3_controls": [
+      "overview/个人月份",
+      "virtual/个人月份"
+    ],
+    "native_bindings": {
+      "overview/个人月份": {
+        "id": "NATIVE_FILTER-p3-overview-3",
+        "chart_ids": [
+          22
+        ],
+        "excluded": [
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          20,
+          21,
+          23,
+          67,
+          15,
+          16,
+          17,
+          18,
+          19,
+          74,
+          75
+        ],
+        "cascadeParentIds": [],
+        "required": true
+      },
+      "virtual/个人月份": {
+        "id": "NATIVE_FILTER-p3-virtual-2",
+        "chart_ids": [
+          35
+        ],
+        "excluded": [
+          24,
+          25,
+          26,
+          27,
+          33,
+          34,
+          28,
+          29,
+          30,
+          31,
+          32,
+          76,
+          77
+        ],
+        "cascadeParentIds": [],
+        "required": true
+      }
+    },
+    "p3_status": "已映射；见实际API边界与浏览器记录；待用户确认",
+    "p35_native_location": "http://127.0.0.1:18089/superset/dashboard/shadow-bi-native/?standalone=1 → 原生筛选栏/对应图表控件",
+    "p35_scope_contract": "原始图表限定集合保留；新增原生投影继承其源视图的筛选合同。原生分页随筛选复测，不使用自定义offset。"
+  },
+  {
+    "page": "个人区域",
+    "control": "工单删除/回收",
+    "affected": "个人工单及完成率、自创率、接收输出和相关渠道",
+    "default": "关闭",
+    "unaffected": "现金、人头、目标、资格；虚拟人无效排除不放开",
+    "values": "00/01/10/11首位",
+    "old_code": "dashboard_product/management/web/boards.js:34",
+    "p0_status": "代码与基准已固定；关键交互见ui-checks.json",
+    "p3_controls": [
+      "overview/含删除回收",
+      "virtual/含删除回收",
+      "prep/含删除回收",
+      "university/含删除回收",
+      "capacity/含删除回收"
+    ],
+    "native_bindings": {
+      "overview/含删除回收": {
+        "id": "NATIVE_FILTER-p3-overview-5",
+        "chart_ids": [
+          22,
+          23
+        ],
+        "excluded": [
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          20,
+          21,
+          67,
+          15,
+          16,
+          17,
+          18,
+          19,
+          74,
+          75
+        ],
+        "cascadeParentIds": [],
+        "required": true
+      },
+      "virtual/含删除回收": {
+        "id": "NATIVE_FILTER-p3-virtual-4",
+        "chart_ids": [
+          35
+        ],
+        "excluded": [
+          24,
+          25,
+          26,
+          27,
+          33,
+          34,
+          28,
+          29,
+          30,
+          31,
+          32,
+          76,
+          77
+        ],
+        "cascadeParentIds": [],
+        "required": true
+      },
+      "prep/含删除回收": {
+        "id": "NATIVE_FILTER-p3-prep-4",
+        "chart_ids": [
+          44,
+          45
+        ],
+        "excluded": [
+          36,
+          37,
+          38,
+          39,
+          40,
+          41,
+          42,
+          43,
+          78
+        ],
+        "cascadeParentIds": [],
+        "required": true
+      },
+      "university/含删除回收": {
+        "id": "NATIVE_FILTER-p3-university-3",
+        "chart_ids": [
+          56
+        ],
+        "excluded": [
+          46,
+          47,
+          48,
+          54,
+          55,
+          49,
+          50,
+          51,
+          52,
+          53,
+          79,
+          80
+        ],
+        "cascadeParentIds": [],
+        "required": true
+      },
+      "capacity/含删除回收": {
+        "id": "NATIVE_FILTER-p3-capacity-2",
+        "chart_ids": [
+          64
+        ],
+        "excluded": [
+          65,
+          66,
+          68,
+          69,
+          70,
+          71,
+          73
+        ],
+        "cascadeParentIds": [],
+        "required": true
+      }
+    },
+    "p3_status": "已映射；见实际API边界与浏览器记录；待用户确认",
+    "p35_native_location": "http://127.0.0.1:18089/superset/dashboard/shadow-bi-native/?standalone=1 → 原生筛选栏/对应图表控件",
+    "p35_scope_contract": "原始图表限定集合保留；新增原生投影继承其源视图的筛选合同。原生分页随筛选复测，不使用自定义offset。"
+  },
+  {
+    "page": "个人区域",
+    "control": "死单",
+    "affected": "对应工单及相关率/份额",
+    "default": "开启",
+    "unaffected": "现金、人头、目标、资格/部门总量/通知",
+    "values": "00/01/10/11次位",
+    "old_code": "dashboard_product/management/web/boards.js:34",
+    "p0_status": "代码与基准已固定；关键交互见ui-checks.json",
+    "p3_controls": [
+      "overview/含死单",
+      "virtual/含死单",
+      "prep/含死单",
+      "university/含死单",
+      "capacity/含死单"
+    ],
+    "native_bindings": {
+      "overview/含死单": {
+        "id": "NATIVE_FILTER-p3-overview-6",
+        "chart_ids": [
+          22,
+          23
+        ],
+        "excluded": [
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          20,
+          21,
+          67,
+          15,
+          16,
+          17,
+          18,
+          19,
+          74,
+          75
+        ],
+        "cascadeParentIds": [],
+        "required": true
+      },
+      "virtual/含死单": {
+        "id": "NATIVE_FILTER-p3-virtual-5",
+        "chart_ids": [
+          35
+        ],
+        "excluded": [
+          24,
+          25,
+          26,
+          27,
+          33,
+          34,
+          28,
+          29,
+          30,
+          31,
+          32,
+          76,
+          77
+        ],
+        "cascadeParentIds": [],
+        "required": true
+      },
+      "prep/含死单": {
+        "id": "NATIVE_FILTER-p3-prep-5",
+        "chart_ids": [
+          44,
+          45
+        ],
+        "excluded": [
+          36,
+          37,
+          38,
+          39,
+          40,
+          41,
+          42,
+          43,
+          78
+        ],
+        "cascadeParentIds": [],
+        "required": true
+      },
+      "university/含死单": {
+        "id": "NATIVE_FILTER-p3-university-4",
+        "chart_ids": [
+          56
+        ],
+        "excluded": [
+          46,
+          47,
+          48,
+          54,
+          55,
+          49,
+          50,
+          51,
+          52,
+          53,
+          79,
+          80
+        ],
+        "cascadeParentIds": [],
+        "required": true
+      },
+      "capacity/含死单": {
+        "id": "NATIVE_FILTER-p3-capacity-3",
+        "chart_ids": [
+          64
+        ],
+        "excluded": [
+          65,
+          66,
+          68,
+          69,
+          70,
+          71,
+          73
+        ],
+        "cascadeParentIds": [],
+        "required": true
+      }
+    },
+    "p3_status": "已映射；见实际API边界与浏览器记录；待用户确认",
+    "p35_native_location": "http://127.0.0.1:18089/superset/dashboard/shadow-bi-native/?standalone=1 → 原生筛选栏/对应图表控件",
+    "p35_scope_contract": "原始图表限定集合保留；新增原生投影继承其源视图的筛选合同。原生分页随筛选复测，不使用自定义offset。"
+  },
+  {
+    "page": "预备高中",
+    "control": "业务组多选",
+    "affected": "预备高中完成、渠道/学校/人员",
+    "default": "青少+初中+高中 mask7",
+    "unaffected": "不为青少初中拆整体目标；空选不显示完成",
+    "values": "mask1..7，空选",
+    "old_code": "dashboard_product/management/web/boards.js:120",
+    "p0_status": "代码与基准已固定；关键交互见ui-checks.json",
+    "p3_controls": [
+      "prep/业务组"
+    ],
+    "native_bindings": {
+      "prep/业务组": {
+        "id": "NATIVE_FILTER-p3-prep-1",
+        "chart_ids": [
+          36,
+          37,
+          38,
+          44,
+          45,
+          39,
+          40,
+          41,
+          42,
+          43
+        ],
+        "excluded": [
+          78
+        ],
+        "cascadeParentIds": [],
+        "required": false
+      }
+    },
+    "p3_status": "已映射；见实际API边界与浏览器记录；待用户确认",
+    "p35_native_location": "http://127.0.0.1:18089/superset/dashboard/shadow-bi-native/?standalone=1 → 原生筛选栏/对应图表控件",
+    "p35_scope_contract": "原始图表限定集合保留；新增原生投影继承其源视图的筛选合同。原生分页随筛选复测，不使用自定义offset。"
+  },
+  {
+    "page": "预备高中/大学",
+    "control": "个人月",
+    "affected": "个人完成",
+    "default": "截止月",
+    "unaffected": "部门期间、学校、渠道自然窗",
+    "values": "月份",
+    "old_code": "dashboard_product/management/web/boards.js:91",
+    "p0_status": "代码与基准已固定；关键交互见ui-checks.json",
+    "p3_controls": [
+      "prep/个人月份",
+      "university/个人月份"
+    ],
+    "native_bindings": {
+      "prep/个人月份": {
+        "id": "NATIVE_FILTER-p3-prep-2",
+        "chart_ids": [
+          44
+        ],
+        "excluded": [
+          36,
+          37,
+          38,
+          45,
+          39,
+          40,
+          41,
+          42,
+          43,
+          78
+        ],
+        "cascadeParentIds": [],
+        "required": true
+      },
+      "university/个人月份": {
+        "id": "NATIVE_FILTER-p3-university-1",
+        "chart_ids": [
+          56
+        ],
+        "excluded": [
+          46,
+          47,
+          48,
+          54,
+          55,
+          49,
+          50,
+          51,
+          52,
+          53,
+          79,
+          80
+        ],
+        "cascadeParentIds": [],
+        "required": true
+      }
+    },
+    "p3_status": "已映射；见实际API边界与浏览器记录；待用户确认",
+    "p35_native_location": "http://127.0.0.1:18089/superset/dashboard/shadow-bi-native/?standalone=1 → 原生筛选栏/对应图表控件",
+    "p35_scope_contract": "原始图表限定集合保留；新增原生投影继承其源视图的筛选合同。原生分页随筛选复测，不使用自定义offset。"
+  },
+  {
+    "page": "预备高中/大学",
+    "control": "月模式",
+    "affected": "个人绩效/自然窗口",
+    "default": "performance",
+    "unaffected": "部门自然期间；高中渠道页用经营窗",
+    "values": "performance/calendar",
+    "old_code": "dashboard_product/management/web/boards.js:91",
+    "p0_status": "代码与基准已固定；关键交互见ui-checks.json",
+    "p3_controls": [
+      "prep/月模式",
+      "university/月模式"
+    ],
+    "native_bindings": {
+      "prep/月模式": {
+        "id": "NATIVE_FILTER-p3-prep-3",
+        "chart_ids": [
+          44
+        ],
+        "excluded": [
+          36,
+          37,
+          38,
+          45,
+          39,
+          40,
+          41,
+          42,
+          43,
+          78
+        ],
+        "cascadeParentIds": [],
+        "required": true
+      },
+      "university/月模式": {
+        "id": "NATIVE_FILTER-p3-university-2",
+        "chart_ids": [
+          56
+        ],
+        "excluded": [
+          46,
+          47,
+          48,
+          54,
+          55,
+          49,
+          50,
+          51,
+          52,
+          53,
+          79,
+          80
+        ],
+        "cascadeParentIds": [],
+        "required": true
+      }
+    },
+    "p3_status": "已映射；见实际API边界与浏览器记录；待用户确认",
+    "p35_native_location": "http://127.0.0.1:18089/superset/dashboard/shadow-bi-native/?standalone=1 → 原生筛选栏/对应图表控件",
+    "p35_scope_contract": "原始图表限定集合保留；新增原生投影继承其源视图的筛选合同。原生分页随筛选复测，不使用自定义offset。"
+  },
+  {
+    "page": "共用表",
+    "control": "学校排序指标与方向",
+    "affected": "学校列表与学校×年级",
+    "default": "orders/desc",
+    "unaffected": "指标值和分母",
+    "values": "orders/cash/orders_yoy/share/cash_share × asc/desc",
+    "old_code": "dashboard_product/management/web/flat-tables.js:44",
+    "p0_status": "代码与基准已固定；关键交互见ui-checks.json",
+    "p3_controls": [
+      "学校表头：工单/现金/工单同比/工单占比/现金占比"
+    ],
+    "native_bindings": {},
+    "p3_status": "已映射；见实际API边界与浏览器记录；待用户确认",
+    "p35_native_location": "http://127.0.0.1:18089/superset/dashboard/shadow-bi-native/?standalone=1 → 原生筛选栏/对应图表控件",
+    "p35_scope_contract": "原始图表限定集合保留；新增原生投影继承其源视图的筛选合同。原生分页随筛选复测，不使用自定义offset。"
+  },
+  {
+    "page": "共用表",
+    "control": "展示粒度/展开",
+    "affected": "渠道/渠道×业务组；学校/学校×年级；前30扩展",
+    "default": "channel/school/收起",
+    "unaffected": "独立人数不加总",
+    "values": "展开/收起",
+    "old_code": "dashboard_product/management/web/flat-tables.js:90",
+    "p0_status": "代码与基准已固定；关键交互见ui-checks.json",
+    "p3_controls": [
+      "原生学校→年级下钻；渠道×业务组、学校×年级独立表与服务端分页"
+    ],
+    "native_bindings": {},
+    "p3_status": "已映射；见实际API边界与浏览器记录；待用户确认",
+    "p35_native_location": "http://127.0.0.1:18089/superset/dashboard/shadow-bi-native/?standalone=1 → 原生筛选栏/对应图表控件",
+    "p35_scope_contract": "原始图表限定集合保留；新增原生投影继承其源视图的筛选合同。原生分页随筛选复测，不使用自定义offset。"
+  },
+  {
+    "page": "共用表",
+    "control": "年级排序",
+    "affected": "整体年级表",
+    "default": "grade",
+    "unaffected": "学校排名",
+    "values": "grade/orders/cash",
+    "old_code": "dashboard_product/management/web/flat-tables.js:90",
+    "p0_status": "代码与基准已固定；关键交互见ui-checks.json",
+    "p3_controls": [
+      "年级顺序、工单、现金表头"
+    ],
+    "native_bindings": {},
+    "p3_status": "已映射；见实际API边界与浏览器记录；待用户确认",
+    "p35_native_location": "http://127.0.0.1:18089/superset/dashboard/shadow-bi-native/?standalone=1 → 原生筛选栏/对应图表控件",
+    "p35_scope_contract": "原始图表限定集合保留；新增原生投影继承其源视图的筛选合同。原生分页随筛选复测，不使用自定义offset。"
+  },
+  {
+    "page": "产能",
+    "control": "自然月",
+    "affected": "月度贡献及待核明细",
+    "default": "截止月",
+    "unaffected": "年度六维/活动/经营期间",
+    "values": "已接入月",
+    "old_code": "dashboard_product/management/web/capacity-view.js:62",
+    "p0_status": "代码与基准已固定；关键交互见ui-checks.json",
+    "p3_controls": [
+      "capacity/产能月份"
+    ],
+    "native_bindings": {
+      "capacity/产能月份": {
+        "id": "NATIVE_FILTER-p3-capacity-0",
+        "chart_ids": [
+          64,
+          68,
+          69,
+          70
+        ],
+        "excluded": [
+          65,
+          66,
+          71,
+          73
+        ],
+        "cascadeParentIds": [],
+        "required": true
+      }
+    },
+    "p3_status": "已映射；见实际API边界与浏览器记录；待用户确认",
+    "p35_native_location": "http://127.0.0.1:18089/superset/dashboard/shadow-bi-native/?standalone=1 → 原生筛选栏/对应图表控件",
+    "p35_scope_contract": "原始图表限定集合保留；新增原生投影继承其源视图的筛选合同。原生分页随筛选复测，不使用自定义offset。"
+  },
+  {
+    "page": "产能",
+    "control": "团队",
+    "affected": "所选线下团队人员及明细",
+    "default": "all",
+    "unaffected": "全月去重待核总数、原贡献及资格",
+    "values": "实际peer group",
+    "old_code": "dashboard_product/management/web/capacity-view.js:82",
+    "p0_status": "代码与基准已固定；关键交互见ui-checks.json",
+    "p3_controls": [
+      "capacity/线下团队"
+    ],
+    "native_bindings": {
+      "capacity/线下团队": {
+        "id": "NATIVE_FILTER-p3-capacity-5",
+        "chart_ids": [
+          64,
+          68
+        ],
+        "excluded": [
+          65,
+          66,
+          69,
+          70,
+          71,
+          73
+        ],
+        "cascadeParentIds": [],
+        "required": false
+      }
+    },
+    "p3_status": "已映射；见实际API边界与浏览器记录；待用户确认",
+    "p35_native_location": "http://127.0.0.1:18089/superset/dashboard/shadow-bi-native/?standalone=1 → 原生筛选栏/对应图表控件",
+    "p35_scope_contract": "原始图表限定集合保留；新增原生投影继承其源视图的筛选合同。原生分页随筛选复测，不使用自定义offset。"
+  },
+  {
+    "page": "产能",
+    "control": "产品范围",
+    "affected": "合计/留学/小语种对应贡献",
+    "default": "all",
+    "unaffected": "其他页面和年度六维",
+    "values": "all/study_abroad/small_language",
+    "old_code": "dashboard_product/management/web/capacity-view.js:136",
+    "p0_status": "代码与基准已固定；关键交互见ui-checks.json",
+    "p3_controls": [
+      "capacity/产品范围"
+    ],
+    "native_bindings": {
+      "capacity/产品范围": {
+        "id": "NATIVE_FILTER-p3-capacity-1",
+        "chart_ids": [
+          64
+        ],
+        "excluded": [
+          65,
+          66,
+          68,
+          69,
+          70,
+          71,
+          73
+        ],
+        "cascadeParentIds": [],
+        "required": true
+      }
+    },
+    "p3_status": "已映射；见实际API边界与浏览器记录；待用户确认",
+    "p35_native_location": "http://127.0.0.1:18089/superset/dashboard/shadow-bi-native/?standalone=1 → 原生筛选栏/对应图表控件",
+    "p35_scope_contract": "原始图表限定集合保留；新增原生投影继承其源视图的筛选合同。原生分页随筛选复测，不使用自定义offset。"
+  },
+  {
+    "page": "活动",
+    "control": "关键字/分页",
+    "affected": "累计活动列表",
+    "default": "空/1/50条",
+    "unaffected": "投入Map和累计值；其他板块",
+    "values": "includes名称；第1..101页",
+    "old_code": "dashboard_product/management/web/app.js:590",
+    "p0_status": "代码与基准已固定；关键交互见ui-checks.json",
+    "p3_controls": [
+      "/p3/activity/ #search #prev #next"
+    ],
+    "native_bindings": {},
+    "p3_status": "已映射；见实际API边界与浏览器记录；待用户确认",
+    "p35_native_location": "http://127.0.0.1:18089/superset/dashboard/shadow-bi-native/?standalone=1 → 原生筛选栏/对应图表控件",
+    "p35_scope_contract": "原始图表限定集合保留；新增原生投影继承其源视图的筛选合同。原生分页随筛选复测，不使用自定义offset。"
+  },
+  {
+    "page": "活动",
+    "control": "临时投入",
+    "affected": "本活动回收倍数",
+    "default": "未填",
+    "unaffected": "其他活动/原现金/无数据库写回",
+    "values": "正数即算，非正或缺数据为—/状态",
+    "old_code": "dashboard_product/management/web/app.js:574",
+    "p0_status": "代码与基准已固定；关键交互见ui-checks.json",
+    "p3_controls": [
+      "/p3/activity/ 临时投入输入与sessionStorage"
+    ],
+    "native_bindings": {},
+    "p3_status": "已映射；见实际API边界与浏览器记录；待用户确认",
+    "p35_native_location": "http://127.0.0.1:18089/superset/dashboard/shadow-bi-native/?standalone=1 → 原生筛选栏/对应图表控件",
+    "p35_scope_contract": "原始图表限定集合保留；新增原生投影继承其源视图的筛选合同。原生分页随筛选复测，不使用自定义offset。"
+  },
+  {
+    "page": "线上平台",
+    "control": "期间",
+    "affected": "线上全页",
+    "default": "metadata.default_period=2026-10",
+    "unaffected": "总览与活动",
+    "values": "periods[]",
+    "old_code": "dashboard_product/online_team/web/app.js:850",
+    "p0_status": "源码及基准固定，线上页面实读",
+    "p3_controls": [
+      "online/线上期间"
+    ],
+    "native_bindings": {
+      "online/线上期间": {
+        "id": "NATIVE_FILTER-p3-online-0",
+        "chart_ids": [
+          57,
+          58,
+          59,
+          60,
+          61,
+          62,
+          63,
+          72,
+          81,
+          83,
+          84,
+          85
+        ],
+        "excluded": [],
+        "cascadeParentIds": [],
+        "required": true
+      }
+    },
+    "p3_status": "已映射；见实际API边界与浏览器记录；待用户确认",
+    "p35_native_location": "http://127.0.0.1:18089/superset/dashboard/shadow-bi-native/?standalone=1 → 原生筛选栏/对应图表控件",
+    "p35_scope_contract": "原始图表限定集合保留；新增原生投影继承其源视图的筛选合同。原生分页随筛选复测，不使用自定义offset。"
+  },
+  {
+    "page": "线上平台",
+    "control": "业务线",
+    "affected": "卡片/趋势/维度以及渠道可见业务线",
+    "default": "all",
+    "unaffected": "其他页面；渠道表局部过滤不改变顶部",
+    "values": "all/training/abroad",
+    "old_code": "dashboard_product/online_team/web/app.js:130",
+    "p0_status": "源码及基准固定，线上页面实读",
+    "p3_controls": [
+      "online/业务线"
+    ],
+    "native_bindings": {
+      "online/业务线": {
+        "id": "NATIVE_FILTER-p3-online-1",
+        "chart_ids": [
+          57,
+          58,
+          59,
+          60,
+          61,
+          62,
+          63,
+          72,
+          83,
+          84,
+          85
+        ],
+        "excluded": [
+          81
+        ],
+        "cascadeParentIds": [],
+        "required": true
+      }
+    },
+    "p3_status": "已映射；见实际API边界与浏览器记录；待用户确认",
+    "p35_native_location": "http://127.0.0.1:18089/superset/dashboard/shadow-bi-native/?standalone=1 → 原生筛选栏/对应图表控件",
+    "p35_scope_contract": "原始图表限定集合保留；新增原生投影继承其源视图的筛选合同。原生分页随筛选复测，不使用自定义offset。"
+  },
+  {
+    "page": "线上平台",
+    "control": "平台表业务线",
+    "affected": "平台列表",
+    "default": "all",
+    "unaffected": "顶部、日图、业务组目标、国家维度",
+    "values": "可见业务线交集",
+    "old_code": "dashboard_product/online_team/web/app.js:134",
+    "p0_status": "源码及基准固定，线上页面实读",
+    "p3_controls": [
+      "online/平台业务线"
+    ],
+    "native_bindings": {
+      "online/平台业务线": {
+        "id": "NATIVE_FILTER-p3-online-2",
+        "chart_ids": [
+          59
+        ],
+        "excluded": [
+          57,
+          58,
+          60,
+          61,
+          62,
+          63,
+          72,
+          81,
+          83,
+          84,
+          85
+        ],
+        "cascadeParentIds": [],
+        "required": true
+      }
+    },
+    "p3_status": "已映射；见实际API边界与浏览器记录；待用户确认",
+    "p35_native_location": "http://127.0.0.1:18089/superset/dashboard/shadow-bi-native/?standalone=1 → 原生筛选栏/对应图表控件",
+    "p35_scope_contract": "原始图表限定集合保留；新增原生投影继承其源视图的筛选合同。原生分页随筛选复测，不使用自定义offset。"
+  },
+  {
+    "page": "线上平台",
+    "control": "平台搜索",
+    "affected": "平台列表",
+    "default": "空",
+    "unaffected": "顶部及其他区",
+    "values": "中文包含",
+    "old_code": "dashboard_product/online_team/web/app.js:665",
+    "p0_status": "源码及基准固定，线上页面实读",
+    "p3_controls": [
+      "online/平台；平台表搜索"
+    ],
+    "native_bindings": {},
+    "p3_status": "已映射；见实际API边界与浏览器记录；待用户确认",
+    "p35_native_location": "http://127.0.0.1:18089/superset/dashboard/shadow-bi-native/?standalone=1 → 原生筛选栏/对应图表控件",
+    "p35_scope_contract": "原始图表限定集合保留；新增原生投影继承其源视图的筛选合同。原生分页随筛选复测，不使用自定义offset。"
+  },
+  {
+    "page": "线上平台",
+    "control": "平台排序",
+    "affected": "平台列表",
+    "default": "orders",
+    "unaffected": "实际指标、分母、顶部",
+    "values": "orders/share/yoy/name",
+    "old_code": "dashboard_product/online_team/web/app.js:665",
+    "p0_status": "源码及基准固定，线上页面实读",
+    "p3_controls": [
+      "平台表工单/工单占比/工单同比/平台表头"
+    ],
+    "native_bindings": {},
+    "p3_status": "已映射；见实际API边界与浏览器记录；待用户确认",
+    "p35_native_location": "http://127.0.0.1:18089/superset/dashboard/shadow-bi-native/?standalone=1 → 原生筛选栏/对应图表控件",
+    "p35_scope_contract": "原始图表限定集合保留；新增原生投影继承其源视图的筛选合同。原生分页随筛选复测，不使用自定义offset。"
+  }
+]

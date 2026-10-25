@@ -21,6 +21,10 @@ window.FlatTables = (() => {
   };
   const metricValue=(m,key='actual')=>{const value=key==='actual'?metricActual(m):n(m?.[key]);return key==='actual'&&typeof m?.actual==='number'&&m?.unit&&!m?.display?`${value} ${esc(m.unit)}`:value;};
   const incomparable=m=>['partial','not_covered','separate_counts'].includes(m?.status);
+  const finiteMetricValue=(metric,key='actual')=>{
+    const value=typeof metric==='number'?metric:metric?.[key];
+    return Number.isFinite(value)?value:null;
+  };
   function metric(m){return `<strong>${metricActual(m)}</strong><small>同期 ${incomparable(m)?'—':n(m?.prior)} · 同比 <span class="${m?.yoy<0?'negative':'positive'}">${pct(incomparable(m)?null:m?.yoy)}</span></small>`;}
   function comparisonMetric(m){return `<td>${metricActual(m)}</td><td>${incomparable(m)?'—':n(m?.prior)}</td><td><span class="${m?.yoy<0?'negative':'positive'}">${pct(incomparable(m)?null:m?.yoy)}</span></td>`;}
   const share=r=>`<span>工单 ${pct(r.share)}</span><small>现金 ${pct(r.cash_share)}</small>${r.channel_cash_share!=null?`<small>渠道内 ${pct(r.channel_cash_share)}</small>`:''}`;
@@ -46,8 +50,22 @@ window.FlatTables = (() => {
     }
     if(schools){
       const list=[...(s.data?.schools_by_line?.[line]||[])];
-      const sort=s.sort==='cash'&&line==='training'?'cash':'orders';
-      list.sort((a,b)=>(b[sort]?.actual||0)-(a[sort]?.actual||0)||(b.orders?.actual||0)-(a.orders?.actual||0)||a.name.localeCompare(b.name,'zh-CN'));
+      const schoolValue=r=>{
+        if(s.sort==='orders_yoy'&&incomparable(r.orders))return null;
+        return finiteMetricValue(s.sort==='orders_yoy'?r.orders:r[s.sort],s.sort==='orders_yoy'?'yoy':'actual');
+      };
+      const compareDescending=(a,b)=>{
+        if(a===null)return b===null?0:1;
+        if(b===null)return -1;
+        return b-a;
+      };
+      list.sort((a,b)=>{
+        const av=schoolValue(a),bv=schoolValue(b);
+        let result=av===null?(bv===null?0:1):bv===null?-1:(s.sortOrder==='asc'?av-bv:bv-av);
+        if(result)return result;
+        result=compareDescending(finiteMetricValue(a.orders),finiteMetricValue(b.orders));
+        return result||a.name.localeCompare(b.name,'zh-CN');
+      });
       const chosen=s.more[line]?list:list.slice(0,30);
       const flat=s.schoolMode==='grade'?chosen.flatMap((r,i)=>(r.grades||[]).map(g=>({...g,name:r.name,subname:g.name,rank:i+1}))):chosen.map((r,i)=>({...r,rank:i+1}));
       return {rows:flat,total:list.length};
@@ -81,12 +99,12 @@ window.FlatTables = (() => {
       const abroadPanel=personal?.people?.length?personalAbroadPanels(personal.people,personal):panel(s,'abroad',false);
       html+=`<div class="flat-controls"><strong>渠道表现</strong><label>展示粒度 <select aria-label="渠道展示粒度" data-setting="channelMode"><option value="channel" ${s.channelMode==='channel'?'selected':''}>按渠道</option><option value="group" ${s.channelMode==='group'?'selected':''}>渠道 × 业务组</option></select></label></div><div class="flat-grid ${s.options.mode==='both'?'is-channel-grid':''}">${panel(s,'training',false)}${abroadPanel}</div>`;
     }
-    if(s.options.mode!=='channels')html+=`<div class="flat-controls"><strong>学校排名</strong><label>排序 <select aria-label="学校排序" data-setting="sort"><option value="orders" ${s.sort==='orders'?'selected':''}>工单量降序</option><option value="cash" ${s.sort==='cash'?'selected':''}>现金降序</option></select></label><label>展示粒度 <select aria-label="学校展示粒度" data-setting="schoolMode"><option value="school" ${s.schoolMode==='school'?'selected':''}>学校</option><option value="grade" ${s.schoolMode==='grade'?'selected':''}>学校 × 年级</option></select></label></div><div class="flat-grid ${s.options.showHeads?'is-school-grid':''}">${panel(s,'training',true)}${panel(s,'abroad',true)}</div>`;
+    if(s.options.mode!=='channels')html+=`<div class="flat-controls"><strong>学校排名</strong><label>排序指标 <select aria-label="学校排序指标" data-setting="sort"><option value="orders" ${s.sort==='orders'?'selected':''}>工单量</option><option value="cash" ${s.sort==='cash'?'selected':''}>现金</option><option value="orders_yoy" ${s.sort==='orders_yoy'?'selected':''}>工单同比</option><option value="share" ${s.sort==='share'?'selected':''}>工单占比</option><option value="cash_share" ${s.sort==='cash_share'?'selected':''}>现金占比</option></select></label><label>顺序 <select aria-label="学校排序顺序" data-setting="sortOrder"><option value="desc" ${s.sortOrder==='desc'?'selected':''}>降序</option><option value="asc" ${s.sortOrder==='asc'?'selected':''}>升序</option></select></label><label>展示粒度 <select aria-label="学校展示粒度" data-setting="schoolMode"><option value="school" ${s.schoolMode==='school'?'selected':''}>学校</option><option value="grade" ${s.schoolMode==='grade'?'selected':''}>学校 × 年级</option></select></label></div><div class="flat-grid ${s.options.showHeads?'is-school-grid':''}">${panel(s,'training',true)}${panel(s,'abroad',true)}</div>`;
     container.innerHTML=html;
   }
   function render(container,data,options={}){
     let s=states.get(container);
-    if(!s){s={channelMode:'channel',schoolMode:'school',sort:options.mode==='grades'?'grade':'orders',more:{training:false,abroad:false}};states.set(container,s);
+    if(!s){s={channelMode:'channel',schoolMode:'school',sort:options.mode==='grades'?'grade':'orders',sortOrder:'desc',more:{training:false,abroad:false}};states.set(container,s);
       container.addEventListener('change',e=>{const key=e.target.dataset.setting;if(key){s[key]=e.target.value;s.more={training:false,abroad:false};draw(container,s);container.querySelector(`[data-setting="${key}"]`)?.focus();}});
       container.addEventListener('click',e=>{const line=e.target.dataset.more;if(line){s.more[line]=!s.more[line];draw(container,s);}});
     }

@@ -1,0 +1,27 @@
+<!doctype html><html lang="zh"><meta charset="utf-8"><title>P1 活动临时投入</title>
+<style>body{font:16px system-ui;max-width:1200px;margin:40px auto;color:#182d3f}input,button{font:inherit;padding:7px}table{width:100%;border-collapse:collapse;margin:20px 0}td,th{padding:10px;border-bottom:1px solid #dde4ea;text-align:left}td:first-child{max-width:560px}input[type=number]{width:120px}.note{color:#536572}nav{display:flex;gap:12px;align-items:center}</style>
+<h1>活动临时投入 · P1 小组件</h1><p class="note">冻结活动累计 · 只查询当前10行 · 投入仅保留在本标签页会话中</p>
+<p><a href="/superset/dashboard/shadow-bi-p1/">返回 Superset 原生验证页</a></p>
+<label>搜索活动 <input id="search" type="search" placeholder="输入活动名称关键词"></label> <button id="find">搜索</button>
+<table><thead><tr><th>活动</th><th>现金（元）</th><th>临时投入（元）</th><th>回收倍数</th></tr></thead><tbody id="rows"></tbody></table>
+<nav><button id="prev">上一页</button><span id="page"></span><button id="next">下一页</button></nav><p id="status" role="status"></p>
+<script>
+let offset=0,query='',csrf='',total=0;const ds=__ACTIVITY_DATASET_ID__,size=10;
+const key='shadow-bi-p1:activity-investment';let inputs=JSON.parse(sessionStorage.getItem(key)||'{}');
+function cell(row,value){const td=document.createElement('td');td.textContent=value??'未提供';row.append(td);return td}
+async function load(){
+ try{
+ if(!csrf)csrf=(await(await fetch('/api/v1/security/csrf_token/')).json()).result;
+ const filters=query?[{col:'活动',op:'ILIKE',val:'%'+query+'%'}]:[];
+ const q={columns:['活动','现金'],metrics:[],filters,orderby:[['活动',true]],row_limit:size,row_offset:offset,time_range:'No filter'};
+ const res=await fetch('/api/v1/chart/data',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':csrf},body:JSON.stringify({datasource:{id:ds,type:'table'},force:true,queries:[q,{...q,is_rowcount:true,row_offset:0,row_limit:10000}],result_format:'json',result_type:'full'})});
+ const data=await res.json();if(!res.ok||data.result?.[0]?.error)throw Error(JSON.stringify(data));
+ const result=data.result[0];total=data.result[1].data[0].rowcount;document.querySelector('#rows').replaceChildren();
+ for(const item of result.data){const tr=document.createElement('tr');cell(tr,item['活动']);cell(tr,item['现金']);const td=cell(tr,'');const input=document.createElement('input');input.type='number';input.min='0';input.step='0.01';input.setAttribute('aria-label','投入 '+item['活动']);input.value=inputs[item['活动']]??'';td.append(input);const ratio=cell(tr,'');function calc(){const v=Number(input.value);ratio.textContent=input.value&&v>0?(item['现金']/v).toFixed(2)+'×':'未填写';}input.oninput=()=>{inputs[item['活动']]=input.value;sessionStorage.setItem(key,JSON.stringify(inputs));calc()};calc();document.querySelector('#rows').append(tr)}
+ document.querySelector('#page').textContent=`第 ${offset/size+1} 页 / ${Math.ceil(total/size)} 页 · 共 ${total} 项`;
+ document.querySelector('#prev').disabled=offset===0;document.querySelector('#next').disabled=offset+size>=total;
+ document.querySelector('#status').textContent=`本次服务端返回 ${result.rowcount} 行；请求 LIMIT ${size} OFFSET ${offset}`;
+ }catch(e){document.querySelector('#status').textContent='请求失败：'+e.message;}
+}
+document.querySelector('#find').onclick=()=>{query=document.querySelector('#search').value;offset=0;load()};document.querySelector('#search').onkeydown=e=>{if(e.key==='Enter')document.querySelector('#find').click()};document.querySelector('#prev').onclick=()=>{offset=Math.max(0,offset-size);load()};document.querySelector('#next').onclick=()=>{offset+=size;load()};load();
+</script></html>

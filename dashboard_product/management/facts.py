@@ -172,6 +172,7 @@ def normalize_facts(
     abroad_people_config: dict[str, Any],
     adviser_mapping: Any,
     cash_team_overrides: Any = None,
+    *, personal_qualification: bool = False,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     """Return training facts from the controlled BI queries only.
 
@@ -272,16 +273,17 @@ def normalize_facts(
                 continue
             original_team = _text(order_source.get("source_team"))
             source_adviser = _text(order_source.get("adviser") or order_source.get("follow_adviser"))
-            if order_source and not original_team and adviser_to_team.get(source_adviser) != "留学预备":
+            if order_source and not original_team and (not personal_qualification or adviser_to_team.get(source_adviser) != "留学预备"):
                 diagnostics["training_unconfirmed_blank_team_excluded"] += 1
+                continue
+            if not personal_qualification and original_team and original_team not in {"塘沽", "大学", "无法判断", "校区资源无法归属", "武清", "留学预备", "需要判定", "高中"}:
+                diagnostics["training_guanyuan_team_excluded"] += 1
                 continue
             if not order_source:
                 diagnostics["training_order_source_unmatched"] += 1
                 if business_group is None:
                     diagnostics["training_unknown_line_excluded"] += 1
                     continue
-            elif not original_team and adviser_to_team.get(source_adviser) == "留学预备":
-                diagnostics["training_confirmed_prep_order"] += 1
             elif original_team and original_team in {"留学", "留学预备"}:
                 diagnostics["training_study_or_prep_team_seen"] += 1
             if business_group is None:
@@ -343,7 +345,9 @@ def normalize_facts(
                 row.get("resource_description"), order_source.get("resource_description"),
             ),
             "source_row_number": source_row_number,
-            "acquisition_mode": None,
+            "acquisition_mode": _text(row.get("acquisition_mode")) or None,
+            "class_code": row.get("class_code"),
+            "registration_count": row.get("registration_count"),
             "team_inferred": team_inferred,
         }
         if cash_override:
