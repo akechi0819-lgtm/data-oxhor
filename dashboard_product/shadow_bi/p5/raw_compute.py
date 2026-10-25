@@ -14,6 +14,7 @@ import time
 from types import SimpleNamespace
 from zoneinfo import ZoneInfo
 from dashboard_product.shadow_bi.p5.raw_inputs import BATCH, FILES, sha, write, validate_manifest
+from dashboard_product.shadow_bi.p5.source_completion import resolve as resolve_source_completion
 
 ROOT = Path(__file__).resolve().parents[3]
 
@@ -32,12 +33,16 @@ def limits():
     duckdb.connect=connect
 
 
-def gates(library, batch, day, expected=None):
+def gates(library, batch, day, expected=None, completion=None):
     from data_platform.business_library import load_library, execute_library_query, read_library_result
     m,_,_=load_library(library,batch)
     if len(m['tables'])!=39 or m['as_of_date']!=day:raise ValueError('incomplete business library')
     from datetime import date,timedelta
     if m['coverage']['data_through']!=(date.fromisoformat(day)-timedelta(days=1)).isoformat():raise ValueError('business cutoff mismatch')
+    if m['coverage'].get('source_completion') is not None and completion is None:
+        raise ValueError('verified completion required for this candidate')
+    if completion is not None and m['coverage'].get('source_completion') != completion.metadata():
+        raise ValueError('business completion proof differs')
     for key,spec in m['tables'].items():
         rel=Path(spec['data']['path'])
         if rel.is_absolute() or '..' in rel.parts or sha(library/rel)!=spec['data']['sha256']:raise ValueError('sealed table changed')
@@ -108,7 +113,10 @@ def child(received, baseline, output, expected, resume_sources=False):
         from data_platform.query.evidence import read_query_result
         data=read_query_result(result,output_root=output/'quality')
         if data['rows']:raise ValueError('Snapshot quality issues require review')
-    args=SimpleNamespace(workspace=ws,snapshot_id=pair['sources']['bi']['snapshot_id'],study_abroad_snapshot_id=pair['sources']['study_abroad']['snapshot_id'],run_id=business_run,as_of_date=m['as_of_date'],server_complete=True)
+    decision, completion = resolve_source_completion(received)
+    if completion is None or decision != json.loads((output/'coverage-decision.json').read_bytes()):
+        raise ValueError('source completion evidence changed before calculation')
+    args=SimpleNamespace(workspace=ws,snapshot_id=pair['sources']['bi']['snapshot_id'],study_abroad_snapshot_id=pair['sources']['study_abroad']['snapshot_id'],run_id=business_run,as_of_date=m['as_of_date'],server_complete=True,source_completion=completion)
     build(args)
     library=ws/'Output/ShadowBI'/args.run_id/'library'
     public=json.loads((library.parent/'calculated/public.json').read_bytes())
@@ -123,7 +131,7 @@ def child(received, baseline, output, expected, resume_sources=False):
         metric_check['match']=metrics==json.loads((expected.parent/'expected-key-metrics.json').read_bytes())
         if not metric_check['match']:raise ValueError('same-source business metrics differ')
     write(output/'key-metrics.json',metric_check)
-    checked=gates(library,args.run_id,m['as_of_date'],expected)
+    checked=gates(library,args.run_id,m['as_of_date'],expected,completion=completion)
     if binding(baseline)!=before:raise ValueError('baseline changed during isolated update')
     for key,rel in FILES.items():
         if sha(received/rel)!=m['files'][key]['sha256']:raise ValueError('immutable source changed')
@@ -158,11 +166,26 @@ def run(*, received, baseline, root, day, company, minimum_cutoff, expected=None
                 if sha(out/'prepared.json')!=result['prepared_sha256']:raise ValueError('prepared receipt changed')
                 prepared=json.loads((out/'prepared.json').read_bytes())
                 if not Path(prepared['library']).resolve().is_relative_to((out/'workspace/Output/ShadowBI').resolve()):raise ValueError('prepared library escaped output')
-                gates(Path(prepared['library']),prepared['batch_id'],day,expected)
+                completion = None
+                if (out/'coverage-decision.json').is_file():
+                    decision, completion = resolve_source_completion(received)
+                    if completion is None or decision != json.loads((out/'coverage-decision.json').read_bytes()):
+                        raise ValueError('prepared completion evidence changed')
+                gates(Path(prepared['library']),prepared['batch_id'],day,expected,completion=completion)
             if not resume_sources or result['status']!='failed':return result
             write(out/('failed-attempt-'+str(time.time_ns())+'.json'),result)
+        decision, completion = resolve_source_completion(received)
+        if completion is None:
+            # An unverified day is a durable hold, not a claim of missing business rows.
+            out.mkdir(exist_ok=resume_sources)
+            write(out/'coverage-decision.json', decision)
+            result = {'status':'coverage_unverified','published':False,'batch_id':m['batch_id'],
+                      'identity':identity,'reason':decision['reason']}
+            write(state,result)
+            return result
         if shutil.disk_usage(root).free < 5*1024**3:raise ValueError('need 4GiB working budget plus 1GiB reserve')
         out.mkdir(exist_ok=resume_sources);(out/'tmp').mkdir(exist_ok=resume_sources);(out/'runtime').mkdir(exist_ok=resume_sources)
+        write(out/'coverage-decision.json',decision)
         result={'status':'running','published':False,'batch_id':m['batch_id'],'identity':identity,'started_at':datetime.now(ZoneInfo('Asia/Shanghai')).isoformat()}
         write(state,result);started=time.monotonic()
         try:
@@ -219,7 +242,12 @@ def recheck(*, output, received, baseline, expected):
         metric=json.loads((output/'key-metrics.json').read_bytes())
         wanted=json.loads((expected.parent/'expected-key-metrics.json').read_bytes())
         if metric['actual']!=wanted:raise ValueError('key metrics mismatch')
-        checked=gates(library,batch,m['as_of_date'],expected)
+        completion = None
+        if (output/'coverage-decision.json').is_file():
+            decision, completion = resolve_source_completion(received)
+            if completion is None or decision != json.loads((output/'coverage-decision.json').read_bytes()):
+                raise ValueError('recheck completion evidence changed')
+        checked=gates(library,batch,m['as_of_date'],expected,completion=completion)
         prepared={'status':'prepared','published':False,'library':str(library),'batch_id':batch,'baseline_unchanged':True,'gates':checked,
                   'recovery':'sealed candidate rechecked against explicit replay reference; no ingest or business recompute',
                   'original_failure_state_sha256':sha(output/'state.json')}

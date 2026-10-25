@@ -115,8 +115,9 @@ def calculate(args, *, output_area="DashboardManagement"):
     coverage = fetch(HERE / 'sql/coverage.sql', [], 'coverage')[0]
     if not all(coverage[k] for k in ('orders_start', 'orders_end', 'cash_start', 'cash_end')):
         raise ValueError('missing source date coverage')
-    through = min(date.fromisoformat(coverage[k]) for k in ('orders_end', 'cash_end'))
-    through = min(through, date.fromisoformat(as_of) - timedelta(days=1))
+    from dashboard_product.management.cutoff import calculation_cutoff, observed_dates, personnel_coverage as cutoff_coverage
+    completion = getattr(args, 'source_completion', None)
+    through = calculation_cutoff(coverage, as_of, completion)
     if not date(2026, 6, 1) <= through <= date(2027, 5, 31):
         raise ValueError('this dashboard covers FY27')
     coverage_start = min(date.fromisoformat(coverage[k]) for k in ('orders_start', 'cash_start'))
@@ -192,8 +193,7 @@ def calculate(args, *, output_area="DashboardManagement"):
                          'run_id': history_receipts['query_run_ids'][kind], 'receipt': receipt})
     personnel_months = [period['id'] for period in body['periods']
                         if re.fullmatch(r'\d{4}-\d{2}', period['id']) and period['id'] <= as_of[:7]]
-    personnel_coverage = {**coverage, 'orders_end': min(coverage['orders_end'], through.isoformat()),
-                          'cash_end': min(coverage['cash_end'], through.isoformat())}
+    personnel_coverage = cutoff_coverage(coverage, through, completion)
     body['capacity'], personnel_details = build_contribution(
         person_facts, order_rows, people, abroad_people, personnel_sources, personnel_months, personnel_coverage)
     personnel_history_path = ws / SOURCE_DIRECTORY / HISTORY_FILENAME
@@ -233,6 +233,9 @@ def calculate(args, *, output_area="DashboardManagement"):
         'cash_coverage_start': coverage['cash_start'],
         'created_at': datetime.now(timezone.utc).isoformat(), 'notes': notes,
         'study_abroad_source': abroad_source}, **body}
+    if completion is not None:
+        public['metadata']['observed_dates'] = observed_dates(coverage)
+        public['metadata']['source_completion'] = completion.metadata()
     public['reconciliation'] = reconciliation(public, old_rows, people, targets, facts)
     public['reconciliation']['notes'].append('旧BI留学对账路径已移除；新留学明细通过独立Snapshot回执核对，不与旧BI渠道范围强求一致。')
     scorecard_path = ws / 'Input/Reference/留学板块-官方记分卡.json'
@@ -248,7 +251,7 @@ def calculate(args, *, output_area="DashboardManagement"):
                 'baseline': official, 'current': actual, 'difference': None if actual is None else actual-official,
                 'status': 'not_comparable', 'scope_note': scope_note})
     validate_public_data(public)
-    sources = [Path(__file__), HERE / 'facts.py', HERE / 'aggregate.py', HERE / 'breakdowns.py', HERE / 'cash_share.py', HERE / 'market_totals.py', HERE / 'team_scopes.py', HERE / 'enhancements.py', HERE / 'study_abroad_progress.py', HERE / 'capacity_radar.py', capacity_target_path, HERE / 'personnel_contribution.py', HERE / 'personnel_history.py', HERE / 'notifications.py', HERE / 'online_view.py',
+    sources = [Path(__file__), HERE / 'cutoff.py', HERE / 'facts.py', HERE / 'aggregate.py', HERE / 'breakdowns.py', HERE / 'cash_share.py', HERE / 'market_totals.py', HERE / 'team_scopes.py', HERE / 'enhancements.py', HERE / 'study_abroad_progress.py', HERE / 'capacity_radar.py', capacity_target_path, HERE / 'personnel_contribution.py', HERE / 'personnel_history.py', HERE / 'notifications.py', HERE / 'online_view.py',
                ROOT / 'dashboard_product/refresh.py', ROOT / 'dashboard_product/online_team/build.py', ROOT / 'workspace_modeling/operations/personnel.py', ROOT / 'workspace_modeling/operations/study_abroad_source.py', people_path, abroad_people_path,
                training_target_path, abroad_target_path, online_target_path, cash_override_path, MAPPING, reference_path,
                ws / 'Work/Bridge/reference.json',

@@ -281,3 +281,18 @@ def test_one_calculation_batch_per_service_lifetime(setup):
     assert len([v for v in p.queue_root.iterdir() if v.name.startswith('raw-')])==1
     second=c.run_once(p,processor=actor,day=DAY)
     assert len(second['batches'])==1 and len(calls)==2
+
+
+def test_unverified_coverage_is_publicly_distinct_and_terminal(setup):
+    p,files,submit=setup;batch=submit();calls=[]
+    def unverified(*args):
+        calls.append(1)
+        return {'status':'coverage_unverified','published':False,'reason':'evidence_missing','private_evidence':'secret'}
+    c.run_once(p,processor=unverified,day=DAY)
+    state=rs.read(p.status_root,batch)
+    assert state['status']=='coverage_unverified' and state['published'] is False
+    assert set(state)=={'schema_version','batch_id','status','published'}
+    digest=json.loads((p.work_root/'jobs'/(batch+'.json')).read_bytes())['archive_sha256']
+    c.enqueue(p.queue_root,batch,digest)
+    c.run_once(p,processor=unverified,day=DAY)
+    assert calls==[1]

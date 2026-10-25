@@ -110,7 +110,17 @@ def test_received_tampering_rejected(inputs,tmp_path):
     with pytest.raises(ValueError,match='stored input changed'):stage(a,tmp_path)
 
 
-def test_compute_failure_never_publishes(inputs,tmp_path):
+@pytest.fixture
+def approved_cutoff(monkeypatch):
+    # These failure/timeout tests isolate subprocess handling after evidence preflight.
+    from dashboard_product.management.cutoff import VerifiedCompletion
+    def approved(received):
+        proof=VerifiedCompletion(DAY,'2026-10-24',received.name,ri.sha(received/'payload.tar'),'a'*64)
+        return proof.metadata(),proof
+    monkeypatch.setattr(rc,'resolve_source_completion',approved)
+
+
+def test_compute_failure_never_publishes(inputs,tmp_path,approved_cutoff):
     a=make(inputs,tmp_path);stage(a,tmp_path)
     args=dict(received=tmp_path/'received/raw-test',baseline=tmp_path/'baseline',root=tmp_path/'compute',day=DAY,company=COMPANY,minimum_cutoff='2026-10-24')
     class Child:
@@ -123,7 +133,7 @@ def test_compute_failure_never_publishes(inputs,tmp_path):
     assert rc.run(**args)==r
 
 
-def test_timeout_kills_process_group(inputs,tmp_path):
+def test_timeout_kills_process_group(inputs,tmp_path,approved_cutoff):
     a=make(inputs,tmp_path);stage(a,tmp_path)
     class Child:
         pid=123
@@ -191,7 +201,7 @@ def test_recheck_rejects_nonfailed_candidate(tmp_path):
         rc.recheck(output=output,received=tmp_path/'received',baseline=tmp_path/'baseline',expected=tmp_path/'expected.json')
 
 
-def test_setup_failure_is_durable_failed_state(inputs,tmp_path):
+def test_setup_failure_is_durable_failed_state(inputs,tmp_path,approved_cutoff):
     a=make(inputs,tmp_path);stage(a,tmp_path)
     with patch.object(ri,'stage',side_effect=ValueError('injected freeze failure')):
         with pytest.raises(ValueError):
