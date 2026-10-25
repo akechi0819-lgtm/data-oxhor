@@ -178,7 +178,7 @@ def _state_lock(state_dir: Path):
             fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
 
 
-def _preflight_credentials(messages: list[dict], env_file: Path | None) -> None:
+def _preflight_credentials(messages: list[dict], env_file: Path | None, *, require_upload_credentials=True) -> None:
     if env_file is None:
         raise ValueError('formal delivery requires --env-file')
     env_path = Path(env_file)
@@ -193,7 +193,8 @@ def _preflight_credentials(messages: list[dict], env_file: Path | None) -> None:
     for channel_id in sorted({message['channel_id'] for message in messages}):
         if not os.environ.get(notify.webhook_env_name(channel_id)):
             missing.append(notify.webhook_env_name(channel_id))
-    for name in ('SERVER_HOST', 'SERVER_PORT', 'SERVER_USER', 'SERVER_PASSWORD'):
+    for name in (('SERVER_HOST', 'SERVER_PORT', 'SERVER_USER', 'SERVER_PASSWORD')
+                 if require_upload_credentials else ()):
         if not os.environ.get(name):
             missing.append(name)
     if missing:
@@ -239,7 +240,8 @@ def _stage_message(output_dir: Path, message: dict, artifact: dict,
 
 def deliver(shared_result: Path, output_dir: Path, as_of_date: str,
             state_dir: Path, env_file: Path | None = None,
-            dashboard_base_url: str | None = None, dry_run: bool = False) -> dict:
+            dashboard_base_url: str | None = None, dry_run: bool = False, *,
+            asset_publisher=None, before_send=None, state_validator=None) -> dict:
     shared, payload = shared_preview._read_shared_notifications(shared_result)
     messages = _validate_contract(shared, payload, as_of_date, sending=not dry_run)
     metadata = shared['metadata']
@@ -259,13 +261,15 @@ def deliver(shared_result: Path, output_dir: Path, as_of_date: str,
             ],
         }
 
-    _preflight_credentials(messages, env_file)
+    _preflight_credentials(messages, env_file, require_upload_credentials=asset_publisher is None)
     output_dir.mkdir(parents=True, exist_ok=True)
     state_dir = state_dir.resolve()
     state_path = state_dir / STATE_FILENAME
     receipts = []
     with _state_lock(state_dir) as locked_state_path:
         state = _load_state(locked_state_path)
+        if state_validator is not None:
+            state_validator(state_dir, state)
         delivery_rows = state['deliveries']
         pending = []
         for message in messages:
@@ -310,7 +314,7 @@ def deliver(shared_result: Path, output_dir: Path, as_of_date: str,
                 try:
                     artifact = artifacts[message_id]
                     stage_dir = _stage_message(output_dir, message, artifact, token)
-                    notify.upload_notify_assets(stage_dir, token, env_file=env_file)
+                    (asset_publisher or notify.upload_notify_assets)(stage_dir, token, env_file=env_file)
                     png_url, xlsx_url = notify.public_urls(origin, token, channel_id)
                     markdown = _prepare_markdown(message, artifact, png_url, xlsx_url)
                     asset_hashes = {
@@ -318,6 +322,8 @@ def deliver(shared_result: Path, output_dir: Path, as_of_date: str,
                         'xlsx': _file_sha256(Path(artifact['xlsx'])),
                         'markdown': hashlib.sha256(markdown.encode('utf-8')).hexdigest(),
                     }
+                    if before_send is not None:
+                        before_send()
                     row.update({
                         'status': 'sending', 'token': token,
                         'png_url': png_url, 'xlsx_url': xlsx_url,

@@ -1,3 +1,5 @@
+> 2026-10-25：Grok全部例行已由用户停止。新的服务器release通知适配已在本地实施，尚未部署或启用；入口、原状态门禁、离线证据及待授权项见[适配交验](../docs/bi-notification-adapter-20261025.md)。下方旧排期/启停/发送批次均为历史时点，不作为当前任务状态。新接管使用release_notifications；shared_delivery保留为兼容底层。
+
 # 日常监控
 
 当前投递合同为8条消息／原5通道，消费 `management.build` 的同批通知结果，不独立核算留学或语培。2026-10-12用户授权从本机执行一次双仓更新、看板刷新和推送：`run_management_local_20261012_1138` 使用当天两仓、数据截至10月11日，8条消息全部取得sent回执，无失败／unknown，持久去重状态位于本机工作区 `Work/DeliveryState/shared_delivery_state.json`。Grok例行及云端指针未改；不能从本机成功倒推云端已恢复，也不能在恢复后重复补发本日同8条消息。运行证据见[本机正式运行](../docs/local-production-run-20261012.md)。2026-10-09的 `run_grok_tencent_view_final_20261009` 是早期空跑记录，不代表当时已发送；完整同步边界见 [同步说明](../SYNC.md)。

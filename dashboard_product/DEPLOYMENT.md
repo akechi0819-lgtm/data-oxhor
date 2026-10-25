@@ -1,3 +1,5 @@
+> 2026-10-25通知后续：已新增本地服务器release通知适配并离线验证，尚未部署/发送/改调度。详情见[通知适配](../docs/bi-notification-adapter-20261025.md)；用户已停止全部Grok例行，以下较早状态描述不得用于恢复任务。
+
 # 正式 BI 部署与运行
 
 2026-10-25正式代码基线为已核验的 Superset 原生 BI。模块路径保留 `dashboard_product.shadow_bi`，避免更改已有服务、源码引用和任务路径。原静态生产说明已归档到 `docs/history/dashboard/static-deployment-through-20261025.md`。

@@ -1083,6 +1083,8 @@ def _write_xlsx(message: dict, data_through: str, path: Path) -> Path:
 def _dashboard_url(message: dict, base_url: str | None) -> str | None:
     if not base_url:
         return None
+    if '/superset/dashboard/' in base_url:
+        return base_url  # Native unified dashboard; no unverified team/tab locator.
     page = DASHBOARD_PAGES.get(_team_key(message))
     if not page:
         return None

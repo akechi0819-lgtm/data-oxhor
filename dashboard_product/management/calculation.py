@@ -262,7 +262,7 @@ def calculate(args, *, output_area="DashboardManagement"):
         sources.append(personnel_history_path)
     from dashboard_product.management.notifications import build_notifications
     from dashboard_product.management.online_view import online_view
-    notifications = build_notifications(public, facts, people, abroad_people)
+    notifications = build_notifications(public, facts, people, abroad_people, person_facts=person_facts)
     notifications['metadata'] = {**public['metadata'], 'as_of_date': as_of,
                                  'preview_only': True}
     online_data = online_view(public, facts, read(online_target_path), order_facts=scope_training_facts)

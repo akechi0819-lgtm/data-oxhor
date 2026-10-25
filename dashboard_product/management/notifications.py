@@ -396,13 +396,14 @@ def _team_metrics(natural_team, line, order_facts, data_through, natural_period)
     }
 
 
-def build_notifications(public, facts, people_config, abroad_people_config):
+def build_notifications(public, facts, people_config, abroad_people_config, *, person_facts=None):
     """Build eight private notification cards from the already-computed public rollups.
 
     No warehouse access, filesystem writes, or external notifications happen here.
     Team metrics use the natural month. Individual metrics come from the
     precomputed 26th-to-25th window containing ``data_through``.
     """
+    personal_source = facts if person_facts is None else person_facts
     metadata = public.get('metadata') or {}
     through_value = metadata.get('data_through')
     if not through_value:
@@ -450,20 +451,20 @@ def build_notifications(public, facts, people_config, abroad_people_config):
                                           'training' if line == 'mixed' else line, 'cash')
         people = ([] if team_id == 'online' else _person_rows(
             person_team, line, team_id, people_config, roster_index, person_month,
-            facts, data_through, person_start, person_through, person_progress,
+            personal_source, data_through, person_start, person_through, person_progress,
         ))
         personal_start = person_start
         personal_end = person_through
         personal_orders = _personal_facts(
-            facts, people, roster_index, line, 'orders', personal_start, personal_end,
+            personal_source, people, roster_index, line, 'orders', personal_start, personal_end,
             project_virtual_owners=team_id == 'virtual',
         )
         secondary_orders = (_personal_facts(
-            facts, people, roster_index, 'abroad' if line == 'training' else 'training',
+            personal_source, people, roster_index, 'abroad' if line == 'training' else 'training',
             'orders', personal_start, personal_end,
         ) if team_id == 'university' else [])
         personal_cash = _personal_facts(
-            facts, people, roster_index, 'training' if line == 'mixed' else line,
+            personal_source, people, roster_index, 'training' if line == 'mixed' else line,
             'cash', personal_start, personal_end,
             project_virtual_owners=team_id == 'virtual',
         )

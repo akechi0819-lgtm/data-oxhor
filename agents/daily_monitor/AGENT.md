@@ -1,3 +1,5 @@
+> 2026-10-25最新边界：Grok全部例行保持停止，不按下方历史时间表恢复。新接管入口为monitoring_product.release_notifications，默认离线预览，必须验证正式release及原DeliveryState迁移后才允许发送。当前仅本地离线交验，未部署/授权新凭据权限，详见[交验](../../docs/bi-notification-adapter-20261025.md)。下方shared_result入口用于兼容和历史复核，不作为新调度入口。
+
 # 日常监控 Agent
 
 ## 职责与入口
