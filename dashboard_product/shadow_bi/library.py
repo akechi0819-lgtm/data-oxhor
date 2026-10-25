@@ -44,7 +44,8 @@ def code_files():
              'data_acquisition/jobs', 'data_platform/query', 'data_platform/business_library.py',
              'dashboard_product/shadow_bi/library.py', 'dashboard_product/shadow_bi/acquisition.py', 'interfaces/business_library.py',
              'dashboard_product/shadow_bi/p5/raw_inputs.py', 'dashboard_product/shadow_bi/p5/raw_compute.py',
-             'dashboard_product/shadow_bi/p5/raw_receiver.py']
+             'dashboard_product/shadow_bi/p5/raw_receiver.py', 'dashboard_product/shadow_bi/p5/raw_consumer.py',
+             'dashboard_product/shadow_bi/p5/raw_context.py', 'dashboard_product/shadow_bi/p5/raw_status.py']
     paths = []
     for root in roots:
         p = ROOT/root

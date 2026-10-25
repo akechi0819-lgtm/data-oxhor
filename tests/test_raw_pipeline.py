@@ -154,7 +154,7 @@ def test_http_adapter_auth_queue_and_status(inputs,tmp_path):
     cutoff=(date.fromisoformat(day)-timedelta(days=1)).isoformat()
     a=tmp_path/'today.tar';ri.pack(inputs,a,batch='raw-http',company=COMPANY,day=day)
     app=Flask(__name__)
-    register(app,authorized=lambda:rc.os.environ.get('RAW_TEST_AUTH')=='yes',context=lambda:(COMPANY,cutoff),received_root=tmp_path/'received',queue_root=tmp_path/'queue',compute_root=tmp_path/'compute')
+    register(app,authorized=lambda:rc.os.environ.get('RAW_TEST_AUTH')=='yes',context=lambda:(COMPANY,cutoff),received_root=tmp_path/'received',queue_root=tmp_path/'queue',status_root=tmp_path/'public-status')
     c=app.test_client()
     assert c.post('/v1/raw-batches',data=a.read_bytes()).status_code==401
     with patch.dict(rc.os.environ,RAW_TEST_AUTH='yes'):
@@ -162,7 +162,10 @@ def test_http_adapter_auth_queue_and_status(inputs,tmp_path):
         assert c.get('/v1/raw-batches/raw-http').json['status']=='queued'
         assert c.post('/v1/raw-batches',data=a.read_bytes()).status_code==202
         for name in ['raw-a','raw-b','raw-c']:(tmp_path/'queue'/name).write_text('{}')
-        assert c.post('/v1/raw-batches',data=a.read_bytes()).status_code==429
+        assert c.post('/v1/raw-batches',data=a.read_bytes()).status_code==202
+        newer=tmp_path/'next.tar';ri.pack(inputs,newer,batch='raw-next',company=COMPANY,day=day)
+        assert c.post('/v1/raw-batches',data=newer.read_bytes()).status_code==429
+        assert not (tmp_path/'received/raw-next').exists()
         assert c.get('/v1/raw-batches/bad').status_code==400
 
 
@@ -195,3 +198,19 @@ def test_setup_failure_is_durable_failed_state(inputs,tmp_path):
             rc.run(received=tmp_path/'received/raw-test',baseline=tmp_path/'baseline',root=tmp_path/'compute',day=DAY,company=COMPANY,minimum_cutoff='2026-10-24')
     state=json.loads((tmp_path/'compute/raw-test/state.json').read_bytes())
     assert state['status']=='failed' and state['published'] is False
+
+
+def test_unknown_download_name_gets_safe_alias_and_honest_provenance(inputs,tmp_path):
+    download=tmp_path/'unlabelled-download-uuid';download.write_bytes(inputs['cash'].read_bytes());inputs['cash']=download
+    archive=make(inputs,tmp_path)
+    manifest=stage(archive,tmp_path)
+    stored=json.loads((tmp_path/'received/raw-test/manifest.json').read_bytes())
+    assert stored['files']['cash']['filename']=='cash.xlsx'
+    assert stored['files']['cash']['source_filename_unknown'] is True
+    assert stored['files']['cash']['source_filename'] is None
+
+
+def test_filename_provenance_cannot_claim_unknown_and_known(inputs,tmp_path):
+    a=make(inputs,tmp_path);bad=tmp_path/'bad-name.tar'
+    rewrite(a,bad,lambda m:m['files']['cash'].update(source_filename_unknown=True,source_filename='claimed.xlsx'))
+    with pytest.raises(ValueError):stage(bad,tmp_path)

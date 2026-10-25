@@ -16,6 +16,10 @@ import tarfile
 import tempfile
 import zipfile
 
+class CapacityError(ValueError):
+    pass
+
+
 SCHEMA = 'shadow_raw_inputs.v1'
 BATCH = re.compile(r'raw-[A-Za-z0-9_-]{1,80}')
 FILES = {key: 'inputs/'+key+'.xlsx' for key in ('orders', 'cash', 'tencent')}
@@ -73,7 +77,14 @@ def validate_manifest(m, *, company, day, minimum_cutoff):
     if set(m['files']) != set(FILES): raise ValueError('both source systems required')
     for key, path in FILES.items():
         spec = m['files'][key]
-        if (set(spec) != {'path','sha256','size_bytes','filename'} or spec['path'] != path
+        required={'path','sha256','size_bytes','filename'}
+        provenance={'source_filename','source_filename_unknown'}
+        if set(spec) not in (required,required|provenance):raise ValueError('invalid file declaration fields')
+        if provenance <= set(spec):
+            unknown=spec['source_filename_unknown'];original=spec['source_filename']
+            if type(unknown) is not bool or (unknown and original is not None):raise ValueError('invalid filename provenance')
+            if not unknown and (not isinstance(original,str) or not safe_name(original) or '/' in original or len(original)>200):raise ValueError('invalid original filename')
+        if (spec['path'] != path
                 or not safe_name(spec['filename']) or '/' in spec['filename'] or len(spec['filename']) > 200
                 or not spec['filename'].endswith('.xlsx')
                 or not re.fullmatch('[0-9a-f]{64}', str(spec['sha256']))
@@ -144,7 +155,7 @@ def pack(paths, archive, *, batch, company, day):
     m = {'schema_version': SCHEMA,'batch_id':batch,'company_id':company,'as_of_date':day,
          'data_through':(asof-timedelta(days=1)).isoformat(),
          'bi_window':{'start':rolling_start_date(asof),'end':day},'refresh_months':[day[:7]],
-         'files':{key:{'path':FILES[key],'sha256':sha(p),'size_bytes':p.stat().st_size,'filename':p.name} for key,p in paths.items()}}
+         'files':{key:{'path':FILES[key],'sha256':sha(p),'size_bytes':p.stat().st_size,'filename':p.name if safe_name(p.name) and p.name.endswith('.xlsx') and len(p.name)<=200 else key+'.xlsx','source_filename':None,'source_filename_unknown':True} for key,p in paths.items()}}
     validate_manifest(m, company=company, day=day, minimum_cutoff=m['data_through'])
     with archive.open('xb') as output, tarfile.open(fileobj=output, mode='w:') as tf:
         for name, payload in [('manifest.json',json.dumps(m,sort_keys=True,ensure_ascii=False).encode())]:
@@ -156,7 +167,7 @@ def pack(paths, archive, *, batch, company, day):
     return m
 
 
-def stage(archive, root, *, company, day, minimum_cutoff):
+def stage(archive, root, *, company, day, minimum_cutoff, allow_new=True):
     root.mkdir(parents=True,exist_ok=True,mode=0o700)
     with (root/'.receive.lock').open('a+b') as lock:
         fcntl.flock(lock,fcntl.LOCK_EX)
@@ -181,6 +192,7 @@ def stage(archive, root, *, company, day, minimum_cutoff):
                 for key,rel in FILES.items():
                     if sha(target/rel)!=m['files'][key]['sha256']: raise ValueError('stored input changed')
                 return receipt
+            if not allow_new:raise CapacityError('queue full for new batch')
             receipt={'status':'received','batch_id':m['batch_id'],'archive_sha256':digest,'published':False}
             write(tmp/'received.json',receipt)
             # rename a complete immutable input directory; state is written separately.

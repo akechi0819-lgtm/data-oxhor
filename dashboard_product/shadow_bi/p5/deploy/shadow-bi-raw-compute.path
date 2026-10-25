@@ -1,0 +1,10 @@
+[Unit]
+Description=Watch the fixed raw input queue
+
+[Path]
+PathExistsGlob=/var/lib/shadow-bi/raw-pending/raw-*
+PathChanged=/var/lib/shadow-bi/raw-pending
+Unit=shadow-bi-raw-compute.service
+
+[Install]
+WantedBy=multi-user.target

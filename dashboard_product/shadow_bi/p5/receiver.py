@@ -292,5 +292,10 @@ def notification_job(identifier):
     except (OSError,ValueError,nc.Rejected) as error:return _notify_error(error)
 
 
+# Fixed raw capability remains disabled unless explicitly deployed by the host.
+from dashboard_product.shadow_bi.p5.raw_receiver import configure as configure_raw
+configure_raw(app, _authorized)
+
+
 if __name__ == '__main__':
     app.run('127.0.0.1', 18091)

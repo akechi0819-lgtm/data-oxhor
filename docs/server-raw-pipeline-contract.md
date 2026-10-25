@@ -1,3 +1,5 @@
+> 2026-10-26更新：原候选权限已获用户明确批准；固定raw接口/受限consumer已按[实际部署回执](server-raw-receiver-deployment-20261026.md)安装验收。下文“尚未部署/待确认”为10/25阶段记录，不再描述当前接收计算状态；生产发布仍未启用。
+
 # 原始输入服务器候选链路
 
 本合同属于2026-10-25固定脚本服务器化施工。候选代码不等于生产启用；`raw_receiver.register`没有被正式receiver调用，不新增密钥、不扩大现有token能力，不切current、不发通知、不改Mac bi-2或已停止的Grok。
@@ -10,7 +12,7 @@ manifest `shadow_raw_inputs.v1`字段固定：batch_id、company_id、as_of_date
 
 接收最多128MiB TAR、4个普通文件、单文件64MiB；拒绝路径穿越、绝对路径、反斜杠、别名、重复成员、链接、额外字段/文件、缺源、损坏hash、旧日期/截止日、跨公司和不符窗口。XLSX内部ZIP预检最多4096条目、每本展开512MiB、三本合计1GiB，并流式校验CRC；拒绝加密与符号链接。manifest最多16KiB、拒绝重复JSON键。完整暂存后原子改名，原件只读封存；同批相同TAR hash幂等，异hash拒绝，已存原件再校验。输入接收成功仅为`received`。
 
-独立启用的HTTP适配只有`POST /v1/raw-batches`和`GET /v1/raw-batches/<batch>`，使用宿主提供的既有鉴权函数、服务器固定company/当前截止日、上海当日；请求不能提供服务器路径、命令、Snapshot ID或publish参数。最多4个待处理批次。响应只含批次/阶段/`published:false`，不暴露路径或配置。生产路由仍未注册。
+独立启用的HTTP适配对外只有`POST /shadow-bi/v1/raw-batches`和`GET /shadow-bi/v1/raw-batches/<batch>`（内部Flask为`/v1/raw-batches...`），使用宿主提供的既有鉴权函数、服务器固定company/当前截止日、上海当日；请求不能提供服务器路径、命令、Snapshot ID或publish参数。最多4个待处理批次。响应只含批次/阶段/`published:false`，不暴露路径或配置。生产路由仍未注册。
 
 ## 离线服务器入口
 

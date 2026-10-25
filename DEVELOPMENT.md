@@ -1,3 +1,5 @@
+> 2026-10-26：已获明确授权并部署固定raw HTTPS入口及无登录受限consumer，仅读取指定基线、仅写候选和白名单状态；不切current、不新建日更、不改通知。实际权限、恢复/攻击测试与父Dot待投送状态见[部署回执](docs/server-raw-receiver-deployment-20261026.md)。
+
 > 2026-10-25 原始输入服务器化候选施工：新增固定三Excel合同与私有离线producer，复用原BI六个月合并、腾讯当月替换、双Snapshot/quality及共同计算39表。现网raw路由未注册、token权限未扩、未切current、未发送通知，Mac bi-2未变。合同及状态边界见 [原始输入候选合同](docs/server-raw-pipeline-contract.md)。候选双源/39表、完整来源与浮点差对账及隔离P4软链回滚已验证，711项回归通过；实际覆盖与限制见 [候选验证回执](docs/server-raw-pipeline-validation-20261025.md)。本条不是生产自动链路已上线回执；历史完整仓迁移暂停说明由本轮用户明确授权的候选施工范围覆盖，生产切换仍须另验收。
 
 > 2026-10-25最新交付：原HTTPS固定通知接口已部署，Dot用原token完成status/job查询及重复preview真实鉴权验收，8条dry_run且未发送。主线程已建立2026-10-26起每日上海10:00含周末的通知日程，门禁失败不发旧数据；原16条状态及历史缺口保留。尚无首次真实发送回执，整仓生产计算/云采集未切，Mac日更仍保留。以下旧时点记录留作追溯；[最终交接](docs/bi-notification-adapter-20261025.md)末节为当前状态。
