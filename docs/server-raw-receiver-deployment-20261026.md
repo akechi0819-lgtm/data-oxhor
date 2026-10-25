@@ -41,4 +41,27 @@ schema_version固定`shadow_raw_inputs.v1`；顶层字段固定`batch_id,company
 - 测试发现的跨绑定挂载及外属目录rename权限问题已修复为同父隐藏隔离，未加写权限；日志保留。watcher最终active/waiting，consumer空闲Result=success，未遗留临时暂停状态。
 - 正式HTTPS未认证raw请求401、裸路径404、旧健康200及成品/通知未认证边界401均验证。**现Bearer正向上传由父Dot保管凭据执行**，隔离fixture鉴权不冒充现token正向贯通通过。
 
-部署证据在`/var/lib/shadow-bi/warehouse-validation/raw-queue-deploy-20261026-task4/`的setup/activation/recovery-security-result等回执；候选3Excel计算旧批次的39表/612指标及来源/浮点差完整证明仍见前阶段回执。current始终`daily-20261025_184644t`。真实新采三Excel尚待父Dot投送；后续publisher接线、唯一生产者与仅保最新成品清理仍未授权/实施于本worker。
+部署证据在`/var/lib/shadow-bi/warehouse-validation/raw-queue-deploy-20261026-task4/`的setup/activation/recovery-security-result等回执；候选3Excel计算旧批次的39表/612指标及来源/浮点差完整证明仍见前阶段回执。current始终`daily-20261025_184644t`。真实新采投送及其终态见下节；后续publisher接线、唯一生产者与仅保最新成品清理仍未实施于本worker。
+
+
+## 父Dot真实HTTPS投送终态（上海2026-10-26）
+
+父Dot使用现Bearer从云端直接POST一次，17:18 UTC返回202；服务器接收批次`raw-20261026-dot-001`，TAR为29,071,360 bytes，SHA256 `b92e6bcc9af7d858dd99268782245deeab80db54c76b29b4a023d35d7593b810`。未经Mac转运，没有重复投送、改日期、运行中改代码或重启consumer。
+
+| 源文件 | 接收后SHA256 |
+|---|---|
+| orders | `7d12026444b36a12e7fab7d964973073aee277150e81d8c34d36e2dd867e8329` |
+| cash | `b1528d4e4538484eb73156cc0c056ce1e30fa5ffa2d7c7e787809b4ede5ebfe4` |
+| tencent | `8bb374d25173cb368078eae8059e1d4313b0fd7f7f320133f20b7a7801e1a5b2` |
+
+三源和TAR均与父Dot事先给定hash一致。双Snapshot后缀均为`20261026_b92e6bcc9af7`；dual receipt passed，BI六个月窗口4/26..10/26、腾讯明确替换2026-10。两份受控quality查询均passed且问题行0。原始150文件基线、root只读副本与本次构建前binding逐项hash一致。
+
+**本批终态为failed、published=false，不是prepared。** 总耗时1048.176秒，子进程退出码1；固定计算已生成39表及803,483,648-byte类型库，但最终`raw_compute.gates`明确报`ValueError: business cutoff mismatch`。候选manifest as_of_date为10/26，业务coverage.data_through仍为10/24；正式入口原规则要求10/25。新采时间及请求窗口不单独证明10/25完整或缺失，未更改口径/门禁、未伪标日期，未重算。截止门禁先于物理库COUNT验证，因此本批未执行后续COUNT门禁；不得把它算作全门禁通过。
+
+只读终态核验：39个JSONL文件逐个SHA256、字节数、行数均匹配封存manifest；类型库字节数和SHA256匹配，无文件截断证据。本批没有新增同源Mac基准，不宣称本批612指标同源对账已通过。日志含原解析器openpyxl日期格式/越界serial警告，未改写源Excel；受控质量结果如上，不由警告反推覆盖完整性。
+
+cgroup峰值3,221,225,472 bytes（3GiB），最后一次存活采样memory.events max=2500、oom/oom_kill/oom_group_kill均0；退出后cgroup已销毁，不能声称持有终态memory.events。实际退出1对应上述明确业务断言，未超时；服务Result=success、NRestarts=0只表示consumer成功落盘failed并正常退出，不能解释为计算成功。worker空闲、path active/waiting，批次marker已消费，失败状态及全部候选保留。
+
+正式current仍为`daily-20261025_184644t`。运行模块8文件hash逐项与源码提交`6bffd73a6799c4bfb3238f903ae1a6e59bd3f276`一致，consumer SHA256 `80775b7510809e8b5f34b4423a1110b0d18c93c66dff6bb2ead656f9abb2deea`。本批没有发布/通知/旧成品清理，也未启停Mac或Grok。剩余是来源10/25覆盖补证及正式发布接线/唯一生产者验收；没有待审批部署操作或审批拒绝。
+
+本机回执：任务4目录的`dot-terminal-audit.json`、`dot-product-integrity.json`和`dot-batch-monitor/`；服务器原回执保留在`raw-compute/runs/raw-20261026-dot-001/`及`raw-status/raw-20261026-dot-001.json`。仅保存检查结果，没有读取或输出现Bearer凭据。

@@ -1,3 +1,5 @@
+2026-10-26真实raw批次验收：父Dot云端单次HTTPS投送已贯通接收/双Snapshot/quality/39表构建；最终因业务截止10/24不满足10/25而failed（1048.176秒），未发布、未重跑，生产current不变。39文件与类型库完整性、三源和150文件基线hash均已只读核实；详细边界见`docs/server-raw-receiver-deployment-20261026.md`。
+
 > 2026-10-26：已获明确授权并部署固定raw HTTPS入口及无登录受限consumer，仅读取指定基线、仅写候选和白名单状态；不切current、不新建日更、不改通知。实际权限、恢复/攻击测试与父Dot待投送状态见[部署回执](docs/server-raw-receiver-deployment-20261026.md)。
 
 > 2026-10-25 原始输入服务器化候选施工：新增固定三Excel合同与私有离线producer，复用原BI六个月合并、腾讯当月替换、双Snapshot/quality及共同计算39表。现网raw路由未注册、token权限未扩、未切current、未发送通知，Mac bi-2未变。合同及状态边界见 [原始输入候选合同](docs/server-raw-pipeline-contract.md)。候选双源/39表、完整来源与浮点差对账及隔离P4软链回滚已验证，711项回归通过；实际覆盖与限制见 [候选验证回执](docs/server-raw-pipeline-validation-20261025.md)。本条不是生产自动链路已上线回执；历史完整仓迁移暂停说明由本轮用户明确授权的候选施工范围覆盖，生产切换仍须另验收。
