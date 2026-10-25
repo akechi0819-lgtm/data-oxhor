@@ -130,3 +130,22 @@ python3 -m monitoring_product.release_notifications deliver \
 两层独立复核当前release、上海日期、昨日完整截止日及切换起点；实际发送继续校验双Snapshot、Pack/Bridge及规则摘要，逐消息重新检查时间和current。构建跨出10时窗口也不能发送。固定执行器参数只有枚举、受限release和ISO日期，不接收外部命令/路径。资源限制768MiB、CPU75%、最长600秒；独立根执行器只承担预定义ACL与身份切换。
 
 原last_published/last_published_hash/last_failed状态文件最小修正为root:shadowbi0640，并由固定发布脚本原子写入；不放宽receiver摘要凭据、BI认证或数据写权限。主线程待Dot用已有受保护token完成真实鉴权GET/preview/拒绝验证后再建立每日10:00自动化；Mac SSH成功不能代替该验收。本线程不临时真实发送。
+
+
+## 固定接口实际部署回执（同日后续，替代上文待批准状态）
+
+源码提交5307a3812cf7201bd05c953ac552670c7575d74c已快进合入main与c373；源码归档SHA256为4b5e710a87a12e22a8ec3fe37b55fd4c65f0615799d62792362a611151037ef7。服务器通知代码/srv/shadow-bi-notify/releases/该提交与current已对齐，receiver.py、纯合同、固定入口及发布脚本实际摘要均与该提交一致。原接收服务及原鉴权继续使用，新增事件队列和Nginx通知前缀已部署；没有增加监听端口、密钥或日历调度。
+
+16条原记录完整保留，冻结副本与活动状态SHA仍为c72011fd387daadcdf1421e1f248e7c6c5a752cef25065a1714bd2909e519fcb。根据本次明确批准生成真实切换证明：send_start_date=2026-10-26、no_backfill=true、history_complete=false，10月14—25日缺口原样记录，不伪造缺失回执。证明和冻结原件转存root拥有的/var/lib/shadow-bi-notify/state-origin，通知账号只读；home也由root拥有，防止通过重命名替换证明，state/runs/bundles等业务写入子目录保持专用账号权限。初次部署受umask影响将证明目录建成0700，校验器正确阻断；修正为预定专用组0750后status实际ready。这是权限落地故障，未以跳过门禁处理。
+
+真实固定事件队列preview完成，job_id=d7f60046dcd75f88c2a30b21da2db60aef9649134fd02868585adf4962e3defa，attempt=1、status=dry_run、8条preview、network_send_attempted=false，耗时159.836秒。该任务由已授权部署会话直接写固定预览队列，不能冒称Dot已经通过HTTP鉴权。8消息字段摘要与冻结参考零差异；8份XLSX与上次已验收服务器预览逐表/逐行/全部单元格一致；8PNG可打开且原生BI链接存在。规则、双Snapshot、源摘要与同一正式release一致。新作业仍受768MiB、CPU75%、600秒限制，本次峰值RSS未留存，不沿用上次峰值作新实测。
+
+公网真实HTTPS：原health=200；新status无鉴权=401；新jobs无效鉴权=401。root:shadowbi0640状态文件修复后，实际shadowbi身份可读last_published与hash；固定发布脚本后续同样原子写该权限。Dot尚需用原受保护token完成status/批次状态/preview及拒绝条件的真实HTTP验收：GET通知status应200；GET batches/daily-20261025_cloud03应200而不是原500；POST上文preview请求当前应200幂等返回既有job；GET该job应dry_run/8条/未发送；25日send-scheduled应403，旧release应409，多余recipient/command字段应400。不要发送token到本机，不创建测试密钥或改鉴权。
+
+完整回归671 passed、192 subtests、12 skipped；其中3个Flask/Superset模块在锁定运行时单独14 tests通过（旧认证6、原receiver5、新通知HTTP3），其余9项MCP SDK缺失测试仍未运行。拒绝日期、错截止日/版本、任意命令/收件人、重复、显式三次重试、部分失败、unknown、工作进程崩溃、证明缺失/篡改和逐消息跨出10时窗口均有隔离测试。没有真实钉钉请求、验签或日程触发验收。
+
+现网BI ActiveState=active、NRestarts=0，current仍daily-20261025_184644t，cutoff=2026-10-24；通知事件作业已正常退出。最终可用磁盘3758026752 bytes（核验时点），未碰独立warehouse-candidates/raw-history-20261025-task3。bi-2仍是日更依赖，本次没有停它；Grok保持用户已停状态。每日10:00自动化由主线程在Dot验收后安排，当前未安装cron/timer。
+
+回滚点/var/lib/shadow-bi/backups/notify-api-20261025-5307a381保存原receiver、固定发布脚本、通知入口、Nginx、receiver环境文件及代码指针；通知旧代码25987199与1d8429db继续保留。回滚先暂停新通知事件队列并等待在途结果明确，再恢复对应代码/配置和通知指针，只重启receiver/重载Nginx。保留全部原状态、sent/unknown、新切换证明及资产，不回退BI数据，不停原批次发布，不恢复Grok旧任务。没有执行过回滚。
+
+证据：本任务notification-deployment/api-full-tests.log、api-flask-tests.log、api-final-verification.json、api-verification-summary.json。api-deploy.log保留初次umask阻断，最终摘要证明修复后的ready和无发送结果。自动审批拒绝过“读取receiver配置及备份内容做一致性比对”的核验；该核验未执行，已完全移除配置内容读取后完成其他检查。凭据内容一致性未独立复核，不为此追加读取或索取凭据。
