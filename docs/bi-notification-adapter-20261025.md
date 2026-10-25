@@ -1,3 +1,5 @@
+> 2026-10-25实际部署：通知代码25987199已部署到独立服务器版本，原5通道凭据和本机16条真实发送记录已迁入。服务器8消息/PNG/XLSX不发送验收通过，未发钉钉、未建日程。历史状态仅覆盖10月12—13日，尚未生成就绪证明；不得启用发送。完整回执见通知适配文档末节。
+
 # 正式 BI 到钉钉的服务器适配（离线交验）
 
 2026-10-25。用户已授权影响核查后实施本地可回滚适配。本轮不部署、不发送、不改调度、不读取/配置真实凭据、不迁移外部DeliveryState，也不启动完整原始数仓迁移。Grok全部例行以用户最新说明为已停止；Mac bi-2当前仍ACTIVE，不在此轮停用。
@@ -85,3 +87,23 @@ python3 -m monitoring_product.release_notifications deliver \
 整合到main的是已验收本地代码，实际服务器部署使用独立版本目录，既有BI源码、current数据、认证、SSH及防火墙保持原状。部署回执和资源/状态门禁结果以本轮最终交付为准；有状态覆盖缺口时禁止主线程启用日程。
 
 首轮真实服务器preview在专用768MiB cgroup内OOM，现网BI未重启/current未变。根因为Data Platform证据file_ref/resolve_file整读约802MB数据库后算摘要；已改为1MiB分块流式校验，仍逐字节验证SHA和大小，并拒绝哈希期间文件变化。补充大文件禁止整读、等长篡改和流中修改回归；修复后全量652项/180子测试通过。没有扩大内存限制、增加Swap或放宽证据门禁。服务器重试及结果单独留回执。
+
+## 服务器实际交付回执
+
+代码版本259871999d57652a389bd75e6747519ba886afda，纯源码归档SHA256 c1be1fb802160c36880ce813b994c1b8d2a55bbb2b491f03f9e3d54872ca7e0c；部署到/srv/shadow-bi-notify/releases/对应版本，current仅为通知代码指针。main/c373代码已对齐，后续此回执提交仅改文档，不改变已部署实现摘要。先前1d8429db版本保留作为通知代码回滚点，源备份在/var/lib/shadow-bi/backups/notify-migration-20261025。
+
+使用无登录shadowbi-notify专用账号；只读当前派生业务库，不能写库、不能读BI/receiver凭据及原htpasswd；notify目录只授予创建权限，不能列目录。通知配置为root:专用组0640，原5通道与签名字段来自本机指定项目，未迁入SSH口令。真实群显示名和机器人在线签名行为未独立验证，未临时试发。
+
+原状态16条（10/12、10/13各8条）逐字节迁入，SHA核验与本机原件一致，active副本在dry-run后仍完全相同；未创建delivery_origin.json，不得将两天记录当成10/14以后的完整覆盖。需要补齐本机后续记录；若无记录，须用户另行明确切换日起点与历史缺口处理，不自动补造就绪证明。
+
+服务器实际preview：180.268秒业务耗时，/usr/bin/time总耗时181.71秒、峰值RSS298048KiB，768MiB限制不变。8消息与冻结参考逐字段摘要一致；8份XLSX所有表/单元格逻辑摘要一致；8张PNG可打开，链接均指统一原生BI。源/双Snapshot/current完全一致。第一次整文件读造成的通知cgroup OOM保留为失败证据；现网BI NRestarts=0、ActiveState=active，数据current仍daily-20261025_184644t。
+
+最终代码核心回归652 passed/180 subtests，11 skipped与独立Superset11项覆盖关系保持前述说明。没有服务器临时真实发送、机器人验签、计划触发或云端可达性验收。未安装cron/timer，专用systemd进程均为按需临时作业。
+
+安全调用入口：/usr/local/sbin/shadow-bi-notify status（当前预期blocked，退出2）、preview（不发）、send-scheduled（仅上海10时窗口、当天正式数据及迁移门禁均通过才发送）。使用既有受保护连接调用，不在参数里传webhook或密码。并发忙退出75；partial/blocked退出2；成功preview/sent退出0。状态不完整前主线程不得启用日程。云端日程到此入口的安全触发通路尚未验收，不能把Mac SSH成功当成Dot直连成功。
+
+恢复时先保持发送停用；只切通知代码指针/固定入口，保留全部原状态、后续sent/unknown及已发布资产，不清空去重，不恢复Grok旧任务、不回退BI数据。专用目录/账号和ACL的恢复只作用于本轮新增范围，原现网配置及源文件保留。
+
+数据迁移分工：本线程只完成过本地源体积/指针只读盘点，没有创建数仓候选目录、没有原始仓上传。独立数仓线程负责。最后一次只读磁盘余量5654388736 bytes（约5.27GiB），是该核验时点，不代替另线程传输前实查。
+
+证据保存在本任务notification-deployment目录：server-preview-streaming.log、server-verification.json、verification-summary.json、migration-audit.json、streaming-fix-tests.log、superset-tests.log。凭据临时传输副本已清理，原本机配置/状态及受保护服务器副本保留；未上传Library。
