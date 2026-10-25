@@ -106,6 +106,12 @@ class ReleaseNotificationTests(unittest.TestCase):
         self.assertIn('personal-only',[x['work_order_id'] for x in after['ledgers']['personal_orders']])
         self.assertEqual([x['channel_id'] for x in old['messages']],[x['channel_id'] for x in new['messages']])
 
+    def test_local_project_import_origin_is_accepted_without_grok_access(self):
+        self.seed_state()
+        path=self.state/'delivery_origin.json';origin=json.loads(path.read_bytes())
+        origin['source']='local-project';path.write_bytes(n.canonical(origin))
+        self.assertEqual(n.require_imported_state(self.state)['schema_version'],d.STATE_SCHEMA)
+
     def test_missing_state_blocks_before_credentials_and_network(self):
         with patch.object(d,'_preflight_credentials',side_effect=AssertionError('credentials must not be read')):
             with self.assertRaisesRegex(ValueError,'DeliveryState'):
@@ -193,6 +199,33 @@ class ReleaseNotificationTests(unittest.TestCase):
             result=self.invoke()
         self.assertEqual(posted.call_count,1)
         self.assertEqual([x['status'] for x in result['messages']],['sent']+['pending']*7)
+
+    def test_server_status_reports_missing_history_without_loading_credentials(self):
+        from monitoring_product.server_notify import run
+        report=run('status',warehouse=self.root,home=self.root,env_file=self.env,asset_root=self.assets)
+        self.assertFalse(report['imported_state_ready'])
+        self.assertEqual(report['status'],'blocked')
+
+    def test_server_scheduled_entry_rejects_outside_ten_before_build_or_credentials(self):
+        from monitoring_product.server_notify import run
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+        with patch.object(n,'build_bundle',side_effect=AssertionError('must not build')):
+            with self.assertRaisesRegex(ValueError,'10:00'):
+                run('send-scheduled',warehouse=self.root,home=self.root,env_file=self.env,
+                    asset_root=self.assets,now=datetime(2026,9,29,11,tzinfo=ZoneInfo('Asia/Shanghai')))
+        with self.assertRaisesRegex(ValueError,'DeliveryState'):
+            run('send-scheduled',warehouse=self.root,home=self.root,env_file=self.env,
+                asset_root=self.assets,now=datetime(2026,9,29,10,tzinfo=ZoneInfo('Asia/Shanghai')))
+
+    def test_fixed_server_preview_does_not_send_or_initialize_history(self):
+        from monitoring_product.server_notify import run
+        with patch('monitoring_product.shared_preview.render_notifications',side_effect=_fake_render_notifications):
+            report=run('preview',warehouse=self.root,home=self.root,env_file=self.env,asset_root=self.assets)
+        self.assertEqual(report['status'],'dry_run')
+        self.assertEqual(report['message_count'],8)
+        self.assertFalse(report['network_send_attempted'])
+        self.assertFalse(self.state.exists())
 
     def test_missing_source_closure_is_not_filled_with_defaults(self):
         del self.manifest['tables']['personnel_facts'];self.write_manifest()

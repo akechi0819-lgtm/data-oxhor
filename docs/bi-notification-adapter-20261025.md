@@ -71,3 +71,15 @@ python3 -m monitoring_product.release_notifications deliver \
 - 本地证据位置：本任务工作目录notification-adaptation/，包含backup、final-tests.log、superset-tests.log、adapter-tests.log、eight-message-parity-v2.json、asset-verification-v2.json、verify_offline_v2.py及隔离通知包。客户通知产物和查询证据不进入Git或Library。
 - 恢复基线为eb3fd387，四份原代码另有逐文件备份。本轮提交只在c373施工分支保留，main与现网正式基线未因通知适配再次推进。
 - Mac bi-2仍ACTIVE且指向c373：后续执行会读取该树源码，但本轮没有触发它或新增通知调度；P5尚未调用新的服务器通知入口，不会因本次源码提交自动发钉钉。
+
+## 2026-10-25 用户批准后的部署约束
+
+用户已批准从本机同一项目迁移原5通道凭据及真实发送记录，设置最小目录权限，并计划每日北京时间10:00含周末；日程由主线程统一创建，本模块不安装cron或timer，不临时试发。凭据来源为本机主工作树的既有受保护文件，不从Grok读取。
+
+新增固定入口`monitoring_product.server_notify`和root固定脚本`deploy/run_server_notify.sh`。专用无登录账号读取明确current的两个派生库文件；包、渲染及状态写入隔离目录，notify资产目录仅授予创建所需权限。每次由固定入口启动有内存/CPU限制的临时进程，不创建重复任务。模式为status、preview、send-scheduled；只有上海10时窗口、当天正式release、完整状态门禁通过才允许发送，默认preview不读凭据也不发送。
+
+本机找到16条真实sent记录（10月12日、13日各8条），10月13日的8条与原发送回执日期、通道、状态及run一致；该回执未保存逐消息摘要，不能声明独立核验了摘要。已知记录不覆盖10月14日以后的切换历史，原状态仅可作为待补证迁移，不得因此创建ready的delivery_origin.json。状态来源合同新增local-project，保留旧grok标识兼容；本次不访问Grok。
+
+本机5个规范通道均有互不相同的官方DingTalk端点及签名配置，迁移时只复制这些字段与既有notify域名，不复制SSH口令或其他配置。实际群显示名/机器人当前状态未通过只读接口反查，不能把变量名当成新的群身份核验。
+
+整合到main的是已验收本地代码，实际服务器部署使用独立版本目录，既有BI源码、current数据、认证、SSH及防火墙保持原状。部署回执和资源/状态门禁结果以本轮最终交付为准；有状态覆盖缺口时禁止主线程启用日程。

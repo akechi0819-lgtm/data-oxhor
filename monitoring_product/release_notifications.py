@@ -27,7 +27,7 @@ ROOT = Path(__file__).resolve().parents[1]
 RULE_FILES = ('dashboard_product/management/notifications.py', 'dashboard_product/management/aggregate.py',
               'dashboard_product/online_team/build.py', 'workspace_modeling/operations/personnel.py',
               'data_platform/business_library.py', 'data_platform/query/service.py', 'data_platform/query/evidence.py',
-              'monitoring_product/release_notifications.py', 'monitoring_product/shared_delivery.py',
+              'monitoring_product/release_notifications.py', 'monitoring_product/server_notify.py', 'monitoring_product/shared_delivery.py',
               'monitoring_product/shared_preview.py', 'monitoring_product/delivery_transport.py')
 
 
@@ -202,7 +202,7 @@ def require_imported_state(state_dir, state=None):
         if not (root/name).is_file() or (root/name).is_symlink():
             raise ValueError('original DeliveryState and migration evidence required before sending')
     origin = json.loads((root/'delivery_origin.json').read_bytes())
-    if (origin.get('schema_version') != 'delivery_state_import.v1' or origin.get('source') != 'grok'
+    if (origin.get('schema_version') != 'delivery_state_import.v1' or origin.get('source') not in {'local-project', 'grok'}
         or origin.get('channels') != sorted(transport.ALLOWED_CHANNELS)
         or origin.get('sha256') != sha(root/'imported_state.json')):
         raise ValueError('invalid delivery state migration evidence')
