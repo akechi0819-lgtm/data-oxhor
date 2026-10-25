@@ -83,3 +83,5 @@ python3 -m monitoring_product.release_notifications deliver \
 本机5个规范通道均有互不相同的官方DingTalk端点及签名配置，迁移时只复制这些字段与既有notify域名，不复制SSH口令或其他配置。实际群显示名/机器人当前状态未通过只读接口反查，不能把变量名当成新的群身份核验。
 
 整合到main的是已验收本地代码，实际服务器部署使用独立版本目录，既有BI源码、current数据、认证、SSH及防火墙保持原状。部署回执和资源/状态门禁结果以本轮最终交付为准；有状态覆盖缺口时禁止主线程启用日程。
+
+首轮真实服务器preview在专用768MiB cgroup内OOM，现网BI未重启/current未变。根因为Data Platform证据file_ref/resolve_file整读约802MB数据库后算摘要；已改为1MiB分块流式校验，仍逐字节验证SHA和大小，并拒绝哈希期间文件变化。补充大文件禁止整读、等长篡改和流中修改回归；修复后全量652项/180子测试通过。没有扩大内存限制、增加Swap或放宽证据门禁。服务器重试及结果单独留回执。

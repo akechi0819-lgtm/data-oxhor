@@ -2,6 +2,7 @@
 from __future__ import annotations
 import hashlib
 import json
+import os
 import re
 from datetime import datetime
 from importlib.metadata import PackageNotFoundError, version
@@ -40,9 +41,25 @@ def producer(name: str) -> dict:
         release = tomllib.loads((Path(__file__).resolve().parents[2] / 'pyproject.toml').read_text())['project']['version']
     return {'name': name, 'version': release}
 
+def _file_digest(path: Path) -> tuple[str, int]:
+    digest = hashlib.sha256()
+    size = 0
+    def stable(stat):
+        return stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns
+    with path.open('rb') as source:
+        before = stable(os.fstat(source.fileno()))
+        for chunk in iter(lambda: source.read(1024 * 1024), b''):
+            digest.update(chunk)
+            size += len(chunk)
+        after = stable(os.fstat(source.fileno()))
+    if before != after or after != stable(path.stat()) or size != after[2]:
+        raise EvidenceError('evidence file changed while hashing')
+    return digest.hexdigest(), size
+
+
 def file_ref(path: Path, base: Path, media_type: str, **identity: str) -> dict:
-    raw = path.read_bytes()
-    return {**identity, 'path': path.relative_to(base).as_posix(), 'sha256': hashlib.sha256(raw).hexdigest(), 'size_bytes': len(raw), 'media_type': media_type}
+    digest, size = _file_digest(path)
+    return {**identity, 'path': path.relative_to(base).as_posix(), 'sha256': digest, 'size_bytes': size, 'media_type': media_type}
 
 @guarded
 def resolve_file(base: Path, ref: dict) -> Path:
@@ -54,8 +71,8 @@ def resolve_file(base: Path, ref: dict) -> Path:
     path = base / value
     if not path.is_file() or not path.resolve().is_relative_to(base.resolve()):
         raise EvidenceError('missing or escaping evidence file')
-    raw = path.read_bytes()
-    if ref.get('sha256') != hashlib.sha256(raw).hexdigest() or type(ref.get('size_bytes')) is not int or ref['size_bytes'] != len(raw):
+    digest, size = _file_digest(path)
+    if ref.get('sha256') != digest or type(ref.get('size_bytes')) is not int or ref['size_bytes'] != size:
         raise EvidenceError('evidence byte identity mismatch')
     if not isinstance(ref.get('media_type'), str) or '/' not in ref['media_type']:
         raise EvidenceError('invalid media type')
