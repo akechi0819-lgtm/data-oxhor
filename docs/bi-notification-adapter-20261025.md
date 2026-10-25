@@ -149,3 +149,18 @@ python3 -m monitoring_product.release_notifications deliver \
 回滚点/var/lib/shadow-bi/backups/notify-api-20261025-5307a381保存原receiver、固定发布脚本、通知入口、Nginx、receiver环境文件及代码指针；通知旧代码25987199与1d8429db继续保留。回滚先暂停新通知事件队列并等待在途结果明确，再恢复对应代码/配置和通知指针，只重启receiver/重载Nginx。保留全部原状态、sent/unknown、新切换证明及资产，不回退BI数据，不停原批次发布，不恢复Grok旧任务。没有执行过回滚。
 
 证据：本任务notification-deployment/api-full-tests.log、api-flask-tests.log、api-final-verification.json、api-verification-summary.json。api-deploy.log保留初次umask阻断，最终摘要证明修复后的ready和无发送结果。自动审批拒绝过“读取receiver配置及备份内容做一致性比对”的核验；该核验未执行，已完全移除配置内容读取后完成其他检查。凭据内容一致性未独立复核，不为此追加读取或索取凭据。
+
+
+## Dot云端有效鉴权验收与通知日程交接（2026-10-25最终更新）
+
+以下为主线程通过Dot云端使用原受保护token完成后回报的真实HTTP结果；本线程仅落记录，没有再次请求、读取token或读取此前被拒绝的配置：
+
+- GET /shadow-bi/v1/notifications/status：200 available，as_of_date=2026-10-25、data_through=2026-10-24，策略为2026-10-26起且no_backfill。
+- GET /shadow-bi/v1/notifications/jobs/d7f60046dcd75f88c2a30b21da2db60aef9649134fd02868585adf4962e3defa：200 dry_run，8条，network_send_attempted=false。
+- POST同一preview合同：200、deduplicated=true，返回同一job_id，没有新执行或真实发送。
+
+主线程已创建用户确认的通知自动化：从2026-10-26起，每日Asia/Shanghai 10:00，包含周末，向原5通道推送原范围8条消息；当天数据/同release/双Snapshot/规则/去重等门禁失败时不发送旧数据，不补历史。该日程由主线程统一管理，本线程没有重复建立cron、timer或自动化。首次真实日程执行、实际机器人验签/接收及其他HTTP拒绝条件/旧批次状态路由未在此次回报中提供新实测，不能写成已通过。
+
+整仓生产计算及Dot云采集尚未切换，Mac日更/bi-2仍保留为当前数据更新依赖；用户已获明确告知。此更新不改变正式数据current、服务器部署源码5307a381、原16条状态或切换证明。凭据配置内容一致性仍未独立复核，此前拒绝项保持未执行。
+
+安全调用合同仍见上文“原HTTPS接口固定通知扩展”：同一域名/原Bearer、固定operation+expected_release+as_of_date、状态查询与幂等job回执。不得传命令、路径或任意接收方；未知发送结果不重放，部分失败按显式受限重试合同处理。
