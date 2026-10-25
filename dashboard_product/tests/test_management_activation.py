@@ -94,6 +94,7 @@ transport.run_password_command = mock_run
             **os.environ,
             'ENV_FILE': str(env_file),
             'MOCK_TRANSPORT_CALLS': str(log),
+            'ALLOW_LEGACY_STATIC_PUBLISH': '1',
             'MOCK_NGINX_RELOAD_COUNT': str(counter),
             'MOCK_NGINX_TEST_COUNT': str(test_counter),
             'MOCK_FAIL_FIRST_RELOAD': '1' if fail_first_reload else '0',
@@ -171,6 +172,20 @@ transport.run_password_command = mock_run
             self.assertEqual(receipt['status'], 'validated')
             self.assertFalse(receipt['uploaded'])
             self.assertEqual(receipt['manifest_sha256'], manifest_sha)
+
+    def test_retired_activation_refuses_before_reading_credentials(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            release, manifest_sha = self.make_release(root)
+            result = subprocess.run(
+                ['bash', str(SCRIPT)], cwd=PROJECT_ROOT,
+                env={**os.environ, 'RELEASE_DIR': str(release), 'MANIFEST_SHA': manifest_sha,
+                     'ALLOW_LEGACY_STATIC_PUBLISH': '0', 'ENV_FILE': str(root / 'absent.env')},
+                capture_output=True, text=True,
+            )
+            self.assertEqual(result.returncode, 2)
+            self.assertIn('Legacy static publication is retired', result.stderr)
+            self.assertNotIn('missing server environment', result.stderr)
 
     def test_activation_command_uses_mocked_password_transport_and_records_success(self) -> None:
         with tempfile.TemporaryDirectory() as temp:

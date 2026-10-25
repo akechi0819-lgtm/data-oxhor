@@ -48,6 +48,11 @@ if [[ "$dry_run" == true ]]; then
   exit 0
 fi
 
+if [[ "${ALLOW_LEGACY_STATIC_PUBLISH:-0}" != "1" ]]; then
+  echo "Legacy static publication is retired; use native BI P5. Authorized recovery requires ALLOW_LEGACY_STATIC_PUBLISH=1." >&2
+  exit 2
+fi
+
 # Credentials are only read in the real staging path. Never print or trace them.
 test -r "$ENV_FILE" || { echo "missing server environment file: $ENV_FILE" >&2; exit 2; }
 set -a

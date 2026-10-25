@@ -5,8 +5,13 @@ import tempfile
 from types import SimpleNamespace
 import unittest
 from unittest.mock import Mock, patch
-from flask import Flask
-from superset.security import SupersetSecurityManager
+try:
+    from flask import Flask
+    from superset.security import SupersetSecurityManager
+except ModuleNotFoundError as error:
+    if error.name not in {'flask', 'superset'}:
+        raise
+    raise unittest.SkipTest('Run authentication tests separately in the locked Superset runtime') from error
 from dashboard_product.shadow_bi.p5.legacy_passwords import read_accounts, verify_password
 from dashboard_product.shadow_bi.p5.legacy_security import LegacyHtpasswdSecurityManager
 

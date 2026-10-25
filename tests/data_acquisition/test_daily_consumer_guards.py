@@ -236,3 +236,18 @@ def test_delivery_stops_before_send_when_batch_identity_validation_fails(tmp_pat
     assert "study_snapshot_id=study" in validation["stdin"]
     assert all("monitoring_product.shared_delivery" not in record["argv"] for record in records)
     assert {path: path.read_bytes() for path in markers} == before
+
+
+def test_compatibility_daily_prepares_notification_batch_without_static_publish(tmp_path: Path) -> None:
+    env, trace = _base_env(tmp_path)
+    env.update(WORKSPACE=str(tmp_path / 'workspace'), AS_OF_DATE=AS_OF_DATE,
+               RUN_ID='run_retired_static_test', ALLOW_LEGACY_STATIC_PUBLISH='0')
+    result = _run(CONSUMERS[0], env)
+    assert result.returncode == 0, result.stderr
+    calls = _records(trace)
+    assert calls[0]['argv'][:3] == CHECK_ARGS
+    modules = [call['argv'][1] for call in calls if call['argv'][0] == '-m']
+    assert 'dashboard_product.management.build' in modules
+    assert 'monitoring_product.shared_delivery' in modules
+    assert 'dashboard_product.management.publication' not in modules
+    assert 'Notification batch prepared' in result.stdout

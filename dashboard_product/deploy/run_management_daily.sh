@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# One management batch for both the static site and the paused/active delivery job.
+# Compatibility batch producer for notifications; native BI has its own P5 daily entry.
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="${PROJECT_ROOT:-$(cd "$SCRIPT_DIR/../.." && pwd)}"
@@ -59,6 +59,10 @@ data.update(as_of_date=sys.argv[3],shared_result=str(shared.relative_to(ws)))
 temporary=pointer.with_suffix('.tmp'); temporary.write_text(json.dumps(data,ensure_ascii=False)+'\n')
 temporary.replace(pointer)
 PY
+if [[ "${ALLOW_LEGACY_STATIC_PUBLISH:-0}" != "1" ]]; then
+  echo "Notification batch prepared; legacy static publication retired. Native BI uses shadow_bi.p5.daily."
+  exit 0
+fi
 release_dir="${WORKSPACE}/Output/DashboardRelease/${RUN_ID}"
 "$PYTHON" -m dashboard_product.management.publication --shared-result "$shared_result" \
   --output-dir "$release_dir"

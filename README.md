@@ -10,7 +10,7 @@ Data OXHor 是面向教育运营团队的模块化运营数据中台。它把数
 data_acquisition/    数据来源接入、认证和导入任务
 data_platform/       landing、Snapshot、质量检查和受控只读查询
 workspace_modeling/  Business Pack、Company Bridge、工作区、Casebook 和首次部署
-dashboard_product/   固定 SQL 查询、管理批次构建和静态页面发布
+dashboard_product/   正式原生 BI、共同业务计算、版本发布及通知兼容
 monitoring_product/  同批结果预览、钉钉投递和传输
 market_workspace/    市场日常启动入口：自由分析、导表、程序和临时脚本
 interfaces/          对外 CLI 边界

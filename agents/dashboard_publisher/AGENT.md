@@ -1,47 +1,21 @@
 # 看板发布 Agent
 
-## 负责范围
+## 正式入口
 
-使用 `dashboard_product.management.build` 按显式 Snapshot 和 run_id 生成同批共同结果与四页展示数据。示例中的 shell 变量来自当前 routine 环境；`CURRENT_SNAPSHOT_ID` 必须等于工作区 `Work/workspace.json` 当前指针。网页与八条推送必须消费这一份 `shared_result.json`，不重写 SQL、业务归属或版式。高中留学个人简报与原高中语培简报共用高中通道；人员迁移、个人渠道及八条消息门禁须同步同批源码。
+当前正式产品是 Superset 原生 BI，稳定代码路径保留 `dashboard_product.shadow_bi`。运行与恢复以 [部署说明](../../dashboard_product/DEPLOYMENT.md) 为准；不要按旧P1实验或旧静态部署说明重新安装生产环境。
 
-```bash
-python -m dashboard_product.management.build \
-  --workspace "$WORKSPACE" --snapshot-id "$CURRENT_SNAPSHOT_ID" \
-  --study-abroad-snapshot-id "$CURRENT_STUDY_ABROAD_SNAPSHOT_ID" \
-  --run-id "$RUN_ID" --as-of-date "$AS_OF_DATE"
-```
+日更使用 `python3 -m dashboard_product.shadow_bi.p5.daily --workspace customers/shadow_bi_daily`；这是写入/发布命令，须有日更或发布授权，不能作为只读检查。复用BI/Tencent采集、明确双仓Snapshot、现有共同计算、投影、封存和P4验证激活，业务截止严格as_of-1。
 
-只读检查同批投递预览：
+正式状态必须核对服务器current、manifest、真实业务查询及页面；health为正常不能替代全链路成功。任一源失败或身份不匹配保留上一成功版，不伪造回执、不混仓、不倒退截止日。
 
-```bash
-BATCH_DIR="$WORKSPACE/Output/DashboardManagement/$RUN_ID"
-SHARED_RESULT="$BATCH_DIR/shared_result.json"
-python -m monitoring_product.shared_delivery \
-  --shared-result "$SHARED_RESULT" \
-  --output-dir "$BATCH_DIR/delivery_preview" \
-  --as-of-date "$AS_OF_DATE" \
-  --state-dir "$WORKSPACE/Work/DeliveryState" --dry-run
-```
+## 通知与兼容代码
 
-`management.build` 使用 Data Platform 受控查询并写入 `Output/DashboardManagement/<run_id>/`。`dashboard_product.refresh.py` 中被导入的代码只作内部 source helper；它不是受支持的命令行入口。
+`management/calculation.py`为共同业务计算，`management.build`继续为同批通知及恢复生成shared_result。通知消费方为`monitoring_product.shared_delivery`及原有投递入口，不独立改SQL、业务归属、接收者或DeliveryState。
 
-## 日常入口与门禁
+旧`run_management_daily.sh`默认只准备通知批次，不再激活静态网页。静态发布/激活保留dry-run与显式恢复开关`ALLOW_LEGACY_STATIC_PUBLISH=1`，不得当日常新版入口。完整旧Agent说明已归档于`docs/history/dashboard/static-publisher-agent-through-20261025.md`。
 
-- 原09:45看板例行调用核心 `dashboard_product/deploy/run_management_daily.sh`，不是不存在的根目录wrapper。数仓09:30先通过每日双仓来源入口抓取BI／腾讯；看板本身不重复抓取。
-- 看板先核验当天联合回执、两仓身份和共同结果，任一来源失败或仍刷新即停止，不写新生产batch、不发布。门禁通过后才构建、空跑、组包和尝试激活；预览不等于已上线。
-- 10:24投递例行只消费对应共同批次，正式调用 `monitoring_product/deploy/deliver_management_batch.sh`，使用原C层凭据，并核验同一双仓配对。
-- 2026-10-09平台基线实读三条原任务均启用，09:30／09:45／10:24（Asia/Shanghai）；旧10月3日暂停记录不能覆写现状。任务正文只按本次授权修改，不新建重复任务、不变时刻／启停。原P3/P4/P5属于此前服务上线，具体新批次是否已激活须查相应回执。
+外部任务的启停与源码同步分别验收；Git合并不代表Grok任务已停或Dot已接管。只有核实具体任务、来源及通知连续性后才协调切换。不另建重复调度，不在本任务发送钉钉。
 
-发布只组包 manifest 内 18 个静态资源；不上传 `shared_result.json`、通知、明细、查询回执或工作区数据。激活使用显式 `REMOTE_NGINX_CONF=/etc/nginx/sites-available/dashboard`，沿用当前 vhost、认证、healthz 和 `/notify/` 访问边界。旧线上文件未在此步骤删除。
+## 数据边界
 
-人员进度和钉钉投递由[日常监控 Agent](../daily_monitor/AGENT.md)负责，不属于页面计算。
-
-## 必须遵守
-
-- 只使用明确的当前 Snapshot 和唯一 run_id。
-- 业务口径变更先完成证据核对和人工确认；不重做已验收的本地业务或版式验收。
-- 页面和消息必须来自同一批共同结果；禁止恢复独立线上/线下构建、旧通知查询或三份旧发布入口。
-- 不上传源文件、数仓、私有共同结果、通知细节、查询证据或密钥。
-- 只有真实激活与页面检查回执确认后，才能报告 P5 完成。
-
-部署说明见[看板部署文档](../../dashboard_product/DEPLOYMENT.md)，批次与指标细节见[管理融合看板说明](../../dashboard_product/management/README.md)。
+所有查询通过受控入口，携带显式Snapshot/run_id；保留Pack、Bridge、来源与参考资料的现有权威边界。不读取或复制凭据，不将客户输入、整个工作区或运行产物加入Git。完整服务器数仓迁移暂停；未来MCP权限不由BI上线自动授予。

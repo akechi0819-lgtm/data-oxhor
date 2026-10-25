@@ -1,20 +1,16 @@
-# 固定看板
+# 正式 BI 看板
 
-当前唯一构建入口是 `dashboard_product.management`，结合明确BI与独立留学Snapshot生成页面、人员贡献与8条通知。腾讯抓取脚本、6—9月标准历史和10月实抓已在Grok验证；最新腾讯版已构建／组包，尚无本次activation回执，不能把原服务上线记录当成新版发布状态。当前范围见 [管理说明](./management/README.md)与[同步说明](../SYNC.md)。
+正式用户界面为 Superset 原生看板，入口 https://dashboard.apinova.cn/superset/dashboard/shadow-bi-native/?standalone=1 。首页及原四个 HTML 入口跳转新版，18个原账号沿用原密码和已授权只读范围。
 
-每日来源由独立双仓生产者负责；看板日更不重复抓源，只消费当天联合成功的当前两仓并发布。双仓回执缺失、失败或身份不一致时阻断新发布。原P3/P4/P5于2026-10-03完成，过程记录保留在历史施工说明。
+当前代码入口：
 
-本地发布组包演练入口：
+- 日更：`python3 -m dashboard_product.shadow_bi.p5.daily --workspace customers/shadow_bi_daily`。此命令会采集和发布，不能当作只读检查。
+- 共同业务计算：`management/calculation.py`；业务库构建：`shadow_bi/library.py`；原生投影：`shadow_bi/p3/build_projection.py`；页面与原生数据集：`shadow_bi/p35/`。
+- 服务器：`shadow_bi/p4/`，现行仅从封存表重建业务 DuckDB；完整原始历史仓与计算迁到服务器的工作已暂停，不能声称已完成。
+- HTTPS接收与固定发布worker：`shadow_bi/p5/receiver.py`、`shadow_bi/p5/deploy/`；只接收现行成品表合同，未改为原始导出合同。
 
-```bash
-SHARED_RESULT=<本批次>/shared_result.json \
-  bash dashboard_product/deploy/publish_management_dashboard.sh --dry-run
-```
+`shadow_bi`、`p3`、`p35` 等保留为稳定导入和部署路径；名称不再表示等待上线的实验版本。旧P1/P3试验说明只用于复现历史。
 
-该入口校验共同结果身份和引用哈希，仅封装4页及其资源（共18个公开文件）；dry-run不读凭据、不联网。通用组包与投递适配已在P3演练并用于P5正式激活。本地dry-run不触发上传、真实发送或页面切换。发送适配说明见[监控模块](../monitoring_product/README.md)，构建产物说明见[管理融合看板](./management/README.md)。
+`management.build` 和静态模板保留为共同计算、通知及恢复兼容入口。`run_management_daily.sh` 默认只生成同批通知所需结果和指针，不再自动发布静态网页；旧静态发布/激活命令在非dry-run时要求显式恢复开关。外部Grok是否已安装此版本、任务是否已切换，须现场核对，Git合并不代表任务接管。
 
-`dashboard_product/management/` 为当前唯一管理看板构建入口，涵盖市场总览、预备高中、大学、线上平台、人员产能和活动。一次受控取数生成共同事实、静态页面与8条通知payload；新增高中留学个人简报复用高中通道，消息由[monitoring_product](../monitoring_product/README.md)消费同批结果。构建命令及输出见[管理看板说明](./management/README.md)，发布/激活及Grok日更见[部署说明](./DEPLOYMENT.md)。
-
-业务口径沿用已验收的[封存记录](../docs/dashboard-dot-handoff-20261001.md)与当前配置；原始输入、Bridge和Snapshot不因页面重构而改写。留学现金／人头已经接入独立仓；真正未覆盖或缺来源时保持相应缺失状态，已接来源无记录时按已确认规则显示0。负向现金不自动解释为退款。已确认归属和目标更新在相应现有配置维护，部门去重与个人贡献不能混加。
-
-`refresh.py`、`online_team/build.py` 和 `online_team/export.py` 目前只保留管理计算及导出复用的函数，不再提供旧CLI。`online_team/web/` 的3份模板仍生成已验收线上页面，保留；管理5条SQL、共享人员配置和对照合同仍保留。旧主/影子页面生成器、重复发布脚本及独立通知路径已退役，历史说明见[历史目录](../docs/history/dashboard/)。
+当前运行与恢复见[部署说明](DEPLOYMENT.md)，合并、口径清理及未完成项见[正式基线](../docs/bi-production-baseline-20261025.md)。旧静态说明归档于`docs/history/dashboard/static-*-through-20261025.md`，不再作为当前发布流程。

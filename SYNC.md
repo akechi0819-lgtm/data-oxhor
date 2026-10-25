@@ -1,3 +1,5 @@
+> 2026-10-25正式对齐：新版原生BI为正式代码基线，旧静态生产流程归档，当前入口见[部署说明](dashboard_product/DEPLOYMENT.md)。以下10月早期同步记录只描述各自时点，不证明当前任务状态。Git合并未停Grok、未接管其通知或采集，Dot调度未启用；切换清单见[正式基线](docs/bi-production-baseline-20261025.md)。完整服务器数仓迁移暂停。
+
 # Data OXHor 同步边界
 
 本机核心源码是 `/Users/akechi/Desktop/manager -CowH`。同步按明确文件清单与 SHA-256 执行，不将云端角色积累、临时程序或工作数据混入核心代码。

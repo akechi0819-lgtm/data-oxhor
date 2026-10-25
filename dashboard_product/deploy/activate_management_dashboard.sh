@@ -83,6 +83,11 @@ if [[ "$dry_run" == true ]]; then
   exit 0
 fi
 
+if [[ "${ALLOW_LEGACY_STATIC_PUBLISH:-0}" != "1" ]]; then
+  echo "Legacy static publication is retired; use native BI P5. Authorized recovery requires ALLOW_LEGACY_STATIC_PUBLISH=1." >&2
+  exit 2
+fi
+
 for name in REMOTE_RELEASE_DIR REMOTE_NGINX_CONF; do
   test -n "${!name}" || { echo "$name is required for activation" >&2; exit 2; }
 done

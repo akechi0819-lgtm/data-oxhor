@@ -178,6 +178,21 @@ class ManagementPublicationTests(unittest.TestCase):
             self.assertFalse(receipt['uploaded'])
             self.assertIn('manifest_sha256', receipt)
 
+    def test_retired_staging_refuses_before_reading_credentials(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            shared_result = self.make_batch(root)
+            result = subprocess.run(
+                ['bash', 'dashboard_product/deploy/publish_management_dashboard.sh'],
+                cwd=PROJECT_ROOT,
+                env={**os.environ, 'SHARED_RESULT': str(shared_result),
+                     'ALLOW_LEGACY_STATIC_PUBLISH': '0', 'ENV_FILE': str(root / 'absent.env')},
+                capture_output=True, text=True,
+            )
+            self.assertEqual(result.returncode, 2)
+            self.assertIn('Legacy static publication is retired', result.stderr)
+            self.assertNotIn('missing server environment', result.stderr)
+
     def test_shell_staging_uses_mocked_pexpect_transport_and_returns_receipt(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
@@ -205,6 +220,7 @@ class ManagementPublicationTests(unittest.TestCase):
                 'SHARED_RESULT': str(shared_result),
                 'ENV_FILE': str(env_file),
                 'MOCK_TRANSPORT_CALLS': str(calls_path),
+                'ALLOW_LEGACY_STATIC_PUBLISH': '1',
                 'PYTHONPATH': str(mock_dir) + os.pathsep + os.environ.get('PYTHONPATH', ''),
             }
             result = subprocess.run(

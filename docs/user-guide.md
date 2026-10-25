@@ -108,7 +108,7 @@ Agent 会先保存为待确认案例。你检查后再说“确认保存这个�
 
 ## 看板发布
 
-固定看板不走自由分析。Grok 的09:45看板 Routine 从当前 Snapshot 构建同批管理结果，再更新四个静态页面；日推模块消费同一批结果。新版已于2026-10-03正式上线。10:24钉钉日推 Routine 仍暂停；预览和正式投递入口见[看板部署说明](../dashboard_product/DEPLOYMENT.md)及[日常监控说明](../monitoring_product/README.md)。
+固定看板不走自由分析。正式界面已切为 Superset 原生 BI，首页与旧四页地址自动跳转新版，沿用原账号密码和已授权只读范围。日更使用当前明确的双源 Snapshot 并核验业务截止；通知继续消费共同业务计算结果。Grok、Mac 与 Dot 的实际任务启停须平台读回，不按历史时间表或暂停记录判断。运行、预览和恢复入口见[看板部署说明](../dashboard_product/DEPLOYMENT.md)及[日常监控说明](../monitoring_product/README.md)。
 
 ```text
 刷新本月看板并发布主页面。

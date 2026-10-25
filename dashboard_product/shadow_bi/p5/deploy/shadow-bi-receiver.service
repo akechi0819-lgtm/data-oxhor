@@ -1,0 +1,23 @@
+[Unit]
+Description=Shadow BI HTTPS batch receiver
+After=network.target
+
+[Service]
+User=shadowbi
+Group=shadowbi
+WorkingDirectory=/srv/shadow-bi/code
+EnvironmentFile=/etc/shadow-bi-receiver.env
+ExecStart=/srv/shadow-bi/venv/bin/gunicorn --workers 1 --worker-class gthread --threads 2 --timeout 900 --bind 127.0.0.1:18091 dashboard_product.shadow_bi.p5.receiver:app
+Restart=on-failure
+RestartSec=3
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/shadow-bi/receiver
+MemoryMax=512M
+TasksMax=64
+
+[Install]
+WantedBy=multi-user.target

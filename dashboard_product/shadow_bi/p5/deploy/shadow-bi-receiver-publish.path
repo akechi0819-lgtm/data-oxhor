@@ -1,0 +1,9 @@
+[Unit]
+Description=Watch Shadow BI receiver staging
+
+[Path]
+PathChanged=/var/lib/shadow-bi/receiver/pending
+Unit=shadow-bi-receiver-publish.service
+
+[Install]
+WantedBy=multi-user.target
