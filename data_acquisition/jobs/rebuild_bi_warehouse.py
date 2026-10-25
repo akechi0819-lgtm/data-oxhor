@@ -58,7 +58,8 @@ def _restore_bi_inputs(input_data: Path, backup_root: Path, existed: dict[str, b
             shutil.copytree(backup_root / source_id, slot)
 
 
-def rebuild(*, workspace: Path, snapshot_id: str, start_date: str, end_date: str) -> dict:
+def rebuild(*, workspace: Path, snapshot_id: str, start_date: str, end_date: str,
+            export_paths: dict[str, Path] | None = None) -> dict:
     workspace = workspace.resolve()
     if not (workspace / "Work" / "workspace.json").exists():
         init_workspace(
@@ -82,18 +83,22 @@ def rebuild(*, workspace: Path, snapshot_id: str, start_date: str, end_date: str
     try:
         download_dir = temporary_root / "downloads"
         download_dir.mkdir()
-        artifacts = run_bi_download(
-            config=BIExportConfig(
-                browser_profile_dir=AuthSessionPaths(workspace, "bi").browser_profile,
-                auth_session_paths=AuthSessionPaths(workspace, "bi"),
-                download_dir=download_dir,
-                default_start_date=start_date,
-            ),
-            targets=("orders", "cash"),
-            start_date=start_date,
-            end_date=end_date,
-        )
-        paths = {artifact.target: artifact.path for artifact in artifacts}
+        if export_paths is None:
+            artifacts = run_bi_download(
+                config=BIExportConfig(
+                    browser_profile_dir=AuthSessionPaths(workspace, "bi").browser_profile,
+                    auth_session_paths=AuthSessionPaths(workspace, "bi"),
+                    download_dir=download_dir,
+                    default_start_date=start_date,
+                ),
+                targets=("orders", "cash"),
+                start_date=start_date,
+                end_date=end_date,
+            )
+            paths = {artifact.target: artifact.path for artifact in artifacts}
+        else:
+            # Explicit validated receiver files; history merge and Snapshot logic stay shared.
+            paths = {key: Path(value) for key, value in export_paths.items()}
         if set(paths) != {"orders", "cash"}:
             raise RuntimeError(f"BI download incomplete: {sorted(paths)}")
         for path in paths.values():

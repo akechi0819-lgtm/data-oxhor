@@ -42,7 +42,9 @@ def code_files():
     roots = ['dashboard_product/management', 'dashboard_product/online_team',
              'dashboard_product/config', 'workspace_modeling/operations',
              'data_acquisition/jobs', 'data_platform/query', 'data_platform/business_library.py',
-             'dashboard_product/shadow_bi/library.py', 'dashboard_product/shadow_bi/acquisition.py', 'interfaces/business_library.py']
+             'dashboard_product/shadow_bi/library.py', 'dashboard_product/shadow_bi/acquisition.py', 'interfaces/business_library.py',
+             'dashboard_product/shadow_bi/p5/raw_inputs.py', 'dashboard_product/shadow_bi/p5/raw_compute.py',
+             'dashboard_product/shadow_bi/p5/raw_receiver.py']
     paths = []
     for root in roots:
         p = ROOT/root
@@ -197,10 +199,18 @@ def build(args):
     library=out/'library'; library.mkdir()
     db=library/'business.duckdb'
     # Roster team_ids is a frozenset in the existing rule function.
-    values=json.loads(json.dumps({**tables(model), **scope_values},ensure_ascii=False,default=lambda v:sorted(v) if isinstance(v,(set,frozenset)) else str(v)))
+    values={**tables(model), **scope_values}
+    if getattr(args, 'server_complete', False):
+        from dashboard_product.management.capacity_radar import build_radar
+        values['radar_people']=build_radar(model['person_facts'], model['people'], model['abroad_people'], model['through'], read(ROOT/'dashboard_product/config/capacity_targets.json'))
     with duckdb.connect(str(db)) as connection:
         connection.execute('CREATE SCHEMA queries')
-        receipts={name:write_table(connection,library,name,rows) for name,rows in values.items()}
+        receipts={}
+        # Normalize one relation at a time instead of duplicating the entire model in JSON.
+        for name, rows in values.items():
+            normalized=json.loads(json.dumps(rows,ensure_ascii=False,default=lambda v:sorted(v) if isinstance(v,(set,frozenset)) else str(v)))
+            receipts[name]=write_table(connection,library,name,normalized)
+            del normalized
         connection.execute('CREATE TABLE queries.batch (batch_id VARCHAR)')
         connection.execute('INSERT INTO queries.batch VALUES (?)',[args.run_id])
     # Record actual source queries, not a synthetic successful query receipt.

@@ -206,7 +206,8 @@ def refresh_daily(*, workspace: Path, as_of_date: str, run_id: str,
                   bi_snapshot_id: str, study_snapshot_id: str,
                   doc_id: str, page_url: str, cookie_file: Path,
                   ca_file: Path | None = None,
-                  bi_start_date: str | None = None) -> dict:
+                  bi_start_date: str | None = None,
+                  input_paths: dict[str, Path] | None = None) -> dict:
     """Refresh both warehouses for an explicit Asia/Shanghai business date.
 
     ``as_of_date`` is supplied by the caller. BI uses the existing six-calendar-
@@ -225,6 +226,8 @@ def refresh_daily(*, workspace: Path, as_of_date: str, run_id: str,
     if start > as_of:
         raise ValueError("bi_start_date must be on or before as_of_date")
 
+    if input_paths is not None and set(input_paths) != {'orders', 'cash', 'tencent'}:
+        raise ValueError('offline inputs require both BI exports and the full Tencent workbook')
     workspace = Path(workspace).resolve()
     root = _safe_daily_root(workspace)
     run_root = root / "Runs" / run_id
@@ -290,6 +293,7 @@ def refresh_daily(*, workspace: Path, as_of_date: str, run_id: str,
                     snapshot_id=bi_snapshot_id,
                     start_date=start.isoformat(),
                     end_date=as_of.isoformat(),
+                    **({'export_paths': {key: input_paths[key] for key in ('orders', 'cash')}} if input_paths else {}),
                 )
                 if result.get("snapshot_id") != bi_snapshot_id or result.get("status") != "snapshot_ready":
                     raise ValueError("BI rebuild did not publish the requested Snapshot")
@@ -318,6 +322,7 @@ def refresh_daily(*, workspace: Path, as_of_date: str, run_id: str,
                 through_date=as_of.isoformat(),
                 refresh_months=[as_of.strftime("%Y-%m")],
                 ca_file=Path(ca_file) if ca_file is not None else None,
+                **({'source_file': input_paths['tencent']} if input_paths else {}),
             )
             if (result.get("run_id") != run_id or result.get("snapshot_id") != study_snapshot_id
                     or result.get("through_date") != as_of.isoformat()):

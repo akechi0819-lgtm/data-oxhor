@@ -3,6 +3,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import shutil
+from types import SimpleNamespace
+from data_platform.connectors.xlsx import sha256_file
 from pathlib import Path
 
 from data_acquisition.connectors.tencent_docs.downloader import (
@@ -14,7 +17,8 @@ from interfaces.data_platform import RUN_ID
 
 def update(*, workspace: Path, doc_id: str, page_url: str, cookie_file: Path,
            run_id: str, snapshot_id: str, through_date: str,
-           refresh_months: list[str], ca_file: Path | None = None) -> dict:
+           refresh_months: list[str], ca_file: Path | None = None,
+           source_file: Path | None = None) -> dict:
     workspace = workspace.resolve()
     if not RUN_ID.fullmatch(run_id):
         raise ValueError('run_id无效')
@@ -24,10 +28,16 @@ def update(*, workspace: Path, doc_id: str, page_url: str, cookie_file: Path,
     downloads = workspace / 'Work/StudyAbroad/Downloads' / run_id
     if downloads.exists():
         raise ValueError('该下载run已使用，请提供新的run_id')
-    captured = download_tencent_doc_xlsx(
-        TencentDocsExportConfig(doc_id=doc_id, page_url=page_url, output_dir=downloads, ca_file=ca_file),
-        cookie_file,
-    )
+    if source_file is None:
+        captured = download_tencent_doc_xlsx(
+            TencentDocsExportConfig(doc_id=doc_id, page_url=page_url, output_dir=downloads, ca_file=ca_file),
+            cookie_file,
+        )
+    else:
+        downloads.mkdir(parents=True)
+        target = downloads / source_file.name
+        shutil.copyfile(source_file, target)
+        captured = SimpleNamespace(path=target, sha256=sha256_file(target), size_bytes=target.stat().st_size)
     result = build(workspace=workspace, source_file=captured.path, run_id=run_id,
                    snapshot_id=snapshot_id, through_date=through_date,
                    refresh_months=refresh_months, history_snapshot_id=pointer['snapshot_id'])
