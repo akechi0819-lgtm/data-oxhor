@@ -66,13 +66,15 @@ class ReleaseNotificationTests(unittest.TestCase):
 
     def seed_state(self, rows=None):
         self.state.mkdir(exist_ok=True)
+        self.proof=self.state.parent/'state-origin';self.proof.mkdir(exist_ok=True)
         state={'schema_version':d.STATE_SCHEMA,'deliveries':rows or {}}
         encoded=n.canonical(state)
-        (self.state/'imported_state.json').write_bytes(encoded)
+        (self.proof/'imported_state.json').write_bytes(encoded)
         (self.state/d.STATE_FILENAME).write_bytes(encoded)
-        (self.state/'delivery_origin.json').write_bytes(n.canonical({
+        (self.proof/'delivery_origin.json').write_bytes(n.canonical({
             'schema_version':'delivery_state_import.v1','source':'grok',
-            'sha256':hashlib.sha256(encoded).hexdigest(),'channels':sorted(transport.ALLOWED_CHANNELS)}))
+            'sha256':hashlib.sha256(encoded).hexdigest(),'channels':sorted(transport.ALLOWED_CHANNELS),
+            'cutover_policy':{'no_backfill':True,'history_complete':False,'send_start_date':'2026-09-29'}}))
 
     def invoke(self, *, dry_run=False):
         with patch.object(d,'_today_shanghai',return_value=date(2026,9,29)), \
@@ -108,7 +110,7 @@ class ReleaseNotificationTests(unittest.TestCase):
 
     def test_local_project_import_origin_is_accepted_without_grok_access(self):
         self.seed_state()
-        path=self.state/'delivery_origin.json';origin=json.loads(path.read_bytes())
+        path=self.proof/'delivery_origin.json';origin=json.loads(path.read_bytes())
         origin['source']='local-project';path.write_bytes(n.canonical(origin))
         self.assertEqual(n.require_imported_state(self.state)['schema_version'],d.STATE_SCHEMA)
 
@@ -124,7 +126,7 @@ class ReleaseNotificationTests(unittest.TestCase):
         (self.state/d.STATE_FILENAME).write_bytes(n.canonical({'schema_version':d.STATE_SCHEMA,'deliveries':{}}))
         with self.assertRaisesRegex(ValueError,'must not be cleared'):
             self.invoke()
-        (self.state/'imported_state.json').write_text('{}')
+        (self.proof/'imported_state.json').write_text('{}')
         with self.assertRaisesRegex(ValueError,'migration evidence'):
             self.invoke()
 
@@ -226,6 +228,34 @@ class ReleaseNotificationTests(unittest.TestCase):
         self.assertEqual(report['message_count'],8)
         self.assertFalse(report['network_send_attempted'])
         self.assertFalse(self.state.exists())
+
+    def test_cutover_preserves_history_and_refuses_older_date(self):
+        self.seed_state()
+        path=self.proof/'delivery_origin.json';origin=json.loads(path.read_bytes())
+        origin['cutover_policy']['send_start_date']='2026-09-30'
+        path.write_bytes(n.canonical(origin))
+        with self.assertRaisesRegex(ValueError,'cutover'):
+            self.invoke()
+
+    def test_clock_window_is_checked_again_before_each_message(self):
+        from monitoring_product import server_notify as server
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+        self.seed_state()
+        moment=datetime(2026,9,29,10,tzinfo=ZoneInfo('Asia/Shanghai'))
+        def fake_delivery(**kwargs):
+            kwargs['before_send']()
+            raise AssertionError('expired window must reject before sending')
+        with patch.object(server,'datetime') as clock, patch.object(n,'deliver_bundle',side_effect=fake_delivery):
+            clock.now.side_effect=[moment,moment.replace(hour=11)]
+            with self.assertRaisesRegex(ValueError,'window elapsed'):
+                server.run('send-scheduled',warehouse=self.root,home=self.root,env_file=self.env,asset_root=self.assets)
+
+    def test_expected_release_mismatch_blocks_before_build(self):
+        from monitoring_product.server_notify import run
+        with patch.object(n,'build_bundle',side_effect=AssertionError('must not build')):
+            with self.assertRaisesRegex(ValueError,'expected current'):
+                run('preview',warehouse=self.root,home=self.root,expected_release='daily-wrong')
 
     def test_missing_source_closure_is_not_filled_with_defaults(self):
         del self.manifest['tables']['personnel_facts'];self.write_manifest()

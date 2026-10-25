@@ -10,6 +10,15 @@ archive_hash=''
 old=''
 old_previous=''
 success=0
+write_receiver_state() {
+    local name=$1 value=$2 temp
+    case "$name" in last_published|last_published_hash|last_failed) ;; *) return 2;; esac
+    temp=$(mktemp "$receiver/.status.XXXXXXXX")
+    printf '%s\n' "$value" > "$temp"
+    chown root:shadowbi "$temp"
+    chmod 0640 "$temp"
+    mv -Tf "$temp" "$receiver/$name"
+}
 finish() {
     status=$?
     if [ -n "$root_copy" ]; then
@@ -32,7 +41,7 @@ finish() {
         if [ -d "$base/releases/$release" ] && [ "$(readlink -f "$base/releases/$release")" != "$(readlink -f "$base/current" 2>/dev/null || true)" ] && [ "$(readlink -f "$base/releases/$release")" != "$(readlink -f "$base/previous" 2>/dev/null || true)" ]; then
             mv "$base/releases/$release" "$failed_dir/${release}.target.${stamp}" 2>/dev/null || true
         fi
-        printf '%s\t%s\t%s\n' "$release" "${archive_hash:-unknown}" "failed" > "$receiver/last_failed" || true
+        write_receiver_state last_failed "${release}"$'\t'"${archive_hash:-unknown}"$'\t'failed || true
         rm -f "$pending_dir/$release" || true
     fi
     exit "$status"
@@ -51,7 +60,6 @@ PY
 fi
 exec 9>/run/shadow-bi-receiver.lock
 flock -n 9 || exit 75
-trap 'printf "%s\\n" "$release" > "$receiver/last_failed"' ERR
 release=''
 for marker in "$pending_dir"/daily-*; do
     if [ -f "$marker" ]; then release=$(basename "$marker"); break; fi
@@ -116,9 +124,8 @@ if ! runuser -u shadowbi --preserve-environment -- /srv/shadow-bi/venv/bin/pytho
     if [ -d "$old_previous" ]; then ln -sfn "$old_previous" "$base/previous"; fi
     exit 1
 fi
-trap - ERR
-printf '%s\n' "$release" > "$receiver/last_published"
-printf '%s\n' "$archive_hash" > "$receiver/last_published_hash"
+write_receiver_state last_published "$release"
+write_receiver_state last_published_hash "$archive_hash"
 rm -f "$receiver/last_failed"
 rm -f "$pending_dir/$release"
 success=1

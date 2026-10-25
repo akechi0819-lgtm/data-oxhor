@@ -1,0 +1,19 @@
+[Unit]
+Description=Shadow BI fixed notification queue executor
+After=network.target
+[Service]
+Type=oneshot
+User=root
+Group=root
+Environment=PYTHONPATH=/srv/shadow-bi-notify/current
+WorkingDirectory=/srv/shadow-bi-notify/current
+ExecStart=/srv/shadow-bi/venv/bin/python -B -m monitoring_product.receiver_notify_worker
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/shadow-bi /run
+TimeoutStartSec=5500
+MemoryMax=128M
+TasksMax=32
+UMask=0077

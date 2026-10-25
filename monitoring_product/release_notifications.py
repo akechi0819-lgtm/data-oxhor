@@ -198,21 +198,36 @@ def verify_bundle(bundle_path, current_release, *, fresh=False):
 def require_imported_state(state_dir, state=None):
     """Only an explicit, immutable operator-import record permits server sending."""
     root = Path(state_dir).resolve()
-    for name in ('delivery_origin.json', 'imported_state.json', delivery.STATE_FILENAME):
-        if not (root/name).is_file() or (root/name).is_symlink():
+    proof = root.parent/'state-origin'
+    for path in (proof/'delivery_origin.json', proof/'imported_state.json', root/delivery.STATE_FILENAME):
+        if not path.is_file() or path.is_symlink():
             raise ValueError('original DeliveryState and migration evidence required before sending')
-    origin = json.loads((root/'delivery_origin.json').read_bytes())
+    origin = json.loads((proof/'delivery_origin.json').read_bytes())
     if (origin.get('schema_version') != 'delivery_state_import.v1' or origin.get('source') not in {'local-project', 'grok'}
         or origin.get('channels') != sorted(transport.ALLOWED_CHANNELS)
-        or origin.get('sha256') != sha(root/'imported_state.json')):
+        or origin.get('sha256') != sha(proof/'imported_state.json')):
         raise ValueError('invalid delivery state migration evidence')
-    original = delivery._load_state(root/'imported_state.json')
+    original = delivery._load_state(proof/'imported_state.json')
     current = delivery._load_state(root/delivery.STATE_FILENAME) if state is None else state
     for key, row in original['deliveries'].items():
         saved = current['deliveries'].get(key)
         if saved is None or (row.get('status') in {'sent', 'sending', 'unknown'} and saved.get('status') != row['status']):
             raise ValueError('imported sent/uncertain delivery state must not be cleared')
+    policy = origin.get('cutover_policy') or {}
+    if (policy.get('no_backfill') is not True or policy.get('history_complete') is not False
+            or not isinstance(policy.get('send_start_date'), str)):
+        raise ValueError('explicit no-backfill cutover policy required')
+    from datetime import date
+    if date.fromisoformat(policy['send_start_date']).isoformat() != policy['send_start_date']:
+        raise ValueError('canonical cutover date required')
     return current
+
+
+def require_send_date(state_dir, as_of_date):
+    require_imported_state(state_dir)
+    policy = json.loads((Path(state_dir).resolve().parent/'state-origin/delivery_origin.json').read_bytes())['cutover_policy']
+    if as_of_date < policy['send_start_date']:
+        raise ValueError('date precedes authorized no-backfill cutover')
 
 
 def publish_local_assets(stage_dir, token, *, asset_root, env_file=None):
@@ -240,15 +255,17 @@ def publish_local_assets(stage_dir, token, *, asset_root, env_file=None):
 
 
 def deliver_bundle(*, bundle_path, current_release, output_dir, state_dir, env_file=None,
-                   asset_root=None, dry_run=True):
+                   asset_root=None, dry_run=True, before_send=None):
     bundle, shared = verify_bundle(bundle_path, current_release, fresh=not dry_run)
     if not dry_run:
-        require_imported_state(state_dir)
+        require_send_date(state_dir, bundle['source']['as_of_date'])
         if asset_root is None:
             raise ValueError('server-local asset directory required')
     # Pin immutable manifest + current link before every HTTP attempt, without
     # rehashing the entire database eight times or creating a second calculation.
     def current_guard():
+        if before_send is not None:
+            before_send()
         current = Path(current_release).resolve(strict=True)
         if current.name != bundle['source']['release_id'] or sha(current/'library/library_manifest.json') != bundle['source_manifest_sha256']:
             raise ValueError('current release changed before notification send')

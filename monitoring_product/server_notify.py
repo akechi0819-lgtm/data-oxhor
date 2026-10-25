@@ -15,7 +15,8 @@ from data_platform.business_library import load_library
 
 
 def run(mode, *, warehouse=Path('/var/lib/shadow-bi'), home=Path('/var/lib/shadow-bi-notify'),
-        env_file=Path('/etc/shadow-bi-notify.env'), asset_root=Path('/var/www/dashboard/notify'), now=None):
+        env_file=Path('/etc/shadow-bi-notify.env'), asset_root=Path('/var/www/dashboard/notify'), now=None, expected_release=None, expected_date=None):
+    injected_clock = now is not None
     now=now or datetime.now(ZoneInfo('Asia/Shanghai'))
     if now.tzinfo is None:
         raise ValueError('timezone-aware server clock required')
@@ -23,6 +24,10 @@ def run(mode, *, warehouse=Path('/var/lib/shadow-bi'), home=Path('/var/lib/shado
     current=warehouse/'current'
     release=current.resolve(strict=True)
     manifest=json.loads((release/'library/library_manifest.json').read_bytes())
+    if expected_release is not None and release.name != expected_release:
+        raise ValueError('expected current release changed')
+    if expected_date is not None and manifest['as_of_date'] != expected_date:
+        raise ValueError('expected release date changed')
     state=home/'state'
     ready=False
     try:
@@ -44,7 +49,12 @@ def run(mode, *, warehouse=Path('/var/lib/shadow-bi'), home=Path('/var/lib/shado
             raise ValueError('scheduled sending only allowed in the Shanghai 10:00 hour')
         if manifest['as_of_date']!=now.date().isoformat():
             raise ValueError('scheduled sending requires today formal release')
-        n.require_imported_state(state)
+        n.require_send_date(state, manifest['as_of_date'])
+    def send_clock_guard():
+        clock = now if injected_clock else datetime.now(ZoneInfo('Asia/Shanghai'))
+        if clock.hour != 10 or clock.date().isoformat() != manifest['as_of_date']:
+            raise ValueError('scheduled sending window elapsed')
+        n.require_send_date(state, manifest['as_of_date'])
     if not home.is_dir():
         raise ValueError('provisioned notification home required')
     started=time.monotonic()
@@ -59,7 +69,7 @@ def run(mode, *, warehouse=Path('/var/lib/shadow-bi'), home=Path('/var/lib/shado
         output=home/'runs'/(now.strftime('%Y%m%dT%H%M%S')+'-'+uuid.uuid4().hex[:8])
         result=n.deliver_bundle(bundle_path=bundle/'bundle.json',current_release=current,
                 output_dir=output,state_dir=state,env_file=env_file if sending else None,
-                asset_root=asset_root,dry_run=not sending)
+                asset_root=asset_root,dry_run=not sending,before_send=send_clock_guard if sending else None)
     counts=Counter(row['status'] if 'status' in row else 'preview' for row in result['messages'])
     return {'status':result['status'],'release_id':release.name,'batch_id':manifest['batch_id'],
             'snapshots':manifest['snapshots'],'as_of_date':manifest['as_of_date'],
@@ -72,9 +82,11 @@ def run(mode, *, warehouse=Path('/var/lib/shadow-bi'), home=Path('/var/lib/shado
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('mode',choices=['status','preview','send-scheduled'],nargs='?',default='preview')
+    parser.add_argument('--expected-release')
+    parser.add_argument('--expected-date')
     args=parser.parse_args()
     try:
-        result=run(args.mode)
+        result=run(args.mode, expected_release=args.expected_release, expected_date=args.expected_date)
     except Exception as error:
         # Fixed messages only; do not serialize credential-bearing exceptions.
         result={'status':'blocked','error_type':type(error).__name__,

@@ -107,3 +107,26 @@ python3 -m monitoring_product.release_notifications deliver \
 数据迁移分工：本线程只完成过本地源体积/指针只读盘点，没有创建数仓候选目录、没有原始仓上传。独立数仓线程负责。最后一次只读磁盘余量5654388736 bytes（约5.27GiB），是该核验时点，不代替另线程传输前实查。
 
 证据保存在本任务notification-deployment目录：server-preview-streaming.log、server-verification.json、verification-summary.json、migration-audit.json、streaming-fix-tests.log、superset-tests.log。凭据临时传输副本已清理，原本机配置/状态及受保护服务器副本保留；未上传Library。
+
+
+## 原 HTTPS 接口固定通知扩展（用户已批准，部署验收另记）
+
+用户确认沿用原五通道标签，并批准为现有 receiver 与现有凭据增加固定通知能力；从2026-10-26起、北京时间每天10时（含周末），不补2026-10-25及更早消息。原16条真实发送记录保留；10月14—25日历史仍有缺口，不声明历史完整。切换证明明确history_complete=false及no_backfill=true。证明与冻结原件位于root拥有的state-origin目录，通知进程只读；活动状态继续原子更新，不能清空sent/unknown。
+
+复用https://dashboard.apinova.cn及原18091 receiver/Bearer摘要校验，无新密钥/监听端口/任意SSH命令。Nginx仅增加同一服务的通知前缀；通知事件.path消费固定队列，不是日历调度，不安装timer/cron。新功能启用旗标为SHADOW_RECEIVER_NOTIFY_ENABLED=1，缺少受保护切换策略时失败关闭。批次发布队列及数据回滚独立，通知失败不回退已发布数据。
+
+- GET /shadow-bi/v1/notifications/status：返回正式release、as_of_date、data_through及切换策略，不读机器人凭据、不发送。
+- POST /shadow-bi/v1/notifications/jobs：仅JSON operation（preview或send-scheduled）、expected_release、as_of_date，可选retry布尔。拒绝命令、路径、收件人及未知字段；请求上限2048字节。
+- GET /shadow-bi/v1/notifications/jobs/<job_id>：查询异步固定任务回执，无消息正文、凭据或内部资产路径。
+
+示例请求（Authorization由调用端既有受保护文件注入，不写入脚本/日志）：
+
+```json
+{"operation":"preview","expected_release":"daily-20261025_184644t","as_of_date":"2026-10-25"}
+```
+
+接受返回202及{job_id,status:queued,deduplicated:false}；相同操作/release/日期具有相同SHA256 job_id，重复不执行。查询返回queued/running/dry_run/sent/partial/blocked/unknown，含attempt、retryable、源批次/双Snapshot、截止日及计数。401无有效鉴权；400合同字段错误；403起点前或上海10时外发送；409旧release/日期/截止日或不允许重试；413超限；423缺少迁移证明；429队列满；503功能或控制文件不可用。仅partial中pending>0且无unknown/sending可显式retry:true，最多3次；preview失败也可明确安全重试。进程异常时可能已发送的任务记unknown，禁止自动重放。底层逐消息仍持久去重，部分发送的sent保留。
+
+两层独立复核当前release、上海日期、昨日完整截止日及切换起点；实际发送继续校验双Snapshot、Pack/Bridge及规则摘要，逐消息重新检查时间和current。构建跨出10时窗口也不能发送。固定执行器参数只有枚举、受限release和ISO日期，不接收外部命令/路径。资源限制768MiB、CPU75%、最长600秒；独立根执行器只承担预定义ACL与身份切换。
+
+原last_published/last_published_hash/last_failed状态文件最小修正为root:shadowbi0640，并由固定发布脚本原子写入；不放宽receiver摘要凭据、BI认证或数据写权限。主线程待Dot用已有受保护token完成真实鉴权GET/preview/拒绝验证后再建立每日10:00自动化；Mac SSH成功不能代替该验收。本线程不临时真实发送。

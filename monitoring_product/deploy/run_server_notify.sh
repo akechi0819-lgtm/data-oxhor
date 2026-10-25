@@ -5,7 +5,13 @@ case "$-" in *x*) echo 'xtrace forbidden' >&2; exit 2;; esac
 umask 077
 [ "$(id -u)" -eq 0 ] || { echo 'root fixed entry required' >&2; exit 2; }
 mode=${1:-preview}
-[ "$#" -le 1 ] || exit 2
+case "$#" in 0|1|3) ;; *) exit 2;; esac
+extra=()
+if [ "$#" -eq 3 ]; then
+  [[ "$2" =~ ^daily-[A-Za-z0-9_-]{1,96}$ ]] || exit 2
+  [[ "$3" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] || exit 2
+  extra=(--expected-release "$2" --expected-date "$3")
+fi
 case "$mode" in status|preview|send-scheduled) ;; *) exit 2;; esac
 exec 9>/run/shadow-bi-notify-entry.lock
 flock -n 9 || exit 75
@@ -30,10 +36,10 @@ PY
 exec systemd-run --quiet --wait --pipe --collect --service-type=exec \
   --unit="shadow-bi-notify-job-$(date +%s)-$$" \
   --property=User=shadowbi-notify --property=Group=shadowbi-notify \
-  --property=MemoryMax=768M --property=TasksMax=64 --property=CPUQuota=75% \
+  --property=RuntimeMaxSec=600 --property=MemoryMax=768M --property=TasksMax=64 --property=CPUQuota=75% \
   --property=Nice=10 --property=NoNewPrivileges=yes --property=ProtectSystem=strict \
   --property=ProtectHome=yes --property=PrivateTmp=yes \
   --property='ReadWritePaths=/var/lib/shadow-bi-notify /var/www/dashboard/notify' \
   --setenv=PYTHONPATH=/srv/shadow-bi-notify/current \
   /usr/bin/time -f 'notify_resources elapsed=%e max_rss_kib=%M exit=%x' \
-  /srv/shadow-bi/venv/bin/python -B -m monitoring_product.server_notify "$mode"
+  /srv/shadow-bi/venv/bin/python -B -m monitoring_product.server_notify "$mode" "${extra[@]}"

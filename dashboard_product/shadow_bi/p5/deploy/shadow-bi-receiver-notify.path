@@ -1,0 +1,7 @@
+[Unit]
+Description=Shadow BI fixed notification queue event (no calendar schedule)
+[Path]
+DirectoryNotEmpty=/var/lib/shadow-bi/receiver/notify-pending
+Unit=shadow-bi-receiver-notify.service
+[Install]
+WantedBy=multi-user.target
