@@ -151,6 +151,20 @@ class ContextTests(unittest.TestCase):
         self.service.get_integration_map()
         self.assertEqual(before, tree_hashes(self.root))
 
+    def test_integration_map_describes_native_server_without_live_probes(self):
+        self.write('dashboard_product/DEPLOYMENT.md', 'Native BI, warehouse and aggregate computation on server')
+        before = tree_hashes(self.root)
+        with patch('subprocess.run', side_effect=AssertionError('no live server or scheduler probes')):
+            result = self.service.get_integration_map()['data']
+        integrations = {item['id']: item for item in result['integrations']}
+        server = integrations['bi_server']
+        self.assertNotIn('static_server', integrations)
+        self.assertEqual(server['source']['path'], 'dashboard_product/DEPLOYMENT.md')
+        self.assertEqual(server['evidence_kind'], 'document_declared')
+        self.assertEqual(server['live_status'], 'not_verified')
+        self.assertEqual(result['scheduler'], 'external_host_documented_not_live_verified')
+        self.assertEqual(before, tree_hashes(self.root))
+
     def test_explicit_snapshot_mismatch_never_selects_another_snapshot(self):
         pointer, config, db = self.setup_workspace()
         config['current_snapshot_id'] = 'snapshot_other'

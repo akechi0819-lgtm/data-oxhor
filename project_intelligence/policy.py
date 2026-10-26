@@ -64,7 +64,7 @@ INTEGRATIONS = (
     ('bi', 'BI 浏览器导出 / Chrome CDP', 'data_acquisition/connectors/bi/bi_downloads.py', 'code_declared'),
     ('local_host', '本机 DeepSeek Harness', 'docs/architecture.md', 'document_declared'),
     ('grok_cloud', 'Grok 云电脑、外部调度与分层回写', 'SYNC.md', 'document_declared'),
-    ('static_server', 'SSH/SCP 发布到 Nginx 静态服务器', 'dashboard_product/DEPLOYMENT.md', 'document_declared'),
+    ('bi_server', '原生 Superset BI、服务器双数仓、共享聚合与固定发布', 'dashboard_product/DEPLOYMENT.md', 'document_declared'),
     ('dingtalk', '同批人员进度通知投递', 'monitoring_product/shared_delivery.py', 'code_declared'),
     ('github', '公开代码仓与私密中转仓', 'SYNC.md', 'document_declared'),
 )

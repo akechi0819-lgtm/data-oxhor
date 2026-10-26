@@ -43,6 +43,8 @@
 
 ## 当前状态与历史记录
 
+旧静态退出后的进一步死代码/入口复查见[第二轮记录](dashboard-second-pass-20261026.md)。历史阶段文档不作为启动指令，P1环境/依赖锁保留不代表P1实验入口仍在main。
+
 10月26日本地代码、文档与工作树收口见[整合记录](local-project-alignment-20261026.md)。`main`为整合基线；c373保留数据、证据和稳定运行路径，其源码对齐main后以detached HEAD保留，不作为另一条开发分支。服务器raw receiver、只读历史基线、受限双Snapshot/quality/共享聚合计算和固定publisher已有实际部署及运行回执；本地来源完成证明门禁本轮未部署。有效raw包发布、持续日更、唯一生产者切换以及实时调度状态另行验收，本地代码收口不代表这些事项完成。
 
 当前状态、已知限制与本次施工记录统一维护在 [DEVELOPMENT.md](../DEVELOPMENT.md)。[历史交接](history/project-handoff-through-20260918.md) 仅保留过去决策与验收事实，不作为日常操作入口；看板运行以模块 README 和 DEPLOYMENT 为准。

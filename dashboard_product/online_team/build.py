@@ -2,15 +2,11 @@
 from __future__ import annotations
 
 import calendar
-from collections import Counter
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime
 from decimal import Decimal
-from fractions import Fraction
 import hashlib
 import json
 from pathlib import Path
-import re
-import shutil
 import subprocess
 import sys
 from zoneinfo import ZoneInfo
@@ -19,14 +15,8 @@ HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
 sys.path.insert(0, str(ROOT))
 from data_platform.query.evidence import read_query_result, resolve_file, verify_receipt
-from dashboard_product.fallback_mapping import resolve_cash_channel, infer_team
-from dashboard_product.refresh import remap_tmk_school_agent_team, TARGET_GROUP, YOY_GROUPS
-from workspace_modeling.operations.personnel import is_displayable_person
-from data_acquisition.jobs.work_order_cleaning import clean_work_order_rows, load_work_order_reference
 
 MAPPING = HERE / 'config/confirmed_team_mapping.json'
-GROUPS = ['留学预备', '高中', '大学']
-NON_COMPLETION_ORDER_STATUSES = {'删除': 'order_status_deleted', '回收': 'order_status_recalled'}
 
 
 def read(path):
@@ -37,10 +27,6 @@ def write(path, data):
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(data, ensure_ascii=False, indent=2, allow_nan=False), encoding='utf-8')
-
-
-def text(value):
-    return str(value or '').strip()
 
 
 def sha(path):
@@ -54,31 +40,6 @@ def money(value):
 def total(records, metric):
     amount = sum((Decimal(str(r['value'])) for r in records if r['metric'] == metric), Decimal(0))
     return int(amount) if metric == 'orders' else money(amount)
-
-
-def classify_team(source_team, adviser, mapping):
-    original = text(source_team)
-    return original if original else mapping.get(text(adviser))
-
-
-def abroad_eligible(root, active):
-    return (root == '网络资源' and active in ('主动', '被动')) or (root == '新媒体' and active == '被动')
-
-
-def is_ssc(channel):
-    return text(channel).casefold() == 'ssc'
-
-
-def allocate_targets(annual, weights):
-    denominator = sum(weights.values())
-    if annual < 0 or denominator <= 0 or any(v < 0 for v in weights.values()):
-        raise ValueError('target allocation requires nonnegative amounts and positive total weight')
-    exact = {k: Fraction(annual * v, denominator) for k, v in weights.items()}
-    allocated = {k: int(v) for k, v in exact.items()}
-    ranked = sorted(weights, key=lambda k: (-(exact[k] - allocated[k]), k))
-    for k in ranked[:annual - sum(allocated.values())]:
-        allocated[k] += 1
-    return allocated
 
 
 def window(start, end, through):
@@ -161,82 +122,6 @@ def prepare_output(out, workspace, run_id, snapshot_id, as_of_date):
     return out
 
 
-def training_facts(rows, people):
-    offline_names = {p['display_name'] for t in people['teams'] if t['team_id'] == 'offline_market'
-                     for g in t['groups'] for p in g['members'] if is_displayable_person(p)}
-    facts = []
-    for r in rows:
-        team, group = r['team_id'], r['business_group']
-        first, second = r['first_channel'], r['second_channel']
-        kind = 'cash' if r['metric'] == 'passive_reported_cash' else 'orders'
-        order_status = text(r.get('order_status')) or None
-        exclusion_reason = NON_COMPLETION_ORDER_STATUSES.get(order_status) if kind == 'orders' else None
-        if exclusion_reason:
-            continue
-        if kind == 'cash':
-            channel = resolve_cash_channel(r['cash_channel'], r['cash_campaign_name'] or r['campaign_name'],
-                                           first, second, r['work_order_active_type'])
-            first, second = channel['first_channel'], channel['second_channel']
-            if not team or 'TMK' in text(r['cash_channel']).upper():
-                team, _ = infer_team(team, r['cash_channel'], r['cash_campaign_name'] or r['campaign_name'],
-                                     first, second, channel['decision'])
-        team = remap_tmk_school_agent_team(team, first, r['campaign_name'], r['entry_person'], offline_names)
-        if team != 'online_platform' or group not in YOY_GROUPS:
-            continue
-        facts.append({'line_id': 'training', 'metric': kind, 'event_date': r['event_date'],
-                      'value': money(r['actual_value']) if kind == 'cash' else int(r['actual_value']),
-                      'source_row_number': r.get('source_row_number'), 'work_order_id': r.get('work_order_id'),
-                      'order_status': order_status, 'counts_toward_completion': True,
-                      'exclusion_reason': None,
-                      'student_id': r.get('student_id'), 'business_group': TARGET_GROUP[group],
-                      'first_channel': first or '一级渠道待确认', 'second_channel': second or '二级渠道待确认',
-                      'campaign_name': r.get('campaign_name'), 'team_id': team})
-    return facts
-
-
-def study_facts(rows, mapping, reference, exclude_current_work_order_ids=()):
-    excluded_current_ids = {text(work_order_id) for work_order_id in exclude_current_work_order_ids}
-    current, legacy, labels = [], [], Counter()
-    for r in rows:
-        labeled = classify_team(r['source_team'], r['adviser'], mapping)
-        labels[labeled or '待确认'] += 1
-        source = {'ID': r['work_order_id'], '团队': r['source_team'], '主被动': r['main_active_type'],
-                  '资源主被动': r['resource_active_type'], '咨询方式一级渠道': r['source_path'],
-                  '渠道': r['source_channel'], '一级渠道': r['first_channel'], '二级渠道': r['second_channel'],
-                  '意向国家/地区': r['intended_country_source'], '资源描述': r['resource_description']}
-        original_active = source['主被动']
-        cleaned, _ = clean_work_order_rows([source], reference, include_audit=True)
-        source = cleaned[0]
-        source['主被动'] = original_active
-        root = text(r['source_path']).split('-', 1)[0]
-        if not abroad_eligible(root, text(r['resource_active_type'])):
-            continue
-        channel = source['二级渠道'] if source.get('留学渠道清洗状态') == '已命中' else '当前规则未命中'
-        # Preserve the accepted dashboard's SSC bucket mapping. 小语种 remains
-        # its own corrected channel and is not filtered with 其他.
-        channel = {'其他': 'ssc'}.get(channel, channel)
-        if is_ssc(channel):
-            channel = 'SSC'
-        fact = {'line_id': 'abroad', 'metric': 'orders', 'value': 1, 'event_date': r['event_date'],
-                'source_row_number': r['source_row_number'], 'work_order_id': r['work_order_id'],
-                'order_status': text(r.get('order_status')) or None,
-                'counts_toward_completion': text(r.get('order_status')) not in NON_COMPLETION_ORDER_STATUSES,
-                'exclusion_reason': NON_COMPLETION_ORDER_STATUSES.get(text(r.get('order_status'))),
-                'adviser': r['adviser'], 'original_team': r['source_team'], 'labeled_team': labeled,
-                'main_active_type': original_active, 'resource_active_type': r['resource_active_type'],
-                'first_channel': source.get('一级渠道') or root, 'second_channel': channel,
-                'source_path': r['source_path'], 'original_first_channel': r['first_channel'],
-                'original_second_channel': r['second_channel'], 'business_group': root,
-                'country': source.get('意向国家') or '国家待确认', 'line': source.get('矫正条线') or '条线待确认'}
-        # Keep old-scope rows only as reconciliation baselines. New facts,
-        # details, channels, and public rollups exclude the confirmed SSC bucket.
-        legacy.append(fact)
-        if (labeled == '留学' and fact['counts_toward_completion'] and not is_ssc(channel)
-                and text(r['work_order_id']) not in excluded_current_ids):
-            current.append(fact)
-    return current, legacy, dict(labels)
-
-
 def select(records, start, end):
     return [] if end is None else [r for r in records if start <= r['event_date'] <= end]
 
@@ -250,20 +135,6 @@ def periods(through):
         y, m = 2026 + (5 + i) // 12, (5 + i) % 12 + 1
         definitions.append((f'{y}-{m:02d}', f'{y}年{m}月', 'month', date(y, m, 1), date(y, m, calendar.monthrange(y, m)[1])))
     return [dict(id=k, label=label, kind=kind, **window(start, end, through)) for k, label, kind, start, end in definitions]
-
-
-def training_target(config, period, kind, group=None):
-    field = 'work_order_target' if kind == 'orders' else 'passive_cash_target'
-    values = []
-    for item in config['business_groups'].values():
-        if group and item['display_name'] != group:
-            continue
-        if period['kind'] == 'month':
-            values.append(item.get('months', {}).get(period['id'], {}).get('online_platform', {}).get(field))
-        else:
-            keys = ['Q1', 'Q2', 'Q3', 'Q4'] if period['kind'] == 'year' else [period['id']]
-            values.extend(item['quarters'][k]['online_platform'].get(field) for k in keys)
-    return None if not values or any(v is None for v in values) else money(sum(Decimal(str(v)) for v in values))
 
 
 def study_target(config, period, kind):

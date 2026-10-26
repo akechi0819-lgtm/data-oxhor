@@ -193,7 +193,7 @@ def build(args):
     ws=args.workspace.resolve(); out=ws/'Output/ShadowBI'/args.run_id
     if out.exists(): raise ValueError('拒绝覆盖既有业务库批次；使用新的run-id')
     before=binding(ws)
-    model=calculate(args,output_area='ShadowBI')
+    model=calculate(args)
     from dashboard_product.shadow_bi.acquisition import scoped_tables
     scope_values=scoped_tables(model)
     after=binding(ws)

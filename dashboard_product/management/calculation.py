@@ -77,7 +77,7 @@ def reconciliation(result, old_rows, people, training_targets, facts):
     ]}
 
 
-def calculate(args, *, output_area="DashboardManagement"):
+def calculate(args):
     from dashboard_product.management.facts import normalize_facts
     from dashboard_product.management.study_abroad_facts import load_study_abroad_facts
     from dashboard_product.management.aggregate import aggregate
@@ -100,7 +100,7 @@ def calculate(args, *, output_area="DashboardManagement"):
     if not re.fullmatch(r'run_[a-z0-9_-]{3,45}', args.run_id):
         raise ValueError('invalid run_id')
     as_of = args.as_of_date or shanghai_today()
-    out = prepare_output(ws / 'Output' / output_area / args.run_id, ws, args.run_id, args.snapshot_id, as_of)
+    out = prepare_output(ws / 'Output' / 'ShadowBI' / args.run_id, ws, args.run_id, args.snapshot_id, as_of)
     guide = json.loads(subprocess.check_output([sys.executable, '-m', 'interfaces.casebook', 'guide', '--workspace', str(ws)], cwd=ROOT, text=True))
     if guide['next_step'] != 'analyze':
         raise ValueError('workspace is not ready for controlled analysis')

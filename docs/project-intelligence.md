@@ -2,6 +2,8 @@
 
 ## 当前交付
 
+集成图的服务器项为 `bi_server`，描述已记录的原生Superset BI、服务器双数仓、共享聚合与固定发布；不再提供过时的 `static_server` 项。证据仍标记 `document_declared`、实时状态为 `not_verified`，不读取服务器或外部日程来补造健康结论。
+
 现有 Python 服务与本地 CLI 面向架构讨论、方案设计与项目评审。现已新增独立 stdio MCP 协议适配器，原服务、CLI、工具参数和读取策略保持不变。MCP 为可选依赖；现已通过项目外的官方 Secure MCP Tunnel 接入 ChatGPT；内核不增加网络监听或模型调用。启动与验收见 [stdio MCP 接入](./project-intelligence-mcp.md) 和 [Tunnel 接入](./project-intelligence-tunnel.md)。
 
 服务不修改业务模块，不执行下载、导入、查询业务行、发布、通知、同步、安装或测试。`project_intelligence/` 单向调用既有 Data Platform 的 `describe`，并使用现有 Bridge 合同校验器。服务不调用 casebook guide：该调用内部的 profile 会取业务样本，不符合本服务只取元数据的范围。

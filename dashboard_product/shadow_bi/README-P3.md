@@ -1,6 +1,6 @@
-# 影子 BI：P3.5 原生 Superset 工作台
+# 影子 BI：P3.5 原生 Superset 工作台（历史施工记录）
 
-当前入口：http://127.0.0.1:18089/p3/ ，登录后跳转到 `/superset/dashboard/shadow-bi-native/?standalone=1`。只在 c373 工作树施工与运行。当前回执见 `docs/shadow-bi-p35-native-validation-20261023.md`。
+> 本文记录 P3.5 的本地工作台施工与阶段验收，不是当前生产入口。原本机临时启动步骤与回环地址只属于阶段记录；现行原生 BI 入口、服务器 raw 计算、固定 publisher 和通知边界见[正式 BI 部署说明](../DEPLOYMENT.md)。P3.5 阶段回执见 [原生 Superset 验收记录](../../docs/shadow-bi-p35-native-validation-20261023.md)。
 
 ## 结构与运行
 
@@ -11,17 +11,7 @@
 - `p3/extension.py`：登录保护、入口跳转、素材路由与请求审计；没有替代 HTML 看板或自定义取数循环。
 - `p3/activity.html`：沿用 P1 的临时投入计算工具；活动累计主列表使用原生 Table。
 
-在工作树中设置现有本地 Superset 配置后运行：
-
-```bash
-export SUPERSET_CONFIG_PATH="$PWD/dashboard_product/shadow_bi/p3/config.py"
-export SUPERSET_HOME="$PWD/.local/audits/shadow-bi-p3-20261022/runtime/home"
-export FLASK_APP=superset
-.local/audits/shadow-bi-p1-20261022/runtime/venv/bin/python -B -m dashboard_product.shadow_bi.p35.bootstrap_native
-.local/audits/shadow-bi-p1-20261022/runtime/venv/bin/superset run --host 127.0.0.1 -p 18089 --with-threads
-```
-
-不要重复启动端口；停止只操作本次启动进程。凭据留在私有 runtime，不写进日志。
+`p3/bootstrap.py` 与 `p3/extension.py` 仍是 P3.5/P4 复用的代码依赖；本文保留它们的阶段职责说明，不表示这些模块已删除。过去的临时启动步骤不再作为运行说明；当前服务状态和操作流程只以[部署说明](../DEPLOYMENT.md)及对应回执为准。
 
 ## 交互
 

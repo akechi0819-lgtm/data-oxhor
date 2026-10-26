@@ -6,7 +6,7 @@ SQLALCHEMY_DATABASE_URI=os.environ['SUPERSET_METADATA_URI']
 SUPERSET_HOME=os.environ['SUPERSET_HOME']
 WTF_CSRF_ENABLED=True
 TALISMAN_ENABLED=True
-# 同域旧HTTP静态入口仍在运行；清除本次默认HSTS副作用，不改变新站TLS与Secure cookie。
+# TLS由前置Nginx终结，应用沿当前反代策略运行；保留已部署HSTS/Secure cookie配置，不以历史静态站状态解释。
 TALISMAN_CONFIG={'content_security_policy':None,'force_https':False,'session_cookie_secure':True,'strict_transport_security_max_age':0,'strict_transport_security_include_subdomains':False}
 SESSION_COOKIE_SECURE=True
 SESSION_COOKIE_HTTPONLY=True

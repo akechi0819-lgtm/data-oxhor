@@ -23,10 +23,8 @@ python3 -m interfaces.workspace_modeling handoff --workspace customers/<company>
 - 字段、枚举、日期与金额口径由用户确认后才进入正式 Bridge。
 - 不直接连接客户 DuckDB，不上传源文件或整个运行目录。
 
-## 现有工作区每日双仓更新
+## 固定看板数据更新职责
 
-来源例行原09:30（Asia/Shanghai），只负责在已初始化客户工作区调用 `data_acquisition/deploy/run_daily_warehouses.sh`：BI工单/现金与腾讯留学三表分别抓取并建各自新Snapshot，每源各尝试一次。每天先从Grok自身已登录腾讯会话更新私有0600 Cookie，不传Mac登录态；登录失效应报告需本人登录，不绕过验证。
+本 Agent 负责单一客户工作区的初始化、数据导入/同步和 Bridge 交接；不负责原生 BI 日更、发布、通知或调度。固定看板的当前部署入口与操作边界见[正式 BI 部署说明](../../dashboard_product/DEPLOYMENT.md)和[看板发布 Agent](../dashboard_publisher/AGENT.md)。
 
-双源当日成功、当前身份一致才产生可消费的共同回执 `Work/DailyWarehouseRefresh/current.json`；任一源失败/刷新中，消费者不能发布或发送。已有成功的仓和上次正式网页保留，不回滚另一独立仓来伪装同批。历史留学资料复用标准Snapshot，只刷新上海当天月份；BI仍沿既有滚动导出和历史合并。
-
-本例行不构建网页、不发送群消息；09:45看板和10:24投递消费经过门禁的同批结果。平台任务是否启用、执行正文是否更新以平台回执确认，不能用旧automation.json或平台任务succeeded代替业务脚本成功。
+当前服务器 raw 链路接收固定三 Excel，由受限 worker 基于 root 只读历史基线建立双 Snapshot、运行 quality 与共享计算，生成39张业务表；达到 `prepared` 后才可由 root publisher 按 P4 流程验收并切换 release。详见[raw 链路合同](../../docs/server-raw-pipeline-contract.md)。Mac `p5.daily` 仍是手动入口，不代表默认生产调度。来源完整性证明门禁已合入本地 `main`，10月26日部署回执对应的服务器版本尚未包含它；具体状态按[部署说明](../../dashboard_product/DEPLOYMENT.md)及对应回执核实。

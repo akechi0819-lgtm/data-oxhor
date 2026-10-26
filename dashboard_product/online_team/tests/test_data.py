@@ -1,4 +1,4 @@
-"""Synthetic regression checks for the isolated P1 data contract."""
+"""Regression checks for helpers shared by native dashboard calculations."""
 
 from __future__ import annotations
 
@@ -8,45 +8,9 @@ from tempfile import TemporaryDirectory
 import unittest
 
 from dashboard_product.online_team import build
-from data_acquisition.jobs.work_order_cleaning import WorkOrderReference
-
-
-class ClassificationTests(unittest.TestCase):
-    def test_confirmed_mapping_only_fills_an_empty_team(self):
-        mapping = {"徐奕凡(离职)": "留学预备", "王新源": "留学"}
-
-        self.assertEqual(build.classify_team(None, "徐奕凡(离职)", mapping), "留学预备")
-        self.assertEqual(build.classify_team("   ", "王新源", mapping), "留学")
-        self.assertEqual(build.classify_team("高中", "徐奕凡(离职)", mapping), "高中")
-        self.assertIsNone(build.classify_team("", "名单外顾问", mapping))
-
-    def test_online_abroad_resource_active_scope(self):
-        self.assertTrue(build.abroad_eligible("网络资源", "主动"))
-        self.assertTrue(build.abroad_eligible("网络资源", "被动"))
-        self.assertTrue(build.abroad_eligible("新媒体", "被动"))
-        self.assertFalse(build.abroad_eligible("新媒体", "主动"))
-        self.assertFalse(build.abroad_eligible("渠道合作", "被动"))
-        self.assertFalse(build.abroad_eligible("未知来源", "主动"))
 
 
 class PeriodAndTargetTests(unittest.TestCase):
-    def test_proportional_targets_preserve_total_with_deterministic_ties(self):
-        weights = {"2026-08": 1, "2026-06": 1, "2026-07": 1}
-        actual = build.allocate_targets(7, weights)
-        self.assertEqual(actual, {"2026-06": 3, "2026-07": 2, "2026-08": 2})
-        self.assertEqual(sum(actual.values()), 7)
-        with self.assertRaises(ValueError):
-            build.allocate_targets(7, {"2026-06": 0})
-
-    def test_confirmed_monthly_weights_allocate_6715(self):
-        weights = dict(zip([f"2026-{m:02d}" for m in range(6, 13)] + [f"2027-{m:02d}" for m in range(1, 6)],
-                           [502, 370, 455, 420, 383, 621, 370, 385, 406, 492, 513, 398]))
-        allocation = build.allocate_targets(6715, weights)
-        self.assertEqual(sum(weights.values()), 5315)
-        self.assertEqual(sum(allocation.values()), 6715)
-        self.assertEqual(allocation['2026-09'], 531)
-        self.assertEqual(sum(allocation[m] for m in ('2026-06', '2026-07', '2026-08')), 1676)
-
     def test_study_abroad_target_uses_6715_with_original_month_weights(self):
         config = build.read(build.HERE / 'config/study_abroad_targets.json')
         self.assertEqual(build.study_target(config, {'kind': 'year', 'id': 'FY27'}, 'orders'), 6715)
@@ -92,26 +56,9 @@ class PeriodAndTargetTests(unittest.TestCase):
         self.assertIsNone(result["gap"])
         self.assertIsNone(result["time_gap"])
 
-    def test_missing_month_or_group_target_is_not_inferred(self):
-        training = {
-            "business_groups": {
-                "prep": {
-                    "display_name": "留学预备",
-                    "quarters": {
-                        "Q1": {"online_platform": {"work_order_target": 9, "passive_cash_target": 100}}
-                    },
-                    "months": {"2026-06": {"online_platform": {"work_order_target": 3}}},
-                }
-            }
-        }
+    def test_study_target_missing_period_is_not_inferred(self):
         q1 = {"kind": "quarter", "id": "Q1"}
-        june = {"kind": "month", "id": "2026-06"}
         october = {"kind": "month", "id": "2026-10"}
-
-        self.assertEqual(build.training_target(training, q1, "orders", "留学预备"), 9)
-        self.assertIsNone(build.training_target(training, june, "cash", "留学预备"))
-        self.assertIsNone(build.training_target(training, q1, "orders", "未配置业务组"))
-        self.assertIsNone(build.training_target(training, october, "orders", "留学预备"))
 
         study = {
             "study_abroad": {"resource_target": {"annual": 500, "quarters": {"Q1": 120}, "months": {}}},
@@ -123,132 +70,6 @@ class PeriodAndTargetTests(unittest.TestCase):
 
 
 class AggregationTests(unittest.TestCase):
-    def test_ssc_uses_confirmed_case_insensitive_exact_channel(self):
-        self.assertTrue(build.is_ssc('ssc'))
-        self.assertTrue(build.is_ssc(' SSC '))
-        self.assertFalse(build.is_ssc('SSC合作'))
-        self.assertFalse(build.is_ssc(None))
-
-    def test_study_facts_exclude_confirmed_ssc_bucket_but_keep_small_language(self):
-        reference = WorkOrderReference(
-            path_to_first_channel={
-                '新媒体-小语种': '新媒体',
-                '网络资源-其他来源': '网络资源',
-            },
-            path_channel_to_corrected_channel={
-                ('新媒体-小语种', 'raw'): '小语种',
-                ('网络资源-其他来源', 'raw'): '其他',
-            },
-            country_to_line={},
-            path_channel_counts={},
-            country_line_counts={},
-        )
-        def row(work_order_id, source_path):
-            return {
-                'work_order_id': work_order_id,
-                'source_team': '',
-                'adviser': '确认顾问',
-                'main_active_type': '被动',
-                'resource_active_type': '被动',
-                'source_path': source_path,
-                'source_channel': 'raw',
-                'first_channel': '',
-                'second_channel': '',
-                'intended_country_source': '日本',
-                'resource_description': '',
-                'source_row_number': 1,
-                'event_date': '2026-09-28',
-            }
-
-        rows = [row('ssc-1', '新媒体-其他'), row('lang-1', '新媒体-小语种'), row('other-1', '网络资源-其他来源')]
-        current, legacy, labels = build.study_facts(rows, {'确认顾问': '留学'}, reference)
-
-        self.assertEqual(len(legacy), 3)  # old-scope reconciliation baseline
-        self.assertEqual([fact['second_channel'] for fact in current], ['小语种'])
-        self.assertEqual([fact['second_channel'] for fact in legacy], ['SSC', '小语种', 'SSC'])
-        self.assertEqual(labels, {'留学': 3})  # existing source-team normalization diagnostic
-        self.assertTrue(all('completion_scope' not in fact for fact in current))
-
-    def test_deleted_and_recalled_orders_leave_current_but_remain_in_legacy(self):
-        reference = WorkOrderReference(
-            path_to_first_channel={'新媒体-小语种': '新媒体'},
-            path_channel_to_corrected_channel={('新媒体-小语种', 'raw'): '小语种'},
-            country_to_line={}, path_channel_counts={}, country_line_counts={},
-        )
-
-        def row(work_order_id, status):
-            return {
-                'work_order_id': work_order_id, 'source_team': '', 'adviser': '确认顾问',
-                'main_active_type': '被动', 'resource_active_type': '被动',
-                'source_path': '新媒体-小语种', 'source_channel': 'raw', 'first_channel': '',
-                'second_channel': '', 'intended_country_source': '日本', 'resource_description': '',
-                'source_row_number': 1, 'event_date': '2026-09-28', 'order_status': status,
-            }
-
-        current, legacy, _ = build.study_facts(
-            [row('active', '签约'), row('deleted', '删除'), row('recalled', '回收')],
-            {'确认顾问': '留学'}, reference,
-        )
-
-        self.assertEqual([fact['work_order_id'] for fact in current], ['active'])
-        self.assertEqual({fact['work_order_id'] for fact in legacy}, {'active', 'deleted', 'recalled'})
-        by_id = {fact['work_order_id']: fact for fact in legacy}
-        self.assertFalse(by_id['deleted']['counts_toward_completion'])
-        self.assertFalse(by_id['recalled']['counts_toward_completion'])
-
-    def test_training_facts_exclude_deleted_orders_but_keep_cash_linked_to_them(self):
-        people = {'teams': []}
-        common = {
-            'team_id': 'online_platform', 'business_group': '大学',
-            'first_channel': '网络资源', 'second_channel': '搜索',
-            'campaign_name': '活动A', 'entry_person': None,
-            'work_order_active_type': '被动',
-        }
-        rows = [
-            {**common, 'metric': 'work_orders', 'actual_value': 1,
-             'work_order_id': 'deleted', 'order_status': '删除', 'event_date': '2026-09-10'},
-            {**common, 'metric': 'work_orders', 'actual_value': 1,
-             'work_order_id': 'active', 'order_status': '签约', 'event_date': '2026-09-10'},
-            {**common, 'metric': 'passive_reported_cash', 'actual_value': '500.00',
-             'work_order_id': 'deleted', 'order_status': '删除', 'event_date': '2026-09-11',
-             'student_id': 'S1', 'cash_channel': '网络资源', 'cash_campaign_name': '活动A'},
-        ]
-
-        facts = build.training_facts(rows, people)
-
-        self.assertEqual([(fact['metric'], fact.get('work_order_id')) for fact in facts],
-                         [('orders', 'active'), ('cash', 'deleted')])
-        self.assertTrue(facts[1]['counts_toward_completion'])
-        self.assertEqual(facts[1]['order_status'], '删除')
-
-    def test_confirmed_offline_order_leaves_current_but_stays_in_legacy_and_unknown_ids(self):
-        reference = WorkOrderReference(
-            path_to_first_channel={'新媒体-小语种': '新媒体'},
-            path_channel_to_corrected_channel={('新媒体-小语种', 'raw'): '小语种'},
-            country_to_line={}, path_channel_counts={}, country_line_counts={},
-        )
-
-        def row(work_order_id, source_path='新媒体-小语种'):
-            return {
-                'work_order_id': work_order_id, 'source_team': '', 'adviser': '确认顾问',
-                'main_active_type': '被动', 'resource_active_type': '被动',
-                'source_path': source_path, 'source_channel': 'raw', 'first_channel': '',
-                'second_channel': '', 'intended_country_source': '日本', 'resource_description': '',
-                'source_row_number': 1, 'event_date': '2026-06-28',
-            }
-
-        rows = [row('33436045'), row('unknown-id'), row('ssc-row', '新媒体-其他')]
-        current, legacy, labels = build.study_facts(
-            rows, {'确认顾问': '留学'}, reference,
-            exclude_current_work_order_ids=['33436045'],
-        )
-
-        self.assertEqual([fact['work_order_id'] for fact in current], ['unknown-id'])
-        self.assertEqual(len(legacy), 3)
-        self.assertIn('33436045', {fact['work_order_id'] for fact in legacy})
-        self.assertEqual([fact['second_channel'] for fact in current], ['小语种'])
-        self.assertEqual(labels, {'留学': 3})
-
     def test_money_and_total_keep_cent_precision(self):
         self.assertEqual(build.money("12.346"), 12.35)
         self.assertEqual(build.money("12.344"), 12.34)

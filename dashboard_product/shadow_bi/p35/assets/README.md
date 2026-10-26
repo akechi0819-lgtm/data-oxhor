@@ -3,7 +3,7 @@
 本组基于 YunYueSama 的 GitHub 角色素材包进行 AI 改绘，增加数据看板动作及眼镜。生成途径：Creative Agent Studio 共享 CLI 与 Canvas 图片 API。
 
 原作者：YunYueSama  
-原仓库：https://github.com/YunYueSama/codex-deepseek-pet
+原仓库：[YunYueSama/codex-deepseek-pet](https://github.com/YunYueSama/codex-deepseek-pet)
 
 保留随附完整 LICENSE 和原素材许可说明；本组经过修改。原许可对作者新增贡献及第三方角色参考的范围说明仍适用。
 
@@ -15,6 +15,6 @@
 - `04-dashboard-guide.png`：功能引导、看板讲解。
 - `05-success.png`：刷新、导出或处理成功。
 
-角色图为 1024×1024 PNG。实际透明通道检查记录见 `检查记录.json`。制作提示词见 `制作提示词.json`。
+角色图为1024×1024 PNG，当前原生BI的素材路由从本目录提供。制作时的检查记录/提示词未随素材复制到本仓库，本页不提供这些不存在的本地入口，也不将文件被引用视为额外的授权结论。
 
-当前为生成后供用户查看的素材，最终批准和正式任务导出尚待用户确认。
+`原素材许可说明.md` 是上游原文，里面 `docs/`、`design/`、`assets/` 的相对链接属于上游仓库目录，不是本项目路径；原文及LICENSE完整保留，不因此改变权利范围。

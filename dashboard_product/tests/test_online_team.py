@@ -2,6 +2,5 @@
 from dashboard_product.online_team.tests.test_data import (
     AggregationTests,
     BatchOutputTests,
-    ClassificationTests,
     PeriodAndTargetTests,
 )
