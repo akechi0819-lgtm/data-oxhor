@@ -44,3 +44,5 @@ root程序只读取固定batch下prepared回执及三Excel/包hash，复核当�
 Mac自动化bi-2“看板每日更新与运行观察”仍为ACTIVE/09:40，本线程未暂停。共同锁只防同时写，不防先后覆盖；本轮正式测试前由父线程协调暂停该生产者。新流程验收后收敛正式入口，不增加旧格式fallback或双跑；没有本轮新建日更任务。施工部署可用Mac，正式采集/上传/计算/发布触发只能Dot与server，Mac SSH代发布不计脱机成功。
 
 服务器回执：`warehouse-validation/raw-fixed-publish-deploy-20261026-task4/`的setup/security/final-receiver结果；本机任务4保存对应JSON与publisher-core-verified.txt。两处旧派生实体可释放，但清理方须先保留质量、指标、全部manifest/hash、输入绑定、查询及日志；本线程没有删除。
+
+补记：施工最后只读核查时，现网已由另一个用户手动线程于09:54:16更新为daily-20261026_094052（见notification-job-receipt-repair-20261026.md）。这不是新raw服务激活；Mac本地p5.daily直接SSH，不受receiver发布锁保护。本轮Dot真实新包及单链路切换仍未完成。

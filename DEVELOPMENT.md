@@ -1,3 +1,5 @@
+2026-10-26通知回执修复：手动线程先发8条成功、随后Dot HTTP控制job因执行器异常记录unknown；已定位两次触发来源。最小修复留存退出码/锁忙报告，独立无发送对账不改原unknown或DeliveryState；见`docs/notification-job-receipt-repair-20261026.md`。
+
 2026-10-26固定raw发布能力：现HTTPS现凭据新增publish-prepared空对象请求，root固定程序接P4并复验/失败恢复，raw计算账号无生产写权；服务已部署且负例/权限检查通过，尚无真实有效新包正式发布。昨日未验收不更不发，未合root证明方案。详见`docs/server-raw-fixed-publisher-20261026.md`。
 
 2026-10-26真实raw批次验收：父Dot云端单次HTTPS投送已贯通接收/双Snapshot/quality/39表构建；最终因业务截止10/24不满足10/25而failed（1048.176秒），未发布、未重跑，生产current不变。39文件与类型库完整性、三源和150文件基线hash均已只读核实；详细边界见`docs/server-raw-receiver-deployment-20261026.md`。

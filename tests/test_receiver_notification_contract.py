@@ -93,3 +93,25 @@ class WorkerTests(NotificationContractTests):
         execute=Mock(return_value=self.report('send-scheduled','partial',{'unknown':1,'pending':7}))
         self.assertFalse(self.invoke(payload,execute)['retryable'])
         self.invoke({**payload,'retry':True},execute);execute.assert_called_once()
+
+
+    def test_busy_exit_is_persisted_without_claiming_network_send(self):
+        payload={**self.payload,'operation':'send-scheduled'}
+        output=SimpleNamespace(returncode=75,stdout='',stderr='')
+        execute=Mock(return_value=output)
+        result=self.invoke(payload,execute)
+        self.assertEqual(result['status'],'blocked');self.assertTrue(result['retryable'])
+        self.assertFalse(result['network_send_attempted']);self.assertEqual(result['executor_returncode'],75)
+        identifier=c.job_id(payload)
+        evidence=json.loads((self.control/'executor-evidence'/(identifier+'-1.json')).read_bytes())
+        self.assertEqual(evidence['returncode'],75)
+        self.invoke(payload,execute);execute.assert_called_once()
+
+    def test_malformed_executor_keeps_audit_and_unknown_without_secrets(self):
+        payload={**self.payload,'operation':'send-scheduled'}
+        output=SimpleNamespace(returncode=2,stdout=json.dumps({'status':'blocked','error_type':'ValueError'}),stderr='synthetic private detail')
+        result=self.invoke(payload,Mock(return_value=output))
+        self.assertEqual(result['status'],'unknown');self.assertEqual(result['executor_returncode'],2)
+        self.assertEqual(result['executor_error_type'],'ValueError');self.assertFalse(result['retryable'])
+        evidence=(self.control/'executor-evidence'/(c.job_id(payload)+'-1.json')).read_text()
+        self.assertNotIn('synthetic private detail',evidence)

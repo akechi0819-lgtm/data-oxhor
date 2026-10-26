@@ -47,3 +47,14 @@ class ReceiverNotificationHTTPTests(unittest.TestCase):
         for item,status in [({**self.payload,'operation':'send-scheduled'},403),({**self.payload,'expected_release':'daily-wrong'},409),({**self.payload,'command':'uname'},400)]:
             self.assertEqual(self.client.post('/v1/notifications/jobs',headers=self.headers,json=item).status_code,status)
         self.assertFalse((self.root/'notify-pending').exists())
+
+    def test_reconciliation_is_an_additional_receipt_not_a_rewritten_job(self):
+        identifier='0'*64;path=self.control/'results'/(identifier+'.json')
+        original=json.dumps({'status':'unknown','retryable':False,'network_send_attempted':True}).encode();path.write_bytes(original)
+        folder=self.control/'reconciliations';folder.mkdir();(folder/(identifier+'.json')).write_text('{}')
+        receipt={'delivery_status':'sent','message_status_counts':{'sent':8},'no_send_performed':True}
+        with patch('monitoring_product.notification_job_reconcile.read_receipt',return_value=receipt):
+            value=self.client.get('/v1/notifications/jobs/'+identifier,headers=self.headers)
+        self.assertEqual(value.status_code,200);self.assertEqual(value.json['status'],'unknown')
+        self.assertFalse(value.json['retryable']);self.assertEqual(value.json['delivery_reconciliation'],receipt)
+        self.assertEqual(path.read_bytes(),original)

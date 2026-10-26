@@ -59,7 +59,11 @@ def run(mode, *, warehouse=Path('/var/lib/shadow-bi'), home=Path('/var/lib/shado
         raise ValueError('provisioned notification home required')
     started=time.monotonic()
     with (home/'.run.lock').open('a+b') as lock:
-        fcntl.flock(lock.fileno(),fcntl.LOCK_EX|fcntl.LOCK_NB)
+        try:fcntl.flock(lock.fileno(),fcntl.LOCK_EX|fcntl.LOCK_NB)
+        except BlockingIOError:
+            return {'status':'blocked','reason':'notification_executor_busy','release_id':release.name,
+                    'as_of_date':manifest['as_of_date'],'network_send_attempted':False,
+                    'message_count':0,'message_status_counts':{}}
         manifest,_,_=load_library(release/'library',manifest['batch_id'])
         rules=n.rule_binding()
         version=hashlib.sha256(n.canonical(rules)).hexdigest()[:16]
@@ -76,7 +80,10 @@ def run(mode, *, warehouse=Path('/var/lib/shadow-bi'), home=Path('/var/lib/shado
             'data_through':manifest['coverage']['data_through'],'message_count':len(result['messages']),
             'message_status_counts':dict(counts),'deduplicated':sum(bool(row.get('deduplicated')) for row in result['messages']),
             'imported_state_ready':ready,'output_dir':str(output),'bundle_dir':str(bundle),
-            'elapsed_seconds':round(time.monotonic()-started,3),'network_send_attempted':sending}
+            'elapsed_seconds':round(time.monotonic()-started,3),
+            'network_send_attempted':any(row.get('status') in {'sent','sending','unknown'}
+                                         and not row.get('deduplicated') and not row.get('blocked')
+                                         for row in result['messages'])}
 
 
 def main():

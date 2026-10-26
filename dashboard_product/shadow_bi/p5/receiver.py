@@ -286,7 +286,12 @@ def notification_job(identifier):
     try:
         if not NOTIFY_ENABLED:raise nc.Rejected('notification capability disabled',503)
         path=NOTIFY_CONTROL/'results'/(identifier+'.json')
-        if path.is_file():return jsonify(json.loads(path.read_bytes())),200
+        if path.is_file():
+            raw=path.read_bytes();value=json.loads(raw)
+            if (NOTIFY_CONTROL/'reconciliations'/(identifier+'.json')).is_file():
+                from monitoring_product.notification_job_reconcile import read_receipt
+                value['delivery_reconciliation']=read_receipt(NOTIFY_CONTROL,identifier,raw)
+            return jsonify(value),200
         if (ROOT/'notify-pending'/identifier).is_file():return jsonify({'job_id':identifier,'status':'queued'}),200
         return jsonify({'error':'not found'}),404
     except (OSError,ValueError,nc.Rejected) as error:return _notify_error(error)
