@@ -25,3 +25,11 @@ DeliveryState八项全部sent，10:02:35–10:02:45，含资源hash和delivery�
 固定raw publish能力提交ab33cee7已部署，774项完整回归及实际权限/负例验证通过；尚无Dot新三Excel包prepared后正式发布。09:54的现网变化是上述Mac手动流程，不算Dot脱机更新。Mac直接SSH日更不受receiver publisher锁保护，正式Dot发布窗仍需父协调唯一生产者。两处旧computed/workspace约4.90GiB可释放，先保留质量、指标、manifest/hash、输入绑定与日志；本线程未删。
 
 本次修复的测试覆盖忙锁不误报发送、真实不确定结果不重放、错误码脱敏持久化、对账拒绝非sent/错批次/错Snapshot/错日期/资源不一致，以及GET不覆盖原unknown。真实修复验收只运行对账，不运行preview、send-scheduled或任何渲染发送入口。
+
+## 实际修复验收
+
+完整回归787 passed、10 skipped、198 subtests；10项仍为9个可选MCP协议依赖和1个锁定Superset认证模块。专项66 passed、20 subtests。部署仅在通知entry/dispatch锁空闲、通知服务inactive且队列为空时进行；通知服务没有重启，没有调用preview/send-scheduled。新控制代码位于`/srv/shadow-bi-notify/releases/a5c44ce258756a16251ed1a8e957cfbc140cf561`。
+
+10:28:41执行独立no-send对账：原unknown结果SHA256仍为829dd04688034b88d9c31305f72975f905b4fbdc030918e27c990339ef349b0a，DeliveryState SHA256仍为97debc0a297c597e26316716c5d2de560859c19736598d3c6670981e2d8e7346，BI current仍daily-20261026_094052。已有HTTP身份实读附加回执成功。GET原job仍status=unknown/retryable=false，并增加delivery_reconciliation.delivery_status=sent、message_status_counts.sent=8、no_send_performed=true；不代表该HTTP job自身进行了发送。
+
+对账回执在notify-control/reconciliations/9cbbb2f9bcd6ea474083bd2e694fa291ae262d68adacc1fb732899df71af54e6.json；原results同名文件未覆盖，另留原unknown只读审计副本。root部署/不变性证据在warehouse-validation/notify-control-repair-20261026-task4/deploy-result.json；本机任务4同名部署结果及manual-notify-origin-20261026.json记录完整来源链。
