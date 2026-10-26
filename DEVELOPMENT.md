@@ -1,4 +1,4 @@
-本分支本地候选（未部署、未合main）：显式区分最大业务记录日与受保护的来源完成水位，缺证据为coverage_unverified；794 tests passed、10 skipped、198 subtests。原失败回执与正式current不变，详见`docs/server-source-completion-candidate.md`，实际来源完整性及业务选项仍待主线程确认。
+本分支本地候选（未部署、未合main）：显式区分最大业务记录日与受保护的来源完成水位，缺证据为coverage_unverified；794 tests passed、10 skipped、198 subtests。原失败回执与正式current不变，详见`docs/server-source-completion-candidate.md`，用户已明确严格完整才更新，未完成/未验证不更新不发；来源完成证明及正式发布权限/接线仍待主线程处理。
 
 2026-10-26真实raw批次验收：父Dot云端单次HTTPS投送已贯通接收/双Snapshot/quality/39表构建；最终因业务截止10/24不满足10/25而failed（1048.176秒），未发布、未重跑，生产current不变。39文件与类型库完整性、三源和150文件基线hash均已只读核实；详细边界见`docs/server-raw-receiver-deployment-20261026.md`。
 
