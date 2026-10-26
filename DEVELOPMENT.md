@@ -2,11 +2,11 @@
 
 ## 当前整合状态（2026-10-26）
 
-本机 `main` 是代码整合基线；当前产品为 Superset 原生 BI，沿用原 18 个账号及已授权只读范围。正式运行入口见 [部署说明](dashboard_product/DEPLOYMENT.md)。开发记录与服务器部署分别验收，本地合并不代表生产代码已更新。
+本机 `main` 是代码整合基线；正式产品为 Superset 原生 BI，沿用原 18 个账号及已授权只读范围。服务器已部署 raw receiver、root 只读历史基线、受限双 Snapshot / quality / 共享计算 worker 和固定 publisher；10月26日真实批次已在服务器实际跑到39张表，最终因业务截止不匹配以 `failed/published=false` 结束，没有发布新 raw release。服务器计算和数仓能力已落地，与有效新包发布、持续日更及唯一生产者收口是不同验收项。正式生产状态与调度事实见[部署说明](dashboard_product/DEPLOYMENT.md)及对应日期回执；本地合并不代表服务器新代码已部署。
 
-- 10月26日手动日更已发布 `daily-20261026_094052`，双仓截至10月25日，三范围18项值验证通过；24/25/26三日成功运行记录已收录，但不自动宣布阶段整体验收。见 [P5日更回执](docs/shadow-bi-p5-daily-gray-20261024.md)。
+- 10月26日 Mac `p5.daily` 手动入口更新记录为 `daily-20261026_094052`，双仓截至10月25日，三范围18项值验证通过；24/25/26三日成功运行记录已收录，但不自动宣布阶段整体验收。此为具体日期的生产记录，不能据此将 Mac 手动入口列为长期默认。见 [P5日更回执](docs/shadow-bi-p5-daily-gray-20261024.md)。
 - 同批8条通知已由手动入口发至原5通道；后续Dot HTTP job仍保留原 `unknown`，附加无发送对账证明已有8条sent，不重发、不改原DeliveryState。见 [通知回执修复](docs/notification-job-receipt-repair-20261026.md)。
-- 服务器raw接收、受限计算及固定发布能力已有10月26日部署回执；此前真实包因截止日期不符而失败，尚无真实有效新raw包正式发布验收。现行Mac日更与raw发布尚未完成唯一生产者切换。
+- 服务器raw接收、只读历史基线、双Snapshot/quality/共享聚合及固定发布能力均有10月26日部署回执；真实批次实际完成了39表计算，随后因截止日期不符而未通过最终门禁。有效新raw包正式发布、持续日更和唯一生产者收口仍待各自验收；本轮未实读调度平台。
 - 来源完整性验证已进入本地整合：缺少受保护的昨日完成证明即 `coverage_unverified`；计算封口、候选复用及固定发布前均复核同一证明。完整零业务日不要求伪造昨日记录，最大记录日与经验证截止日分开保存。实现及验证边界见 [来源完整性说明](docs/server-source-completion-candidate.md)。本轮不部署、不更改任何调度、不发送通知。
 - 经营人头维持观远1500元班级金额门槛及报名人次规则；个人业绩和人员产能维持各自资格，见 [共同计算口径](dashboard_product/management/README.md)。不从旧工作树恢复已废弃口径。
 
@@ -23,11 +23,11 @@
 
 | 模块 | 目录 | 状态 | 说明 |
 |---|---|---|---|
-| 数据接入 | `data_acquisition/` | 已落地 | BI/Tencent采集、历史合并和双Snapshot；Mac真实日更已有成功记录，raw脱机正式发布仍待验收 |
+| 数据接入 | `data_acquisition/` | 已落地 | BI/Tencent采集、历史合并；服务器raw worker已运行双Snapshot、quality与39表共享计算，真实raw正式发布和持续日更仍待验收 |
 | 数据平台 | `data_platform/` | 已落地 | landing、不可变 Snapshot、schema、quality、受控只读 SQL |
 | 工作区建模 | `workspace_modeling/` | 已落地 | Pack、Bridge、对齐向导、首次部署、Casebook、内测反馈 |
 | 自由分析交付 | 宿主 Agent + `workspace_modeling.delivery` | 已落地 | 分析编排与文件生成由宿主完成，确定性组包由 `workspace_modeling.delivery` 完成；PPT 调用宿主全局 `ppt-master` |
-| 固定看板 | `dashboard_product/` | 正式原生BI | 共同计算生成39张封存业务表，P4重建装载；旧静态页面仅保留恢复用途 |
+| 固定看板 | `dashboard_product/` | 正式原生BI | Superset已上线；服务器root publisher与P4链路已部署，实际raw批次跑到39表后被截止门禁拦截，未发布新release |
 | 日常监控 | `monitoring_product/` | 已落地 | 固定release通知入口与HTTP作业回执，8消息/5通道；调度状态须由宿主实读 |
 
 ## 历史施工记录
@@ -142,7 +142,7 @@ P0已由总线程复验通过。P1在指定工作树新增独立`dashboard_produ
 
 2026-09-29 用户另行立项静态看板隔离重构，计划见 [看板静态重构计划](./docs/dashboard-static-rebuild-plan.md)：保留 HTML/CSS/JS 静态托管并复用现有 SQL；新版看板与推送消费同一批结构化计算结果，推送不再独立取数或重复业务计算。P0/P1 已在 `market_workspace/Programs/dashboard_rebuild/` 完成本地线上融合样板，产出共同结果与逐笔数据；292 个保护文件未变，12 项合成测试、17 期间/42 个独立对照值及浏览器检查通过，随后用户已验收P0/P1并授权线上特供替换：正式模块迁至 `dashboard_product/online_team/`，自包含HTML沿用原地址，接入原看板日更脚本，代码提交 `9d6f520`；2026-09-30 Grok安装及17项测试、当前数据对账通过。服务器SSH连接数限制阻断即时发布，公网仍为旧页，待既有日更完成发布；实际日更为Asia/Shanghai每天10:06。P2其他管理视图、P3钉钉接入尚未展开；本次不改数仓、主/线下计算或钉钉任务。验收和上线说明见计划链接。这是独立新需求，不恢复历史已取消的架构施工。
 
-当前架构演进阶段经用户确认在第 2 轮后结束，没有本阶段待完成施工，已完成查询、自由分析交付与 Casebook 证据链。用户确认现有静态看板和简单对账够用，常见差异多在人工录入或口径，因此取消看板、监控最终产物统一改造；当时案例提醒与指标执行关联均待真实需求验证，不再按固定轮次自动施工。此次用户接受新核查后的有限修复：修正来源提取、补分析结束提醒与纯文字保存说明、统一扩展边界；不恢复原六轮计划，指标执行关联继续不排期。原阶段历史见 [施工计划](./docs/history/agent-architecture-plan-20260918.md)。看板继续按已确认指标和 SQL 生成静态图表，不在刷新时临时改变业务口径。
+当前架构演进阶段经用户确认在第 2 轮后结束，没有本阶段待完成施工，已完成查询、自由分析交付与 Casebook 证据链。用户确认现有静态看板和简单对账够用，常见差异多在人工录入或口径，因此取消看板、监控最终产物统一改造；当时案例提醒与指标执行关联均待真实需求验证，不再按固定轮次自动施工。此次用户接受新核查后的有限修复：修正来源提取、补分析结束提醒与纯文字保存说明、统一扩展边界；不恢复原六轮计划，指标执行关联继续不排期。原阶段历史见 [施工计划](./docs/history/agent-architecture-plan-20260918.md)。当时已确认的指标和 SQL 口径继续作为计算依据；当前产品界面及服务器发布链路以本文件顶部和正式部署说明为准。
 
 自由分析主线继续使用 `data_platform` 的显式 `run_id`、`snapshot_id` 和受控查询；表格/图表使用宿主原生能力，PPT 由宿主全局 `ppt-master` 按需选择 Quick 或 Default。项目内置 Quick 编排和固定 PPT Master 副本已拆除。
 
@@ -165,8 +165,6 @@ python3 -m interfaces.data_platform --help
 python3 -m interfaces.business_pack validate
 python3 -m interfaces.company_bridge validate --help
 python3 -m interfaces.casebook --help
-python3 -m dashboard_product.management.build --help
-python3 -m dashboard_product.management.publication --help
 python3 -m monitoring_product.shared_delivery --help
 python3 -m unittest discover -s dashboard_product/tests -v
 sh tools/run_tests.sh -v

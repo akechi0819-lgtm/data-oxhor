@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate the C-layer htpasswd for the single full dashboard.
+"""Maintain the C-layer htpasswd consumed by the native BI account verifier.
 
 Passwords are read from the xlsx password book (mode 600). They are never
 printed. Do not commit deploy/secrets/. Do not upload initial-passwords to

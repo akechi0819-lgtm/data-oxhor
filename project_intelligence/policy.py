@@ -36,9 +36,10 @@ DOCUMENTS = (
     'workspace_modeling/onboarding/service.py',
     'workspace_modeling/casebook/router.py',
     'workspace_modeling/operations/personnel.py',
-    'dashboard_product/refresh.py', 'dashboard_product/dashboard_chrome.py',
+    'dashboard_product/refresh.py',
     'dashboard_product/config/saved_queries.json',
-    'dashboard_product/management/build.py', 'monitoring_product/shared_delivery.py',
+    'dashboard_product/management/calculation.py', 'dashboard_product/management/validation.py',
+    'monitoring_product/shared_delivery.py',
     'project_intelligence/policy.py', 'project_intelligence/service.py',
     'project_intelligence/__main__.py',
 )

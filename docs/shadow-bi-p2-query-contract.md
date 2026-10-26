@@ -4,7 +4,7 @@
 
 ## 输入与构建
 
-`dashboard_product.management.calculation.calculate` 是唯一管理业务编排入口，复用原SQL及Python规则，返回内存模型和真实受控查询回执。旧 `management.build` 仅调用它并打包旧页面；`shadow_bi.library` 调用它建立派生库。没有规则引擎、配置语言或工单×现金明细连接。
+`dashboard_product.management.calculation.calculate` 是唯一管理业务编排入口，复用原SQL及Python规则，返回内存模型和真实受控查询回执。`shadow_bi.library` 调用它建立派生库，服务器raw worker复用相同入口。旧静态 `management.build` 及HTML打包/发布代码已删除，不提供恢复兼容入口。没有规则引擎、配置语言或工单×现金明细连接。
 
 构建必须显式提供工作区、BI Snapshot、留学 Snapshot、run-id和as-of-date。工作区指针仍由原受控入口核对。每批输出 `Output/ShadowBI/<run-id>/library/`，存在即拒绝覆盖；失败不切换任何旧状态。`copy-inputs` 复制 `Work`、`Input` 和留学历史查询证据目录（包括lineage明确依赖的三份父Snapshot回执），不复制旧看板结果。历史查询证据属于来源闭包，不能因它位于Output目录就删去。
 

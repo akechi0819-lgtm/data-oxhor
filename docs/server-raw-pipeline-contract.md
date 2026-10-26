@@ -1,6 +1,6 @@
 # 原始输入服务器链路合同
 
-本合同以本地 `main` 源码为准。既有接收/受限consumer及固定publisher的服务器部署分别见 [10月26日接收回执](server-raw-receiver-deployment-20261026.md) 和 [固定发布回执](server-raw-fixed-publisher-20261026.md)。来源完整性验证在本轮本地整合，尚未部署；此前真实raw批次失败，尚无有效新raw包正式发布验收。prepare不自动发布，服务器能力存在不等于日更已接管。
+本合同以本地 `main` 源码为准。既有接收/受限consumer及固定publisher的服务器部署分别见 [10月26日接收回执](server-raw-receiver-deployment-20261026.md) 和 [固定发布回执](server-raw-fixed-publisher-20261026.md)。来源完整性验证在本轮本地整合，尚未部署；历史数仓基线、双Snapshot与聚合计算已经迁入服务器，并已有真实三Excel批次跑到39表构建。此前该raw批次在截止日门禁失败，不能把该批失败误写成数仓/聚合尚未上服务器。prepare不自动发布，持续日更与唯一生产者安排须按独立回执核对。
 
 ## 输入与状态
 

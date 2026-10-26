@@ -1,21 +1,19 @@
 # 看板发布 Agent
 
-## 正式入口
+## 正式产品与服务器链路
 
-当前正式产品是 Superset 原生 BI，稳定代码路径保留 `dashboard_product.shadow_bi`。运行与恢复以 [部署说明](../../dashboard_product/DEPLOYMENT.md) 为准；不要按旧P1实验或旧静态部署说明重新安装生产环境。
+正式 BI 产品为 Superset 原生看板，稳定代码路径为 `dashboard_product.shadow_bi`。服务器已部署 raw receiver、root 只读历史基线、受限 worker 和 root 固定 publisher；worker 已实际运行双 Snapshot、quality 与39张业务表的共同计算。2026-10-26真实批次因业务截止不匹配以 `failed/published=false` 结束，没有生成raw release。正式部署状态及操作边界见[部署说明](../../dashboard_product/DEPLOYMENT.md)和对应[接收回执](../../docs/server-raw-receiver-deployment-20261026.md)、[publisher回执](../../docs/server-raw-fixed-publisher-20261026.md)。
 
-日更使用 `python3 -m dashboard_product.shadow_bi.p5.daily --workspace customers/shadow_bi_daily`；这是写入/发布命令，须有日更或发布授权，不能作为只读检查。复用BI/Tencent采集、明确双仓Snapshot、现有共同计算、投影、封存和P4验证激活，业务截止严格as_of-1。
+有效新 raw 包正式发布、持续日更及唯一生产者收口仍需分别验收。Mac `dashboard_product.shadow_bi.p5.daily` 仍是现存手动入口，10月26日有一次更新记录；按用户要求，这只作为已存在入口和有日期的生产事实，不作为长期默认操作路径。外部任务启停须实读调度平台，本地提交或回执摘要不能替代当前核验。
 
-正式状态必须核对服务器current、manifest、真实业务查询及页面；health为正常不能替代全链路成功。任一源失败或身份不匹配保留上一成功版，不伪造回执、不混仓、不倒退截止日。
+处理生产更新请求时，先按明确授权核对来源任务、原始输入、日期窗口和 raw 批次状态；区分 `received`、`prepared`、`failed` 与 `published`。只有同批状态为 `prepared` 且身份、Snapshot、quality 与业务截止已核验，才可按明确授权调用固定 publisher。`failed/published=false` 保留并如实报告，不通过改日期、重算或降低门禁发布。
 
-## 通知与兼容代码
+本地 `main` 另加入受保护来源完成证明门禁，要求计算、候选复用和固定发布校验同一证明。10月26日服务器部署回执对应版本尚不含此项新门禁，不能把本地整合说成服务器已安装。合同见[raw链路](../../docs/server-raw-pipeline-contract.md)和[来源完整性](../../docs/server-source-completion-candidate.md)。
 
-`management/calculation.py`为共同业务计算，`management.build`继续为同批通知及恢复生成shared_result。正式通知入口为`monitoring_product.server_notify`，由`release_notifications`从固定release构建通知包，再调用`shared_delivery`去重投递，不独立改SQL、业务归属、接收者或DeliveryState。
+## 共享计算与通知
 
-旧`run_management_daily.sh`默认只准备通知批次，不再激活静态网页。静态发布/激活保留dry-run与显式恢复开关`ALLOW_LEGACY_STATIC_PUBLISH=1`，不得当日常新版入口。完整旧Agent说明已归档于`docs/history/dashboard/static-publisher-agent-through-20261025.md`。
+`management/calculation.py` 保留为共享业务计算，供 raw worker、本地已有生产逻辑及原生 BI 库构建复用。`online_team/build.py` 提供共享计算和受控查询 helpers；`dashboard_product/refresh.py` 提供来源映射、归属和历史对账 helpers。人员规则及花名册归 `workspace_modeling/operations/`。
 
-外部任务的启停与源码同步分别验收；Git合并不代表Grok任务已停或Dot已接管。只有核实具体任务、来源及通知连续性后才协调切换。不另建重复调度，不在本任务发送钉钉。
+正式通知入口为 `monitoring_product.server_notify`，由 `release_notifications` 从固定正式 release 构建通知包，再调用 `shared_delivery` 去重投递；通知不独立查询或重算数仓。10月26日有8条 `sent` 记录，关联HTTP job仍为 `unknown`，只读对账不等于该job自身发送成功；不得重复发送或清空 DeliveryState。详见[通知作业回执](../../docs/notification-job-receipt-repair-20261026.md)。
 
-## 数据边界
-
-所有查询通过受控入口，携带显式Snapshot/run_id；保留Pack、Bridge、来源与参考资料的现有权威边界。不读取或复制凭据，不将客户输入、整个工作区或运行产物加入Git。raw接收/受限计算和固定publisher已有独立部署回执，但真实新包正式发布及唯一生产者切换仍待验收；本地来源完成证明门禁尚未部署。合同见[raw链路](../../docs/server-raw-pipeline-contract.md)与[来源完整性](../../docs/server-source-completion-candidate.md)。不得把本地合并当服务器上线，未来MCP权限不由BI上线自动授予。
+数据查询遵循已确认工作区、Snapshot、Pack、Bridge、来源和参考资料边界。不得读取或复制凭据，不将客户输入、整个工作区或运行产物加入Git。未来MCP权限不由BI上线自动授予。

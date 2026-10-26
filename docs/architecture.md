@@ -1,4 +1,4 @@
-> 正式 BI 状态以日期回执为准：2026-10-26 current 为 `daily-20261026_094052`，产品界面为 Superset 原生 BI；Mac `p5.daily` 仍是正式更新入口。服务器 raw 固定发布能力已部署，但 10-26 Dot 批次未通过门禁，未发布或切生产者。通知适配已部署，Dot 10:00 日程是通知触发，不是 BI 采集调度。服务器持有发布业务库；原始历史合并和业务计算仍在采集端，完整服务器数仓迁移暂停。代码与责任边界见[正式基线](bi-production-baseline-20261025.md)及[当前部署回执](server-raw-fixed-publisher-20261026.md)。
+> 正式 BI 产品为 Superset 原生界面。10月26日日期回执记录 current `daily-20261026_094052`（数据截至10-25）；该次由 Mac `p5.daily` 手动入口更新，不代表长期默认路径。服务器 raw receiver、root 只读历史基线、受限双 Snapshot / quality / 共享计算 worker 和固定 publisher 已部署；真实 Dot 批次跑到39张表后因业务截止不匹配以 `failed/published=false` 结束，没有发布 raw release。有效新包正式发布、持续日更和唯一生产者收口仍待分别验收，本轮未实读服务器或调度平台。Dot 10:00 日程记录针对通知，不是 BI 更新调度。代码与责任边界见[正式基线](bi-production-baseline-20261025.md)、[raw接收回执](server-raw-receiver-deployment-20261026.md)及[固定发布回执](server-raw-fixed-publisher-20261026.md)。
 
 # 系统架构
 
@@ -71,21 +71,23 @@
 
 运行以显式 `run_id` 区分，查询和恢复以显式 `snapshot_id` 定位仓库。源 SHA-256 用于 inspect/ingest 的源绑定以及 Snapshot/Artifact manifest。每个受控查询结果同时记录由 `ingest.sheets` 反查的 `referenced_relations` 与 `referenced_source_ids`；这只服务于冻结分析的来源校验，不扩张为统一血缘平台。SQL 是直接查询输入或保存查询内容。Education Pack 1.0.0 与 Company Bridge 按企业工作区独立版本化；Data Platform 不伪造 Pack/Bridge 选择。
 
-公共证据演进只统一查询回执、文件身份与业务交付清单的公共字段和引用，不统一产品业务内容，也不建设 Artifact Registry。Data Platform 生产物理执行证据，业务层绑定工作区与 Pack/Bridge，Casebook 复制最小引用闭包并验证；Pack.metrics 保持指标定义权威，不新建第二套指标库。字段责任、路径和分轮状态见 [公共证据合同](./evidence-contract.md)。第 2 轮已实现自由分析链路：查询始终落盘回执，交付组包与 Casebook 可独立验证；自由分析和市场入口通过 Data Platform 受控查询读取。管理批次继续生成同批业务结果；正式 BI 产品现为 Superset 原生界面，静态 HTML 发布属于历史兼容流程。通知消费固定正式 release，不独立查询数仓。
+公共证据演进只统一查询回执、文件身份与业务交付清单的公共字段和引用，不统一产品业务内容，也不建设 Artifact Registry。Data Platform 生产物理执行证据，业务层绑定工作区与 Pack/Bridge，Casebook 复制最小引用闭包并验证；Pack.metrics 保持指标定义权威，不新建第二套指标库。字段责任、路径和分轮状态见 [公共证据合同](./evidence-contract.md)。第 2 轮已实现自由分析链路：查询始终落盘回执，交付组包与 Casebook 可独立验证；自由分析和市场入口通过 Data Platform 受控查询读取。BI 产品界面为 Superset 原生看板，服务器计算链路复用同一份业务计算代码；通知只消费固定正式 release，不独立查询数仓。
 
 固定看板和推送共用一条管理批次链路，不经过自由分析交付：
 
 ```text
-Mac p5.daily（当前正式更新入口）→ 显式双仓 Snapshot / 共同计算 → 固定业务表
-  ├→ 服务器 P4 构建与验收 → Superset 原生 BI current
-  └→ 固定 release → release_notifications → shared_delivery / 传输适配 → 8条通知
+Dot 三 Excel 输入 → 服务器 raw receiver → root 只读历史基线
+  → 双仓 Snapshot / quality → 共同计算 / 39张业务表
+  → 固定 root publisher / P4 → Superset 原生 BI release / current
+                                            └→ release_notifications
+                                                 → shared_delivery / 传输适配 → 8条通知
 ```
 
-同批通知内容、查询回执和 DeliveryState 保存在受限工作目录，不发布到 BI 页面根；只将投递所需的图片与表格资源提供给原通知资产路径。钉钉 webhook 和发布凭据属于 C 层，不进入公开仓库或 MCP。静态网页发布模块不再是当前 BI 页面入口。
+同批通知内容、查询回执和 DeliveryState 保存在受限工作目录，不发布到 BI 页面根；只将投递所需的图片与表格资源提供给固定通知资产路径。钉钉 webhook 和发布凭据属于 C 层，不进入公开仓库或 MCP。
 
-本地main的raw候选链路另要求受保护来源完成证明：计算预检缺证据则停止，候选封口/复用及固定发布前复核同一证明；最大记录日与经验证截止分开。此门禁尚未部署，Mac生产更新仍走现有入口，不能写成所有生产者已受约束。合同见[来源完整性](server-source-completion-candidate.md)。
+本地main的raw计算与固定发布代码另要求受保护来源完成证明：计算预检缺证据则停止，候选封口/复用及固定发布前复核同一证明；最大记录日与经验证截止分开。10月26日部署回执对应服务器已安装版本，不含本轮本地新增的完成证明门禁，因此不能推断该新门禁已在服务器生效。合同见[来源完整性](server-source-completion-candidate.md)。
 
-截至 2026-10-26 的日期回执，current 为 `daily-20261026_094052`，数据截止 10-25；该次更新由 Mac `p5.daily` 手动完成，仍是正式更新入口。固定 raw 接收与发布服务已部署，但 Dot 批次 `raw-20261026-dot-001` 未通过业务截止门禁、状态为 failed/published=false，未激活新版本，也未切换唯一生产者。自 10-26 起的 Dot 10:00 日程记录属于通知触发，与 BI 采集／刷新日程分开；Grok 例行按用户要求停止。以上为有日期的回执状态，本次文档更新未读取调度平台实时状态。详见[通知作业修复回执](./notification-job-receipt-repair-20261026.md)、[固定发布回执](./server-raw-fixed-publisher-20261026.md)和[接收部署回执](./server-raw-receiver-deployment-20261026.md)。
+截至 2026-10-26 的日期回执，current 为 `daily-20261026_094052`，数据截止10-25；该次由 Mac `p5.daily` 手动入口更新。此项仅记录已发生的生产者，不把 Mac 入口定为长期默认。服务器worker实际运行双Snapshot、两份quality及39表计算，但 Dot 批次 `raw-20261026-dot-001` 因业务截止不匹配以 `failed/published=false` 结束，未激活新版本。有效新包正式发布、持续日更和唯一生产者收口仍需分别验收；本轮未实读服务器或调度平台。自10-26起的Dot 10:00日程记录属于通知触发，与BI采集／刷新分开；Grok例行按用户要求停止。详见[通知作业修复回执](./notification-job-receipt-repair-20261026.md)、[接收部署回执](./server-raw-receiver-deployment-20261026.md)和[固定发布回执](./server-raw-fixed-publisher-20261026.md)。
 
 ## 4. 确定性边界
 
@@ -146,7 +148,7 @@ Codex、DeepSeek Harness 等宿主已具备 HTML、图表和文件生成/交付�
 
 保留模块内已有的必要约束：只读查询、Snapshot 不覆盖、unresolved 阻断和文件验收。本次核查后的有限修复只补齐既有模块连接，不新增总 Agent、Capability Registry 系统、独立 Metric Layer 或 Artifact 平台；复杂度门槛不是恢复已取消施工的授权。其他扩展须由具体问题或明确新需求提出，按复用模块、扩展接口、新增模块、新增 Agent 的顺序另行评估。
 
-## 9. 管理批次与通知投递（当前代码合同；静态施工见[历史归档](./history/dashboard/static-publisher-agent-through-20261025.md)）
+## 9. 通知投递（当前代码合同）
 
 管理构建和日常钉钉投递按同一批次身份运行：
 

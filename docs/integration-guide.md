@@ -1,6 +1,6 @@
 # 核心 CLI 接入指南
 
-> 管理批次由 `dashboard_product.management.build` 绑定明确BI及留学Snapshot；页面与8条／5通道通知消费同批结果。腾讯新版已构建／组包，本次未激活或发送；原例行节奏09:45／10:24的当前启停以平台为准。发布与调度边界见[部署说明](../dashboard_product/DEPLOYMENT.md)，共享花名册位于 `workspace_modeling/operations/people.json`。
+> 正式 BI 为 Superset 原生界面。服务器 raw receiver、root 只读历史基线、受限双 Snapshot / quality / 共享计算 worker 和固定 publisher 已部署；10月26日真实批次实际运行到39张表，最终因业务截止不匹配以 `failed/published=false` 结束，没有发布新 raw release。Mac `p5.daily` 仍存在并有10月26日手动更新记录，不因此列作长期默认路径。有效新包正式发布、持续日更和唯一生产者收口分别待验收。详见[部署说明](../dashboard_product/DEPLOYMENT.md)。
 
 ## 1. 当前公开入口
 
@@ -57,17 +57,18 @@ python3 -m interfaces.data_platform --help
 | `data_acquisition.jobs.build_study_abroad_warehouse` | Data Acquisition；现有客户工作区、明确的完整资源与签约工作簿、run_id、snapshot_id、截止日 | 整理三张业务表，复用 Data Platform 创建 `Work/StudyAbroad/` 内独立 Snapshot 和指针 | 原文件只读；不修改 BI 工作区指针、工单或现金来源；无网络获取或发布 |
 | `dashboard_product.management.study_abroad_query` | Dashboard；显式留学 Snapshot、run_id、日期范围和命名 SQL | 经 Data Platform 受控查询写 `Output/StudyAbroad/` 的 SQL、参数、结果及回执 | 只读独立留学仓；不访问 BI 仓、不刷新页面或发送通知 |
 | `dashboard_product.management.study_abroad_channels` | Dashboard；显式留学 Snapshot、日期、当前同公司 Bridge 和渠道参考表 | 受控渠道映射预览、未命中清单、Bridge 候选及已明确确认的独立渠道 Bridge | 只读原 BI Bridge/参考；不切换正式 Bridge 或生产看板 |
-| `dashboard_product.management.build` | Dashboard；工作区、显式 Snapshot、run_id、as-of-date；通过 Data Platform 受控查询 | 写同批 `shared_result.json`、私有通知/核对引用及 18 个静态展示资源 | 本地构建；不直接发送钉钉 |
-| `dashboard_product.shadow_bi.p5.daily` | 正式原生BI日更；明确工作区和当日双源 | 采集、双Snapshot、共同计算、39表、P4装载和验版 | 写数据并真实发布；须有对应授权 |
-| `dashboard_product.shadow_bi.p5.raw_compute` | 固定三Excel、root只读基线及完成证明；prepare/recheck | 新副本计算至prepared，或复验既有失败封存候选 | 不自动发布或通知；缺完整证明停止 |
-| `dashboard_product.management.publication` | Dashboard；同批 `shared_result.json`、输出目录 | 校验引用身份与哈希，生成仅含公开资源的 release manifest | 本地组包；不上传或切 live |
+| `dashboard_product.management.calculation` | Dashboard；共享业务计算函数，由 `shadow_bi.library` 等调用 | 计算管理事实、汇总和查询所需数据；不是命令行入口 | 写入范围由调用方负责 |
+| `dashboard_product.shadow_bi.p5.raw_inputs` | 固定BI工单、BI现金和腾讯三 Excel；显式公司、日期、批次与输出路径 | 生成固定格式输入 TAR，或在服务器接收前验证结构 | 本地封装输入；不运行业务计算或发布 |
+| `dashboard_product.shadow_bi.p5.raw_compute` | 服务器固定三Excel队列、root只读历史基线、公司和日期策略 | 新副本内更新双Snapshot、quality、共享计算及39表；状态按回执为 `prepared`、`failed` 等 | 已部署worker；不直接写 current、发布或发送通知 |
+| 固定 raw HTTPS API | `POST /shadow-bi/v1/raw-batches`、GET同批状态、prepared后空对象发布请求 | 接收固定输入、返回批次状态；root publisher按P4合同验收并切换 release | 有正式发布副作用；需同批prepared、完整验收与明确授权 |
+| `dashboard_product.shadow_bi.p5.daily` | 本机现存手动入口；10月26日日期回执记录其更新的 release | 采集、双Snapshot、共同计算和发布 | 写入并发布；非推荐长期默认路径，使用前核对当前生产状态与授权 |
 | `monitoring_product.shared_delivery` | Monitoring；同批 `shared_result.json`、as-of-date、state-dir；正式投递另需 C 层 env-file | dry-run 生成本地预览；正式投递使用共同结果的八条消息与同批附件 | 正式模式上传附件并发送已授权的钉钉通道；逐消息去重 |
 | `market_workspace/oxhor` | 市场工作面；固定数据工作区、显式 Snapshot/run | 只读 CLI 调用，写市场 Evidence；不提供导入/发布 | 无 |
 | `project_intelligence` CLI / stdio MCP | Project Intelligence；批准代码/文档、工作区结构元数据 | 只读上下文，不返回业务明细、不执行业务 SQL | 服务内无业务写入；远程接入边界见专门文档 |
 
 这是一份静态能力说明，精确参数与写入目录仍以各命令 `--help` 和模块合同为准。自由分析交付由宿主组织，不增加 `analyze` 核心服务或运行时 Capability Registry。
 
-`interfaces.data_platform` 仍是项目受控 SQL 查询的公开 CLI。`dashboard_product/refresh.py` 仅保留被导入的内部 source helper，不是受支持的 `python -m` 命令行库；正式BI日更使用 `shadow_bi.p5.daily`；`management.build` 用于共同计算、通知与本地静态诊断，不自行完成原生BI发布。
+`interfaces.data_platform` 仍是项目受控 SQL 查询的公开 CLI。`dashboard_product/management/calculation.py` 和 `dashboard_product/online_team/build.py` 保留共同计算、查询 helpers；`dashboard_product/refresh.py` 保留来源归属及历史对账 helpers。这些是共享实现，不是独立 CLI。服务器 raw worker 复用共享计算链路；Mac `shadow_bi.p5.daily` 仅说明仍存在的手动入口和10月26日运行记录。有效 raw 发布、持续日更和唯一生产者切换的当前状态见[部署说明](../dashboard_product/DEPLOYMENT.md)。
 
 每个子命令的精确参数以 `--help` 为准，例如：
 
@@ -165,24 +166,15 @@ python3 -m dashboard_product.management.study_abroad_channels \
   --start-date 2026-06-01 --end-date 2026-10-01
 ```
 
-管理看板实际切换：`study_abroad_facts.py`读取独立仓当前显式Snapshot，输出工单、正向现金和人头管理事实，保留来源产品、资源编号、客户键、来源行及本sheet归属。旧BI留学事实和旧渠道基线不再参与管理计算；语培及原BI市场总盘不变。共用结果分别保存BI和留学查询身份。总盘／线上／线下、渠道现金、个人现金、活动及通知流水均消费同批新事实；国际市场／SSC／待确认归属仅计留学总盘，展示层只单列SSC。留学和小语种客户去重结果分别展示。来源之外的月份为未覆盖，年度／季度仅显示已覆盖实际并标注范围，不输出留学同比。
+管理计算继续复用 `study_abroad_facts.py` 及 `management/calculation.py`：从独立仓显式 Snapshot 读取工单、正向现金和人头管理事实，保留来源产品、资源编号、客户键、来源行及本Sheet归属。BI事实与留学事实保持各自来源身份。总盘／线上／线下、渠道现金、个人现金、活动及通知所需汇总按已确认口径计算；国际市场／SSC／待确认归属仅计留学总盘，留学和小语种客户去重结果分别保留。上述业务口径由服务器raw计算链路复用，不提供原管理构建命令。
 
 人员产能与上述主看板归属分别核算：它从同一留学Snapshot的标准行读取“国际市场”作为语培向留学的跨业务输出，并从BI工单一级渠道“双分”读取反向输出；双方按现有人员名单、源归属与共创规则分摊。此改动不把国际市场改归语培总盘或线上／线下留学团队，不改变主看板个人与通知口径。
 
-```bash
-python3 -m dashboard_product.management.build \
-  --workspace customers/bi_operations \
-  --snapshot-id snapshot_bi_operations_20261003_v14audit \
-  --study-abroad-snapshot-id snapshot_study_abroad_sample_20260930_v1 \
-  --run-id run_study_board_connected_20261008 \
-  --as-of-date 2026-10-08
-```
-
-正式Mac日更由 `shadow_bi.p5.daily` 采集双源并传入两个明确Snapshot，缺留学仓不回退旧BI。正式通知发送还验证留学来源截至昨日；较旧样本可本地预览，但不因BI仓新鲜就发送旧留学数据。历史脚本 `run_daily_warehouses.sh` 可生成双仓配对，`run_management_daily.sh` 默认只准备通知批次，不抓源或自动发布静态站点，不作为原生BI日更入口。raw另按[固定合同](server-raw-pipeline-contract.md)处理三Excel；本地完整性门禁尚未部署，正式接管与调度启停须分别验收。
+当前服务器raw链路接收固定三Excel，在root只读历史基线副本上建立双Snapshot、运行quality和共享计算至39表，再由固定publisher按P4合同发布。10月26日真实批次实际跑到39表后被截止门禁拦截，状态 `failed/published=false`；因此有效raw新包正式发布、持续日更和唯一生产者收口仍待分别验收。Mac `shadow_bi.p5.daily` 仍存在并有10月26日手动运行记录，不作为长期默认入口。10月26日服务器部署不含当前main新增的来源完整性证明门禁；见[raw合同](server-raw-pipeline-contract.md)和[来源完整性合同](server-source-completion-candidate.md)。
 
 ### 2.3 投放费用手工输入
 
-广告费用只通过用户手工提供的原表进入看板：将本批文件放在客户工作区 `Input/AdvertisingCosts/files/`，在 `Input/AdvertisingCosts/sources.json` 中登记相对路径、业务线、业务组、平台、来源期间及文件 SHA-256，再运行 `dashboard_product.management.build`。构建只读取清单声明的文件；没有清单时费用状态为“未提供”。Grok 端沿用同一手工输入方式，没有费用自动抓取。
+广告费用只通过用户手工提供的原表进入计算：将本批文件放在客户工作区 `Input/AdvertisingCosts/files/`，在 `Input/AdvertisingCosts/sources.json` 中登记相对路径、业务线、业务组、平台、来源期间及文件 SHA-256。共享计算只读取清单声明的文件；没有清单时费用状态为“未提供”。费用随服务器raw双Snapshot计算链路进入原生BI。
 
 本节仅说明ROI费用输入。腾讯留学仓的定期导出更新继续服务留学资源与签约数据，不会自动补入广告费用。支持格式、期间差额和费用共同覆盖窗口见[线上看板费用与ROI](./dashboard-advertising-costs.md)。
 
@@ -301,30 +293,11 @@ python3 -m interfaces.casebook guide --workspace customers/company_customer
 
 ## 9. 固定看板与钉钉
 
-固定经营批次先从显式当前 Snapshot 构建一次，再由页面发布和投递适配共同消费本批结果：
-
-```bash
-WORKSPACE="/path/to/whcustomer"
-CURRENT_STUDY_ABROAD_SNAPSHOT_ID="$(python -c 'import json,sys;print(json.load(open(sys.argv[1]))["snapshot_id"])' "$WORKSPACE/Work/StudyAbroad/current.json")"
-CURRENT_SNAPSHOT_ID="$(python -c 'import json,sys;print(json.load(open(sys.argv[1]))["current_snapshot_id"])' "$WORKSPACE/Work/workspace.json")"
-RUN_ID="run_management_$(TZ=Asia/Shanghai date +%Y%m%d_%H%M%S)"
-AS_OF_DATE="$(TZ=Asia/Shanghai date +%F)"
-python -m dashboard_product.management.build \
-  --workspace "$WORKSPACE" --snapshot-id "$CURRENT_SNAPSHOT_ID" \
-  --study-abroad-snapshot-id "$CURRENT_STUDY_ABROAD_SNAPSHOT_ID" \
-  --run-id "$RUN_ID" --as-of-date "$AS_OF_DATE"
-BATCH_DIR="$WORKSPACE/Output/DashboardManagement/$RUN_ID"
-SHARED_RESULT="$BATCH_DIR/shared_result.json"
-python -m monitoring_product.shared_delivery \
-  --shared-result "$SHARED_RESULT" \
-  --output-dir "$BATCH_DIR/delivery_preview" \
-  --as-of-date "$AS_OF_DATE" \
-  --state-dir "$WORKSPACE/Work/DeliveryState" --dry-run
-```
+服务器正式看板链路由固定服务执行：三Excel输入进入raw receiver，受限worker读取root只读历史基线，在隔离副本更新双Snapshot并运行quality和共享计算，生成39张业务表；达到 `prepared` 后，固定root publisher按P4合同重建、验收并切换 Superset release。通知包再由 `release_notifications` 从正式release构建，`shared_delivery` 按DeliveryState逐消息去重投递。接收、计算完成、准备发布和正式发布分别读取同批状态回执。
 
 当前服务器正式通知使用 `server_notify` 固定入口与 `release_notifications` 同批包；HTTP只接受operation、expected_release和as_of_date，不接受任意路径或接收者。八条消息投递至原五通道，高中留学简报保持个人完成与个人流水。10月26日已有8条sent；后续HTTP job仍保留unknown，只读对账不等于该job自身成功发送。见[通知修复回执](notification-job-receipt-repair-20261026.md)。
 
-`deliver_management_batch.sh` 与旧Grok09:45/10:24节奏仅供历史复核，不作为新调度入口；Grok例行已按用户要求停止，Dot10:00建立记录针对通知，不代表采集发布已切换。任务实时状态须由宿主实读，不从本地Git更新推断。正式运行与恢复见[部署说明](../dashboard_product/DEPLOYMENT.md)，本地共同结果见[management说明](../dashboard_product/management/README.md)，通知合同见[监控模块](../monitoring_product/README.md)。Webhook属于C层，不在本指南展开。
+10月26日人工触发有8条 `sent`；相应HTTP job仍为 `unknown`，只读对账不等于该job自身成功。Dot 10:00建立记录针对通知，不代表BI采集发布已持续运行。Grok例行已按用户要求停止。有效raw包正式发布、持续日更和唯一生产者收口仍待分别验收，任务实时状态须由宿主实读，不从本地Git更新推断。部署与publisher边界见[部署说明](../dashboard_product/DEPLOYMENT.md)，通知合同见[监控模块](../monitoring_product/README.md)。Webhook属于C层，不在本指南展开。
 
 ## BI 派生查询库（沿用P2受控查询合同）
 

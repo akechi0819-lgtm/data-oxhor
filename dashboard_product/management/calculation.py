@@ -1,4 +1,4 @@
-"""管理业务同批计算入口；旧页面与影子查询库复用同一组已验证规则。"""
+"""原生BI与通知共用的业务计算；在服务器raw链路及显式本地重算中复用同一规则。"""
 from __future__ import annotations
 from datetime import date, timedelta, datetime, timezone
 from pathlib import Path
@@ -7,7 +7,7 @@ import re
 import subprocess
 import sys
 from dashboard_product.online_team.build import (ROOT, MAPPING, read, write, sha, query, prepare_output, shanghai_today, source_label)
-from dashboard_product.online_team.export import validate_public_data
+from dashboard_product.management.validation import validate_public_data
 HERE = Path(__file__).resolve().parent
 
 def yearly_windows(start, end):
@@ -255,8 +255,7 @@ def calculate(args, *, output_area="DashboardManagement"):
                ROOT / 'dashboard_product/refresh.py', ROOT / 'dashboard_product/online_team/build.py', ROOT / 'workspace_modeling/operations/personnel.py', ROOT / 'workspace_modeling/operations/study_abroad_source.py', people_path, abroad_people_path,
                training_target_path, abroad_target_path, online_target_path, cash_override_path, MAPPING, reference_path,
                ws / 'Work/Bridge/reference.json',
-               *sorted((HERE / 'web').glob('*')),
-               *sorted((ROOT / 'dashboard_product/online_team/web').glob('*')), *sorted((HERE / 'sql').glob('*.sql'))]
+               HERE / 'validation.py', *sorted((HERE / 'sql').glob('*.sql'))]
     if scorecard_path.exists():
         sources.append(scorecard_path)
     sources.extend(study_source['source_paths'])

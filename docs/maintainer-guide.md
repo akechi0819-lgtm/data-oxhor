@@ -1,4 +1,4 @@
-> 正式BI维护入口：`dashboard_product/DEPLOYMENT.md`与`docs/bi-production-baseline-20261025.md`。通用核心回归可用已有Python3.12执行`python3 -B -m pytest tests dashboard_product/tests dashboard_product/management/tests monitoring_product/tests -p no:cacheprovider`；Superset认证测试在核心环境明确skip，必须另外在固定Superset环境运行`python -B -m unittest tests.test_shadow_bi_legacy_auth`。两类环境分别报告，不把skip计为通过。
+> 正式BI维护入口：`dashboard_product/DEPLOYMENT.md`与`docs/bi-production-baseline-20261025.md`。截至10月26日回执，服务器raw计算链路已部署并实际运行到39张业务表；真实批次因截止门禁失败而未发布。有效新包正式发布、持续日更和唯一生产者收口分别待验收。通用核心回归可用已有Python3.12执行`python3 -B -m pytest tests dashboard_product/tests dashboard_product/management/tests monitoring_product/tests -p no:cacheprovider`；Superset认证测试在核心环境明确skip，必须另外在固定Superset环境运行`python -B -m unittest tests.test_shadow_bi_legacy_auth`。两类环境分别报告，不把skip计为通过。
 
 # 维护者指南
 
@@ -9,10 +9,10 @@
 - Python 要求 `>=3.12`；运行时核心依赖 DuckDB `1.5.5`。
 - 安装开发测试环境：`sh tools/install_runtime.sh test`。
 - 运行完整回归：`sh tools/run_tests.sh -v`；入口使用项目 `.venv` 中的 pytest，覆盖 `tests`、`dashboard_product/tests`、`dashboard_product/management/tests`、`monitoring_product/tests`，默认不生成字节码缓存。Project Intelligence的MCP协议测试在未独立安装SDK时明确skip。
-- CLI 冒烟：`python3 -m interfaces.data_platform --help`、`python3 -m interfaces.business_pack validate`、`python3 -m interfaces.workspace_modeling --help`、`python3 -m dashboard_product.management.build --help`、`python3 -m monitoring_product.shared_delivery --help`。
-- `dashboard_product/refresh.py` 是仍被管理构建导入的内部 source helper，不是命令行库；不要将 `python -m dashboard_product.refresh` 当作 CLI。
+- CLI 冒烟：`python3 -m interfaces.data_platform --help`、`python3 -m interfaces.business_pack validate`、`python3 -m interfaces.workspace_modeling --help`、`python3 -m dashboard_product.shadow_bi.p5.raw_inputs --help`、`python3 -m monitoring_product.shared_delivery --help`。
+- `dashboard_product/management/calculation.py`、`dashboard_product/online_team/build.py` 和 `dashboard_product/refresh.py` 保留共享计算、受控查询、来源归属及历史对账 helpers；由 raw worker 和原生BI模块调用，不是独立命令行入口。
 - 看板回归：`python3 -m unittest discover -s dashboard_product/tests -v`。
-- 部署/投递适配回归：`python3 -m unittest dashboard_product.tests.test_management_activation monitoring_product.tests.test_shared_delivery -v`；激活 dry-run 本地校验，mock 测试不连接服务器。
+- 通知投递适配回归：`python3 -m unittest monitoring_product.tests.test_shared_delivery -v`；mock 测试不连接服务器。服务器发布状态和接口边界以部署回执为准。
 - PPT Master 属于宿主全局 Skill；不要在项目内恢复其副本、安装 profile 或完整性测试。
 - 项目上下文服务见 [Project Intelligence](./project-intelligence.md)。定向回归：`.venv/bin/python -B -m unittest tests.project_intelligence.test_service -v`，已由主测试发现入口覆盖。新增暴露文件须评审 `project_intelligence/policy.py`，不得直接放开整个目录。
 
@@ -43,7 +43,7 @@
 
 ## 当前状态与历史记录
 
-10月26日本地代码、文档与工作树收口见[整合记录](local-project-alignment-20261026.md)。`main`为整合基线；c373保留数据、证据和稳定运行路径，其源码对齐main后以detached HEAD保留，不作为另一条开发分支。本地合并不部署服务器、不切换生产者或修改日程。
+10月26日本地代码、文档与工作树收口见[整合记录](local-project-alignment-20261026.md)。`main`为整合基线；c373保留数据、证据和稳定运行路径，其源码对齐main后以detached HEAD保留，不作为另一条开发分支。服务器raw receiver、只读历史基线、受限双Snapshot/quality/共享聚合计算和固定publisher已有实际部署及运行回执；本地来源完成证明门禁本轮未部署。有效raw包发布、持续日更、唯一生产者切换以及实时调度状态另行验收，本地代码收口不代表这些事项完成。
 
 当前状态、已知限制与本次施工记录统一维护在 [DEVELOPMENT.md](../DEVELOPMENT.md)。[历史交接](history/project-handoff-through-20260918.md) 仅保留过去决策与验收事实，不作为日常操作入口；看板运行以模块 README 和 DEPLOYMENT 为准。
 

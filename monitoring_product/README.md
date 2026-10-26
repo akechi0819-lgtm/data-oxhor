@@ -1,6 +1,6 @@
 # 日常监控
 
-> 状态依据截至 2026-10-26 的日期回执：固定服务器通知适配已部署，8条消息／原5通道从固定正式 release 构建并经 `shared_delivery` 去重投递，不独立查询数仓。10-26 人工触发有 8 条 sent 记录；另一个 HTTP job 保留 `unknown`，只读对账确认它们来自此前发送且 `no_send_performed=true`，不得把 job 本身记为 sent 或重发。记录中自 10-26 起每日上海 10:00 的 Dot 日程用于通知，不是 BI 采集／刷新调度。本次没有读取调度平台当前状态。回执见[通知作业修复记录](../docs/notification-job-receipt-repair-20261026.md)。
+> 状态依据截至 2026-10-26 的日期回执：固定服务器通知适配已部署，8条消息／原5通道从固定正式 release 构建并经 `shared_delivery` 去重投递，不独立查询数仓。10-26人工触发有8条 `sent` 记录；另一个HTTP job保留 `unknown`，只读对账确认它们来自此前发送且 `no_send_performed=true`，不得把job本身记为sent或重发。正式BI为Superset原生界面；服务器raw worker已实际运行到39张业务表，但10-26候选因截止门禁失败、未发布release。Dot日程自10-26起的每日上海10:00记录用于通知，不是BI采集／刷新调度。本次没有读取调度平台当前状态。回执见[通知作业修复记录](../docs/notification-job-receipt-repair-20261026.md)和[BI部署说明](../dashboard_product/DEPLOYMENT.md)。
 
 `monitoring_product.server_notify` 是服务器固定入口：`status` 报告固定服务状态，不读取外部日程状态；`preview` 默认不发送；`send-scheduled` 只允许上海 10:00 且要求当天正式 release 和已导入 DeliveryState。模块本身不安装调度器；外部日程与 BI 更新日程分别管理。正式通知包由 `release_notifications` 从固定的正式 BI release 构建，绑定来源、规则和查询回执；`shared_delivery` 保持逐消息去重和传输。大学与线上平台各两条消息分别共用原群。人员规则及花名册仍共用 `workspace_modeling/operations/`。
 
@@ -12,7 +12,7 @@ python3 -m monitoring_product.shared_delivery \
   --output-dir <本批次>/delivery_preview \
   --as-of-date <上海通知日期YYYY-MM-DD> \
   --state-dir <客户工作区>/Work/DeliveryState \
-  --dashboard-base-url http://dashboard.apinova.cn --dry-run
+  --dashboard-base-url 'https://dashboard.apinova.cn/superset/dashboard/shadow-bi-native/?standalone=1' --dry-run
 ```
 
 本地离线预览不读取凭据、不写投递状态、不上传或发送。服务器正式触发必须使用固定入口及当天 release，需满足新 Snapshot、`data_through` 为昨日、完整五通道配置和导入的原始 DeliveryState；已成功或结果未知的消息都不能盲目重发。
@@ -25,7 +25,7 @@ python3 -m monitoring_product.shared_delivery \
 
 ## 已停用的 Grok 例行（历史合同）
 
-旧 `deploy/deliver_management_batch.sh`、09:30／09:45／10:24 的 Grok 运行时刻，以及 7 条消息合同均属于历史版本，不是当前服务器通知入口。用户已要求停止 Grok 例行；日期回执提供的是停止安排，不构成本页编辑期间的云端实时检查。历史部署记录见[监控模块旧部署](../docs/monitoring-cloud-deployment.md)和[静态发布归档](../docs/history/dashboard/static-publisher-agent-through-20261025.md)。
+旧Grok 09:30／09:45／10:24运行时刻及7条消息合同均属于历史版本，不是当前服务器通知入口。用户已要求停止Grok例行；日期回执提供的是停止安排，不构成本页编辑期间的云端实时检查。历史通知部署记录见[监控模块旧部署](../docs/monitoring-cloud-deployment.md)。
 
 ROI 费用不属于双仓更新或通知投递的数据抓取范围。构建需要费用时，由用户手工提供原表，登记到客户 `Input/AdvertisingCosts/sources.json` 后由管理构建读取；其他宿主同样只使用用户提供的费用表，不自动抓取。腾讯留学导出可作为留学资源和签约数据来源，具体刷新安排以当前授权的数据任务为准，本页不宣称仍有 Grok 例行。详见[费用与 ROI 输入说明](../docs/dashboard-advertising-costs.md)。
 

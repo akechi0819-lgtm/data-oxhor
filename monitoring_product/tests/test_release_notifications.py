@@ -88,12 +88,11 @@ class ReleaseNotificationTests(unittest.TestCase):
         payload=json.loads((self.bundle/'notifications.json').read_bytes())
         self.assertEqual(len(payload['messages']),8)
         self.assertEqual(bundle['source']['semantics'],self.manifest['binding']['inputs'])
-        result=self.invoke(dry_run=True)
+        with patch.object(n.delivery,'deliver',wraps=n.delivery.deliver) as delivery:
+            result=self.invoke(dry_run=True)
         self.assertEqual(len(result['messages']),8)
         self.assertFalse(self.state.exists())
-        from monitoring_product.shared_preview import _dashboard_url
-        for message in payload['messages']:
-            self.assertEqual(_dashboard_url(message,n.NATIVE_URL),n.NATIVE_URL)
+        self.assertEqual(delivery.call_args.kwargs['dashboard_base_url'],n.NATIVE_URL)
 
     def test_personal_source_controls_daily_and_ledger_without_expanding_team(self):
         f=self.fixture

@@ -1,4 +1,4 @@
-"""Shared calculation and query helpers used by the management build."""
+"""Shared calculation and controlled-query helpers used by native BI."""
 from __future__ import annotations
 
 import calendar

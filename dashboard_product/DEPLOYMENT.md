@@ -1,41 +1,32 @@
-> 状态依据截至 2026-10-26 的日期回执：Superset 原生 BI 已在用，Mac `p5.daily` 仍是正式更新入口；current 为 `daily-20261026_094052`、数据截止 10-25。服务器通知适配已部署，10-26 人工触发的 8 条消息为 sent；一个 HTTP job 仍为 `unknown`，只读对账回执关联了先前发送。Dot 每日 10:00 日程记录是通知触发，不是 BI 采集调度。固定 raw 接收与发布服务已部署，但真实 Dot 批次未通过业务截止门禁，未发布、未切换生产者。Grok 例行按用户要求停止；本次文档更新未实读调度平台状态。
+> **状态依据：2026-10-26 日期回执；本轮未实读服务器或调度平台。** 正式产品为 Superset 原生 BI。已部署服务器 raw receiver、root 只读历史基线、受限双 Snapshot / quality / 共享计算 worker 和固定 publisher。10月26日真实 Dot 批次已在服务器实际完成双 Snapshot、两份 quality 查询并运行到39张表，最终因业务截止不匹配以 `failed/published=false` 结束，没有发布 raw release。Mac `p5.daily` 是仍存在的手动入口；日期回执记录它更新了 `daily-20261026_094052`（数据截至10-25），不代表长期默认路径。有效新 raw 包正式发布、持续日更和唯一生产者收口仍待分别验收。
 
 # 正式 BI 部署与运行
 
-2026-10-25正式代码基线为已核验的 Superset 原生 BI。模块路径保留 `dashboard_product.shadow_bi`，避免更改已有服务、源码引用和任务路径。原静态生产说明已归档到 `docs/history/dashboard/static-deployment-through-20261025.md`。
+正式用户界面为 Superset 原生看板。稳定代码路径保留 `dashboard_product.shadow_bi`，与已部署服务和导入路径一致。用户入口、账号及权限见[正式基线](../docs/bi-production-baseline-20261025.md)；本文件记录当前部署边界。
 
-## 当前生产边界
+## 当前服务器能力
 
-- 用户入口为 `https://dashboard.apinova.cn/superset/dashboard/shadow-bi-native/?standalone=1`；首页和四个旧HTML入口已跳转新版。
-- 服务器服务 `shadow-bi.service`、代码 `/srv/shadow-bi/code`、环境 `/srv/shadow-bi/venv`，私有数据 `/var/lib/shadow-bi`。`current/library/business.duckdb`为只读业务库；PostgreSQL保存应用元数据。
-- 当前正式数据版本应以现场 `current` 和 manifest 为准，不按目录时间或 latest 选择。2026-10-26 回执读回 `daily-20261026_094052`，业务截至 2026-10-25；这是该日期的核验结果，不代表本次文档编辑期间再次读取了服务器。
-- 18个原账号沿用既有htpasswd与只读权限；本次不改认证、凭据或数据共享范围。
-- 当前采集端仍负责历史合并、Snapshot、业务计算和投影；服务器P4只装载39张封存业务表。完整服务器数仓迁移暂停。
+- Superset、`shadow-bi.service`、代码 `/srv/shadow-bi/code`、环境 `/srv/shadow-bi/venv` 和私有数据 `/var/lib/shadow-bi` 已部署；`current/library/business.duckdb` 为正式 BI 的业务库，PostgreSQL 保存 Superset 元数据。
+- 服务器 raw 链路已部署：外部接收写入固定队列；受限 worker 读取 root 只读历史基线，在新副本内合并历史、建立双 Snapshot、运行 quality 和共享业务计算，生成39张封存业务表；root 固定 publisher 使用 P4 重建、校验和原子切版。
+- **真实计算已在服务器运行。** `raw-20261026-dot-001` 三源/TAR hash 与输入一致，双 Snapshot、两份 quality 查询及39个 JSONL 文件/类型库完整性核验有回执。最终候选 `data_through=2026-10-24`，低于当日要求的 `2026-10-25`，在最终业务截止门禁失败，状态 `failed/published=false`；该批没有发布或切换 current。截止门禁先于物理库 COUNT 门禁，因此不能称为全门禁通过或正式发布。
+- 固定 publisher 已独立部署并通过权限、负例及HTTP边界验证；worker 不能写生产 current/releases。publisher 只处理明确为 `prepared` 的同批候选，失败后保留开始时 current 并记录结果。10月26日失败候选未达到 `prepared`，没有调用它发布该批。
+- 该日期的 BI current 记录为 `daily-20261026_094052`（数据截止10-25）；回执记录由 Mac `dashboard_product.shadow_bi.p5.daily` 手动更新。该模块仍存在，但本文件不把它定义为长期默认生产入口。当前实时 current 应在需要操作时按服务器 manifest 核验；本轮未实读。
+- 服务器计算与发布能力已落地；尚待验收的是有效新 raw 包正式发布、持续日更安排及唯一生产者收口。来源完整性证明门禁已进入本地 `main`，10月26日部署的服务器版本不含该新门禁，不能据此声称服务器已启用。
 
-## 正式运行入口
+详细服务权限、基线和批次证据见[raw接收部署回执](../docs/server-raw-receiver-deployment-20261026.md)、[固定publisher回执](../docs/server-raw-fixed-publisher-20261026.md)及[raw链路合同](../docs/server-raw-pipeline-contract.md)。
 
-```bash
-python3 -m dashboard_product.shadow_bi.p5.daily --workspace customers/shadow_bi_daily
-```
+## Dot raw 接收、计算与发布边界
 
-该命令会采集、重算并发布。按显式双仓身份和 `as_of-1` 截止口径运行，并通过现有双源门禁。10-26 的 Mac 手动更新由此入口完成；在 Dot 新输入链路通过正式切换验收前，它仍是正式更新入口。不得重传旧包覆盖更新 release。
+固定外部接口为 `POST /shadow-bi/v1/raw-batches` 与 `GET /shadow-bi/v1/raw-batches/<batch>`。只接收合同规定的三 Excel 包；请求不能指定服务器路径、命令、SQL、Snapshot ID 或发布参数。接收、入队、计算、prepare 和正式发布是不同状态；超时或HTTP错误后按同一批次ID查询状态，不盲目重传。
 
-服务器以 `shadow_bi/p4/rebuild.py` 构建候选库，`backup.sh`备份代码/配置/元数据，`activate.py`验版并切换；`p5/verify_daily.py`验证实际业务查询与批次。配置/元数据变化须配套恢复，不能只改软链。历史切版演练不授权正常发布倒退截止日。
+发布使用同批固定请求 `POST /shadow-bi/v1/raw-batches/<batch>/publish-prepared`，请求体只能是空对象 `{}`。只有 `prepared` 且来源任务、输入窗口、Snapshot 身份和质量已经核实后，才按明确授权触发；该请求不支持跳过门禁、指定路径或任意命令。状态以 GET 回执为准。received/queued 或计算达到39表都不等于 prepared，更不等于 published。
 
-### Dot 固定 raw 接收与发布
+10月26日真实批次 `raw-20261026-dot-001` 的候选业务覆盖实际到10月24日，低于入口要求的10月25日。未改日期、未重算；候选和失败日志保留，既有 current 未被该批修改。新有效包到来后按`raw-20261026`部署代码对应的合同验收完整输入、双 Snapshot、quality、39表、业务身份、实际查询和页面；对本地新增的来源完成证明门禁也须先完成服务器部署验收，不能从旧回执推断它已生效。
 
-2026-10-26 已部署固定三 Excel 接收、受限计算和 root-owned 发布程序。外部接收为 `POST /shadow-bi/v1/raw-batches`，状态查询为 `GET /shadow-bi/v1/raw-batches/<batch>`；只有批次明确为 `prepared`、并由操作者确认来源任务、窗口、Snapshot 身份和质量后，才允许对同批调用 `/shadow-bi/v1/raw-batches/<batch>/publish-prepared`。该接口请求体固定为空对象 `{}`，只触发固定发布程序，不接受命令或路径参数。收到包、进入队列、计算完成和正式发布是不同状态；超时或 HTTP 错误后先按批次 ID 查询状态，不盲目重传。
+服务器使用 `shadow_bi/p4/rebuild.py` 重建候选库，并由固定publisher在持锁状态下完成 manifest、页面/业务查询、失败恢复和切换。P4用于发布已验收批次；它不是把任意候选或失败批次提升为正式数据的绕行入口。历史切版演练不授权正常发布倒退截止日。
 
-本次真实 Dot 批次 `raw-20261026-dot-001` 以 `failed/published=false` 结束，业务截止门禁不匹配；该次raw操作未切换current。它不是已发布数据，也不是服务器整仓迁移完成。通知 receiver 的 `last_published`、`last_published_hash`、`last_failed` 状态文件权限问题已在[通知适配后续部署回执](../docs/bi-notification-adapter-20261025.md)修为 `root:shadowbi 0640`，实际 shadowbi 身份读取通过；不是仍待修复项。raw 服务自身的权限与部署证据见[raw 发布回执](../docs/server-raw-fixed-publisher-20261026.md)和[raw 接收回执](../docs/server-raw-receiver-deployment-20261026.md)。
+## 通知与自动化现状
 
-### 本地完整性整合（尚未部署）
+服务器通知适配已部署：`monitoring_product.release_notifications` 从正式 BI release 构建同批通知包，`shared_delivery` 执行状态去重与传输；通知不独立查询或重算数仓。2026-10-26 人工触发有8条 `sent` 记录。HTTP job `9cbbb2…` 仍保留 `unknown/retryable=false`；独立只读对账回执将它关联到此前已发送的8条消息，`no_send_performed=true`，不表示该job自身成功发送。不得重发这些消息或清空 DeliveryState。详见[通知作业修复回执](../docs/notification-job-receipt-repair-20261026.md)。
 
-当前main已补齐[来源完整性验证](../docs/server-source-completion-candidate.md)：raw计算、候选复用、维护复验及publisher均强制使用同一受保护完成证明。缺少证明时不构建，审批/封存决定/metadata不一致时不发布；P4重建后且切current前再次复核。该新门禁只在本地整合，不能从既有服务部署推断它已经在服务器生效。Mac日更尚未接入审批，生产切换和任何日程变更另行验收。
-
-## 通知与静态兼容路径
-
-服务器通知适配已部署：`monitoring_product.release_notifications` 从固定正式 release 构建同批通知包，`shared_delivery` 负责状态去重与传输；通知不独立查询数仓。2026-10-26 的人工触发有 8 条 sent 状态。HTTP job `9cbbb2…` 保留原 `unknown/retryable=false`；独立只读对账回执将其关联到此前已发送的 8 条消息，`no_send_performed=true`，不表示该 job 自身发送成功。不得重发这些消息或清空 DeliveryState。详见[通知作业修复回执](../docs/notification-job-receipt-repair-20261026.md)。
-
-历史静态入口 `run_management_daily.sh` 默认在生成并校验通知批次指针后结束，防止旧静态激活流程覆盖 Nginx。旧静态发布和激活保留 dry-run；真实恢复需显式 `ALLOW_LEGACY_STATIC_PUBLISH=1` 并有对应恢复授权。此开关仅供已授权恢复，不是另一条日常发布通道。
-
-记录中自 2026-10-26 起的 Dot 上海 10:00 日程用于通知触发；不得据此推断 BI 采集／刷新已迁至 Dot。10-26 通知回执另记 Mac `bi-2` 为 ACTIVE/09:40；这只是日期记录，本次未实时读取调度平台。Grok 例行已按用户要求停止。正式切换到 Dot 采集／发布链路仍待真实批次通过业务门禁、发布验收及唯一生产者切换回执。旧静态页面链路保留为历史兼容内容，不是日常入口；当前代码合同见[raw链路合同](../docs/server-raw-pipeline-contract.md)；[10月25日正式基线](../docs/bi-production-baseline-20261025.md)仅保留当时证据。
+记录中自2026-10-26起的 Dot 上海10:00日程用于通知触发，和 BI 采集/刷新分开管理；Grok 例行按用户要求停止。日期回执曾记录 Mac `bi-2` 为 ACTIVE/09:40，但本轮未读取调度平台实时状态，不据此推断当前任务启停。持续日更和唯一生产者切换须分别留下验收回执，不从代码合并、通知日程或单次计算推断完成。

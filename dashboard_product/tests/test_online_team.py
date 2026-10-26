@@ -5,4 +5,3 @@ from dashboard_product.online_team.tests.test_data import (
     ClassificationTests,
     PeriodAndTargetTests,
 )
-from dashboard_product.online_team.tests.test_export import ExportTest

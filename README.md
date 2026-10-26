@@ -10,7 +10,7 @@ Data OXHor 是面向教育运营团队的模块化运营数据中台。它把数
 data_acquisition/    数据来源接入、认证和导入任务
 data_platform/       landing、Snapshot、质量检查和受控只读查询
 workspace_modeling/  Business Pack、Company Bridge、工作区、Casebook 和首次部署
-dashboard_product/   正式原生 Superset BI、共同业务计算、固定发布及通知兼容
+dashboard_product/   正式原生 Superset BI、共享业务计算与服务器固定发布
 monitoring_product/  同批结果预览、钉钉投递和传输
 market_workspace/    市场日常启动入口：自由分析、导表、程序和临时脚本
 interfaces/          对外 CLI 边界
@@ -22,25 +22,19 @@ grok_workspace/      Grok Bot 隔离工作面，角色与自主积累材料不�
 .local/              本地日志、同步中转和历史运行材料，不进入 Git
 ```
 
-管理看板与通知绑定同一正式 BI release。管理构建和服务器通知包均通过 Data Platform 受控只读入口读取数据；`monitoring_product` 只执行固定通知规则和投递，不承担自由分析或任意 SQL。共享人员规则位于 `workspace_modeling/operations/`。
+原生 BI 页面和通知包绑定同一正式 BI release。服务器 raw worker 基于只读历史基线建立双 Snapshot，经 quality 校验后运行共享计算并生成 39 张业务表；固定 publisher 通过 P4 验收并更新 Superset。`monitoring_product` 只执行固定通知规则和投递，不承担自由分析或任意 SQL。共享计算与人员规则分别位于 `dashboard_product/management/calculation.py` 和 `workspace_modeling/operations/`。
 
 模块关系如下：
 
 ```text
-客户数据源 -> data_acquisition -> data_platform Snapshot
-                                      |
-                         workspace_modeling Pack + Bridge
-               |                                |
-       ad_hoc_analysis Agent          dashboard_publisher Agent
-       查询、诊断和按需交付          固定 SQL、管理批次构建
-               |                                |
-       workspace_modeling             管理批次结果
-       delivery / Casebook                |
-                             Mac p5.daily → Superset release
-                                            |
-                                     daily_monitor Agent
-                                            |
-                     release_notifications → monitoring_product 投递
+Dot 三 Excel 输入 → 服务器 raw receiver → root 只读历史基线
+                                  → 双 Snapshot / quality
+                                  → 共享计算 / 39 张业务表
+                                  → 固定 publisher / P4 → Superset release
+                                                       └→ release_notifications
+                                                            → monitoring_product 投递
+
+工作区建模与自由分析沿 Data Platform 的 Snapshot / 受控查询入口独立运行。
 ```
 
 ## 如何使用
@@ -67,7 +61,7 @@ grok_workspace/      Grok Bot 隔离工作面，角色与自主积累材料不�
 
 ## 阶段状态
 
-2026-09-18架构阶段的查询证据、自由分析交付和 Casebook 验证已完成，历史记录见 [施工计划与验收](./docs/history/agent-architecture-plan-20260918.md)。截至 2026-10-26 的记录，正式 BI 更新仍使用 Mac `dashboard_product.shadow_bi.p5.daily`；服务器 raw 固定接收和发布服务虽已部署，10/26 Dot 批次因业务截止门禁失败而未发布，尚未切换生产入口。服务器通知适配已部署；记录中自 10/26 起的 Dot 10:00 日程是通知日程，与 BI 采集刷新分开。Grok 例行已按用户要求停止。各项均以日期回执为依据，本次未作调度平台实时核验；详见 [部署说明](./dashboard_product/DEPLOYMENT.md)、[日常监控](./monitoring_product/README.md) 和 [同步记录](./SYNC.md)。
+2026-09-18 架构阶段的查询证据、自由分析交付和 Casebook 验证已完成，历史记录见[施工计划与验收](./docs/history/agent-architecture-plan-20260918.md)。截至 2026-10-26 的部署回执，正式 BI 产品为 Superset 原生界面；服务器 raw receiver、只读历史基线、受限双 Snapshot / quality / 共享计算 worker（39 张表）及 root 固定 publisher 均已部署，真实批次也实际跑到 39 张表，但因 `data_through` 未达到业务截止而以 `failed/published=false` 结束，没有产生 raw 正式 release。Mac `dashboard_product.shadow_bi.p5.daily` 仍是现存手动入口，且有当日更新记录；有效 raw 包正式发布、持续日更和唯一生产者收口仍待验收，不据此把 Mac 入口列作长期默认。服务器通知适配已部署；Dot 10:00 日程记录针对通知，与 BI 更新分开。Grok 例行按用户要求停止。本次没有实读调度平台；详见[部署说明](./dashboard_product/DEPLOYMENT.md)、[日常监控](./monitoring_product/README.md)和[同步记录](./SYNC.md)。
 
 ## 常用入口
 
@@ -78,8 +72,6 @@ python3 -m interfaces.business_pack validate
 python3 -m interfaces.company_bridge validate --help
 python3 -m interfaces.casebook --help
 python3 -B -m project_intelligence --help
-python3 -m dashboard_product.management.build --help
-python3 -m dashboard_product.shadow_bi.p5.daily --help
 python3 -m monitoring_product.shared_delivery --help
 sh tools/run_tests.sh -v
 ```

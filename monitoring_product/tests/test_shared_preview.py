@@ -218,8 +218,9 @@ class SharedPreviewTests(unittest.TestCase):
                 'owners': ['留学同事'], 'counts_toward_completion': True,
                 'source_record': {'资源ID': 'RES-ABROAD-2026-001', '合同编号': 'CONTRACT-001'},
             }]
+            native_url = 'http://127.0.0.1:8778/superset/dashboard/shadow-bi-native/?standalone=1'
             result = render_notifications(payload, root / 'preview',
-                                          'http://127.0.0.1:8778')
+                                          native_url)
             self.assertEqual(result['status'], 'preview_ready')
             self.assertEqual(len(result['messages']), 8)
             university = [item for item in result['messages'] if item['id'].startswith('university.')]
@@ -239,7 +240,7 @@ class SharedPreviewTests(unittest.TestCase):
             self.assertNotIn('市场活动', online_html)
             self.assertNotIn('channel_id', online_html)
             self.assertNotIn('RAW_STUDENT_SECRET', online_html)
-            self.assertIn('online.html', online['dashboard_url'])
+            self.assertIn(native_url, online_html)
 
             online_book = load_workbook(online['xlsx'], data_only=True)
             self.assertEqual(online_book.sheetnames, ['进度汇总', '工单明细', '现金明细'])
@@ -265,7 +266,7 @@ class SharedPreviewTests(unittest.TestCase):
             online_cash_headers = {cell.value for cell in online_book['现金明细'][4]}
             self.assertNotIn('个人分配权重', online_cash_headers)
             self.assertNotIn('个人贡献数量/金额', online_cash_headers)
-            self.assertEqual(online['dashboard_url'], 'http://127.0.0.1:8778/online.html')
+            self.assertEqual(online['dashboard_url'], native_url)
 
             training = next(item for item in result['messages'] if item['id'] == 'university.training')
             training_payload = next(message for message in payload['messages']
@@ -326,7 +327,7 @@ class SharedPreviewTests(unittest.TestCase):
             markdown = Path(training['markdown']).read_text(encoding='utf-8')
             self.assertIn('(message.png)', markdown)
             self.assertIn('(details.xlsx)', markdown)
-            self.assertIn('http://127.0.0.1:8778/university.html', markdown)
+            self.assertIn(native_url, markdown)
             online_markdown = Path(online['markdown']).read_text(encoding='utf-8')
             self.assertIn('| 二级渠道 | 月累计 | 当日新增 | 占比 |', online_markdown)
             self.assertNotIn('市场活动', online_markdown)
@@ -366,7 +367,7 @@ class SharedPreviewTests(unittest.TestCase):
 
             high_abroad = next(item for item in result['messages'] if item['id'] == 'high.abroad')
             self.assertEqual(high_abroad['channel_id'], 'offline_high_school')
-            self.assertEqual(high_abroad['dashboard_url'], 'http://127.0.0.1:8778/prep_high.html')
+            self.assertEqual(high_abroad['dashboard_url'], native_url)
             high_html = Path(high_abroad['html']).read_text(encoding='utf-8')
             self.assertIn('马玥', high_html)
             self.assertIn('<th>工单完成</th>', high_html)
@@ -376,7 +377,7 @@ class SharedPreviewTests(unittest.TestCase):
             self.assertIn('<td class="numeric">0.5</td>', high_html)
             self.assertIn('个人渠道分布', high_html)
             self.assertIn('合作院校', high_html)
-            self.assertIn('http://127.0.0.1:8778/prep_high.html', high_html)
+            self.assertIn(native_url, high_html)
             self.assertNotIn('落后时间进度', high_html)
             self.assertNotIn('现金目标', high_html)
             self.assertIn('现金', high_html)
@@ -421,7 +422,7 @@ class SharedPreviewTests(unittest.TestCase):
             self.assertIn('| 马玥 | 高中 | 1.5 | 0.5 |', high_markdown)
             for omitted in ('工单目标', '工单完成率', '应完成工单', '日均需完成'):
                 self.assertNotIn(omitted, high_markdown)
-            self.assertIn('[查看看板](http://127.0.0.1:8778/prep_high.html)', high_markdown)
+            self.assertIn(f'[查看看板]({native_url})', high_markdown)
             self.assertNotIn('团队自然月', high_markdown)
 
     def test_unassigned_cash_sheet_keeps_review_rows_separate_from_personal_cash(self):
@@ -538,7 +539,8 @@ class SharedPreviewTests(unittest.TestCase):
             captured = StringIO()
             with patch('sys.stdout', captured):
                 code = main(['--shared-result', str(shared_path), '--output-dir', str(root / 'preview'),
-                             '--dashboard-base-url', 'http://127.0.0.1:8778'])
+                             '--dashboard-base-url',
+                             'http://127.0.0.1:8778/superset/dashboard/shadow-bi-native/?standalone=1'])
             self.assertEqual(code, 0)
             manifest = json.loads(captured.getvalue())
             self.assertEqual(manifest['status'], 'preview_ready')

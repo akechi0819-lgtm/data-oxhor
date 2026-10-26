@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Retained V14 projection and attribution helpers used by management builds."""
+"""Attribution and historical reconciliation helpers consumed by native BI calculation."""
 from workspace_modeling.operations.personnel import (
     BUSINESS_GROUP_BY_ROSTER_GROUP,
     co_creation_weights,

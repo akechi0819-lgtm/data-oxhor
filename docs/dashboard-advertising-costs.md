@@ -20,13 +20,13 @@
 
 ## 来源与SQL
 
-- 投放费用的唯一接入流程是用户手工提供原表、登记到客户工作区 `Input/AdvertisingCosts/sources.json`，再由 `management.build` 读取并生成看板。Grok 端也由用户手工提供费用表；没有广告费用自动抓取或平台接口。
+- 投放费用的唯一接入流程是用户手工提供原表、登记到客户工作区 `Input/AdvertisingCosts/sources.json`，再由 `shadow_bi.library`（内部调用 `management.calculation.calculate`） 读取并生成看板。Grok 端也由用户手工提供费用表；没有广告费用自动抓取或平台接口。
 - 本次登记的手工输入批次中，语培为3份小红书账户日报及3份已确认业务组的巨量日报，留学为网络期间总表“总推广费用”。这描述本次已提供文件，不构成以后批次的固定清单；每批只读取其 `sources.json` 明确登记的用户文件。
 - 当前批次原件放在 `Input/AdvertisingCosts/files/<source_id>.<suffix>`，清单使用相对路径并登记 SHA-256。`advertising_sources.py`只读解析已登记文件，不修改原始输入。合计行仅对账；同一物理文件或相同文件摘要重复声明会阻断。费用保留来源行、原周期、平台、业务线与业务组，真实0和缺失分别保留。
 - `advertising_costs.py`复用现有线上团队资格和当前共同事实，不把人员、主被动、团队或年级口径重新写成另一套SQL。日期、业务线、业务组、平台先成为唯一业务汇总输入；不包含客户姓名或客户ID。
 - 匹配规则位于 `dashboard_product/management/sql/advertising_rollup.sql`。业务量与费用各自先汇总，再按业务线、业务组、平台关联；平台、业务组和业务线汇总使用同一叶级结果。无业务量但有费用的平台仍显示，不把花费重复关联到每个原子渠道。
 - 宿主将当前事实与费用输入编码为带类型的VALUES，再通过Data Platform只读入口执行SQL；不直接连接客户DuckDB，不在SQL中打开CSV或Excel。生成SQL与查询回执保留在每个管理批次，`advertising_sources.json`和`advertising_result.json`是私有校验材料，不公开发布。
-- `management.build`同批生成线上费用结果；未声明费用清单是合法的“未提供费用”状态，有清单时文件、结构和哈希错误不能静默忽略。新增费用不改通知、总盘或其他页面的业务完成。
+- `shadow_bi.library`（内部调用 `management.calculation.calculate`）同批生成线上费用结果；未声明费用清单是合法的“未提供费用”状态，有清单时文件、结构和哈希错误不能静默忽略。新增费用不改通知、总盘或其他页面的业务完成。
 
 ## 指标与时间
 

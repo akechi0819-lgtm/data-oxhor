@@ -50,14 +50,6 @@ TEAM_CHANNELS = {
     'virtual': 'online_private',
     'online': 'online_platform',
 }
-DASHBOARD_PAGES = {
-    'online': 'online.html',
-    'university': 'university.html',
-    'prep': 'prep_high.html',
-    'high': 'prep_high.html',
-    'virtual': 'index.html?unit=virtual',
-}
-
 DASHBOARD_FONTS = (
     '/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc',
     '/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc',
@@ -1080,17 +1072,6 @@ def _write_xlsx(message: dict, data_through: str, path: Path) -> Path:
     return path
 
 
-def _dashboard_url(message: dict, base_url: str | None) -> str | None:
-    if not base_url:
-        return None
-    if '/superset/dashboard/' in base_url:
-        return base_url  # Native unified dashboard; no unverified team/tab locator.
-    page = DASHBOARD_PAGES.get(_team_key(message))
-    if not page:
-        return None
-    return base_url.rstrip('/') + '/' + page
-
-
 def _markdown(message: dict, data_through: str, dashboard_url: str | None) -> str:
     title = message.get('title') or message.get('id')
     if message.get('personal_only'):
@@ -1167,7 +1148,7 @@ def _render_message(message: dict, data_through: str, output_dir: Path, index: i
                     dashboard_base_url: str | None, preview_label: str) -> dict:
     folder = output_dir / _slug(message, index)
     folder.mkdir(parents=True, exist_ok=True)
-    dashboard_url = _dashboard_url(message, dashboard_base_url)
+    dashboard_url = dashboard_base_url
     png_path = folder / 'message.png'
     if _message_is_online(message):
         _render_online_png(message, data_through, png_path, dashboard_url)

@@ -1,4 +1,4 @@
-> 截至 2026-10-26 的日期回执：正式 BI current 为 `daily-20261026_094052`（数据截止 10-25），Mac `p5.daily` 仍是正式更新入口。服务器 raw 接收／固定发布能力已部署，但该日 Dot 批次未通过业务截止门禁、没有发布或切换。服务器通知适配已部署；Dot 10:00 日程记录针对通知，不能当作 BI 采集刷新日程。详见[部署说明](../dashboard_product/DEPLOYMENT.md)及本页 4.1；本次未核验调度平台实时状态。
+> **2026-10-26 日期回执摘要（本轮未实读服务器或调度平台）**：正式产品为 Superset 原生 BI。服务器 raw receiver、root 只读历史基线、受限双 Snapshot / quality / 共享计算 worker 和固定 publisher 已部署；真实 Dot 批次完成双 Snapshot、quality 查询并实际运行到39张表，最终因截止不匹配以 `failed/published=false` 结束，没有发布 raw release。Mac `p5.daily` 是仍存在的手动入口，并有更新 `daily-20261026_094052` 的日期记录，不代表长期默认路径。有效新包正式发布、持续日更和唯一生产者收口仍待分别验收。Dot 10:00 日程记录针对通知，与 BI 更新分开。详见[部署说明](../dashboard_product/DEPLOYMENT.md)及本页 4.1。
 
 # 本地运维手册
 
@@ -77,21 +77,17 @@ PPT Master 现由宿主全局 Skill 管理。项目只保证交给它的当前 S
 项目 Skill `diagnose-source-overlap` 已在 2026-08-16 由 Harness headless 真实调用，能正确区分全量刷新与多来源并存，并把去重处理路由到 Data Platform 只读查询和保存查询。
 
 
-## 4.1 正式 BI 更新、固定发布与通知
+## 4.1 正式 BI、服务器计算与固定发布
 
-截至 2026-10-26 的操作回执，Mac 上的 `p5.daily` 仍是正式 BI 更新入口：
+Superset 原生 BI 已正式上线。服务器 raw 接收、受限计算和固定发布程序已部署：worker读取root只读历史基线，在新副本中完成双 Snapshot、两份 quality 查询及共享聚合计算；10月26日真实批次已实际跑到39张表。该批候选 `data_through` 为10月24日，低于业务截止要求10月25日，因此最终状态是 `failed/published=false`，没有调用固定 publisher 切换 current。
 
-```bash
-python3 -m dashboard_product.shadow_bi.p5.daily --workspace customers/shadow_bi_daily
-```
+同批计算、封存39表、`prepared`、发布队列和正式 `published` 是不同状态。接收／计算到39表不能作为发布通过的证据；物理库 COUNT 门禁在业务截止门禁之后，该批未执行该COUNT检查。raw服务部署本身和已执行的服务器数仓/计算能力已落地；仍待验收的是有效新raw包正式发布、持续日更与唯一生产者收口。对应详情见[固定发布回执](server-raw-fixed-publisher-20261026.md)、[接收部署回执](server-raw-receiver-deployment-20261026.md)和[raw合同](server-raw-pipeline-contract.md)。
 
-这是会采集、重算并发布的写入入口，只能按授权运行。10-26 的本机运行将正式 current 更新为 `daily-20261026_094052`，`data_through` 为 10-25。完整服务器数仓迁移尚未完成。
-
-服务器已部署固定 raw 接收和 root-owned 发布能力，接口位于 `https://dashboard.apinova.cn/shadow-bi/v1/raw-batches`。接收／计算状态和正式发布状态需分别查询；仅当批次为 `prepared` 且来源窗口、质量与身份已验收时，固定程序才可发布。10-26 Dot 批次 `raw-20261026-dot-001` 因 `business cutoff mismatch` 终止，`published=false`；没有激活或生产者切换。因此不要把服务部署、包接收或候选计算记作正式发布，当前正式更新入口仍为 Mac `p5.daily`。接口与权限边界见[固定发布回执](server-raw-fixed-publisher-20261026.md)和[接收部署回执](server-raw-receiver-deployment-20261026.md)。
+10月26日 current `daily-20261026_094052`（数据截止10月25日）由 Mac `dashboard_product.shadow_bi.p5.daily` 手动入口更新，这是具体日期的运行记录；该入口仍存在，但不据此将其列为长期默认路径。正式操作前应确认当前服务器 manifest、候选状态、业务截止、来源质量及明确的发布授权；本轮未实读服务器和调度平台，不推断当前实时状态。`p5.daily` 是会采集、重算和发布的写入入口，若有明确需求使用仍须单独核对身份和授权。
 
 服务器通知适配已部署。10-26 的人工触发中，DeliveryState 有 8 条 `sent` 回执；另一个 HTTP send job 仍保留 `unknown`，其只读对账回执确认这 8 条发送来自此前执行，并标记 `no_send_performed=true`。这不是该 HTTP job 自身成功发送的证明；不得重发这 8 条或清空状态。通知作业控制修复见[回执](notification-job-receipt-repair-20261026.md)。
 
-Dot 每日上海 10:00 通知日程有 10-26 的建立记录，属于通知触发，不代表 BI 采集／刷新调度；Grok 例行按用户要求停止。10-26 回执记录 Mac `bi-2` 为 ACTIVE/09:40，但本次文档更新没有实读任何调度平台，因此不据此宣称当前启停。正式切换到 Dot 新采集链路前，仍需真实批次通过门禁、激活和页面／查询验收，并记录唯一生产者切换。旧 Grok 时间表、静态 HTML 发布和 7 条消息说明属于历史记录，不作为当前操作入口；旧静态说明见[历史归档](history/dashboard/static-deployment-through-20261025.md)。
+Dot 每日上海10:00通知日程有10-26建立记录，属于通知触发，不代表 BI 采集／刷新调度；Grok例行按用户要求停止。10-26回执记录 Mac `bi-2` 为ACTIVE/09:40，但本次文档更新没有实读任何调度平台，因此不据此宣称当前启停。有效raw包的门禁、正式发布和唯一生产者切换分别验收；持续日更运行安排也需独立核实。
 
 ## 5. 升级策略
 
