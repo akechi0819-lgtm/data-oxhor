@@ -164,3 +164,11 @@ python3 -m monitoring_product.release_notifications deliver \
 整仓生产计算及Dot云采集尚未切换，Mac日更/bi-2仍保留为当前数据更新依赖；用户已获明确告知。此更新不改变正式数据current、服务器部署源码5307a381、原16条状态或切换证明。凭据配置内容一致性仍未独立复核，此前拒绝项保持未执行。
 
 安全调用合同仍见上文“原HTTPS接口固定通知扩展”：同一域名/原Bearer、固定operation+expected_release+as_of_date、状态查询与幂等job回执。不得传命令、路径或任意接收方；未知发送结果不重放，部分失败按显式受限重试合同处理。
+
+## 2026-10-26 首次真实投递确认
+
+用户在本日新版看板刷新后明确要求一并执行钉钉推送。上海10:00窗口内调用既有固定入口`shadow-bi-notify send-scheduled daily-20261026_094052 2026-10-26`，未更改任务、凭据、收件通道或时间门禁。发送前status为ready，当日活动状态无已发记录；正式数据与当天双Snapshot一致，数据截至10月25日。
+
+固定入口返回`sent`，原5通道8消息全部sent、deduplicated=0、无unknown/失败；业务耗时153.336秒，总耗时154.55秒、峰值RSS305768KiB。随后独立实读持久状态，确认当天8条均sent。此证据证明实际HTTP发送及状态落盘，不代表逐群人工阅读确认，也不替代Dot每日自动日程的触发验收；后续同日自动调用仍应依原状态去重。
+
+服务器回执目录`/var/lib/shadow-bi-notify/runs/20261026T100011-70308712`。本机证据`.local/audits/shadow-bi-p5-20261026-manual/dingtalk-send.log`、`dingtalk-verification.json`。未回退看板、未恢复Grok任务。

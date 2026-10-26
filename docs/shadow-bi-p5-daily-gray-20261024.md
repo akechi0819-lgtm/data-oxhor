@@ -2,7 +2,7 @@
 
 # P5 每日更新与全量开放
 
-当前施工交验版为 **daily-20261024_101415q**，业务批次为 `run_shadow_daily_20261024_101415q_business`。语培、留学均显示截至 **2026-10-23**。历史合并和主被动平台返修已由总线程独立验收。用户已确认灰度反馈良好并授权全量开放；新版已接入全部18个原账号的原密码，连续日更观察继续。
+当前运行版为 **daily-20261026_094052**，业务批次为 `run_shadow_daily_20261026_094052_business`。语培、留学均显示截至 **2026-10-25**。历史合并和主被动平台返修已由总线程独立验收。用户已确认灰度反馈良好并授权全量开放；新版已接入全部18个原账号的原密码，连续日更观察继续。
 
 ## 范围与运行
 
@@ -19,7 +19,7 @@ python3 -u -m dashboard_product.shadow_bi.p5.daily --workspace customers/shadow_
 
 入口复用现有BI/Tencent连接器、受控业务重算及P4构建/备份/激活。当天已成功时只复查服务器版本和18值，不重复采集。仅同日来源已成功、后续发布失败时可用`--resume <原run_id>`续跑；联合身份变化时拒绝混批。`--publish-prepared`用于发布已经联合回执校验的修复批次，不触发新采集。
 
-## 当前来源与日更计数
+## 10月24日来源与日更计数（历史记录，最新见文末）
 
 - BI Snapshot：`snapshot_bi_operations_20261024_094415_repair`。
 - 留学 Snapshot：`snapshot_study_abroad_20261024_091402`。
@@ -93,3 +93,14 @@ python3 -u -m dashboard_product.shadow_bi.p5.daily --workspace customers/shadow_
 已运行既有`p5.daily --publish-prepared`完成重算、服务器构建、备份和激活。当前版本`daily-20261025_184644t`，两业务均截至2026-10-24；实际current与成功回执一致，服务器三范围18数对账通过，Chrome刷新后日期和被动工单8749/同期9580等可见数值匹配。仅刷新看板，无钉钉投递或任务配置变更。10月24日及25日两天已有真实成功记录，仍不宣称三日观察完成。
 
 当日回执：`customers/shadow_bi_daily/Output/ShadowDaily/2026-10-25.json`。审计：`.local/audits/shadow-bi-p5-20261025-manual/`，含`prepare_recovery.py`、`prepared.json`、`tencent-result.json`、`server-verification.json`和`live-dashboard.png`；发布完整日志在该日更批次的`publish.log`。
+
+
+## 2026-10-26 手动运行成功
+
+用户要求再次刷新今天的新版看板。在c373运行既有`p5.daily`，批次`run_shadow_daily_20261026_094052`；BI工单第一轮导出持续HTTP 500且超时，既有第二轮重试成功，现金第一轮成功，未调整重试配置或业务规则。BI/腾讯均重新采集，双仓`Snapshot`分别为`snapshot_bi_operations_20261026_094052`及`snapshot_study_abroad_20261026_094052`，联合门禁passed。
+
+已备份并激活`daily-20261026_094052`，服务器实际current与当日成功回执一致，三范围18项关键值核对通过。Chrome刷新后语培/留学均显示截至10月25日，被动FY27工单8791/同期9616、现金18247578.60/同期21702015.50、人头1260/同期1521与同批核对结果一致。未发钉钉、未改日更任务。
+
+10月24/25/26三个连续日期均已有真实成功发布回执；同日重试仅计一天。这只确认连续三日运行记录，不自动替代阶段整体验收。证据为当日`Output/ShadowDaily/2026-10-26.json`、本批`publish.log`及`.local/audits/shadow-bi-p5-20261026-manual/`中的`daily.log`、`server-verification.json`和`live-dashboard.png`。
+
+2026-10-26后续：用户明确要求一并执行钉钉推送，已在10时窗口通过服务器固定通知入口发送同批8消息至原5通道。发送回执及持久状态均为8条sent，无失败/unknown；未改日程，同日后续调用继续去重。完整回执见`docs/bi-notification-adapter-20261025.md`末节及本日审计目录。
