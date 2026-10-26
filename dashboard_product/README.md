@@ -1,14 +1,16 @@
+> **10月26日最新运行记录**：raw接收/计算/发布已暂停，保留Mac更新链路与既有成品/通知入口；服务器数仓和聚合代码能力仍保留。以[清理与暂停回执](../docs/server-cleanup-20261026.md)区分能力部署与当前启停。本轮未实读或修改服务器/日程，以下raw说明为代码/已部署能力合同，不是恢复运行指令。
+
 # 正式原生 BI 看板
 
 正式用户界面为 Superset 原生看板，见[正式入口](https://dashboard.apinova.cn/superset/dashboard/shadow-bi-native/?standalone=1)。沿用原18个账号和已授权只读范围；用户身份及权限边界见[正式基线](../docs/bi-production-baseline-20261025.md)。
 
-## 当前生产能力
+## 服务器能力与当前运行安排
 
-- 服务器 raw receiver、root 只读历史基线、受限双 Snapshot / quality / 共享计算 worker 和 root 固定 publisher 已部署。
+- 服务器raw receiver、历史基线、双Snapshot/quality/共享聚合worker与固定publisher已经部署；最新回执记载raw触发路径暂停，相关代码和必要基线保留。
 - raw worker 在服务器执行历史合并、双仓 Snapshot、质量查询及共同聚合计算，生成39张封存业务表。10月26日真实批次实际运行到39表，但最终因 `data_through` 业务截止不匹配以 `failed/published=false` 结束；该批没有发布新 release。
 - root 固定 publisher 已独立部署。只有通过来源、Snapshot、quality、39表及正式身份校验并进入 `prepared` 的候选，才能按明确授权进入 P4 和 release 切换。
 - 服务器数仓与聚合计算能力已落地。有效新 raw 包正式发布、持续日更安排及唯一生产者收口尚待各自验收；本轮未实读服务器或调度平台。
-- 日期回执记录 Superset current `daily-20261026_094052`（数据截止10-25）由 Mac `shadow_bi.p5.daily` 手动入口更新。该入口仍存在并有该次生产记录，不作为长期推荐默认路径。
+- 日期回执记录 Superset current `daily-20261026_094052`（数据截止10-25）由 Mac `shadow_bi.p5.daily` 手动入口更新。该入口按最新清理回执保留为当前Mac命令更新链路，本轮不改变日程。
 
 ## 代码职责
 

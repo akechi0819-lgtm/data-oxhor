@@ -1,3 +1,5 @@
+> **最新运行记录（2026-10-26）**：[清理与暂停回执](server-cleanup-20261026.md)记载自建raw接收、计算和发布路径已暂停，保留Mac更新与原生成品发布/通知入口。服务器数仓与聚合能力、代码和必要历史基线仍保留；“能力已部署”不等于raw目前启用。本轮仅收录另一工作树的日期回执，未实读或更改服务器/日程。
+
 # 核心 CLI 接入指南
 
 > 正式 BI 为 Superset 原生界面。服务器 raw receiver、root 只读历史基线、受限双 Snapshot / quality / 共享计算 worker 和固定 publisher 已部署；10月26日真实批次实际运行到39张表，最终因业务截止不匹配以 `failed/published=false` 结束，没有发布新 raw release。Mac `p5.daily` 仍存在并有10月26日手动更新记录，不因此列作长期默认路径。有效新包正式发布、持续日更和唯一生产者收口分别待验收。详见[部署说明](../dashboard_product/DEPLOYMENT.md)。
@@ -170,7 +172,7 @@ python3 -m dashboard_product.management.study_abroad_channels \
 
 人员产能与上述主看板归属分别核算：它从同一留学Snapshot的标准行读取“国际市场”作为语培向留学的跨业务输出，并从BI工单一级渠道“双分”读取反向输出；双方按现有人员名单、源归属与共创规则分摊。此改动不把国际市场改归语培总盘或线上／线下留学团队，不改变主看板个人与通知口径。
 
-当前服务器raw链路接收固定三Excel，在root只读历史基线副本上建立双Snapshot、运行quality和共享计算至39表，再由固定publisher按P4合同发布。10月26日真实批次实际跑到39表后被截止门禁拦截，状态 `failed/published=false`；因此有效raw新包正式发布、持续日更和唯一生产者收口仍待分别验收。Mac `shadow_bi.p5.daily` 仍存在并有10月26日手动运行记录，不作为长期默认入口。10月26日服务器部署不含当前main新增的来源完整性证明门禁；见[raw合同](server-raw-pipeline-contract.md)和[来源完整性合同](server-source-completion-candidate.md)。
+已部署但当前暂停的服务器raw链路接收固定三Excel，在root只读历史基线副本上建立双Snapshot、运行quality和共享计算至39表，再由固定publisher按P4合同发布。10月26日真实批次实际跑到39表后被截止门禁拦截，状态 `failed/published=false`；因此有效raw新包正式发布、持续日更和唯一生产者收口仍待分别验收。最新清理回执明确保留Mac `shadow_bi.p5.daily` 命令更新；本轮不改其日程。10月26日服务器部署不含当前main新增的来源完整性证明门禁；见[raw合同](server-raw-pipeline-contract.md)和[来源完整性合同](server-source-completion-candidate.md)。
 
 ### 2.3 投放费用手工输入
 

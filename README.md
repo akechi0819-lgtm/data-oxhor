@@ -1,3 +1,5 @@
+> 最新运行安排见[10月26日清理回执](docs/server-cleanup-20261026.md)：保留Mac更新、暂停raw接收/计算/发布。服务器数仓/聚合能力已落地，以下模块结构不代表raw当前启用；本轮未修改服务器或调度。
+
 # Data OXHor
 
 Data OXHor 是面向教育运营团队的模块化运营数据中台。它把数据接入、数据仓库、业务口径、客户工作区、分析交付、固定看板和日常监控拆成可独立使用的产品模块，供外部 Agent Host 或人工运维流程调用。
@@ -22,19 +24,16 @@ grok_workspace/      Grok Bot 隔离工作面，角色与自主积累材料不�
 .local/              本地日志、同步中转和历史运行材料，不进入 Git
 ```
 
-原生 BI 页面和通知包绑定同一正式 BI release。服务器 raw worker 基于只读历史基线建立双 Snapshot，经 quality 校验后运行共享计算并生成 39 张业务表；固定 publisher 通过 P4 验收并更新 Superset。`monitoring_product` 只执行固定通知规则和投递，不承担自由分析或任意 SQL。共享计算与人员规则分别位于 `dashboard_product/management/calculation.py` 和 `workspace_modeling/operations/`。
+原生BI页面和通知包绑定同一正式release。服务器已具备基于历史基线建立双Snapshot、执行quality及聚合39表的能力；最新清理回执暂停raw自算触发，保留Mac原生BI更新和P4发布。`monitoring_product` 从正式release构建固定通知包并投递，不承担自由分析或任意SQL；共享人员规则仍在 `workspace_modeling/operations/`。
 
 模块关系如下：
 
 ```text
-Dot 三 Excel 输入 → 服务器 raw receiver → root 只读历史基线
-                                  → 双 Snapshot / quality
-                                  → 共享计算 / 39 张业务表
-                                  → 固定 publisher / P4 → Superset release
-                                                       └→ release_notifications
-                                                            → monitoring_product 投递
+当前保留：Mac p5.daily → 双Snapshot / 共同计算 / 39表 → SSH + P4
+  → Superset正式release → release_notifications → monitoring_product投递
 
-工作区建模与自由分析沿 Data Platform 的 Snapshot / 受控查询入口独立运行。
+已部署但暂停：Dot三Excel → raw receiver / 双仓worker / 固定publisher
+工作区建模与自由分析沿Data Platform Snapshot / 受控查询入口独立运行。
 ```
 
 ## 如何使用

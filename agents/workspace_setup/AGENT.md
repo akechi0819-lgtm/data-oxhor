@@ -28,3 +28,5 @@ python3 -m interfaces.workspace_modeling handoff --workspace customers/<company>
 本 Agent 负责单一客户工作区的初始化、数据导入/同步和 Bridge 交接；不负责原生 BI 日更、发布、通知或调度。固定看板的当前部署入口与操作边界见[正式 BI 部署说明](../../dashboard_product/DEPLOYMENT.md)和[看板发布 Agent](../dashboard_publisher/AGENT.md)。
 
 当前服务器 raw 链路接收固定三 Excel，由受限 worker 基于 root 只读历史基线建立双 Snapshot、运行 quality 与共享计算，生成39张业务表；达到 `prepared` 后才可由 root publisher 按 P4 流程验收并切换 release。详见[raw 链路合同](../../docs/server-raw-pipeline-contract.md)。Mac `p5.daily` 仍是手动入口，不代表默认生产调度。来源完整性证明门禁已合入本地 `main`，10月26日部署回执对应的服务器版本尚未包含它；具体状态按[部署说明](../../dashboard_product/DEPLOYMENT.md)及对应回执核实。
+
+10月26日后续[清理回执](../../docs/server-cleanup-20261026.md)记载raw路径暂停、保留Mac更新；上述服务器raw分工描述已部署能力，不表示它当前启用。本Agent不恢复服务或日程。

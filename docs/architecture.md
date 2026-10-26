@@ -1,4 +1,6 @@
-> 正式 BI 产品为 Superset 原生界面。10月26日日期回执记录 current `daily-20261026_094052`（数据截至10-25）；该次由 Mac `p5.daily` 手动入口更新，不代表长期默认路径。服务器 raw receiver、root 只读历史基线、受限双 Snapshot / quality / 共享计算 worker 和固定 publisher 已部署；真实 Dot 批次跑到39张表后因业务截止不匹配以 `failed/published=false` 结束，没有发布 raw release。有效新包正式发布、持续日更和唯一生产者收口仍待分别验收，本轮未实读服务器或调度平台。Dot 10:00 日程记录针对通知，不是 BI 更新调度。代码与责任边界见[正式基线](bi-production-baseline-20261025.md)、[raw接收回执](server-raw-receiver-deployment-20261026.md)及[固定发布回执](server-raw-fixed-publisher-20261026.md)。
+> **最新运行记录（2026-10-26）**：[清理与暂停回执](server-cleanup-20261026.md)记载自建raw接收、计算和发布路径已暂停，保留Mac更新与原生成品发布/通知入口。服务器数仓与聚合能力、代码和必要历史基线仍保留；“能力已部署”不等于raw目前启用。本轮仅收录另一工作树的日期回执，未实读或更改服务器/日程。
+
+> 以下回顾暂停前的部署和批次验收。正式 BI 产品为 Superset 原生界面。10月26日日期回执记录 current `daily-20261026_094052`（数据截至10-25）；该次由 Mac `p5.daily` 手动入口更新，不代表长期默认路径。服务器 raw receiver、root 只读历史基线、受限双 Snapshot / quality / 共享计算 worker 和固定 publisher 已部署；真实 Dot 批次跑到39张表后因业务截止不匹配以 `failed/published=false` 结束，没有发布 raw release。有效新包正式发布、持续日更和唯一生产者收口仍待分别验收，本轮未实读服务器或调度平台。Dot 10:00 日程记录针对通知，不是 BI 更新调度。代码与责任边界见[正式基线](bi-production-baseline-20261025.md)、[raw接收回执](server-raw-receiver-deployment-20261026.md)及[固定发布回执](server-raw-fixed-publisher-20261026.md)。
 
 # 系统架构
 
@@ -76,18 +78,19 @@
 固定看板和推送共用一条管理批次链路，不经过自由分析交付：
 
 ```text
-Dot 三 Excel 输入 → 服务器 raw receiver → root 只读历史基线
-  → 双仓 Snapshot / quality → 共同计算 / 39张业务表
-  → 固定 root publisher / P4 → Superset 原生 BI release / current
-                                            └→ release_notifications
-                                                 → shared_delivery / 传输适配 → 8条通知
+当前保留：Mac p5.daily → 双Snapshot / 共同计算 / 39表
+  → SSH + P4 → Superset原生BI release / current
+                  └→ release_notifications → shared_delivery → 8条通知
+
+已部署但暂停：Dot三Excel → raw receiver / 双仓worker / 固定publisher
+  （服务器历史基线与聚合代码保留；暂停状态不等于能力未落地）
 ```
 
 同批通知内容、查询回执和 DeliveryState 保存在受限工作目录，不发布到 BI 页面根；只将投递所需的图片与表格资源提供给固定通知资产路径。钉钉 webhook 和发布凭据属于 C 层，不进入公开仓库或 MCP。
 
 本地main的raw计算与固定发布代码另要求受保护来源完成证明：计算预检缺证据则停止，候选封口/复用及固定发布前复核同一证明；最大记录日与经验证截止分开。10月26日部署回执对应服务器已安装版本，不含本轮本地新增的完成证明门禁，因此不能推断该新门禁已在服务器生效。合同见[来源完整性](server-source-completion-candidate.md)。
 
-截至 2026-10-26 的日期回执，current 为 `daily-20261026_094052`，数据截止10-25；该次由 Mac `p5.daily` 手动入口更新。此项仅记录已发生的生产者，不把 Mac 入口定为长期默认。服务器worker实际运行双Snapshot、两份quality及39表计算，但 Dot 批次 `raw-20261026-dot-001` 因业务截止不匹配以 `failed/published=false` 结束，未激活新版本。有效新包正式发布、持续日更和唯一生产者收口仍需分别验收；本轮未实读服务器或调度平台。自10-26起的Dot 10:00日程记录属于通知触发，与BI采集／刷新分开；Grok例行按用户要求停止。详见[通知作业修复回执](./notification-job-receipt-repair-20261026.md)、[接收部署回执](./server-raw-receiver-deployment-20261026.md)和[固定发布回执](./server-raw-fixed-publisher-20261026.md)。
+截至 2026-10-26 的日期回执，current 为 `daily-20261026_094052`，数据截止10-25；该次由 Mac `p5.daily` 手动入口更新。最新清理回执随后明确保留Mac命令更新、暂停raw路径；本轮不新增更新计划。服务器worker实际运行双Snapshot、两份quality及39表计算，但 Dot 批次 `raw-20261026-dot-001` 因业务截止不匹配以 `failed/published=false` 结束，未激活新版本。将来若另行恢复raw，有效新包正式发布、持续日更和唯一生产者收口仍须分别验收；本轮未实读服务器或调度平台。自10-26起的Dot 10:00日程记录属于通知触发，与BI采集／刷新分开；Grok例行按用户要求停止。详见[通知作业修复回执](./notification-job-receipt-repair-20261026.md)、[接收部署回执](./server-raw-receiver-deployment-20261026.md)和[固定发布回执](./server-raw-fixed-publisher-20261026.md)。
 
 ## 4. 确定性边界
 
