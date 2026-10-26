@@ -1,0 +1,9 @@
+[Unit]
+Description=Watch explicit prepared raw publication requests
+
+[Path]
+PathExistsGlob=/var/lib/shadow-bi/raw-publish-pending/raw-*
+Unit=shadow-bi-raw-publish.service
+
+[Install]
+WantedBy=multi-user.target
