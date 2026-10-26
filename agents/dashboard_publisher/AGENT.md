@@ -10,7 +10,7 @@
 
 ## 通知与兼容代码
 
-`management/calculation.py`为共同业务计算，`management.build`继续为同批通知及恢复生成shared_result。通知消费方为`monitoring_product.shared_delivery`及原有投递入口，不独立改SQL、业务归属、接收者或DeliveryState。
+`management/calculation.py`为共同业务计算，`management.build`继续为同批通知及恢复生成shared_result。正式通知入口为`monitoring_product.server_notify`，由`release_notifications`从固定release构建通知包，再调用`shared_delivery`去重投递，不独立改SQL、业务归属、接收者或DeliveryState。
 
 旧`run_management_daily.sh`默认只准备通知批次，不再激活静态网页。静态发布/激活保留dry-run与显式恢复开关`ALLOW_LEGACY_STATIC_PUBLISH=1`，不得当日常新版入口。完整旧Agent说明已归档于`docs/history/dashboard/static-publisher-agent-through-20261025.md`。
 
@@ -18,4 +18,4 @@
 
 ## 数据边界
 
-所有查询通过受控入口，携带显式Snapshot/run_id；保留Pack、Bridge、来源与参考资料的现有权威边界。不读取或复制凭据，不将客户输入、整个工作区或运行产物加入Git。完整服务器数仓迁移暂停；未来MCP权限不由BI上线自动授予。
+所有查询通过受控入口，携带显式Snapshot/run_id；保留Pack、Bridge、来源与参考资料的现有权威边界。不读取或复制凭据，不将客户输入、整个工作区或运行产物加入Git。raw接收/受限计算和固定publisher已有独立部署回执，但真实新包正式发布及唯一生产者切换仍待验收；本地来源完成证明门禁尚未部署。合同见[raw链路](../../docs/server-raw-pipeline-contract.md)与[来源完整性](../../docs/server-source-completion-candidate.md)。不得把本地合并当服务器上线，未来MCP权限不由BI上线自动授予。

@@ -58,6 +58,8 @@ python3 -m interfaces.data_platform --help
 | `dashboard_product.management.study_abroad_query` | Dashboard；显式留学 Snapshot、run_id、日期范围和命名 SQL | 经 Data Platform 受控查询写 `Output/StudyAbroad/` 的 SQL、参数、结果及回执 | 只读独立留学仓；不访问 BI 仓、不刷新页面或发送通知 |
 | `dashboard_product.management.study_abroad_channels` | Dashboard；显式留学 Snapshot、日期、当前同公司 Bridge 和渠道参考表 | 受控渠道映射预览、未命中清单、Bridge 候选及已明确确认的独立渠道 Bridge | 只读原 BI Bridge/参考；不切换正式 Bridge 或生产看板 |
 | `dashboard_product.management.build` | Dashboard；工作区、显式 Snapshot、run_id、as-of-date；通过 Data Platform 受控查询 | 写同批 `shared_result.json`、私有通知/核对引用及 18 个静态展示资源 | 本地构建；不直接发送钉钉 |
+| `dashboard_product.shadow_bi.p5.daily` | 正式原生BI日更；明确工作区和当日双源 | 采集、双Snapshot、共同计算、39表、P4装载和验版 | 写数据并真实发布；须有对应授权 |
+| `dashboard_product.shadow_bi.p5.raw_compute` | 固定三Excel、root只读基线及完成证明；prepare/recheck | 新副本计算至prepared，或复验既有失败封存候选 | 不自动发布或通知；缺完整证明停止 |
 | `dashboard_product.management.publication` | Dashboard；同批 `shared_result.json`、输出目录 | 校验引用身份与哈希，生成仅含公开资源的 release manifest | 本地组包；不上传或切 live |
 | `monitoring_product.shared_delivery` | Monitoring；同批 `shared_result.json`、as-of-date、state-dir；正式投递另需 C 层 env-file | dry-run 生成本地预览；正式投递使用共同结果的八条消息与同批附件 | 正式模式上传附件并发送已授权的钉钉通道；逐消息去重 |
 | `market_workspace/oxhor` | 市场工作面；固定数据工作区、显式 Snapshot/run | 只读 CLI 调用，写市场 Evidence；不提供导入/发布 | 无 |
@@ -65,7 +67,7 @@ python3 -m interfaces.data_platform --help
 
 这是一份静态能力说明，精确参数与写入目录仍以各命令 `--help` 和模块合同为准。自由分析交付由宿主组织，不增加 `analyze` 核心服务或运行时 Capability Registry。
 
-`interfaces.data_platform` 仍是项目受控 SQL 查询的公开 CLI。`dashboard_product/refresh.py` 仅保留被导入的内部 source helper，不是受支持的 `python -m` 命令行库；固定看板流程从 `management.build` 开始。
+`interfaces.data_platform` 仍是项目受控 SQL 查询的公开 CLI。`dashboard_product/refresh.py` 仅保留被导入的内部 source helper，不是受支持的 `python -m` 命令行库；正式BI日更使用 `shadow_bi.p5.daily`；`management.build` 用于共同计算、通知与本地静态诊断，不自行完成原生BI发布。
 
 每个子命令的精确参数以 `--help` 为准，例如：
 
@@ -176,7 +178,7 @@ python3 -m dashboard_product.management.build \
   --as-of-date 2026-10-08
 ```
 
-生产日更入口读取两份明确当前指针并传入两个Snapshot，缺留学仓不回退旧BI。正式通知发送还验证留学来源截至昨日；较旧样本可本地预览，但不因BI仓新鲜就发送旧留学数据。腾讯抓取入口已实现并实抓通过；每日抓取由 `data_acquisition/deploy/run_daily_warehouses.sh`并列更新两源并生成当天成功配对；`run_management_daily.sh`不重复抓源，核验联合回执才构建发布。平台例行启停和实际激活以各自权威状态及回执为准。
+正式Mac日更由 `shadow_bi.p5.daily` 采集双源并传入两个明确Snapshot，缺留学仓不回退旧BI。正式通知发送还验证留学来源截至昨日；较旧样本可本地预览，但不因BI仓新鲜就发送旧留学数据。历史脚本 `run_daily_warehouses.sh` 可生成双仓配对，`run_management_daily.sh` 默认只准备通知批次，不抓源或自动发布静态站点，不作为原生BI日更入口。raw另按[固定合同](server-raw-pipeline-contract.md)处理三Excel；本地完整性门禁尚未部署，正式接管与调度启停须分别验收。
 
 ### 2.3 投放费用手工输入
 
@@ -320,11 +322,10 @@ python -m monitoring_product.shared_delivery \
   --state-dir "$WORKSPACE/Work/DeliveryState" --dry-run
 ```
 
-正式批次投递由 `monitoring_product/deploy/deliver_management_batch.sh` 读取 `Work/ManagementDelivery/batch.json`，再次核对同批身份后调用 `shared_delivery`；该模式需要显式 `--env-file` 所指向的原 C 层文件。八条消息投递到原五个通道：`offline_youth`、`offline_high_school`、`offline_university`、`online_private`、`online_platform`。高中、大学与线上平台的两条消息分别共用原群；高中留学简报只消费本组留学个人完成、个人渠道与个人流水，不生成部门完成。本说明不改变10:24投递例行启停；当前状态须从平台核对，不能沿用10月3日暂停记录。
+当前服务器正式通知使用 `server_notify` 固定入口与 `release_notifications` 同批包；HTTP只接受operation、expected_release和as_of_date，不接受任意路径或接收者。八条消息投递至原五通道，高中留学简报保持个人完成与个人流水。10月26日已有8条sent；后续HTTP job仍保留unknown，只读对账不等于该job自身成功发送。见[通知修复回执](notification-job-receipt-repair-20261026.md)。
 
-Grok 09:45 Routine 使用 `dashboard_product/deploy/run_management_daily.sh`，环境变量指向 warehouse Python、dashroot、whcustomer 和原 C 文件，`REMOTE_NGINX_CONF` 采用已确认的 `/etc/nginx/sites-available/dashboard`。P3/P4/P5于2026-10-03完成；09:45看板日更和10:24日推为既有节奏，当前启停需平台实读。腾讯数据新批次已组包、未在本次激活；历史上线回执见[看板施工计划第32节](./dashboard-static-rebuild-plan.md)。页面发布边界见 [`dashboard_product/DEPLOYMENT.md`](../dashboard_product/DEPLOYMENT.md)，共同结果合同见 [`management/README.md`](../dashboard_product/management/README.md)，投递状态见 [`monitoring_product/README.md`](../monitoring_product/README.md)。Webhook 属于 C 层，不在本接入指南展开。
+`deliver_management_batch.sh` 与旧Grok09:45/10:24节奏仅供历史复核，不作为新调度入口；Grok例行已按用户要求停止，Dot10:00建立记录针对通知，不代表采集发布已切换。任务实时状态须由宿主实读，不从本地Git更新推断。正式运行与恢复见[部署说明](../dashboard_product/DEPLOYMENT.md)，本地共同结果见[management说明](../dashboard_product/management/README.md)，通知合同见[监控模块](../monitoring_product/README.md)。Webhook属于C层，不在本指南展开。
 
-
-## 影子 BI 派生查询库（P2，本地施工）
+## BI 派生查询库（沿用P2受控查询合同）
 
 业务批次不是原始Snapshot。Agent读取已封口的派生库使用 `python3 -B -m interfaces.business_library describe|query --library <明确目录> --batch-id <明确批次>`；查询必须带run-id及输出目录，不直接连接DuckDB。来源绑定、表粒度、限制和 `business_query_receipt.v1` 见[业务查询库合同](shadow-bi-p2-query-contract.md)。现有Snapshot查询入口与生产发布/推送保持原合同。

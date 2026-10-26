@@ -1,35 +1,33 @@
-> 2026-10-25最新交付：原HTTPS固定通知接口已部署，Dot用原token完成status/job查询及重复preview真实鉴权验收，8条dry_run且未发送。主线程已建立2026-10-26起每日上海10:00含周末的通知日程，门禁失败不发旧数据；原16条状态及历史缺口保留。尚无首次真实发送回执，整仓生产计算/云采集未切，Mac日更仍保留。以下旧时点记录留作追溯；[最终交接](../docs/bi-notification-adapter-20261025.md)末节为当前状态。
-
-> 2026-10-25实际部署：通知代码25987199已部署到独立服务器版本，原5通道凭据和本机16条真实发送记录已迁入。服务器8消息/PNG/XLSX不发送验收通过，未发钉钉、未建日程。历史状态仅覆盖10月12—13日，尚未生成就绪证明；不得启用发送。完整回执见通知适配文档末节。
-
-> 2026-10-25：Grok全部例行已由用户停止。新的服务器release通知适配已在本地实施，尚未部署或启用；入口、原状态门禁、离线证据及待授权项见[适配交验](../docs/bi-notification-adapter-20261025.md)。下方旧排期/启停/发送批次均为历史时点，不作为当前任务状态。新接管使用release_notifications；shared_delivery保留为兼容底层。
-
 # 日常监控
 
-当前投递合同为8条消息／原5通道，消费 `management.build` 的同批通知结果，不独立核算留学或语培。2026-10-12用户授权从本机执行一次双仓更新、看板刷新和推送：`run_management_local_20261012_1138` 使用当天两仓、数据截至10月11日，8条消息全部取得sent回执，无失败／unknown，持久去重状态位于本机工作区 `Work/DeliveryState/shared_delivery_state.json`。Grok例行及云端指针未改；不能从本机成功倒推云端已恢复，也不能在恢复后重复补发本日同8条消息。运行证据见[本机正式运行](../docs/local-production-run-20261012.md)。2026-10-09的 `run_grok_tencent_view_final_20261009` 是早期空跑记录，不代表当时已发送；完整同步边界见 [同步说明](../SYNC.md)。
+> 状态依据截至 2026-10-26 的日期回执：固定服务器通知适配已部署，8条消息／原5通道从固定正式 release 构建并经 `shared_delivery` 去重投递，不独立查询数仓。10-26 人工触发有 8 条 sent 记录；另一个 HTTP job 保留 `unknown`，只读对账确认它们来自此前发送且 `no_send_performed=true`，不得把 job 本身记为 sent 或重发。记录中自 10-26 起每日上海 10:00 的 Dot 日程用于通知，不是 BI 采集／刷新调度。本次没有读取调度平台当前状态。回执见[通知作业修复记录](../docs/notification-job-receipt-repair-20261026.md)。
 
-`monitoring_product.shared_delivery` 是直接消费已验收共同结果的通用投递适配，不独立取数。现有daily/deliver入口继续复用，平台例行当前启停需实读。只读命令留作复核：
+`monitoring_product.server_notify` 是服务器固定入口：`status` 报告固定服务状态，不读取外部日程状态；`preview` 默认不发送；`send-scheduled` 只允许上海 10:00 且要求当天正式 release 和已导入 DeliveryState。模块本身不安装调度器；外部日程与 BI 更新日程分别管理。正式通知包由 `release_notifications` 从固定的正式 BI release 构建，绑定来源、规则和查询回执；`shared_delivery` 保持逐消息去重和传输。大学与线上平台各两条消息分别共用原群。人员规则及花名册仍共用 `workspace_modeling/operations/`。
+
+本地需要复核已有 `shared_result.json` 时，可用以下 dry-run；它只渲染预览，不是服务器定时发送入口：
 
 ```bash
 python3 -m monitoring_product.shared_delivery \
   --shared-result <本批次>/shared_result.json \
   --output-dir <本批次>/delivery_preview \
-  --as-of-date <notifications.metadata.as_of_date> \
+  --as-of-date <上海通知日期YYYY-MM-DD> \
   --state-dir <客户工作区>/Work/DeliveryState \
   --dashboard-base-url http://dashboard.apinova.cn --dry-run
 ```
 
-适配器的正式调用需显式加入 `--env-file <C层凭据文件>`，要求当天新Snapshot、昨日数据截止及完整五通道配置。持久 `state-dir` 跨批次复用，按日期/通道/消息去重；已成功不再发送，请求结果未知则阻断该条重发并报告，其他可安全继续的消息分别留回执。同群双消息使用独立图片/附件路径。dry-run不读取凭据、不建投递状态、不上传、不发送，允许封存历史数据演练；历史预览成功不表示正式新鲜度检查通过。预览与组包不等于正式发送或激活；正式状态需对应批次的发送／activation回执。
+本地离线预览不读取凭据、不写投递状态、不上传或发送。服务器正式触发必须使用固定入口及当天 release，需满足新 Snapshot、`data_through` 为昨日、完整五通道配置和导入的原始 DeliveryState；已成功或结果未知的消息都不能盲目重发。
 
-2026-10-09大学语培推送保留原工单与人头栏，追加“现金完成（元）”，取同批个人实际现金。HTML、PNG、Markdown显示一致，Excel原现金字段保留；大学留学现金仍沿同批来源。图片画布随列宽扩展，不因新增现金列裁切。此修改已同步Grok并进入同批预览；本次验收未发送，不调整既有接收渠道。
+## 历史本机与Grok验收记录
 
-## Grok例行接入
+2026-10-12 用户授权的本机批次 `run_management_local_20261012_1138` 使用当天两仓、数据截至 10-11，8 条消息全部取得 sent 回执，无失败／unknown；当时持久状态位于工作区 `Work/DeliveryState/shared_delivery_state.json`。这是历史批次，不能用于推断当前云端状态或触发补发。运行证据见[本机正式运行](../docs/local-production-run-20261012.md)。2026-10-09 的 `run_grok_tencent_view_final_20261009` 是更早的空跑，不代表当时已发送。
 
-生产调用 `deploy/deliver_management_batch.sh`，工作目录设为现有dashboard源码目录，显式传入 `PROJECT_ROOT`、`WORKSPACE`、warehouse虚拟环境 `PYTHON` 和原 `ENV_FILE`。入口先核验当天双仓共同回执，再读取 `Work/ManagementDelivery/batch.json` 指定的run、Snapshot、日期及结果路径，核对同批身份后投递，不通过目录时间选结果，不重新查仓。
+2026-10-09 大学语培推送曾保留原工单与人头栏，追加“现金完成（元）”，取同批个人实际现金；HTML、PNG、Markdown 显示一致，Excel 原现金字段保留。该版本的预览和源码同步记录不代表当前通知部署或日程状态。
 
-原投递节奏为每天10:24（Asia/Shanghai）；10月3日的假期暂停是历史状态，不能据它断言现在仍暂停。平台启停、实际发送和构建预览分别核对，本文不改变例行。当前源码合同为8条消息、原5通道；高中、大学和线上各有同群双消息。高中留学简报消费本组个人完成、渠道及流水，不生成部门留学完成；虚拟人工单按已确认混合贡献。网页期间选择不改变固定通知窗口。腾讯版已经源码同步／预览通过，本次未真实发送；这不意味着当天其他任务未曾发送。
+## 已停用的 Grok 例行（历史合同）
 
-ROI费用不属于双仓更新或投递例行的数据抓取范围。构建需要费用时，由用户手工提供原表，登记到客户 `Input/AdvertisingCosts/sources.json` 后由管理构建读取；Grok 同样只使用用户手工提供的费用表，不自动抓取。腾讯留学仓的例行导出仍用于留学资源和签约数据。详见[费用与ROI输入说明](../docs/dashboard-advertising-costs.md)。
+旧 `deploy/deliver_management_batch.sh`、09:30／09:45／10:24 的 Grok 运行时刻，以及 7 条消息合同均属于历史版本，不是当前服务器通知入口。用户已要求停止 Grok 例行；日期回执提供的是停止安排，不构成本页编辑期间的云端实时检查。历史部署记录见[监控模块旧部署](../docs/monitoring-cloud-deployment.md)和[静态发布归档](../docs/history/dashboard/static-publisher-agent-through-20261025.md)。
+
+ROI 费用不属于双仓更新或通知投递的数据抓取范围。构建需要费用时，由用户手工提供原表，登记到客户 `Input/AdvertisingCosts/sources.json` 后由管理构建读取；其他宿主同样只使用用户提供的费用表，不自动抓取。腾讯留学导出可作为留学资源和签约数据来源，具体刷新安排以当前授权的数据任务为准，本页不宣称仍有 Grok 例行。详见[费用与 ROI 输入说明](../docs/dashboard-advertising-costs.md)。
 
 ## 个人通知分配与未分配签约（2026-10-12）
 

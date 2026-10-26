@@ -1,8 +1,8 @@
-> 2026-10-25正式BI运行以[部署说明](../dashboard_product/DEPLOYMENT.md)及[正式基线](bi-production-baseline-20261025.md)为准。下方旧站点和Grok时间表为历史记录，不能据此重装静态站点、断言调度启停或覆盖较新的release。
+> 截至 2026-10-26 的日期回执：正式 BI current 为 `daily-20261026_094052`（数据截止 10-25），Mac `p5.daily` 仍是正式更新入口。服务器 raw 接收／固定发布能力已部署，但该日 Dot 批次未通过业务截止门禁、没有发布或切换。服务器通知适配已部署；Dot 10:00 日程记录针对通知，不能当作 BI 采集刷新日程。详见[部署说明](../dashboard_product/DEPLOYMENT.md)及本页 4.1；本次未核验调度平台实时状态。
 
 # 本地运维手册
 
-> 2026-10-09验收：腾讯更新脚本、标准历史与10月数据已在Grok验证入仓，新批次仅构建／组包／空跑，尚无本次激活回执。原服务2026-10-03已上线，不能再称P5未完成，也不能把旧暂停记录当当前启停。来源日常新增BI／腾讯并列更新，后续看板与投递核验当天双仓回执后才消费；具体状态见 `SYNC.md` 与 `dashboard_product/DEPLOYMENT.md`。
+> 下方 2026-10-03—10-12 的 Grok 与静态发布记录均为历史操作，不是当前运行指令。原生 BI 与通知的当前边界见 `dashboard_product/DEPLOYMENT.md`、`monitoring_product/README.md` 和 `SYNC.md`。
 
 ## 1. 版本和路径
 
@@ -77,45 +77,21 @@ PPT Master 现由宿主全局 Skill 管理。项目只保证交给它的当前 S
 项目 Skill `diagnose-source-overlap` 已在 2026-08-16 由 Harness headless 真实调用，能正确区分全量刷新与多来源并存，并把去重处理路由到 Data Platform 只读查询和保存查询。
 
 
-## 4.1 看板发布与钉钉
+## 4.1 正式 BI 更新、固定发布与通知
 
-Grok 云电脑的 9:45 Asia/Shanghai routine 调用 `dashboard_product/deploy/run_management_daily.sh`。运行环境复用已有 warehouse Python、dashroot、whcustomer 和原 C 层 env-file；Nginx 配置路径已实读确认为 `/etc/nginx/sites-available/dashboard`：
-
-```bash
-PYTHON="/path/to/warehouse-venv/bin/python" \
-PROJECT_ROOT="/path/to/dashroot" \
-WORKSPACE="/path/to/whcustomer" \
-ENV_FILE="/path/to/existing-C-env-file" \
-REMOTE_NGINX_CONF=/etc/nginx/sites-available/dashboard \
-bash /path/to/dashroot/dashboard_product/deploy/run_management_daily.sh
-```
-
-该批次从显式当前 Snapshot 构建管理共同结果，并对同批消息执行 dry-run、写入当天 batch 指针、组包和 release 激活流程。正式页面仍须以激活回执和实际 URL 检查确认；目前 P5 未完成。不要因为 routine 已启用就报告页面已 live。
-
-C 层环境变量留在现有凭据文件，不进 Git、不贴聊天：
-
-| 变量 | 用途 |
-|---|---|
-| `SERVER_HOST` / `SERVER_PORT` / `SERVER_USER` / `SERVER_PASSWORD` | 主页面和钉钉素材 SCP |
-| `NOTIFY_PUBLIC_ORIGIN` | 钉钉图片/表格公网前缀 |
-| `DINGTALK_WEBHOOK_<CHANNEL>` / `DINGTALK_SECRET_<CHANNEL>` | 五通道：`ONLINE_PRIVATE`、`ONLINE_PLATFORM`、`OFFLINE_YOUTH`、`OFFLINE_HIGH_SCHOOL`、`OFFLINE_UNIVERSITY` |
-
-同批只读预览使用 routine 中的 `WORKSPACE`、`RUN_ID`、`AS_OF_DATE`：
+截至 2026-10-26 的操作回执，Mac 上的 `p5.daily` 仍是正式 BI 更新入口：
 
 ```bash
-BATCH_DIR="$WORKSPACE/Output/DashboardManagement/$RUN_ID"
-SHARED_RESULT="$BATCH_DIR/shared_result.json"
-python -m monitoring_product.shared_delivery \
-  --shared-result "$SHARED_RESULT" \
-  --output-dir "$BATCH_DIR/delivery_preview" \
-  --as-of-date "$AS_OF_DATE" \
-  --state-dir "$WORKSPACE/Work/DeliveryState" \
-  --dashboard-base-url http://dashboard.apinova.cn --dry-run
+python3 -m dashboard_product.shadow_bi.p5.daily --workspace customers/shadow_bi_daily
 ```
 
-当天经授权的批次投递入口是 `monitoring_product/deploy/deliver_management_batch.sh`，它读取 `Work/ManagementDelivery/batch.json` 并显式使用同一 C 层 env-file。Grok 的 10:24 钉钉 routine 当前 paused，保持暂停；五个原群的七条消息由 `shared_delivery` 负责，旧独立通知查询链保持退役。
+这是会采集、重算并发布的写入入口，只能按授权运行。10-26 的本机运行将正式 current 更新为 `daily-20261026_094052`，`data_through` 为 10-25。完整服务器数仓迁移尚未完成。
 
-P5 激活沿用现有域名、认证和匿名 `/healthz`；通知图片/附件仍从 `/var/www/dashboard/notify/` 服务。新静态页面激活后以真实 receipt 验证，不删除旧生产页作为本轮运维步骤。
+服务器已部署固定 raw 接收和 root-owned 发布能力，接口位于 `https://dashboard.apinova.cn/shadow-bi/v1/raw-batches`。接收／计算状态和正式发布状态需分别查询；仅当批次为 `prepared` 且来源窗口、质量与身份已验收时，固定程序才可发布。10-26 Dot 批次 `raw-20261026-dot-001` 因 `business cutoff mismatch` 终止，`published=false`；没有激活或生产者切换。因此不要把服务部署、包接收或候选计算记作正式发布，当前正式更新入口仍为 Mac `p5.daily`。接口与权限边界见[固定发布回执](server-raw-fixed-publisher-20261026.md)和[接收部署回执](server-raw-receiver-deployment-20261026.md)。
+
+服务器通知适配已部署。10-26 的人工触发中，DeliveryState 有 8 条 `sent` 回执；另一个 HTTP send job 仍保留 `unknown`，其只读对账回执确认这 8 条发送来自此前执行，并标记 `no_send_performed=true`。这不是该 HTTP job 自身成功发送的证明；不得重发这 8 条或清空状态。通知作业控制修复见[回执](notification-job-receipt-repair-20261026.md)。
+
+Dot 每日上海 10:00 通知日程有 10-26 的建立记录，属于通知触发，不代表 BI 采集／刷新调度；Grok 例行按用户要求停止。10-26 回执记录 Mac `bi-2` 为 ACTIVE/09:40，但本次文档更新没有实读任何调度平台，因此不据此宣称当前启停。正式切换到 Dot 新采集链路前，仍需真实批次通过门禁、激活和页面／查询验收，并记录唯一生产者切换。旧 Grok 时间表、静态 HTML 发布和 7 条消息说明属于历史记录，不作为当前操作入口；旧静态说明见[历史归档](history/dashboard/static-deployment-through-20261025.md)。
 
 ## 5. 升级策略
 

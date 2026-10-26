@@ -9,7 +9,7 @@ import duckdb
 import pytest
 from openpyxl import Workbook
 from flask import Flask
-from dashboard_product.shadow_bi.p5 import raw_publish as rp,raw_inputs as ri,raw_status as rs,publish_status as ps
+from dashboard_product.shadow_bi.p5 import raw_publish as rp,raw_inputs as ri,raw_status as rs,publish_status as ps,source_completion as sc
 from dashboard_product.shadow_bi.p5.raw_receiver import register
 from dashboard_product.shadow_bi.p5.raw_compute import run_names
 from dashboard_product.shadow_bi.library import write_table
@@ -32,6 +32,24 @@ def case(tmp_path,monkeypatch):
         p=tmp_path/(key+'.xlsx');w=Workbook();w.active.append(['synthetic']);w.save(p);w.close();paths[key]=p
     archive=tmp_path/'inputs.tar';ri.pack(paths,archive,batch=batch,company='workspace_bi_operations',day=day)
     ri.stage(archive,tmp_path/'raw-inputs',company='workspace_bi_operations',day=day,minimum_cutoff=cutoff)
+    received=tmp_path/'raw-inputs'/batch
+    completion_root=tmp_path/'raw-control/source-completion';completion_root.mkdir(mode=0o700)
+    completion_folder=completion_root/batch;completion_folder.mkdir(mode=0o700)
+    expected=sc.binding(received)
+    reviewed_at=datetime.now(ZoneInfo('Asia/Shanghai'))
+    approval={'schema_version':sc.SCHEMA,'binding':expected,'reviewed_at':reviewed_at.isoformat(),'sources':{}}
+    for key in ('orders','cash'):
+        body=('SYNTHETIC TEST ONLY completion watermark '+key).encode()
+        (completion_folder/(key+'.evidence')).write_bytes(body)
+        approval['sources'][key]={'kind':'upstream_completion_watermark','source_id':{'orders':'br_work_orders','cash':'br_cash'}[key],
+                                  'complete_through':cutoff,'evidence_sha256':hashlib.sha256(body).hexdigest()}
+    ri.write(completion_folder/'approval.json',approval)
+    monkeypatch.setattr(sc,'ROOT',completion_root)
+    original_load=sc._load
+    # Keep the real protected-file/parser checks while adapting the fixture owner to this test process.
+    monkeypatch.setattr(sc,'_load',lambda root,binding:original_load(root,binding,owner_uid=os.geteuid(),now=reviewed_at))
+    decision,completion=sc.resolve(received)
+    assert completion is not None
     archive_sha=ri.sha(archive);suffix,_,business=run_names(day,archive_sha)
     work=tmp_path/'raw-compute/runs'/batch;library=work/'workspace/Output/ShadowBI'/business/'library';library.mkdir(parents=True)
     db=library/'business.duckdb'
@@ -39,10 +57,11 @@ def case(tmp_path,monkeypatch):
         con.execute('CREATE SCHEMA queries');con.execute('CREATE TABLE queries.batch(batch_id VARCHAR)');con.execute('INSERT INTO queries.batch VALUES (?)',[business])
         tables={f'fixture_{i}':write_table(con,library,f'fixture_{i}',[{'value':i}]) for i in range(39)}
     snapshots={'training':'snapshot_bi_operations_'+suffix,'abroad':'snapshot_study_abroad_'+suffix}
-    manifest={'schema_version':'business_query_library.v1','as_of_date':day,'batch_id':business,'coverage':{'data_through':cutoff},'snapshots':snapshots,
+    manifest={'schema_version':'business_query_library.v1','as_of_date':day,'batch_id':business,'coverage':{'data_through':cutoff,'source_completion':completion.metadata()},'snapshots':snapshots,
               'tables':tables,'database':file_ref(db,library,'application/vnd.duckdb'),'binding':{'inputs':{'fixture':'a'*64},'rules':{'fixture':'b'*64}},'source_queries':[{'snapshot_ref':{'snapshot_id':snapshots['training']}}]}
     ri.write(library/'library_manifest.json',manifest)
     ri.write(work/'prepared.json',{'library':str(library),'batch_id':business,'gates':{'tables':39,'physical_counts_verified':True,'manifest_sha256':ri.sha(library/'library_manifest.json')}})
+    ri.write(work/'coverage-decision.json',decision)
     ri.write(work/'state.json',{'status':'prepared','published':False,'identity':{'archive_sha256':archive_sha},'prepared_sha256':ri.sha(work/'prepared.json')})
     ri.write(work/'pair.json',{'status':'passed','as_of_date':day,'sources':{'bi':{'value_sha256':_canonical_sha256({k:ri.sha(paths[k]) for k in ['orders','cash']})},'study_abroad':{'value_sha256':ri.sha(paths['tencent'])}}})
     for key,snapshot in [('bi',snapshots['training']),('study',snapshots['abroad'])]:ri.write(work/('quality-'+key+'.json'),{'status':'passed','snapshot_id':snapshot,'errors':[],'result':{'rows':[]}})
@@ -103,6 +122,70 @@ def test_preflight_failure_never_activates(case,bad):
         if bad=='table':p.write_bytes(b'changed')
         else:p.unlink();p.symlink_to(base/'raw-control/receiver-policy.json')
     else:marker['expected_current_sha256']='0'*64
+    enqueue();result=rp.publish_one(base,batch)
+    assert result['status']=='publish_failed' and (base/'current').resolve()==old and old.exists() and calls==[]
+
+
+@pytest.mark.parametrize('bad',[
+    'approval_missing','approval_changed','approval_hash','decision_missing','decision_changed',
+    'manifest_missing','manifest_changed','uploaded_forgery',
+])
+def test_source_completion_integrity_failure_never_activates(case,bad):
+    base,batch,work,library,old,marker,enqueue,calls,manifest=case
+    approval_path=base/'raw-control/source-completion'/batch/'approval.json'
+    decision_path=work/'coverage-decision.json'
+    if bad=='approval_missing':
+        approval_path.unlink()
+    elif bad=='approval_changed':
+        approval=json.loads(approval_path.read_bytes())
+        approval['reviewed_at']=(datetime.fromisoformat(approval['reviewed_at'])-timedelta(microseconds=1)).isoformat()
+        ri.write(approval_path,approval)
+    elif bad=='approval_hash':
+        approval=json.loads(approval_path.read_bytes())
+        approval['sources']['orders']['evidence_sha256']='0'*64
+        ri.write(approval_path,approval)
+    elif bad=='decision_missing':
+        decision_path.unlink()
+    elif bad=='decision_changed':
+        decision=json.loads(decision_path.read_bytes());decision['approval_sha256']='0'*64
+        ri.write(decision_path,decision)
+    elif bad=='manifest_missing':
+        manifest['coverage'].pop('source_completion');ri.write(library/'library_manifest.json',manifest)
+        prepared=json.loads((work/'prepared.json').read_bytes())
+        prepared['gates']['manifest_sha256']=ri.sha(library/'library_manifest.json')
+        ri.write(work/'prepared.json',prepared)
+        state=json.loads((work/'state.json').read_bytes());state['prepared_sha256']=ri.sha(work/'prepared.json')
+        ri.write(work/'state.json',state)
+    elif bad=='manifest_changed':
+        manifest['coverage']['source_completion']['approval_sha256']='0'*64
+        ri.write(library/'library_manifest.json',manifest)
+        prepared=json.loads((work/'prepared.json').read_bytes())
+        prepared['gates']['manifest_sha256']=ri.sha(library/'library_manifest.json')
+        ri.write(work/'prepared.json',prepared)
+        state=json.loads((work/'state.json').read_bytes());state['prepared_sha256']=ri.sha(work/'prepared.json')
+        ri.write(work/'state.json',state)
+    else:
+        received_manifest=base/'raw-inputs'/batch/'manifest.json'
+        raw=json.loads(received_manifest.read_bytes());raw['source_completion']=manifest['coverage']['source_completion']
+        received_dir=received_manifest.parent;mode=received_dir.stat().st_mode&0o777
+        received_dir.chmod(0o700);ri.write(received_manifest,raw);received_dir.chmod(mode)
+    enqueue();result=rp.publish_one(base,batch)
+    assert result['status']=='publish_failed' and (base/'current').resolve()==old and old.exists() and calls==[]
+
+
+@pytest.mark.parametrize('change',['revoke','replace'])
+def test_completion_revoked_or_replaced_during_build_never_activates(case,monkeypatch,change):
+    base,batch,work,library,old,marker,enqueue,calls,manifest=case
+    approval_path=base/'raw-control/source-completion'/batch/'approval.json'
+    def revoke_during_build(*args):
+        if change=='revoke':
+            approval_path.unlink()
+        else:
+            approval=json.loads(approval_path.read_bytes())
+            approval['reviewed_at']=(datetime.fromisoformat(approval['reviewed_at'])-timedelta(microseconds=1)).isoformat()
+            ri.write(approval_path,approval)
+        return base/'synthetic-new-baseline'
+    monkeypatch.setattr(rp,'prepare_baseline',revoke_during_build)
     enqueue();result=rp.publish_one(base,batch)
     assert result['status']=='publish_failed' and (base/'current').resolve()==old and old.exists() and calls==[]
 

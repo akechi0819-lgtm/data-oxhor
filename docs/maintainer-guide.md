@@ -43,6 +43,8 @@
 
 ## 当前状态与历史记录
 
+10月26日本地代码、文档与工作树收口见[整合记录](local-project-alignment-20261026.md)。`main`为整合基线；c373保留数据、证据和稳定运行路径，其源码对齐main后以detached HEAD保留，不作为另一条开发分支。本地合并不部署服务器、不切换生产者或修改日程。
+
 当前状态、已知限制与本次施工记录统一维护在 [DEVELOPMENT.md](../DEVELOPMENT.md)。[历史交接](history/project-handoff-through-20260918.md) 仅保留过去决策与验收事实，不作为日常操作入口；看板运行以模块 README 和 DEPLOYMENT 为准。
 
 ## Project Intelligence MCP 可选测试

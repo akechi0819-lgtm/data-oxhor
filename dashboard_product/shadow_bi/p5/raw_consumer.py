@@ -18,7 +18,7 @@ from dashboard_product.shadow_bi.p5.raw_inputs import BATCH, MAX_ARCHIVE, _json,
 from dashboard_product.shadow_bi.p5 import raw_status
 
 SCHEMA = 'shadow_raw_consumer.v1'
-TERMINAL = frozenset({'prepared', 'failed', 'timed_out', 'interrupted', 'rejected'})
+TERMINAL = frozenset({'coverage_unverified', 'prepared', 'failed', 'timed_out', 'interrupted', 'rejected'})
 POLICY_FIELDS = frozenset({'schema_version', 'company_id', 'received_root', 'queue_root', 'work_root', 'status_root', 'baseline', 'current_manifest'})
 
 

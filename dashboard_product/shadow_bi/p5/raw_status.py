@@ -8,7 +8,7 @@ import tempfile
 from dashboard_product.shadow_bi.p5.raw_inputs import BATCH, _json
 
 SCHEMA = 'shadow_raw_status.v1'
-STATUSES = frozenset({'queued', 'running', 'prepared', 'failed', 'timed_out', 'interrupted', 'rejected'})
+STATUSES = frozenset({'queued', 'running', 'coverage_unverified', 'prepared', 'failed', 'timed_out', 'interrupted', 'rejected'})
 ERRORS = frozenset({'invalid_queue_item', 'batch_conflict', 'input_rejected', 'compute_failed', 'invalid_compute_result'})
 MAX_STATUS_BYTES = 2048
 

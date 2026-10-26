@@ -16,6 +16,7 @@ from zoneinfo import ZoneInfo
 from dashboard_product.shadow_bi.p5.raw_inputs import BATCH, FILES, _json, sha, validate_manifest, write
 from dashboard_product.shadow_bi.p5.raw_status import read_regular
 from dashboard_product.shadow_bi.p5 import publish_status
+from dashboard_product.shadow_bi.p5.source_completion import require_unchanged
 
 BASE=Path('/var/lib/shadow-bi')
 PUBLISH_LOCK=Path('/run/shadow-bi-receiver.lock')
@@ -91,6 +92,9 @@ def prepared(base,batch,day):
             or receipt['gates']['manifest_sha256']!=sha(library/'library_manifest.json')
             or len(manifest['tables'])!=39 or manifest['as_of_date']!=day
             or manifest['coverage']['data_through']!=raw['data_through']):raise ValueError('prepared gates differ')
+    completion = require_unchanged(received, work/'coverage-decision.json')
+    if manifest['coverage'].get('source_completion') != completion.metadata():
+        raise ValueError('prepared completion proof differs')
     pair=_json(read_regular(work/'pair.json',65536))
     from data_acquisition.jobs.daily_warehouses import _canonical_sha256
     if (pair['status']!='passed' or pair['as_of_date']!=day
@@ -268,6 +272,10 @@ def publish_one(base,batch):
         rebuild(incoming,target/'library')
         seal_release(target)
         next_baseline=prepare_baseline(base,library,release,value['as_of_date'])
+        # A root reviewer may revoke approval during the rebuild; recheck before switching.
+        _, checked, _ = prepared(base,batch,value['as_of_date'])
+        if checked != manifest:
+            raise ValueError('prepared manifest changed during publication')
         activate(target)
         verify_daily(private/(batch+'-native.json'))
         set_baseline(base,next_baseline);baseline_changed=True
