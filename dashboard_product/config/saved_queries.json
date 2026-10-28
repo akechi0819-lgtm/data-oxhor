@@ -1,6 +1,6 @@
 {
   "schema_version": "dashboard_saved_queries.v1",
-  "workspace": "customers/bi_operations",
+  "workspace": "customers/shadow_bi_daily",
   "snapshot_binding": "runtime_current_snapshot",
   "queries": [
     {

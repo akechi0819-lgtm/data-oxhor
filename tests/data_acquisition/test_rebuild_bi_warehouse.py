@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import tempfile
 import unittest
+import sys
+from contextlib import redirect_stdout
+from io import StringIO
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -53,6 +56,16 @@ def _mock_download(config, targets, start_date, end_date):
 class RebuildBIWarehouseTests(unittest.TestCase):
     def setUp(self) -> None:
         self.pack = Path("workspace_modeling/business_pack/packs/education_training_operations_cn/pack.json").resolve()
+
+    def test_cli_defaults_to_main_current_workspace(self) -> None:
+        with (
+            patch.object(sys, "argv", ["rebuild_bi_warehouse", "--snapshot-id", "snapshot_rebuild_test"]),
+            patch.object(rebuild_bi_warehouse, "rebuild", return_value={"status": "snapshot_ready"}) as rebuild,
+            redirect_stdout(StringIO()),
+        ):
+            self.assertEqual(rebuild_bi_warehouse.main(), 0)
+
+        self.assertEqual(rebuild.call_args.kwargs["workspace"], Path("customers/shadow_bi_daily"))
 
     def _workspace(self, root: Path) -> Path:
         init_workspace(

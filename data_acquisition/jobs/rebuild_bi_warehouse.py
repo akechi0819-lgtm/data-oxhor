@@ -198,7 +198,7 @@ def rebuild(*, workspace: Path, snapshot_id: str, start_date: str, end_date: str
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--workspace", type=Path, default=Path("customers/bi_operations"))
+    parser.add_argument("--workspace", type=Path, default=Path("customers/shadow_bi_daily"))
     parser.add_argument("--snapshot-id", required=True)
     parser.add_argument(
         "--start-date",

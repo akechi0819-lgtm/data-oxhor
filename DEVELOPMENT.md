@@ -2,13 +2,23 @@
 
 ## 当前整合状态（2026-10-28）
 
-用户确认 c373 新版看板与数仓提升为主线，替代旧主线。新版26份源码、测试和配套文档已按固定SHA整合至本机 `main`；费用来源解析与覆盖、原生BI投影、P4/P5及下载边界沿用 c373 的现行实现。未接真实平台下载器的 `p5.full_daily` 一并保留其明确的未完成状态，不因代码整合宣布自动采集、日程或生产发布验收完成。
+用户确认只维护新版这一套正式 BI 数仓，原影子仓已取代旧正式仓，不维护双轨或旧版本兼容入口。
 
-代码主线为本目录；正式数据已迁入主目录 `/Users/akechi/Desktop/manager -CowH/customers/shadow_bi_daily`，市场入口使用主线代码只读绑定该目录。新版 `shadow_bi_daily` 和10/22完整重导基线 `shadow_bi_operations` 以APFS克隆复制，合计4,551文件、46,308,342,395逻辑字节；源文件集合/大小/权限一致，Work/Input/私有运行依赖266文件SHA逐一相同。该目录 `Work/workspace.json` 指向 `snapshot_bi_operations_20261028_104710`，独立留学指针为 `snapshot_study_abroad_20261028_104710`；`Output/ShadowDaily/current.json` 记录 `daily-20261028_104710`、`status=published`、业务截止10月27日。这是本地文件核验结果，本轮未重读服务器current。10月22日主目录 `customers/shadow_bi_operations` 全量重导仓继续作为受保护基线；主目录旧 `customers/bi_operations` 不再是当前市场分析入口，先保留其历史指针及证据，待清理清单确认后处理。c373数据原副本保留到清理确认；其P1运行环境和历史验收仍有引用，不能整棵删除或归档。
+- 代码主线为本机 `main`；唯一正式 BI 数据工作区为 `customers/shadow_bi_daily/`，同一套更新链路内部保留语培、留学两个必要 Snapshot。市场入口、Project Intelligence、重建 CLI、SavedQueries 和 P3 默认路径均指向它；P3 显式服务器环境配置仍按原合同工作。
+- 当前语培为 `snapshot_bi_operations_20261028_104710`，留学为 `snapshot_study_abroad_20261028_104710`；本地发布回执为 `daily-20261028_104710`，业务截至10月27日。两份当前数仓文件和当前指针均与迁入时一致，当前业务库与投影库受控 describe 通过；本轮没有重算、发布或修改服务器current。
+- 旧 `customers/bi_operations/Work` 数仓、旧 `customers/shadow_bi_operations` 基线仓、c373 两份重复数据工作区、旧日更派生成品、旧静态看板和废弃模型/查询/上传副本已清理。旧 Work 残留的原始工作簿与元数据归档到 `.local/archive/retired-warehouse-sources-20261028/`，归档内不保留旧 DuckDB 数仓。c373 仅保留开发源码、必要 Superset 测试环境、原件和历史验收，不再保留正式客户数仓副本。
+- 已保全 SavedQueries、Casebook（仍为原 candidate 状态）、本地 DeliveryState、案例完整证据和官方记分卡截图。用户再次明确旧静态HTML及对应计算副本无保留意义：残余6个旧HTML、7个旧ROI JSON及审计/历史/传输目录中的86个旧看板HTML已全部删除，历史验收引用原文和hash保留并标注退役，不把它们当作继续保留旧产物的理由。刚生成、未发布的 `run_shadow_daily_20261028_b112529_business` 及其查询证据已迁入主目录保留，未提升为current；同批尚在施工的 full_daily 审计材料也未当作过期文件删除。
+- 本轮删除15,999个数据/缓存产物，累计逻辑大小155,231,030,819字节；APFS克隆存在共享块，清理前后磁盘可用空间实际增加约100.1 GiB。逐文件路径、大小、SHA和各轮回执见 `.local/audits/single-warehouse-cleanup-20261028/`。旧 P0/P2固定数值验证与旧P3覆盖映射脚本共3个已删除，历史文档提及不代表现行口径。
 
-本轮只做本地源码与数据整合、只读路由核验和扫盘。未刷新、发布、通知或改调度、登录态和服务器。完整回归首轮866 passed、1 skipped、198 subtests passed；来源随后更新的两份full_daily文件重新冻结后，P5定向27项通过。迁入后253份输入与109份规则全部匹配当前封存binding，双仓ready通过；市场入口analyze、Bridge passed及显式Snapshot describe通过，当前业务库和投影库经受控describe通过。核心跳过的认证模块在固定Superset环境另测6项通过；市场绑定6项、上下文服务含MCP全套28项与5子测试通过。市场入口检查和最终Git身份见 `.local/audits/disk-scan-20261028/promotion/`；逐项扫盘清单见同级 `report.html` 和 `inventory.json`。目前未删除任何旧文件。
+用户确认后续维护对象是上游SQL数仓与BI刷新，不再维护静态HTML产品或旧计算副本。`library.build()` 已去掉仅供旧验证使用的5份 `calculated/*.json` 大模型落盘，返回现有内存model；raw worker直接从内存提取同样的关键指标并执行原expected比较，不回退旧文件，质量/截止/发布门禁不变。当前已发布批次和准备候选的冗余模型JSON也已清掉，SQL库、projection和必要查询证据保留。
 
-正式手动入口从主目录执行：`.venv/bin/python -u -m dashboard_product.shadow_bi.p5.daily --workspace customers/shadow_bi_daily`，使用主目录环境及迁入的私有依赖。本轮未运行该刷新/发布命令；旧外部日程工作路径未核验或切换，未修改任何时间/启停，不能以本地入口迁移宣称定时任务已经改指main。旧c373运行副本据此暂留，后续清理须先核销外部路径引用。
+现有封存manifest、Snapshot身份和查询记录不篡改。封存时253份输入/109份规则曾核验一致；后续已确认注册表、案例、去重状态和记分卡附件迁入，以及默认路径更新、旧派生Snapshot清理，使当前文件集合与旧封存输入集合不同。旧manifest记录的是当时事实，不重封口或声称所有旧批次仍可逐文件复验；下次真实构建绑定当时当前输入与源码。业务SQL、指标数值规则、Pack/Bridge确认状态未因清理改变。
+
+验证：完整核心回归879 passed、1 skipped、198 subtests passed；跳过的Superset认证在固定环境另测6项通过。清理后市场入口analyze、Bridge passed、当前双仓ready、上下文元数据及当前业务库/投影库describe通过；市场入口还完成一次显式Snapshot的受控只读查询，未返回业务明细。
+
+手动入口在主目录执行：`.venv/bin/python -u -m dashboard_product.shadow_bi.p5.daily --workspace customers/shadow_bi_daily`。`p5.full_daily`仍待真实平台下载器接入，不能因本地测试/整合宣布无人值守采集已完成。本轮未刷新、发布、发送通知或修改服务器，也未改既有BI日更/通知任务；旧任务若仍引用c373客户目录会明确失败，不回退到旧数仓。外部任务的工作路径需在其拥有环境核验，不能以本地迁移宣称已切换。
+
+新增独立维护任务“BI已入仓传输原表清理”（本地heartbeat，ID `bi-2`，由本次新创建，不据此推定历史同名日更任务）。每周日18:00 Asia/Shanghai检查已完整入仓或被新版明确替代、保留超过7天且当前/未完成任务无引用的传输原表和下载暂存；历史原表归档从退役回执日期起算7天。保留当前输入主本、Snapshot、费用引用原表、失败恢复输入、凭据和业务确认资产。只做清理，不触发BI重算/发布；无可清理内容时保持安静。已读回ACTIVE配置，首次定期执行尚未发生。
 
 ## 2026-10-26 整合记录（历史时点）
 

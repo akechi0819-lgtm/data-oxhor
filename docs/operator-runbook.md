@@ -116,10 +116,15 @@ BI滚动重建仅更新 `br_work_orders` 与 `br_cash`，其他来源槽位保�
 | Snapshot 冲突 | 使用新的 `run_id` 和显式输出目录，不覆盖已发布 Snapshot |
 | 向导 `awaiting_confirmation` / 退出 2 | 宿主向客户展示问题，理解自由回答后把 option、原回答和确认人传给 `answer` |
 | 月度文件更新 | 先完成当前对齐会话；替换 `Input/Data/<source_id>` 当前文件并用新 `snapshot_id` 执行 `sync-data`，向导成功切换后自动删除旧 Snapshot |
-| 留学工单清洗参考 | `customers/bi_operations/Input/Reference/留学-FY26-资源表.xlsx` 由现有 `data_acquisition.jobs.work_order_cleaning` 规则读取；当前调用方为线上/线下影子准备及 `online_team`、管理共同事实构建，`rebuild_bi_warehouse` 的主仓滚动合并不调用该清洗器。线上规则处理网络资源/新媒体；线下影子另做国家/条线补充。渠道与国家/条线校正分别计算，不把产品侧重洗当成原始输入或主Snapshot已被改写；语培原值不改 |
-| 留学官方记分卡 | `customers/bi_operations/Input/Reference/留学板块-官方记分卡.md` 是业务确认的线上/线下完成值与 FY27 目标，置信度高于数仓；分析时先读它。不 ingest 进 Snapshot，不写入 Bridge，不自动回写看板目标。清洗参考表 `留学-FY26-资源表.xlsx` 不能覆盖本记分卡 |
+| 留学工单清洗参考 | `customers/shadow_bi_daily/Input/Reference/留学-FY26-资源表.xlsx` 由现有 `data_acquisition.jobs.work_order_cleaning` 规则读取；当前调用方为线上/线下影子准备及 `online_team`、管理共同事实构建，`rebuild_bi_warehouse` 的主仓滚动合并不调用该清洗器。线上规则处理网络资源/新媒体；线下影子另做国家/条线补充。渠道与国家/条线校正分别计算，不把产品侧重洗当成原始输入或主Snapshot已被改写；语培原值不改 |
+| 留学官方记分卡 | `customers/shadow_bi_daily/Input/Reference/留学板块-官方记分卡.md` 是业务确认的线上/线下完成值与 FY27 目标，置信度高于数仓；分析时先读它。不 ingest 进 Snapshot，不写入 Bridge，不自动回写看板目标。清洗参考表 `留学-FY26-资源表.xlsx` 不能覆盖本记分卡 |
 | `ACTIVE_SESSION_EXISTS` | 先完成当前 Snapshot 的对齐会话，再执行月度刷新 |
 | `sync-data` 返回 cleanup warning | 新 Snapshot 已是当前状态；在确认不再占用旧 Run 后手工清理该目录 |
 | 客户工作区误入 Git | 使用默认忽略的 `customers/`，交付产品时可整体复制该客户工作区 |
 | `ADAPTER_LOAD_FAILED` | 仅针对程序化 `propose --adapter` 入口：检查测试或批处理模块的 `module:attribute` 与 `propose(model_input)`；不要因此开发宿主包装层 |
 | 宿主找不到 `ppt-master` | 检查宿主全局 Skill 安装与重启/重新发现；不在项目内恢复 PPT 副本 |
+
+
+## 已入仓传输原表清理（2026-10-28）
+
+当前仅维护新版SQL数仓与BI刷新。旧静态HTML、旧验证用大JSON及旧仓副本已退役，不再作为日常维护或回退对象。独立清理任务每周日18:00检查超过7天、已完成入仓或明确被新版替代且当前/未完成任务不再读取的传输原表；当前输入主本、当前Snapshot必要源文件、费用原表和失败恢复输入不动。具体边界与回执见维护者指南和 `DEVELOPMENT.md`。此任务不是BI日更，不调用采集、重算、发布或通知。

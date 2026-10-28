@@ -1,7 +1,19 @@
 """Synthetic-only boundary for the real batch's empty pending relation."""
-import json,unittest
+import json,os,unittest
+from pathlib import Path
 import duckdb
-from dashboard_product.shadow_bi.p3.catalog import PENDING_SQL,VIEWS
+from unittest.mock import patch
+
+_ROOT=Path(__file__).resolve().parents[3]
+_TEST_ENV={
+ 'SHADOW_BI_AUDIT':str(_ROOT/'tests/fixtures/shadow-bi/audit'),
+ 'SHADOW_BI_SOURCE_LIBRARY':str(_ROOT/'tests/fixtures/shadow-bi/source-library'),
+ 'SHADOW_BI_SOURCE_BATCH':'run_shadow_daily_synthetic_business',
+ 'SHADOW_BI_LIBRARY':str(_ROOT/'tests/fixtures/shadow-bi/presentation'),
+ 'SHADOW_BI_BATCH':'run_shadow_daily_synthetic',
+}
+with patch.dict(os.environ,_TEST_ENV):
+ from dashboard_product.shadow_bi.p3.catalog import PENDING_SQL,VIEWS
 
 class PendingScope(unittest.TestCase):
  def test_shared_event_detail_must_not_replace_whole_month_count(self):

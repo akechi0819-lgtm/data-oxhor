@@ -1,4 +1,4 @@
-> **本地主线（2026-10-28）**：c373 新版看板源码已提升至本目录 `main`，正式双仓已迁入主目录 `customers/shadow_bi_daily`，完整重导基线在 `customers/shadow_bi_operations`，市场入口已改为只读引用该仓。旧 `customers/bi_operations` 只留作历史，不再作为当前分析默认。当前指针、验证与清理边界见 [开发文档](DEVELOPMENT.md)。以下10月26日回执只表示当时状态。
+> **本地正式主线（2026-10-28）**：新版已取代旧正式 BI，唯一数据工作区为 `customers/shadow_bi_daily`。旧正式仓、重导基线仓、c373数据副本与旧看板派生产物已清理；原始输入和正式证据保留。当前状态、验证与清理回执见 [开发文档](DEVELOPMENT.md)。以下旧日期记录保留当时事实。
 
 > 10月26日运行安排见[清理回执](docs/server-cleanup-20261026.md)：保留Mac更新、暂停raw接收/计算/发布。服务器数仓/聚合能力已落地，以下模块结构不代表raw当前启用；本轮未修改服务器或调度。
 
@@ -26,16 +26,14 @@ grok_workspace/      Grok Bot 隔离工作面，角色与自主积累材料不�
 .local/              本地日志、同步中转和历史运行材料，不进入 Git
 ```
 
-原生BI页面和通知包绑定同一正式release。服务器已具备基于历史基线建立双Snapshot、执行quality及聚合39表的能力；最新清理回执暂停raw自算触发，保留Mac原生BI更新和P4发布。`monitoring_product` 从正式release构建固定通知包并投递，不承担自由分析或任意SQL；共享人员规则仍在 `workspace_modeling/operations/`。
+正式维护对象为SQL数仓与BI刷新，旧静态HTML和可视化计算副本已退役。原生BI页面和通知包绑定同一正式数据批次。服务器已具备基于历史基线建立双Snapshot、执行quality及聚合39表的能力；最新清理回执暂停raw自算触发，保留Mac原生BI更新和P4发布。`monitoring_product` 从正式release构建固定通知包并投递，不承担自由分析或任意SQL；共享人员规则仍在 `workspace_modeling/operations/`。
 
 模块关系如下：
 
 ```text
-当前保留：Mac p5.daily → 双Snapshot / 共同计算 / 39表 → SSH + P4
-  → Superset正式release → release_notifications → monitoring_product投递
-
-已部署但暂停：Dot三Excel → raw receiver / 双仓worker / 固定publisher
-工作区建模与自由分析沿Data Platform Snapshot / 受控查询入口独立运行。
+原表采集/传输 → 上游SQL数仓更新 → BI查询与每日刷新
+维护：只清理已入仓、当前任务不再引用的过期传输原表/暂存
+工作区建模与自由分析沿当前Snapshot / 受控查询入口独立运行。
 ```
 
 ## 如何使用

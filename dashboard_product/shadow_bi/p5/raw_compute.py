@@ -69,6 +69,20 @@ def run_names(day, archive_sha256):
     suffix=day.replace('-','')+'_'+archive_sha256[:12]
     return suffix, 'run_shadow_daily_'+suffix, 'run_business_'+suffix
 
+def key_metrics(public, expected=None):
+    metrics=[]
+    for period in public['periods']:
+        for team in period['teams']:
+            for line, values in team.get('lines',{}).items():
+                for metric,value in values.items():
+                    if isinstance(value,dict) and 'actual' in value:
+                        metrics.append([period['id'],team['id'],line,metric,value['actual']])
+    result={'metrics':len(metrics),'actual':metrics}
+    if expected and (expected.parent/'expected-key-metrics.json').is_file():
+        result['match']=metrics==json.loads((expected.parent/'expected-key-metrics.json').read_bytes())
+        if not result['match']:raise ValueError('same-source business metrics differ')
+    return result
+
 def child(received, baseline, output, expected, resume_sources=False):
     from dashboard_product.shadow_bi.library import initialize, binding, build
     from data_acquisition.jobs.daily_warehouses import refresh_daily,assert_daily_ready
@@ -115,19 +129,10 @@ def child(received, baseline, output, expected, resume_sources=False):
         if data['rows']:raise ValueError('Snapshot quality issues require review')
     completion = require_unchanged(received, output/'coverage-decision.json')
     args=SimpleNamespace(workspace=ws,snapshot_id=pair['sources']['bi']['snapshot_id'],study_abroad_snapshot_id=pair['sources']['study_abroad']['snapshot_id'],run_id=business_run,as_of_date=m['as_of_date'],server_complete=True,source_completion=completion)
-    build(args)
+    model=build(args)
     library=ws/'Output/ShadowBI'/args.run_id/'library'
-    public=json.loads((library.parent/'calculated/public.json').read_bytes())
-    metrics=[]
-    for period in public['periods']:
-        for team in period['teams']:
-            for line, values in team.get('lines',{}).items():
-                for metric,value in values.items():
-                    if isinstance(value,dict) and 'actual' in value:metrics.append([period['id'],team['id'],line,metric,value['actual']])
-    metric_check={'metrics':len(metrics),'actual':metrics}
-    if expected and (expected.parent/'expected-key-metrics.json').is_file():
-        metric_check['match']=metrics==json.loads((expected.parent/'expected-key-metrics.json').read_bytes())
-        if not metric_check['match']:raise ValueError('same-source business metrics differ')
+    metric_check=key_metrics(model['public'],expected)
+    del model
     write(output/'key-metrics.json',metric_check)
     completion = require_unchanged(received, output/'coverage-decision.json')
     checked=gates(library,args.run_id,m['as_of_date'],expected,completion=completion)

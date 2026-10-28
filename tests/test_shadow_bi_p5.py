@@ -68,7 +68,9 @@ class SourceReceiptCollectionTests(unittest.TestCase):
         study.parent.mkdir(parents=True)
         study.write_text(json.dumps({'source_lineage':'Work/lineage.json'}))
         (root/'Work/lineage.json').write_text('{}')
-        model = {'public':{'metadata':{}}, 'segments':{}, 'online_data':{},
+        model = {'public':{'metadata':{},'periods':[{'id':'2026-10','teams':[{
+                     'id':'total','lines':{'training':{'orders':{'actual':3},'cash':{'actual':125}}}
+                 }]}]}, 'segments':{}, 'online_data':{},
                  'personnel_details':{}, 'diagnostics':{}}
         def calculate(*args, **kwargs):
             (root/'Output/ShadowBI'/run).mkdir(parents=True)
@@ -80,14 +82,39 @@ class SourceReceiptCollectionTests(unittest.TestCase):
              mock.patch.object(library,'calculate',side_effect=calculate), \
              mock.patch.object(library,'tables',return_value={'facts':[{'id':'fixture'}]}), \
              mock.patch('dashboard_product.shadow_bi.acquisition.scoped_tables',return_value={}):
-            library.build(args)
-        return root/'Output/ShadowBI'/run/'library/library_manifest.json'
+            result = library.build(args)
+        return root/'Output/ShadowBI'/run/'library/library_manifest.json', result
 
     def test_unrelated_presentation_receipt_does_not_break_next_build(self):
         with tempfile.TemporaryDirectory() as t:
-            manifest = json.loads(self.build_fixture(Path(t)).read_text())
+            manifest_path, _ = self.build_fixture(Path(t))
+            manifest = json.loads(manifest_path.read_text())
             self.assertEqual(len(manifest['source_queries']), 1)
             self.assertEqual(manifest['source_queries'][0]['source_ids'], ['fixture'])
+
+    def test_build_returns_key_metrics_without_calculated_intermediates(self):
+        from dashboard_product.shadow_bi.p5.raw_compute import key_metrics
+        with tempfile.TemporaryDirectory() as t:
+            root = Path(t)
+            manifest_path, model = self.build_fixture(root)
+            output = root/'Output/ShadowBI/run_receipt_fixture'
+            self.assertFalse((output/'calculated').exists())
+            self.assertIsNotNone(model['public'])
+
+            expected = root/'expected/reference.json'
+            expected.parent.mkdir()
+            expected.write_text('{}')
+            wanted = [['2026-10','total','training','orders',3],
+                      ['2026-10','total','training','cash',125]]
+            (expected.parent/'expected-key-metrics.json').write_text(json.dumps(wanted))
+            self.assertEqual(key_metrics(model['public'],expected),
+                             {'metrics':2,'actual':wanted,'match':True})
+
+            (expected.parent/'expected-key-metrics.json').write_text(json.dumps([]))
+            with self.assertRaisesRegex(ValueError,'same-source business metrics differ'):
+                key_metrics(model['public'],expected)
+
+            self.assertTrue(manifest_path.is_file())
 
     def test_corrupt_current_source_query_still_rejects_build(self):
         with tempfile.TemporaryDirectory() as t:

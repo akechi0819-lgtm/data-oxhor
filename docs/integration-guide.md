@@ -131,8 +131,8 @@ python3 -m interfaces.data_platform query --help
 
 ```bash
 python3 -m data_acquisition.jobs.build_study_abroad_warehouse \
-  --workspace customers/bi_operations \
-  --source-file 'customers/bi_operations/Input/Reference/人员产能/资源与签约.xlsx' \
+  --workspace customers/shadow_bi_daily \
+  --source-file 'customers/shadow_bi_daily/Input/Reference/人员产能/资源与签约.xlsx' \
   --run-id run_study_abroad_sample_20261008_final \
   --snapshot-id snapshot_study_abroad_sample_20260930_v1 \
   --through-date 2026-09-30
@@ -142,7 +142,7 @@ python3 -m data_acquisition.jobs.build_study_abroad_warehouse \
 
 ```bash
 python3 -m dashboard_product.management.study_abroad_query \
-  --workspace customers/bi_operations \
+  --workspace customers/shadow_bi_daily \
   --snapshot-id snapshot_study_abroad_sample_20260930_v1 \
   --run-id run_study_abroad_monthly_20261008_final \
   --start-date 2026-06-01 --end-date 2026-10-01 --query-name monthly
@@ -162,7 +162,7 @@ python3 -m dashboard_product.management.study_abroad_query \
 
 ```bash
 python3 -m dashboard_product.management.study_abroad_channels \
-  --workspace customers/bi_operations \
+  --workspace customers/shadow_bi_daily \
   --snapshot-id snapshot_study_abroad_sample_20260930_v1 \
   --run-id run_study_abroad_channels_20261008_final \
   --start-date 2026-06-01 --end-date 2026-10-01

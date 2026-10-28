@@ -239,14 +239,9 @@ def build(args):
         'tables':receipts,'database':file_ref(db,library,'application/vnd.duckdb'),
         'official_reference_policy':'官方记分卡仅绑定外部文件摘要，覆盖内优先；不导入库、不补齐、不回写目标。'}
     write(library/'library_manifest.json',manifest)
-    # Save calculated business sections for full finite-combination reconciliation.
-    # This is generated from model, never read by the business build.
-    validation=out/'calculated';validation.mkdir()
-    for name,value in [('public',model['public']),('selections',model['segments']),
-                       ('online',model['online_data']),('personnel',model['personnel_details']),
-                       ('diagnostics',model['diagnostics'])]: write(validation/f'{name}.json',value)
     print(json.dumps({'status':'built','batch_id':args.run_id,'library':str(library),
                       'tables':{k:v['rows'] for k,v in receipts.items()},'source_queries':len(source_queries)},ensure_ascii=False))
+    return model
 
 
 def main():

@@ -21,7 +21,7 @@ casebook guide
 
 ## 必须遵守
 
-- 当前事实默认来自当前 Snapshot 的受控只读查询；历史 Casebook 只提供方法线索。留学线上/线下资源、签约、毛签、占比、FY27 目标与 Q1 完成率，以 `customers/bi_operations/Input/Reference/留学板块-官方记分卡.md` 为准，置信度高于数仓核算值；数仓查询只用于明细、拆解和对账，冲突时不得覆盖记分卡。
+- 当前事实默认来自当前 Snapshot 的受控只读查询；历史 Casebook 只提供方法线索。留学线上/线下资源、签约、毛签、占比、FY27 目标与 Q1 完成率，以 `customers/shadow_bi_daily/Input/Reference/留学板块-官方记分卡.md` 为准，置信度高于数仓核算值；数仓查询只用于明细、拆解和对账，冲突时不得覆盖记分卡。
 - 每次查询携带显式 `run_id`、`snapshot_id` 和输出目录。
 - 不把负向现金自动解释为退款，不把日期重叠自动判断为重复。
 - 文件交付必须可打开，关键数字能回查本次查询；若引用官方记分卡，同时回查该记分卡原值。先以 `read_query_result` 验证 `controlled_query_result.v2`，再用 `workspace_modeling.delivery.create_delivery` 生成 `business_delivery.v1`；具体 API 与 capture.v2 输入见 [公共证据合同](../../docs/evidence-contract.md#7-宿主确定性组包-api)。新 Casebook 只选择交付清单，不手填旧扁平证据列表。

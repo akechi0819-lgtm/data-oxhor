@@ -1,4 +1,4 @@
-> **2026-10-28主线整合**：c373 新版源码已提升本机main，正式数据已迁入主目录 `customers/shadow_bi_daily`，完整重导基线为 `customers/shadow_bi_operations`；市场入口已引用该目录。旧 `customers/bi_operations`、旧构建输出和审计副本等待按扫盘清单确认，不批删。P1 runtime仍被 `p3/initialize.py` 引用，不能当过期环境删除。状态和测试见[开发文档](../DEVELOPMENT.md)。
+> **2026-10-28唯一正式数据源**：本机main只使用 `customers/shadow_bi_daily`。旧 `bi_operations` 与独立 `shadow_bi_operations` 数仓、c373客户副本和废弃派生成品已清理。原始输入、确认资产和必要证据保留；P1 Superset运行环境是测试依赖，不是另一套正式数仓。验收与回执见[开发文档](../DEVELOPMENT.md)。
 
 > 正式BI维护入口：`dashboard_product/DEPLOYMENT.md`与`docs/bi-production-baseline-20261025.md`。10月26日暂停前回执，服务器raw计算链路已部署并实际运行到39张业务表；真实批次因截止门禁失败而未发布。有效新包正式发布、持续日更和唯一生产者收口分别待验收。通用核心回归可用已有Python3.12执行`python3 -B -m pytest tests dashboard_product/tests dashboard_product/management/tests monitoring_product/tests -p no:cacheprovider`；Superset认证测试在核心环境明确skip，必须另外在固定Superset环境运行`python -B -m unittest tests.test_shadow_bi_legacy_auth`。两类环境分别报告，不把skip计为通过。
 
@@ -27,6 +27,12 @@
 - 原始客户数据、DuckDB、Parquet、`runs/` 和 `customers/` 不进入 Git。
 
 ## 本地瘦身
+
+正式维护范围为“原表入仓 → 上游SQL数仓更新 → BI刷新”，不恢复静态看板。`library.build()`不再写旧验证用 `calculated/*.json`，raw worker从内存model取原关键指标；旧 verifier已退役。已被用户明确废弃的静态HTML/计算副本只保留退役说明和hash，不因旧库存或旧ROI验收提及而长期保存大文件。
+
+独立维护heartbeat“BI已入仓传输原表清理”每周日18:00（Asia/Shanghai）执行，保留期7天。仅清理有完成入仓/新版替代证明且当前与未完成任务不再使用的传输原表、下载/上传暂存及明确退役的原表归档；归档从退役日期起算，不能只凭原文件mtime删除。当前 `Input/Data` 主本、当前Snapshot必要源文件、费用清单引用原表、未完成/失败恢复 `input_backup`、登录态/凭据和业务资产保留。删前存路径/大小/hash及判定证据，删后核对current和数仓可读；没有可删文件就保持安静。该任务不重算、发布BI或变更日更，不维护旧HTML。
+
+2026-10-28已按用户确认完成旧BI数仓退役；清理结果和逐文件SHA见 `.local/audits/single-warehouse-cleanup-20261028/`。只有 `customers/shadow_bi_daily/Work/workspace.json` 及其独立留学current指针定义当前BI数据，不从退役归档恢复为第二个默认数据源。旧结果被清理的回执仅保留历史身份，不再宣称其result/封存包可完整重放。
 
 - 先核对磁盘占用、当前工作树、`Work/workspace.json`、明确封存/验收批次及未完成迁移。不得按 `latest`、修改时间或目录名猜测保留对象，也不撤销其他任务的未提交改动。
 - 可再生成的 Python/测试缓存可清理。看板试制批次被明确最终版替代后，可删除其重复网页、展示包与计算副本；保留查询证据、回执、对账/验收记录和批次身份，并在原批次写清清理记录。正式交付及其引用闭包不随试制缓存删除。

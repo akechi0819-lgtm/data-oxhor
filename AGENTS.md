@@ -21,7 +21,7 @@
 
 - 导航只选择工作范围，不自动执行部署、查询或推送，也不加载其他板块的完整说明。
 - Grok 自管材料归 `grok_workspace/`；项目运行历史、日志和同步中转归 `.local/`。这两处不进入核心打包或自动发布；客户工作区与市场正式证据位置不变。
-- 市场工作启动于 `market_workspace/`；数据绑定主目录 `customers/shadow_bi_daily/`（原端口 `operations` 不变）；旧 `customers/bi_operations/` 仅保留历史。启动目录保存生成程序、临时文件、报告和证据，工作区身份与当前 Snapshot 仍读取原 `Work/workspace.json`。
+- 市场工作启动于 `market_workspace/`；数据绑定主目录 `customers/shadow_bi_daily/`（原端口 `operations` 不变）；旧 `customers/bi_operations/` 数仓及c373客户镜像已退役，只保留原件和正式证据存档。启动目录保存生成程序、临时文件、报告和证据，工作区身份与当前 Snapshot 仍读取原 `Work/workspace.json`。
 - PPT 是按需交付形式：需要制作时再调用宿主全局 `ppt-master`，传入已验证的分析与证据，不把 PPT 制作规则常驻根入口。
 
 ## 默认职责
@@ -51,7 +51,7 @@
 
 ## 数据与证据红线
 
-- 原始输入只读；不得上传客户文件、整个 `runs/`、DuckDB、Parquet 或工作区到外部服务。
+- 原始输入内容只读；用户已授权对已完成入仓或被新版明确替代、当前无引用的过期传输原表按维护指南清理，当前输入主本与必要源文件仍保留；不得上传客户文件、整个 `runs/`、DuckDB、Parquet 或工作区到外部服务。
 - Agent 只能通过 Data Platform 受控入口执行只读 SQL，不直接连接客户 DuckDB，不使用 `latest`、修改时间或模糊文件名选状态。
 - 业务确认的官方记分卡放在客户工作区 `Input/Reference/`，不进 Snapshot、不进 Bridge 数据行。覆盖范围内的指标以记分卡为准，置信度高于数仓核算值；数仓只用于明细、拆解和对账。
 - 未确认 Bridge 映射不能作为正式事实；日期重叠只是风险信号，不能直接当作重复或退款。
