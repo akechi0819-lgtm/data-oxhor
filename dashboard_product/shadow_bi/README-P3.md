@@ -30,10 +30,12 @@
 ## 复验
 
 ```bash
-.local/audits/shadow-bi-p1-20261022/runtime/venv/bin/python -B -m dashboard_product.shadow_bi.p35.verify_native
+.local/runtime/superset/venv/bin/python -B -m dashboard_product.shadow_bi.p35.verify_native
 python3 -B -m dashboard_product.shadow_bi.p35.verify_batch
 python3 -B -m dashboard_product.shadow_bi.p35.map_coverage
 ```
+
+P1旧运行时路径`.local/audits/shadow-bi-p1-20261022/runtime`仅供历史追溯；当前本地Superset运行时使用`.local/runtime/superset`。
 
 历史定制 HTML 已撤销，旧回执仅供追溯。本地 SQLite、管理员和开发服务不代表生产部署或独立验收；未授权 P4。
 
