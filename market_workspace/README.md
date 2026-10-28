@@ -4,7 +4,9 @@
 
 `/Users/akechi/Desktop/manager -CowH/market_workspace`
 
-你可以直接提出市场分析、写报告、生成小程序等需求，Agent 按本目录的 `AGENTS.md` 执行。数据仍引用原 `customers/bi_operations/`，没有新建公司、复制数仓或更改口径。
+你可以直接提出市场分析、写报告、生成小程序等需求，Agent 按本目录的 `AGENTS.md` 执行。数据只读引用主目录正式数仓 `/Users/akechi/Desktop/manager -CowH/customers/shadow_bi_daily/`，不新建公司、不在市场工作区复制数仓，也不更改口径。
+
+留学官方记分卡同样只读，实际来源为 `/Users/akechi/Desktop/manager -CowH/customers/shadow_bi_daily/Input/Reference/留学板块-官方记分卡.md` 和 `/Users/akechi/Desktop/manager -CowH/customers/shadow_bi_daily/Input/Reference/留学板块-官方记分卡.json`；不得修改、入仓或写入 Bridge。
 
 | 目录 | 用途 | 清理方式 |
 |---|---|---|

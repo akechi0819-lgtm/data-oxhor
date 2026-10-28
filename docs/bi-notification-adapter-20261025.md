@@ -172,3 +172,13 @@ python3 -m monitoring_product.release_notifications deliver \
 固定入口返回`sent`，原5通道8消息全部sent、deduplicated=0、无unknown/失败；业务耗时153.336秒，总耗时154.55秒、峰值RSS305768KiB。随后独立实读持久状态，确认当天8条均sent。此证据证明实际HTTP发送及状态落盘，不代表逐群人工阅读确认，也不替代Dot每日自动日程的触发验收；后续同日自动调用仍应依原状态去重。
 
 服务器回执目录`/var/lib/shadow-bi-notify/runs/20261026T100011-70308712`。本机证据`.local/audits/shadow-bi-p5-20261026-manual/dingtalk-send.log`、`dingtalk-verification.json`。未回退看板、未恢复Grok任务。
+
+
+## 2026-10-27 同批真实投递确认
+
+按用户要求，在业务刷新发布`daily-20261027_095309-retry095955`后调用原固定通知入口，绑定当日双Snapshot及截至10月26日数据。8消息/原5通道全部sent，deduplicated=0、无失败/unknown，持久发送记录独立复核通过。运行目录`/var/lib/shadow-bi-notify/runs/20261027T100358-dfe5d7e5`，业务耗时138.571秒，峰值RSS276336KiB；本机证据在`.local/audits/shadow-bi-p5-20261027-manual/dingtalk-send.log`与`dingtalk-verification.json`。本次手动运行不代表自动日程触发验收，不重置状态或改变收件人。用户明确不改ROI费用源，本次费用原件/登记及封存费用表均与上日一致。
+
+
+## 2026-10-28 用户授权本日补发
+
+看板正式release为`daily-20261028_104710`、业务截至10月27日。10:57:58固定send-scheduled在附件生成后跨出10点窗口，回执8条pending、未发送。用户明确允许今天补发；随后使用原release_notifications正式发送入口，仅针对本日、该release，沿用shadowbi-notify身份及原资源限制/状态/同批校验/去重，8条消息全部sent。独立读取当日持久状态确认8条sent，无unknown/失败。今后定时入口及10点窗口未改。证据`.local/audits/shadow-bi-p5-20261028-manual/`中的`manual-send-authorization.json`、`dingtalk-send.log`、`dingtalk-catchup.log`、`dingtalk-verification.json`。

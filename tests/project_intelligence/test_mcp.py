@@ -32,7 +32,7 @@ def command(root):
 
 def prepare(root):
     (root / 'README.md').write_text('Architecture\nArchitecture detail\npassword=SECRET_FILE_VALUE\n')
-    base = root / 'customers/bi_operations'
+    base = root / 'customers/shadow_bi_daily'
     pointer = base / 'Work/workspace.json'
     pointer.parent.mkdir(parents=True)
     relative = 'Work/Runs/run_query_test/data/snapshots/snapshot_query_test/warehouse.duckdb'

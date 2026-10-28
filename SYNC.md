@@ -1,3 +1,5 @@
+> **2026-10-28本地整合**：c373新版代码已逐文件校验后提升main，正式数仓已本地迁入主目录 `customers/shadow_bi_daily`，全量重导基线位于 `customers/shadow_bi_operations`；未向Grok或服务器同步，未刷新或改调度。主目录旧 `customers/bi_operations` 退出当前市场入口，待扫盘清单确认后清理；以下同步记录仅说明各日期的历史状态。
+
 > **10月26日后续记录**：[清理回执](docs/server-cleanup-20261026.md)记载raw路径已暂停，保留Mac命令更新及原成品/通知接口；已部署的服务器数仓和聚合能力仍保留。下方更早摘要记录施工时点，本轮未实读服务器或修改调度。
 
 > **2026-10-26 日期回执摘要（非实时调度核验）**：正式 BI 产品为 Superset 原生界面。服务器 raw receiver、root 只读历史基线、受限双 Snapshot / quality / 共享计算 worker 和固定 publisher 已部署；真实 Dot 批次完成双 Snapshot、两份 quality 查询并实际运行到39张业务表，最终因业务截止不匹配以 `failed/published=false` 结束，没有发布 raw release。Mac `p5.daily` 是仍存在的手动入口，日期回执记录它更新了 `daily-20261026_094052`（数据截至10-25）；这项生产记录不代表长期默认路径。有效新 raw 包正式发布、持续日更和唯一生产者收口仍待分别验收，本轮未实读服务器或调度平台。服务器通知适配已部署，10-26 人工触发8条消息为 sent；相应HTTP job仍为 `unknown`，只读对账关联到此前发送。Dot每日上海10:00的建立记录是通知日程，与BI采集／刷新分开；Grok例行按用户要求停止。详见[部署说明](dashboard_product/DEPLOYMENT.md)、[通知回执](docs/notification-job-receipt-repair-20261026.md)、[接收回执](docs/server-raw-receiver-deployment-20261026.md)和[固定发布回执](docs/server-raw-fixed-publisher-20261026.md)。

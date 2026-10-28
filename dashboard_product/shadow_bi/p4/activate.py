@@ -20,6 +20,8 @@ def verify_target(target):
     from dashboard_product.shadow_bi.p35.bootstrap_native import coverage_note
     notes=[x.get('meta',{}).get('code','') for x in json.loads(meta.json()['result']['position_json']).values() if isinstance(x,dict) and x.get('type')=='MARKDOWN']
     if coverage_note(wanted['coverage']) not in notes:raise RuntimeError('页眉覆盖日期与已连接批次不同')
+    from dashboard_product.shadow_bi.p35.expense_coverage import expense_coverage_note
+    if expense_coverage_note(target/'library',wanted['batch_id'],AUDIT) not in notes:raise RuntimeError('平台费用提示与已连接批次不同')
     b=json.loads((AUDIT/'evidence/bootstrap.json').read_text())
     filters=[{'col':k,'op':'IN','val':[v]} for k,v in {'期间':'FY27','管理单元':'市场总计','语培统计范围':'被动'}.items()]
     client.headers['X-Shadow-BI-Release']=target.name
@@ -32,7 +34,7 @@ def verify_target(target):
             if raw is None:
                 if display!='—':raise RuntimeError('缺失值呈现不匹配')
             elif abs(float(display.replace(',',''))-float(raw))>.005:raise RuntimeError('关键查询与目标批次不符:'+label+column)
-    return {'identity':identity,'query_rows':len(rows),'header_matches':True,'metrics_compared':6,'key_metrics':rows,'expected_values':expected}
+    return {'identity':identity,'query_rows':len(rows),'header_matches':True,'expense_note_matches':True,'metrics_compared':6,'key_metrics':rows,'expected_values':expected}
 
 def activate(candidate,fail_smoke=False):
     started=time.monotonic()

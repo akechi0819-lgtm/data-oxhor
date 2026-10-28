@@ -10,7 +10,8 @@ from pathlib import Path
 
 MARKET = Path(__file__).resolve().parents[1]
 REPO = MARKET.parent
-SOURCE = REPO / 'customers' / 'bi_operations'
+# Current main-checkout binding to the official warehouse.
+SOURCE = REPO / 'customers' / 'shadow_bi_daily'
 RUN_ID = re.compile(r'run_[a-z0-9][a-z0-9_-]{2,67}')
 
 
@@ -42,9 +43,9 @@ def context():
 
 
 def parser():
-    result = argparse.ArgumentParser(description='市场工作区：绑定 bi_operations 的只读入口')
+    result = argparse.ArgumentParser(description='市场工作区：绑定主目录正式数仓的只读入口')
     commands = result.add_subparsers(dest='command', required=True)
-    commands.add_parser('status', help='检查数据/Bridge 状态并显示实际授权路径')
+    commands.add_parser('status', help='检查主目录正式数仓/Bridge 状态并显示实际授权路径')
     for name in ('describe', 'quality', 'query', 'saved-query', 'cases', 'verify-case'):
         command = commands.add_parser(name)
         command.add_argument('--snapshot-id', required=True)

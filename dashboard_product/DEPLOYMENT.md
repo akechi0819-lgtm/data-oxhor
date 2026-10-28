@@ -1,4 +1,6 @@
-> **10月26日最新运行记录**：raw接收/计算/发布已暂停，保留Mac更新链路与既有成品/通知入口；服务器数仓和聚合代码能力仍保留。以[清理与暂停回执](../docs/server-cleanup-20261026.md)区分能力部署与当前启停。本轮未实读或修改服务器/日程，以下raw说明为代码/已部署能力合同，不是恢复运行指令。
+> **2026-10-28本地主线**：本目录main已收录c373新版实现。正式双仓已迁入主目录 `/Users/akechi/Desktop/manager -CowH/customers/shadow_bi_daily`，全量重导基线在主目录 `customers/shadow_bi_operations`；本地current回执记录 `daily-20261028_104710`（业务截至10月27日），本轮未重新发布或核验服务器current。`p5.full_daily`仍待真实下载器接入，不作为已完成的自动更新入口。具体状态见[开发文档](../DEVELOPMENT.md)。下方10月26日回执为历史事实，不代表最新release。
+
+> **10月26日运行记录**：raw接收/计算/发布已暂停，保留Mac更新链路与既有成品/通知入口；服务器数仓和聚合代码能力仍保留。以[清理与暂停回执](../docs/server-cleanup-20261026.md)区分能力部署与当前启停。本轮未实读或修改服务器/日程，以下raw说明为代码/已部署能力合同，不是恢复运行指令。
 
 > **以下为暂停前的部署/验收回顾；最新运行安排以上方清理回执为准。** 正式产品为 Superset 原生 BI。已部署服务器 raw receiver、root 只读历史基线、受限双 Snapshot / quality / 共享计算 worker 和固定 publisher。10月26日真实 Dot 批次已在服务器实际完成双 Snapshot、两份 quality 查询并运行到39张表，最终因业务截止不匹配以 `failed/published=false` 结束，没有发布 raw release。Mac `p5.daily` 是仍存在的手动入口；日期回执记录它更新了 `daily-20261026_094052`（数据截至10-25），不代表长期默认路径。有效新 raw 包正式发布、持续日更和唯一生产者收口仍待分别验收。
 

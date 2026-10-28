@@ -41,7 +41,7 @@ class ContextTests(unittest.TestCase):
         return next(key for key, value in self.service.catalog.items() if value == path)
 
     def setup_workspace(self):
-        base = 'customers/bi_operations/'
+        base = 'customers/shadow_bi_daily/'
         relative = 'Work/Runs/run_query_test/data/snapshots/snapshot_query_test/warehouse.duckdb'
         config = {'schema_version': 'bridge_alignment_workspace.v1',
                   'company_id': 'company_fixture', 'business_port': 'operations',
@@ -264,7 +264,7 @@ class ContextTests(unittest.TestCase):
     def test_metadata_change_mid_request_invalidates_evidence(self):
         self.setup_workspace()
         def changed(*args):
-            self.write('customers/bi_operations/Work/Pack/pack.json', '{}')
+            self.write('customers/shadow_bi_daily/Work/Pack/pack.json', '{}')
             return {'relations': []}
         with patch.object(self.service, '_describe', side_effect=changed):
             with self.assertRaisesRegex(ContextError, 'CONTEXT_CHANGED'):

@@ -101,6 +101,45 @@ def set_stale_sheet_dimension(path):
 
 
 class AdvertisingSourcesTests(unittest.TestCase):
+    def test_native_project_report_replaces_both_months_without_dropping_other_platform(self):
+        with tempfile.TemporaryDirectory() as folder:
+            cumulative, october, native = [Path(folder) / name for name in ("cumulative.xlsx", "october.xlsx", "native.xlsx")]
+            make_network_workbook(cumulative, "2026-09-01", "2026-10-11",
+                                  [("抖音", 100, "天津"), ("百度", 50, "天津")])
+            make_network_workbook(october, "2026-10-01", "2026-10-11",
+                                  [("抖音", 40, "天津"), ("百度", 20, "天津")])
+            make_workbook(native, [("项目ID", "日期", "投放类型", "营销场景", "消耗(元)"),
+                                   ("p1", "2026-09-01", "通投", "短视频", 10),
+                                   ("p1", "2026-10-01", "通投", "短视频", 20)])
+            current = network_source(october, "network-october")
+            current["exclude_platforms"] = ["抖音"]
+            difference = period_difference()
+            difference["exclude_platforms"] = ["抖音"]
+            costs = load_sources(write_manifest(folder,
+                [network_source(cumulative, "network-cumulative"), current,
+                 manifest_source(native, source_id="native", kind="ocean_daily", business_line="abroad",
+                                 business_group="留学整体", platform="抖音")], [difference]))
+            self.assertEqual(sum(r["amount"] for r in costs["rows"] if r["platform"] == "抖音"), 30)
+            self.assertEqual(sum(r["amount"] for r in costs["rows"] if r["platform"] == "百度"), 50)
+            self.assertTrue(all(s["source_id"] == "native" for s in costs["sources"] if s["platform"] == "抖音"))
+
+    def test_native_replacement_excludes_old_october_platform_but_preserves_september(self):
+        with tempfile.TemporaryDirectory() as folder:
+            cumulative = Path(folder) / "cumulative.xlsx"
+            october = Path(folder) / "october.xlsx"
+            make_network_workbook(cumulative, "2026-09-01", "2026-10-11",
+                                  [("百度", 100, "天津"), ("微信", 50, "天津")])
+            make_network_workbook(october, "2026-10-01", "2026-10-11",
+                                  [("百度", 40, "天津"), ("微信", 20, "天津")])
+            current = network_source(october, "network-october")
+            current["exclude_platforms"] = ["百度"]
+            costs = load_sources(write_manifest(folder,
+                [network_source(cumulative, "network-cumulative"), current], [period_difference()]))
+            self.assertFalse(any(r["source_id"] == "network-october" and r["platform"] == "百度" for r in costs["rows"]))
+            september = next(r for r in costs["rows"] if r["source_id"] == "network-september" and r["platform"] == "百度")
+            self.assertEqual(september["amount"], 60)
+            self.assertTrue(any(r["source_id"] == "network-october" and r["platform"] == "微信" for r in costs["rows"]))
+
     def test_missing_manifest_is_an_unconfigured_business_state(self):
         self.assertEqual(load_sources(None), {"rows": [], "sources": [], "configured": False})
 

@@ -1,17 +1,18 @@
 # 路径与授权边界
 
-以下均相对本目录解析；当前绝对根目录为 `/Users/akechi/Desktop/manager -CowH/market_workspace`。本表定义 Agent 的任务范围，不能替代宿主沙箱或 OS 权限。
+以下均相对本目录解析；当前绝对根目录为 `/Users/akechi/Desktop/manager -CowH/market_workspace`。市场数据只读绑定到主目录正式数仓 `/Users/akechi/Desktop/manager -CowH/customers/shadow_bi_daily/`。本表定义 Agent 的任务范围，不能替代宿主沙箱或 OS 权限。
 
 | 路径 | 允许操作 | 说明 |
 |---|---|---|
 | `Programs/`、`Scratch/` | 按任务读写、清理 | 生成程序、依赖环境、临时脚本放各自任务子目录 |
 | `Reports/`、`Evidence/`、`Notes/` | 按任务读写 | 正式成果、证据、参考资料，不自动批量删除 |
-| `../customers/bi_operations/Work/workspace.json` | 只读 | 数据身份和当前 Snapshot 指针的唯一来源 |
+| `/Users/akechi/Desktop/manager -CowH/customers/shadow_bi_daily/Work/workspace.json` | 只读 | 正式数仓的数据身份和当前 Snapshot 指针的唯一来源 |
 | 上述配置指向的 Pack、Bridge | 只读 | 经确认的业务口径，接口 status 返回具体路径 |
-| `../customers/bi_operations/Input/` | 按需只读 | 不修改源文件，不将整目录读入上下文 |
-| `../customers/bi_operations/Work/Runs/` | 仅受控查询 | 不直接连接 DuckDB，不扫描历史运行猜状态 |
-| `../customers/bi_operations/Work/SavedQueries/` | 执行明确 ID/版本的已确认查询 | 不修改或晋升 SQL |
-| `../customers/bi_operations/Output/Dashboard/` | 按明确 run_id 只读 | 只用于核对，不按修改时间选产物 |
+| `/Users/akechi/Desktop/manager -CowH/customers/shadow_bi_daily/Input/` | 按需只读 | 不修改源文件，不将整目录读入上下文 |
+| `/Users/akechi/Desktop/manager -CowH/customers/shadow_bi_daily/Input/Reference/留学板块-官方记分卡.md`、`/Users/akechi/Desktop/manager -CowH/customers/shadow_bi_daily/Input/Reference/留学板块-官方记分卡.json` | 只读 | 官方业务确认事实；不修改、不入仓、不写入 Bridge |
+| `/Users/akechi/Desktop/manager -CowH/customers/shadow_bi_daily/Work/Runs/` | 仅受控查询 | 不直接连接 DuckDB，不扫描历史运行猜状态 |
+| `/Users/akechi/Desktop/manager -CowH/customers/shadow_bi_daily/Work/SavedQueries/` | 执行明确 ID/版本的已确认查询 | 不修改或晋升 SQL |
+| `/Users/akechi/Desktop/manager -CowH/customers/shadow_bi_daily/Output/Dashboard/` | 按明确 run_id 只读 | 只用于核对，不按修改时间选产物 |
 | `../workspace_modeling/operations/` | 按需只读 | 共享人员规则与花名册，不直接编辑 |
 | `../interfaces/`、`../data_platform/`、`../workspace_modeling/`、`../.venv/` | 读取和调用现有工具 | 不在市场自由编辑中改核心实现或安装依赖到共享 venv |
 | `../agents/ad_hoc_analysis/AGENT.md`、`../.agents/skills/business-analysis-routing/SKILL.md` | 按需读取 | 自由分析流程；不加载整个 agents/skills |

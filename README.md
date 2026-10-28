@@ -1,4 +1,6 @@
-> 最新运行安排见[10月26日清理回执](docs/server-cleanup-20261026.md)：保留Mac更新、暂停raw接收/计算/发布。服务器数仓/聚合能力已落地，以下模块结构不代表raw当前启用；本轮未修改服务器或调度。
+> **本地主线（2026-10-28）**：c373 新版看板源码已提升至本目录 `main`，正式双仓已迁入主目录 `customers/shadow_bi_daily`，完整重导基线在 `customers/shadow_bi_operations`，市场入口已改为只读引用该仓。旧 `customers/bi_operations` 只留作历史，不再作为当前分析默认。当前指针、验证与清理边界见 [开发文档](DEVELOPMENT.md)。以下10月26日回执只表示当时状态。
+
+> 10月26日运行安排见[清理回执](docs/server-cleanup-20261026.md)：保留Mac更新、暂停raw接收/计算/发布。服务器数仓/聚合能力已落地，以下模块结构不代表raw当前启用；本轮未修改服务器或调度。
 
 # Data OXHor
 

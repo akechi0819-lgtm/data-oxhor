@@ -44,7 +44,7 @@ DOCUMENTS = (
     'project_intelligence/__main__.py',
 )
 WORKSPACES = {
-    'bi_operations': 'customers/bi_operations',
+    'bi_operations': 'customers/shadow_bi_daily',
     'teaching_class_management': 'customers/teaching_class_management',
 }
 MODULES = {

@@ -51,7 +51,7 @@ class BIExportConfig:
     browser_profile_dir: Path = Path("data_acquisition/storage/browser_profiles/bi")
     auth_session_paths: AuthSessionPaths = field(default_factory=lambda: AuthSessionPaths(Path("."), "bi"))
     download_dir: Path = Path("data_acquisition/storage/raw/bi_downloads")
-    export_timeout_sec: int = 240
+    export_timeout_sec: int = 900
     max_export_attempts: int = 2
     retry_backoff_sec: float = 5.0
     poll_log_interval_sec: float = 30.0

@@ -1,4 +1,6 @@
-> 正式BI维护入口：`dashboard_product/DEPLOYMENT.md`与`docs/bi-production-baseline-20261025.md`。截至10月26日回执，服务器raw计算链路已部署并实际运行到39张业务表；真实批次因截止门禁失败而未发布。有效新包正式发布、持续日更和唯一生产者收口分别待验收。通用核心回归可用已有Python3.12执行`python3 -B -m pytest tests dashboard_product/tests dashboard_product/management/tests monitoring_product/tests -p no:cacheprovider`；Superset认证测试在核心环境明确skip，必须另外在固定Superset环境运行`python -B -m unittest tests.test_shadow_bi_legacy_auth`。两类环境分别报告，不把skip计为通过。
+> **2026-10-28主线整合**：c373 新版源码已提升本机main，正式数据已迁入主目录 `customers/shadow_bi_daily`，完整重导基线为 `customers/shadow_bi_operations`；市场入口已引用该目录。旧 `customers/bi_operations`、旧构建输出和审计副本等待按扫盘清单确认，不批删。P1 runtime仍被 `p3/initialize.py` 引用，不能当过期环境删除。状态和测试见[开发文档](../DEVELOPMENT.md)。
+
+> 正式BI维护入口：`dashboard_product/DEPLOYMENT.md`与`docs/bi-production-baseline-20261025.md`。10月26日暂停前回执，服务器raw计算链路已部署并实际运行到39张业务表；真实批次因截止门禁失败而未发布。有效新包正式发布、持续日更和唯一生产者收口分别待验收。通用核心回归可用已有Python3.12执行`python3 -B -m pytest tests dashboard_product/tests dashboard_product/management/tests monitoring_product/tests -p no:cacheprovider`；Superset认证测试在核心环境明确skip，必须另外在固定Superset环境运行`python -B -m unittest tests.test_shadow_bi_legacy_auth`。两类环境分别报告，不把skip计为通过。
 
 # 维护者指南
 
@@ -45,7 +47,7 @@
 
 旧静态退出后的进一步死代码/入口复查见[第二轮记录](dashboard-second-pass-20261026.md)。历史阶段文档不作为启动指令，P1环境/依赖锁保留不代表P1实验入口仍在main。
 
-10月26日本地代码、文档与工作树收口见[整合记录](local-project-alignment-20261026.md)。`main`为整合基线；c373保留数据、证据和稳定运行路径，其源码对齐main后以detached HEAD保留，不作为另一条开发分支。服务器raw receiver、只读历史基线、受限双Snapshot/quality/共享聚合计算和固定publisher已有实际部署及运行回执；本地来源完成证明门禁本轮未部署。有效raw包发布、持续日更、唯一生产者切换以及实时调度状态另行验收，本地代码收口不代表这些事项完成。
+以下为10月26日历史收口状态，10月28日整合见文首。10月26日本地代码、文档与工作树收口见[整合记录](local-project-alignment-20261026.md)。`main`为整合基线；c373保留数据、证据和稳定运行路径，其源码对齐main后以detached HEAD保留，不作为另一条开发分支。服务器raw receiver、只读历史基线、受限双Snapshot/quality/共享聚合计算和固定publisher已有实际部署及运行回执；本地来源完成证明门禁本轮未部署。有效raw包发布、持续日更、唯一生产者切换以及实时调度状态另行验收，本地代码收口不代表这些事项完成。
 
 当前状态、已知限制与本次施工记录统一维护在 [DEVELOPMENT.md](../DEVELOPMENT.md)。[历史交接](history/project-handoff-through-20260918.md) 仅保留过去决策与验收事实，不作为日常操作入口；看板运行以模块 README 和 DEPLOYMENT 为准。
 

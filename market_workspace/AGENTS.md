@@ -4,11 +4,11 @@
 
 ## 数据与接口
 
-- 数据绑定为 `../customers/bi_operations/`，工作角色为市场；沿用其 `operations` 端口、现行 Pack/Bridge 与当前 Snapshot，不修改已有数据工作区配置，也不复制数仓。
+- 数据固定绑定到主目录正式数仓 `/Users/akechi/Desktop/manager -CowH/customers/shadow_bi_daily/`，工作角色为市场；沿用其 `operations` 端口、现行 Pack/Bridge 与当前 Snapshot。数据、Bridge 和记分卡只读，不修改数据工作区配置，也不在市场工作区复制或移动数仓。
 - 开始业务分析先运行 `./oxhor status`。只有 `next_step=analyze` 才继续；读取返回的显式 Snapshot、Pack 与 Bridge 路径。状态异常转工作区初始化/对齐流程，不绕过。
 - 通过 `./oxhor describe|quality|query|saved-query|cases|verify-case` 调用现有受控接口，每次显式传入 status 返回的 `--snapshot-id` 和唯一 `--run-id`。禁止直接连接 DuckDB。
 - 查询结果、SQL 与回执统一写 `Evidence/<run_id>/`；同一 run 不覆盖。历史结果不替代当前 Snapshot；Casebook 只提供方法线索。
-- 留学线上/线下完成值与 FY27 目标以 `../customers/bi_operations/Input/Reference/留学板块-官方记分卡.md` 为准，置信度高于数仓；本目录 `Notes/留学板块-官方记分卡.md` 只是指针。数仓用于明细和对账，冲突时不得覆盖记分卡。
+- 留学线上/线下完成值与 FY27 目标以 `/Users/akechi/Desktop/manager -CowH/customers/shadow_bi_daily/Input/Reference/留学板块-官方记分卡.md` 为准，置信度高于数仓；本目录 `Notes/留学板块-官方记分卡.md` 只是只读指针。数仓用于明细和对账，冲突时不得覆盖记分卡。
 - 详细参数按需读 `INTERFACES.md`；授权路径见 `ACCESS.md`。业务分析方法按需读 `../agents/ad_hoc_analysis/AGENT.md` 和对应 Skill，不展开其他模块。
 
 ## 写入位置与清理

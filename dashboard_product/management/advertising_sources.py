@@ -19,7 +19,7 @@ from openpyxl.utils.datetime import from_excel
 from .platforms import canonical_platform
 
 
-_KINDS = {"xhs_daily", "ocean_daily", "network_weekly"}
+_KINDS = {"xhs_daily", "ocean_daily", "network_weekly", "sem_daily", "xhs_mcc_daily"}
 _BUSINESS_LINES = {"training", "abroad"}
 _BUSINESS_GROUPS = {"留学预备", "高中", "大学", "留学整体"}
 _DAILY_PLATFORMS = {"小红书", "抖音"}
@@ -92,6 +92,12 @@ def load_sources(manifest_path: Path | None) -> dict[str, Any]:
             parsed_rows, parsed_sources = _parse_daily(item, date_header="时间", amount_header="消费")
         elif item["kind"] == "ocean_daily":
             parsed_rows, parsed_sources = _parse_daily(item, date_header="日期", amount_header="消耗(元)", ocean=True)
+        elif item["kind"] == "xhs_mcc_daily":
+            from .xhs_sources import parse_xhs_mcc
+            parsed_rows, parsed_sources = parse_xhs_mcc(item)
+        elif item["kind"] == "sem_daily":
+            from .sem_sources import parse_sem
+            parsed_rows, parsed_sources = parse_sem(item)
         else:
             parsed_rows, parsed_sources = _parse_network_weekly(item)
             parsed_network[item["source_id"]] = (parsed_rows, parsed_sources)
@@ -112,6 +118,13 @@ def load_sources(manifest_path: Path | None) -> dict[str, Any]:
         rows.extend(derived_rows)
         sources.extend(derived_sources)
 
+    # 新流水替代旧期间表的明确平台；差额派生先用完整原表计算，保留其他历史月份。
+    excluded = {(item["source_id"], platform) for item in validated
+                for platform in item.get("exclude_platforms", [])}
+    excluded.update((item["source_id"], platform) for item in differences
+                    for platform in item.get("exclude_platforms", []))
+    rows = [row for row in rows if (row["source_id"], row["platform"]) not in excluded]
+    sources = [source for source in sources if (source["source_id"], source["platform"]) not in excluded]
     for row in rows:
         row.pop("_amount_decimal", None)
 
@@ -127,7 +140,13 @@ def load_sources(manifest_path: Path | None) -> dict[str, Any]:
 def _validate_manifest_entry(entry: Any, index: int) -> dict[str, Any]:
     if not isinstance(entry, dict):
         raise ValueError(f"manifest sources[{index - 1}]必须是对象")
-    allowed = {"source_id", "path", "kind", "business_line", "business_group", "platform", "sha256", "company"}
+    if entry.get("kind") == "xhs_mcc_daily":
+        from .xhs_sources import validate_xhs_mcc_entry
+        return validate_xhs_mcc_entry(entry)
+    if entry.get("kind") == "sem_daily":
+        from .sem_sources import validate_sem_entry
+        return validate_sem_entry(entry)
+    allowed = {"source_id", "path", "kind", "business_line", "business_group", "platform", "sha256", "company", "exclude_platforms"}
     required = {"source_id", "path", "kind", "business_line", "business_group"}
     if not required.issubset(entry) or not set(entry).issubset(allowed):
         missing = sorted(required - set(entry))
@@ -172,6 +191,11 @@ def _validate_manifest_entry(entry: Any, index: int) -> dict[str, Any]:
     if company is not None and kind != "network_weekly":
         raise ValueError(f"manifest sources[{index - 1}].company仅支持network_weekly来源")
 
+    exclusions = entry.get("exclude_platforms", [])
+    if (not isinstance(exclusions, list) or any(not isinstance(p, str) or not p.strip() for p in exclusions)
+            or (exclusions and kind != "network_weekly")):
+        raise ValueError("exclude_platforms只支持网络期间来源的明确平台清单")
+
     return {
         "source_id": source_id,
         "path": path,
@@ -181,6 +205,7 @@ def _validate_manifest_entry(entry: Any, index: int) -> dict[str, Any]:
         "platform": platform,
         "sha256": sha256,
         "company": company.strip() if company is not None else None,
+        "exclude_platforms": exclusions,
     }
 
 
@@ -198,7 +223,8 @@ def _validate_network_period_differences(
         "start_date", "end_date", "missing_current_channel_policy",
     }
     for index, entry in enumerate(entries, start=1):
-        if not isinstance(entry, dict) or set(entry) != required:
+        if (not isinstance(entry, dict) or not required.issubset(entry)
+                or set(entry) - required - {"exclude_platforms"}):
             raise ValueError(
                 f"manifest network_period_differences[{index - 1}]字段无效；必须包含={sorted(required)}"
             )
@@ -237,6 +263,9 @@ def _validate_network_period_differences(
                 raise ValueError(f"网络费用差额关系{derived_id}.{key}不是有效日期") from exc
         if dates["start_date"] > dates["end_date"]:
             raise ValueError(f"网络费用差额关系{derived_id}期间无效")
+        exclusions = entry.get("exclude_platforms", [])
+        if not isinstance(exclusions, list) or any(not isinstance(p, str) or not p.strip() for p in exclusions):
+            raise ValueError("网络费用差额exclude_platforms必须是明确平台清单")
         normalized = {
             "source_id": derived_id,
             "cumulative_source_id": cumulative_id,
@@ -244,6 +273,7 @@ def _validate_network_period_differences(
             "start_date": dates["start_date"],
             "end_date": dates["end_date"],
             "missing_current_channel_policy": entry["missing_current_channel_policy"],
+            "exclude_platforms": exclusions,
         }
         result.append(normalized)
         derived_ids.add(derived_id)

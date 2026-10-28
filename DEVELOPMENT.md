@@ -1,6 +1,16 @@
 # Data OXHor 开发文档
 
-## 当前整合状态（2026-10-26）
+## 当前整合状态（2026-10-28）
+
+用户确认 c373 新版看板与数仓提升为主线，替代旧主线。新版26份源码、测试和配套文档已按固定SHA整合至本机 `main`；费用来源解析与覆盖、原生BI投影、P4/P5及下载边界沿用 c373 的现行实现。未接真实平台下载器的 `p5.full_daily` 一并保留其明确的未完成状态，不因代码整合宣布自动采集、日程或生产发布验收完成。
+
+代码主线为本目录；正式数据已迁入主目录 `/Users/akechi/Desktop/manager -CowH/customers/shadow_bi_daily`，市场入口使用主线代码只读绑定该目录。新版 `shadow_bi_daily` 和10/22完整重导基线 `shadow_bi_operations` 以APFS克隆复制，合计4,551文件、46,308,342,395逻辑字节；源文件集合/大小/权限一致，Work/Input/私有运行依赖266文件SHA逐一相同。该目录 `Work/workspace.json` 指向 `snapshot_bi_operations_20261028_104710`，独立留学指针为 `snapshot_study_abroad_20261028_104710`；`Output/ShadowDaily/current.json` 记录 `daily-20261028_104710`、`status=published`、业务截止10月27日。这是本地文件核验结果，本轮未重读服务器current。10月22日主目录 `customers/shadow_bi_operations` 全量重导仓继续作为受保护基线；主目录旧 `customers/bi_operations` 不再是当前市场分析入口，先保留其历史指针及证据，待清理清单确认后处理。c373数据原副本保留到清理确认；其P1运行环境和历史验收仍有引用，不能整棵删除或归档。
+
+本轮只做本地源码与数据整合、只读路由核验和扫盘。未刷新、发布、通知或改调度、登录态和服务器。完整回归首轮866 passed、1 skipped、198 subtests passed；来源随后更新的两份full_daily文件重新冻结后，P5定向27项通过。迁入后253份输入与109份规则全部匹配当前封存binding，双仓ready通过；市场入口analyze、Bridge passed及显式Snapshot describe通过，当前业务库和投影库经受控describe通过。核心跳过的认证模块在固定Superset环境另测6项通过；市场绑定6项、上下文服务含MCP全套28项与5子测试通过。市场入口检查和最终Git身份见 `.local/audits/disk-scan-20261028/promotion/`；逐项扫盘清单见同级 `report.html` 和 `inventory.json`。目前未删除任何旧文件。
+
+正式手动入口从主目录执行：`.venv/bin/python -u -m dashboard_product.shadow_bi.p5.daily --workspace customers/shadow_bi_daily`，使用主目录环境及迁入的私有依赖。本轮未运行该刷新/发布命令；旧外部日程工作路径未核验或切换，未修改任何时间/启停，不能以本地入口迁移宣称定时任务已经改指main。旧c373运行副本据此暂留，后续清理须先核销外部路径引用。
+
+## 2026-10-26 整合记录（历史时点）
 
 2026-10-26：按用户要求保留 Mac 命令更新链路，暂停自建 raw 接收/计算/发布路径；清理旧派生计算、旧 daily25 成品和旧通知代码版本，净释放 7,119,392,768 字节。current 仍 daily-20261026_094052，原始历史、有效 Snapshot、DeliveryState 和当前服务依赖保留；未发送通知或修改日更计划。见[清理验收](docs/server-cleanup-20261026.md)。
 

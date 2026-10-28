@@ -1,3 +1,5 @@
+> **2026-10-28本地主线**：代码以本机main为准，正式数仓已迁入本目录 `customers/shadow_bi_daily`，全量重导基线在 `customers/shadow_bi_operations`；旧主目录 `customers/bi_operations` 为历史。当前指针与整合验证见[开发文档](../DEVELOPMENT.md)。本轮未核验服务器或调度，以下10月26日说明保留其日期边界。
+
 > **最新运行记录（2026-10-26）**：[清理与暂停回执](server-cleanup-20261026.md)记载自建raw接收、计算和发布路径已暂停，保留Mac更新与原生成品发布/通知入口。服务器数仓与聚合能力、代码和必要历史基线仍保留；“能力已部署”不等于raw目前启用。本轮仅收录另一工作树的日期回执，未实读或更改服务器/日程。
 
 > 以下回顾暂停前的部署和批次验收。正式 BI 产品为 Superset 原生界面。10月26日日期回执记录 current `daily-20261026_094052`（数据截至10-25）；该次由 Mac `p5.daily` 手动入口更新，不代表长期默认路径。服务器 raw receiver、root 只读历史基线、受限双 Snapshot / quality / 共享计算 worker 和固定 publisher 已部署；真实 Dot 批次跑到39张表后因业务截止不匹配以 `failed/published=false` 结束，没有发布 raw release。有效新包正式发布、持续日更和唯一生产者收口仍待分别验收，本轮未实读服务器或调度平台。Dot 10:00 日程记录针对通知，不是 BI 更新调度。代码与责任边界见[正式基线](bi-production-baseline-20261025.md)、[raw接收回执](server-raw-receiver-deployment-20261026.md)及[固定发布回执](server-raw-fixed-publisher-20261026.md)。
@@ -167,7 +169,7 @@ Codex、DeepSeek Harness 等宿主已具备 HTML、图表和文件生成/交付�
 
 ## 市场日常启动目录
 
-`market_workspace/` 是当前公司市场角色的日常工作面，绑定现有 `customers/bi_operations/` 数据工作区，不另建公司身份，不复制 Snapshot，不改变原 operations 端口或 Bridge。底层模块继续由项目维护；生成代码、临时脚本和交付物与底层实现分开存放。
+`market_workspace/` 是当前公司市场角色的日常工作面，只读绑定 `/Users/akechi/Desktop/manager -CowH/customers/shadow_bi_daily/` 正式数据工作区，不另建公司身份，不复制 Snapshot，不改变原 operations 端口或 Bridge。底层模块继续由项目维护；生成代码、临时脚本和交付物与底层实现分开存放。
 
 市场入口 `oxhor` 只绑定路径、检查 guide 与显式 Snapshot、固定本地 Evidence 输出，再调用已有 casebook/Data Platform CLI；不实现 SQL 引擎或第二套业务口径。Programs/Scratch 可按任务清理，Reports/Evidence/Notes 按成果保留。不用目录软链暴露数仓，也不声称有 OS 级权限隔离。该目录是本次为现有工作区装配的入口，首次部署 init 的行为没有改变；未来其他端口按实际需求装配，不预建路由器。
 

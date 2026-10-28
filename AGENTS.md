@@ -21,7 +21,7 @@
 
 - 导航只选择工作范围，不自动执行部署、查询或推送，也不加载其他板块的完整说明。
 - Grok 自管材料归 `grok_workspace/`；项目运行历史、日志和同步中转归 `.local/`。这两处不进入核心打包或自动发布；客户工作区与市场正式证据位置不变。
-- 市场工作启动于 `market_workspace/`；数据仍绑定 `customers/bi_operations/`（原端口 `operations` 不变）。启动目录保存生成程序、临时文件、报告和证据，工作区身份与当前 Snapshot 仍读取原 `Work/workspace.json`。
+- 市场工作启动于 `market_workspace/`；数据绑定主目录 `customers/shadow_bi_daily/`（原端口 `operations` 不变）；旧 `customers/bi_operations/` 仅保留历史。启动目录保存生成程序、临时文件、报告和证据，工作区身份与当前 Snapshot 仍读取原 `Work/workspace.json`。
 - PPT 是按需交付形式：需要制作时再调用宿主全局 `ppt-master`，传入已验证的分析与证据，不把 PPT 制作规则常驻根入口。
 
 ## 默认职责

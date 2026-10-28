@@ -18,7 +18,7 @@ class MarketWorkspaceTest(unittest.TestCase):
         self.root = Path(self.temp.name).resolve()
         self.market = self.root / 'market_workspace'
         self.market.mkdir()
-        self.source = self.root / 'customers/bi_operations'
+        self.source = self.root / 'customers/shadow_bi_daily'
         (self.source / 'Work').mkdir(parents=True)
         (self.source / 'Work/db').write_text('synthetic identity fixture; never opened as a database')
         self.config = {'current_snapshot_id': 'snapshot_test', 'current_warehouse_path': 'Work/db',
@@ -35,6 +35,26 @@ class MarketWorkspaceTest(unittest.TestCase):
     def args(self, *extra):
         return market_data.parser().parse_args([
             'query', '--snapshot-id', 'snapshot_test', '--run-id', 'run_test_one', *extra])
+
+    def test_default_status_uses_promoted_workspace_and_rejects_old_snapshot(self):
+        default_spec = importlib.util.spec_from_file_location('market_data_default', SCRIPT)
+        default_module = importlib.util.module_from_spec(default_spec)
+        default_spec.loader.exec_module(default_module)
+        config = {**self.config, 'current_snapshot_id': 'snapshot_promoted',
+                  'pack_path': 'Work/Pack/pack.json',
+                  'bridge_reference_path': 'Work/Bridge/reference.json'}
+        route = {'next_step': 'analyze', 'snapshot_id': 'snapshot_promoted'}
+        with mock.patch.object(default_module, 'context', return_value=(0, route, config)), \
+             mock.patch.object(default_module, 'source_file', side_effect=lambda p: default_module.SOURCE / p), \
+             mock.patch.object(default_module, 'call') as call:
+            code, status = default_module.execute(default_module.parser().parse_args(['status']))
+            self.assertEqual(code, 0)
+            self.assertEqual(status['snapshot_id'], 'snapshot_promoted')
+            self.assertEqual(status['paths']['data_workspace'],
+                             str(SCRIPT.resolve().parents[2] / 'customers/shadow_bi_daily'))
+            with self.assertRaisesRegex(ValueError, 'Snapshot changed or mismatched'):
+                default_module.execute(self.args('--sql-file', str(self.market / 'draft.sql')))
+            call.assert_not_called()
 
     def test_controlled_query_freezes_sql_and_keeps_evidence_local(self):
         sql = self.market / 'draft.sql'

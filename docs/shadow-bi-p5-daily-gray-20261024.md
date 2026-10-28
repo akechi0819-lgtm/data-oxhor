@@ -2,7 +2,7 @@
 
 # P5 每日更新与全量开放
 
-当前运行版为 **daily-20261026_094052**，业务批次为 `run_shadow_daily_20261026_094052_business`。语培、留学均显示截至 **2026-10-25**。历史合并和主被动平台返修已由总线程独立验收。用户已确认灰度反馈良好并授权全量开放；新版已接入全部18个原账号的原密码，连续日更观察继续。
+当前运行版为 **daily-20261028_104710**，业务批次为 `run_shadow_daily_20261028_104710_business`。语培、留学均显示截至 **2026-10-27**。历史合并和主被动平台返修已由总线程独立验收。用户已确认灰度反馈良好并授权全量开放；新版已接入全部18个原账号的原密码，连续日更观察继续。
 
 ## 范围与运行
 
@@ -12,6 +12,7 @@
 - 当前依赖Mac在线、应用运行及本机持久登录；未接Dot，不承诺电脑离线仍能采集。服务器负责封存业务表重建、核验与切换。
 - 看板原生自动刷新默认900秒，跨批次请求自动重载已实测；无需用户每天手动刷新。
 - 用户已接受首批性能表现并确认全量开放；不据此声称完成18人并发压测。首页及四个旧HTML入口已按授权跳转新版，旧文件留存用于恢复。
+- BI大表导出每轮最多等待15分钟，仍保留最多两轮尝试；请求进行中不人为结束请求或专用浏览器网络进程。只有完整文件通过现有XLSX完整性校验后才继续入仓。
 
 ```bash
 python3 -u -m dashboard_product.shadow_bi.p5.daily --workspace customers/shadow_bi_daily
@@ -104,3 +105,33 @@ python3 -u -m dashboard_product.shadow_bi.p5.daily --workspace customers/shadow_
 10月24/25/26三个连续日期均已有真实成功发布回执；同日重试仅计一天。这只确认连续三日运行记录，不自动替代阶段整体验收。证据为当日`Output/ShadowDaily/2026-10-26.json`、本批`publish.log`及`.local/audits/shadow-bi-p5-20261026-manual/`中的`daily.log`、`server-verification.json`和`live-dashboard.png`。
 
 2026-10-26后续：用户明确要求一并执行钉钉推送，已在10时窗口通过服务器固定通知入口发送同批8消息至原5通道。发送回执及持久状态均为8条sent，无失败/unknown；未改日程，同日后续调用继续去重。完整回执见`docs/bi-notification-adapter-20261025.md`末节及本日审计目录。
+
+
+## 2026-10-27 业务刷新及同批通知完成
+
+用户要求刷新新版看板并同步推送钉钉，后续明确ROI费用源不要动，只更新留学/语培工单现金等业务数据。BI登录由用户完成后两份导出成功，腾讯更新成功，双Snapshot为`snapshot_bi_operations_20261027_095309`和`snapshot_study_abroad_20261027_095309`，当日联合回执passed。
+
+初次计算因共享工作树同期费用采集施工引起输入/规则变化被拒绝，未发布；失败业务输出保留在本日审计`failed-business-output/`。续跑使用已提交版本`b7ab681ebb9dd4fd8d0e31e380ec071f950a1e23`的本地固定源码副本，不修改或撤销其他线程源码，复用当天双仓，按原`--resume`流程完成。原费用登记及9份既有输入SHA不变；其他线程新增的SEM及候选登记未被正式来源选用。新旧676条expense_rows及32条expense_sources逻辑摘要完全一致，未接入新ROI费用来源。
+
+已发布`daily-20261027_095309-retry095955`，两业务截至10月26日；服务器实际current及三范围18值核验通过，真实Chrome日期及被动FY27工单8830/同期9673、现金18322198.70/同期21766992.50、人头1264/同期1526一致。随后在原10时窗口使用服务器固定通知入口，8条消息发送到原5通道，全部sent、deduplicated=0，无失败/unknown；独立读取持久状态再次确认8条sent。未改费用源、任务、凭据或原收件范围。
+
+证据`.local/audits/shadow-bi-p5-20261027-manual/`，含`frozen-code-receipt.json`、`roi-source-unchanged.json`、`expense-tables-unchanged.json`、`server-verification.json`、`live-dashboard.png`、`dingtalk-send.log`、`dingtalk-verification.json`；成功日回执`Output/ShadowDaily/2026-10-27.json`。
+
+## 2026-10-28 日更采集失败，未发布/发送
+
+用户要求刷新业务并同步钉钉，沿用当前已上线费用来源，不重新采集或更换ROI费用。批次`run_shadow_daily_20261028_100516`：采集端两轮取回请求先返回HTTP 500，随后长时间无响应，未取得可用原件；后台导出任务的实际状态在后续核实为成功，见下节更正。第一轮请求422秒、第二轮262秒后通过仅终止本次专属Chrome网络子进程释放，触发现有超时/重试及失败处理。浏览器关闭后遗留Playwright驱动也仅针对本次PID结束，未操作用户日常浏览器、未改下载器或业务规则。腾讯来源独立成功，联合回执failed；不能用昨日BI配新腾讯发布或推送。
+
+服务器实查仍为`p55-xhs-20261027`、业务截至10月26日，当日DeliveryState无发送记录。28份现有费用输入摘要与运行前相同；未触发钉钉、未改任务/凭据/费用配置。审计`.local/audits/shadow-bi-p5-20261028-manual/`内`daily.log`、`capture-network-recovery.json`、`capture-second-network-recovery.json`及`failure-verification.json`；来源终态见当日联合receipt。此次不能计为真实成功日更。
+
+
+## 2026-10-28 延长等待后刷新与授权补发成功
+
+用户指出大表需要更长等待，并提示10:13后台已有成功记录。实际浏览器核实：前两次工单任务分别10:05:55、10:13:19完成，并非后台导出失败。初次报告混淆了后台生成成功与采集端未取回文件；前一失败回执仅说明客户端未完成采集。截图与DOM见本日审计`bi-export-records.png/txt`。
+
+按用户要求将`BIExportConfig.export_timeout_sec`默认值由240延长到900秒，仍最多两轮；不改变指标、来源、重试次数或网络请求逻辑。真实新批次`run_shadow_daily_20261028_104710`工单81秒、现金35秒取回成功，腾讯更新成功，双仓联合passed。两Snapshot均使用该日104710后缀。新批次成功不能单独证明此前长请求的具体传输根因，不能继续称为后台导出失败。
+
+已实际发布`daily-20261028_104710`，数据截至10月27日，服务器current与日回执一致，三范围18值通过，Chrome日期核验通过。保留昨天已上线P5.5费用：28份费用输入原件/登记SHA不变，3202条expense_rows及56条expense_sources逻辑摘要与前一正式`p55-xhs-20261027`一致，未接入新费用或回退费用版本。
+
+定时通知在10:57:58启动，145.053秒构建后跨过11点，时间门禁保留8条pending、network_send_attempted=false。用户已明确“允许今天补发”；随后仅对本日/本release执行既有release_notifications正式投递，沿用专用服务身份、资源限制、原状态迁移、同批/当日/截止日校验及去重，不改今后10点调度规则。8消息/原5通道全部sent，持久状态独立复核8条sent，无unknown/失败。
+
+证据`.local/audits/shadow-bi-p5-20261028-manual/`：`daily-longwait.log`、`server-verification.json`、`expense-tables-unchanged.json`、`live-dashboard.png`、`manual-send-authorization.json`、`dingtalk-send.log`、`dingtalk-catchup.log`及`dingtalk-verification.json`。当日成功回执`Output/ShadowDaily/2026-10-28.json`。等待常数及文档差异检查通过；未为常数变更新增镜像测试，真实采集/发布链路已执行。

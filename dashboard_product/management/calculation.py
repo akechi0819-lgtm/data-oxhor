@@ -271,7 +271,7 @@ def calculate(args):
     from dashboard_product.management.advertising_costs import attach_advertising
     receipts.append(attach_advertising(online_data, facts, ws, args.snapshot_id, args.run_id, out,
                                      order_facts=scope_training_facts))
-    sources.extend([HERE/'advertising_costs.py', HERE/'advertising_sources.py', HERE/'platforms.py', HERE/'sql/advertising_rollup.sql'])
+    sources.extend([HERE/'advertising_costs.py', HERE/'advertising_sources.py', HERE/'sem_sources.py', HERE/'xhs_sources.py', HERE/'platforms.py', HERE/'sql/advertising_rollup.sql'])
     expense_manifest = ws/'Input/AdvertisingCosts/sources.json'
     if expense_manifest.exists():
         sources.append(expense_manifest)

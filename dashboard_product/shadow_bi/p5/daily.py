@@ -1,5 +1,6 @@
 """独立日更：既有双仓采集→业务重算→封存表→服务器验版发布。"""
 import argparse
+from contextlib import contextmanager
 from datetime import datetime
 import fcntl
 import hashlib
@@ -58,7 +59,26 @@ def package_tables(source, presentation, destination):
     return manifest
 
 
-def run(workspace, day, resume=None, publish_prepared=False):
+@contextmanager
+def production_lock(state, held=None):
+    """Reuse a full-daily lock only when its open descriptor is this lock inode."""
+    path = state / '.lock'
+    if held is None:
+        with path.open('a') as owned:
+            fcntl.flock(owned, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            yield owned
+    else:
+        if held.closed or Path(held.name).resolve() != path.resolve():
+            raise ValueError('共享日更锁身份不符')
+        stat, actual = os.fstat(held.fileno()), path.stat()
+        if (stat.st_dev, stat.st_ino) != (actual.st_dev, actual.st_ino):
+            raise ValueError('共享日更锁文件已改变')
+        fcntl.flock(held, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        yield held  # Outer owner closes it; do not release between phases.
+
+
+def run(workspace, day, resume=None, publish_prepared=False, *, held_lock=None,
+        prepared_sources=None, run_id_override=None, before_publish=None):
     from data_acquisition.jobs.daily_warehouses import refresh_daily, assert_daily_ready
     import certifi
     private = workspace/'.private'
@@ -67,10 +87,13 @@ def run(workspace, day, resume=None, publish_prepared=False):
         raise ValueError('日更只采集上海当天；历史回放不计连续日更')
     state = workspace/'Output/ShadowDaily'
     state.mkdir(parents=True, exist_ok=True)
-    with (state/'.lock').open('a') as lock:
-        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    if prepared_sources is not None and (resume or publish_prepared):
+        raise ValueError('完整日更已备来源与旧续跑模式不可混用')
+    if run_id_override is not None and prepared_sources is None:
+        raise ValueError('指定新批次必须提供已校验来源')
+    with production_lock(state, held_lock):
         completed = state/(day+'.json')
-        if not publish_prepared and not resume and completed.exists() and json.loads(completed.read_text()).get('status') == 'published':
+        if prepared_sources is None and not publish_prepared and not resume and completed.exists() and json.loads(completed.read_text()).get('status') == 'published':
             previous = json.loads(completed.read_text())
             ssh, ssh_env = ssh_config(private)
             script = '''set -eu
@@ -89,10 +112,10 @@ runuser -u shadowbi --preserve-environment -- /srv/shadow-bi/venv/bin/python -m 
                 raise ValueError('服务器当前版本与当天成功回执不同')
             return previous
         stamp = datetime.now(ZoneInfo('Asia/Shanghai')).strftime('%H%M%S')
-        prepared = assert_daily_ready(workspace, day) if publish_prepared else None
+        prepared = prepared_sources if prepared_sources is not None else (assert_daily_ready(workspace, day) if publish_prepared else None)
         if publish_prepared and resume:
             raise ValueError('已准备批次发布与失败续跑不可同时指定')
-        run_id = (prepared['run_id'] if prepared else resume) or 'run_shadow_daily_'+day.replace('-', '')+'_'+stamp
+        run_id = run_id_override or (prepared['run_id'] if prepared else resume) or 'run_shadow_daily_'+day.replace('-', '')+'_'+stamp
         if not run_id.startswith('run_shadow_daily_'+day.replace('-', '')+'_') or not run_id.replace('_', '').isalnum():
             raise ValueError('续跑批次身份无效')
         suffix = run_id.removeprefix('run_shadow_daily_')
@@ -109,7 +132,7 @@ runuser -u shadowbi --preserve-environment -- /srv/shadow-bi/venv/bin/python -m 
         write(folder/'result.json', report)
         try:
             # 下层已有导出重试；失败后此入口不重复登录或伪造来源成功。
-            if not resume and not publish_prepared:
+            if not resume and not publish_prepared and prepared_sources is None:
                 captured = refresh_daily(workspace=workspace, as_of_date=day, run_id=run_id,
                     bi_snapshot_id='snapshot_bi_operations_'+suffix,
                     study_snapshot_id='snapshot_study_abroad_'+suffix,
@@ -118,6 +141,8 @@ runuser -u shadowbi --preserve-environment -- /srv/shadow-bi/venv/bin/python -m 
                 if captured['status'] != 'passed':
                     raise RuntimeError('双仓采集未同时成功；保留当前服务器批次，需检查登录或来源回执')
             pair = assert_daily_ready(workspace, day)
+            if prepared_sources is not None and pair != prepared_sources:
+                raise ValueError('完整日更双仓身份已改变')
             if resume and pair != report['sources']:
                 raise ValueError('续跑时双仓身份已改变，拒绝混用批次')
             report['sources'] = pair
@@ -148,6 +173,8 @@ runuser -u shadowbi --preserve-environment -- /srv/shadow-bi/venv/bin/python -m 
                 for file in sorted((folder/'transfer').rglob('*')):
                     if file.is_file():
                         out.add(file, arcname=file.relative_to(folder/'transfer'))
+            if before_publish is not None:
+                before_publish()
             ssh, ssh_env = ssh_config(private)
             release = 'daily-'+suffix+('-retry'+stamp if resume else '')
             incoming = '/var/lib/shadow-bi/incoming/'+release
@@ -176,6 +203,8 @@ if ! runuser -u shadowbi --preserve-environment -- /srv/shadow-bi/venv/bin/pytho
     exit 1
 fi
 '''
+            if before_publish is not None:
+                before_publish()
             command(ssh+['bash -s'], folder/'publish.log', input=script, text=True, env=ssh_env)
             report.pop('error_type', None)
             report.pop('action', None)

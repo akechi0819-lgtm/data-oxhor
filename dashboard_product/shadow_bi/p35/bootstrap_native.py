@@ -193,7 +193,9 @@ def main():
                     row(tab,['native_'+page+'_groups'],56 if page=='overview' else 48)
                     
                 else:
-                    if page=='online' and section=='平台':note(tab,'留学费用仅提供整体×平台，暂不支持国家条线／语种费用筛选。',6)
+                    if page=='online' and section=='平台':
+                        from dashboard_product.shadow_bi.p35.expense_coverage import expense_coverage_note
+                        note(tab,expense_coverage_note(LIBRARY,json.loads((LIBRARY/'library_manifest.json').read_text())['batch_id'],AUDIT),12)
                     if page=='activities':note(tab,'活动为历史累计，不随经营期间变化。[填写本次临时投入并计算回收倍数](/p3/activity/)',7)
                     for key in keys:
                         spec=next(v for v in base+extra if v.key==key)
