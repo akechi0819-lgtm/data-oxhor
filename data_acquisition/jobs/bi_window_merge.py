@@ -4,8 +4,9 @@ Orders (工单): unique key ``ID``. Outside-window rows come from the previous
 landing where ``分配时间`` (Excel serial or date-like) converts to a date ``< start``.
 Near-window rows come from the fresh export xlsx in full. On ID conflict, near-window
 rows win. Within each source, the first physical row wins, matching the business
-queries' source_row_number ordering. A later duplicate must not move a historical
-order across a reporting-period boundary.
+queries' source_row_number ordering. Output columns follow the fresh export after
+metadata removal; prior rows are projected into that schema. A later duplicate
+must not move a historical order across a reporting-period boundary.
 
 Cash (现金): do **not** invent a hard unique key for upsert — landing may contain
 fully duplicate business rows. Outside-window = prior landing rows whose
@@ -205,18 +206,8 @@ def _write_xlsx(path: Path, columns: list[str], rows: list[dict[str, Any]], shee
     workbook.close()
 
 
-def _business_columns(prior_cols: list[str], export_cols: list[str]) -> list[str]:
-    prior_biz = strip_meta_columns(prior_cols)
-    export_biz = strip_meta_columns(export_cols)
-    if prior_biz:
-        ordered = list(prior_biz)
-        seen = set(ordered)
-        for c in export_biz:
-            if c not in seen:
-                ordered.append(c)
-                seen.add(c)
-        return ordered
-    return list(export_biz)
+def _business_columns(export_cols: list[str]) -> list[str]:
+    return strip_meta_columns(export_cols)
 
 
 def merge_orders(
@@ -226,12 +217,11 @@ def merge_orders(
     start: date,
 ) -> tuple[str, list[str], list[dict[str, Any]], dict[str, int]]:
     sheet_name, export_cols, export_rows = _read_xlsx_rows(export_xlsx)
-    prior_cols: list[str] = []
     prior_rows: list[dict[str, Any]] = []
     if prior_parquet is not None:
-        prior_cols, prior_rows = _read_parquet_rows(prior_parquet)
+        _, prior_rows = _read_parquet_rows(prior_parquet)
 
-    columns = _business_columns(prior_cols, export_cols)
+    columns = _business_columns(export_cols)
     outside: list[dict[str, Any]] = []
     for row in prior_rows:
         assigned = excel_serial_to_date(row.get("分配时间"))
@@ -294,12 +284,11 @@ def merge_cash(
 ) -> tuple[str, list[str], list[dict[str, Any]], dict[str, int]]:
     # Soft key (documented only): 工单ID+业务日期+学员编号+现金收入+业务类型 — not unique.
     sheet_name, export_cols, export_rows = _read_xlsx_rows(export_xlsx)
-    prior_cols: list[str] = []
     prior_rows: list[dict[str, Any]] = []
     if prior_parquet is not None:
-        prior_cols, prior_rows = _read_parquet_rows(prior_parquet)
+        _, prior_rows = _read_parquet_rows(prior_parquet)
 
-    columns = _business_columns(prior_cols, export_cols)
+    columns = _business_columns(export_cols)
     outside: list[dict[str, Any]] = []
     for row in prior_rows:
         biz = excel_serial_to_date(row.get("业务日期"))

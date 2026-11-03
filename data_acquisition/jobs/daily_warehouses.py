@@ -19,7 +19,7 @@ import sys
 from typing import Iterator
 from zoneinfo import ZoneInfo
 
-from data_acquisition.jobs import rebuild_bi_warehouse, update_tencent_study_abroad
+from data_acquisition.jobs import rebuild_bi_warehouse, update_tencent_study_abroad, sync_content_work_orders
 from data_acquisition.jobs.bi_window_merge import rolling_start_date
 from data_platform.snapshots.ingest import SNAPSHOT_ID
 from interfaces.data_platform import RUN_ID
@@ -204,8 +204,6 @@ def _safe_daily_root(workspace: Path) -> Path:
 
 def refresh_daily(*, workspace: Path, as_of_date: str, run_id: str,
                   bi_snapshot_id: str, study_snapshot_id: str,
-                  doc_id: str, page_url: str, cookie_file: Path,
-                  ca_file: Path | None = None,
                   bi_start_date: str | None = None,
                   input_paths: dict[str, Path] | None = None) -> dict:
     """Refresh both warehouses for an explicit Asia/Shanghai business date.
@@ -306,22 +304,35 @@ def refresh_daily(*, workspace: Path, as_of_date: str, run_id: str,
                     "captured_at": _now_shanghai(),
                     "value_sha256": _canonical_sha256(values),
                     "company_id": company_id,
+                    "orders_export": {"path": str(Path(result["export_orders"]).resolve()),
+                                      "sha256": values["orders"]},
                 })
             except Exception as error:
                 bi["status"] = "failed"
                 bi["error"] = _safe_source_error("BI", error)
 
+        # This delivery is independent of warehouse acceptance and dashboard release.
+        # Catch-up always uses the captured rolling export, never a second BI download.
+        if bi["status"] == "success" and (workspace / ".private/content-work-orders.json").is_file():
+            try:
+                receipt["content_work_orders"] = sync_content_work_orders.sync(
+                    workspace=workspace, source_file=Path(result["export_orders"]),
+                    as_of_date=as_of.isoformat(), run_id=run_id,
+                )
+            except Exception as error:
+                receipt["content_work_orders"] = {
+                    "status": "failed",
+                    "error": _safe_source_error("content work orders", error),
+                    "receipt_path": str(workspace / "Work/ContentWorkOrders/Runs" / run_id / "receipt.json"),
+                }
+
         try:
             result = update_tencent_study_abroad.update(
                 workspace=workspace,
-                doc_id=doc_id,
-                page_url=page_url,
-                cookie_file=Path(cookie_file),
                 run_id=run_id,
                 snapshot_id=study_snapshot_id,
                 through_date=as_of.isoformat(),
                 refresh_months=[as_of.strftime("%Y-%m")],
-                ca_file=Path(ca_file) if ca_file is not None else None,
                 **({'source_file': input_paths['tencent']} if input_paths else {}),
             )
             if (result.get("run_id") != run_id or result.get("snapshot_id") != study_snapshot_id
@@ -548,10 +559,6 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--run-id", required=True)
     parser.add_argument("--bi-snapshot-id", required=True)
     parser.add_argument("--study-snapshot-id", required=True)
-    parser.add_argument("--doc-id", required=True)
-    parser.add_argument("--page-url", required=True)
-    parser.add_argument("--cookie-file", type=Path, required=True)
-    parser.add_argument("--ca-file", type=Path)
     parser.add_argument("--bi-start-date")
     args = parser.parse_args(arguments)
     try:

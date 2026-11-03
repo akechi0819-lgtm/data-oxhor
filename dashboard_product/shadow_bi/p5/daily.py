@@ -78,22 +78,31 @@ def production_lock(state, held=None):
 
 
 def run(workspace, day, resume=None, publish_prepared=False, *, held_lock=None,
-        prepared_sources=None, run_id_override=None, before_publish=None):
+        prepared_sources=None, run_id_override=None, before_publish=None,
+        advertising_manifest=None, force_refresh=False, bi_start_date=None,
+        input_paths=None):
     from data_acquisition.jobs.daily_warehouses import refresh_daily, assert_daily_ready
-    import certifi
     private = workspace/'.private'
-    config = json.loads((private/'tencent-source.json').read_text())
     if day != datetime.now(ZoneInfo('Asia/Shanghai')).date().isoformat():
         raise ValueError('日更只采集上海当天；历史回放不计连续日更')
     state = workspace/'Output/ShadowDaily'
     state.mkdir(parents=True, exist_ok=True)
     if prepared_sources is not None and (resume or publish_prepared):
         raise ValueError('完整日更已备来源与旧续跑模式不可混用')
+    if input_paths is not None:
+        if bi_start_date is None:
+            raise ValueError('显式BI来源必须指定bi_start_date')
+        if not force_refresh:
+            raise ValueError('显式来源必须使用force_refresh')
+        if resume or publish_prepared or prepared_sources is not None:
+            raise ValueError('显式来源不可与续跑或已准备来源混用')
     if run_id_override is not None and prepared_sources is None:
         raise ValueError('指定新批次必须提供已校验来源')
     with production_lock(state, held_lock):
         completed = state/(day+'.json')
-        if prepared_sources is None and not publish_prepared and not resume and completed.exists() and json.loads(completed.read_text()).get('status') == 'published':
+        if (prepared_sources is None and not publish_prepared and not resume
+                and not force_refresh and completed.exists()
+                and json.loads(completed.read_text()).get('status') == 'published'):
             previous = json.loads(completed.read_text())
             ssh, ssh_env = ssh_config(private)
             script = '''set -eu
@@ -133,11 +142,14 @@ runuser -u shadowbi --preserve-environment -- /srv/shadow-bi/venv/bin/python -m 
         try:
             # 下层已有导出重试；失败后此入口不重复登录或伪造来源成功。
             if not resume and not publish_prepared and prepared_sources is None:
+                refresh_kwargs = {}
+                if bi_start_date is not None:
+                    refresh_kwargs['bi_start_date'] = bi_start_date
+                if input_paths is not None:
+                    refresh_kwargs['input_paths'] = input_paths
                 captured = refresh_daily(workspace=workspace, as_of_date=day, run_id=run_id,
                     bi_snapshot_id='snapshot_bi_operations_'+suffix,
-                    study_snapshot_id='snapshot_study_abroad_'+suffix,
-                    doc_id=config['doc_id'], page_url=config['page_url'],
-                    cookie_file=private/'tencent-cookies.json', ca_file=Path(certifi.where()))
+                    study_snapshot_id='snapshot_study_abroad_'+suffix, **refresh_kwargs)
                 if captured['status'] != 'passed':
                     raise RuntimeError('双仓采集未同时成功；保留当前服务器批次，需检查登录或来源回执')
             pair = assert_daily_ready(workspace, day)
@@ -152,10 +164,13 @@ runuser -u shadowbi --preserve-environment -- /srv/shadow-bi/venv/bin/python -m 
             base_batch = run_id+'_business'
             source = workspace/'Output/ShadowBI'/base_batch/'library'
             if not source.exists():
-                command([sys.executable, '-m', 'dashboard_product.shadow_bi.library', 'build',
-                     '--workspace', str(workspace), '--snapshot-id', pair['sources']['bi']['snapshot_id'],
-                     '--study-abroad-snapshot-id', pair['sources']['study_abroad']['snapshot_id'],
-                     '--run-id', base_batch, '--as-of-date', day], folder/'build.log')
+                build_command = [sys.executable, '-m', 'dashboard_product.shadow_bi.library', 'build',
+                                 '--workspace', str(workspace), '--snapshot-id', pair['sources']['bi']['snapshot_id'],
+                                 '--study-abroad-snapshot-id', pair['sources']['study_abroad']['snapshot_id'],
+                                 '--run-id', base_batch, '--as-of-date', day]
+                if advertising_manifest is not None:
+                    build_command += ['--advertising-manifest', str(advertising_manifest)]
+                command(build_command, folder/'build.log')
             presentation = folder/'presentation'
             env = dict(os.environ, SHADOW_BI_SOURCE_LIBRARY=str(source),
                        SHADOW_BI_SOURCE_BATCH=base_batch, SHADOW_BI_LIBRARY=str(presentation),
@@ -218,7 +233,8 @@ fi
             raise
         finally:
             write(folder/'result.json', report)
-            write(state/'current.json', report)
+            if report.get('status') == 'published':
+                write(state/'current.json', report)
         return report
 
 

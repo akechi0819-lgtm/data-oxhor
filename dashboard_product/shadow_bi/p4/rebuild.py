@@ -27,9 +27,7 @@ def rebuild(incoming, target):
         for name,spec in manifest['tables'].items():
             q='"'+name.replace('"','""')+'"'
             types=spec['columns']
-            if spec['rows']:
-                con.execute(f'CREATE TABLE queries.{q} AS SELECT * FROM read_json(?, columns=?, format=\'newline_delimited\')',[str(incoming/spec['data']['path']),types])
-            else:con.execute(f'CREATE TABLE queries.{q} (row_json JSON)')
+            con.execute(f'CREATE TABLE queries.{q} AS SELECT * FROM read_json(?, columns=?, format=\'newline_delimited\')',[str(incoming/spec['data']['path']),types])
             count=con.execute(f'SELECT count(*) FROM queries.{q}').fetchone()[0]
             if count!=spec['rows']:raise ValueError('表行数不符:'+name)
         con.execute('CREATE TABLE queries.batch(batch_id VARCHAR)')

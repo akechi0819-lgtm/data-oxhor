@@ -19,7 +19,9 @@ def build(base):
         result.append(v);return v
     def window(source,key,title,columns):
         # 聚合在Superset执行：同一窗口只显示一次，人员等筛选仍先作用于原始行。
-        return add(key,source,title,base[source].sql,columns,{'query_mode':'aggregate','groupby':columns,'metrics':[],'all_columns':[],'server_pagination':False,'page_length':0,'include_search':False})
+        groupby=[column for column in columns if column!='时间进度'] if '时间进度' in columns else columns
+        metrics=([{'expressionType':'SQL','sqlExpression':'MAX("时间进度")','label':'时间进度','hasCustomLabel':True,'optionName':'time_progress'}] if '时间进度' in columns else [])
+        return add(key,source,title,base[source].sql,columns,{'query_mode':'aggregate','groupby':groupby,'metrics':metrics,'all_columns':[],'server_pagination':False,'page_length':0,'include_search':False})
     for page in ['overview','virtual','prep','university']:
         source=page+'_people';sql=base[source].sql
         cells=[q('所属业务组')+"||' · '||"+q('主业务')+' AS 人员归属']
@@ -28,7 +30,7 @@ def build(base):
         cells.append(goal('现金','现金目标','现金完成率')+' AS 现金表现')
         cells.append('COALESCE(分域人数,'+number('人头')+') AS 人头表现')
         add('native_'+source,source,'个人完成 · 工单与现金','SELECT src.*,'+','.join(cells)+' FROM ('+sql+') src',['人员','人员归属','语培表现','留学表现','合计表现','现金表现','人头表现'])
-        window(source,'native_'+page+'_people_window','个人统计区间',['个人月份','月模式','窗口开始','窗口结束'])
+        window(source,'native_'+page+'_people_window','个人统计区间',['个人月份','月模式','窗口开始','窗口结束','时间进度'])
     source='capacity_month';sql=base[source].sql
     cells=["COALESCE(所属业务组,'—')||' · '||COALESCE(主业务,'—') AS 人员归属"]
     for label,prefix,rate in [('自创表现','自主创造','自创率'),('接收表现','额外接收',None),('输出表现','额外输出',None),('自创合计表现','自创合计',None)]:

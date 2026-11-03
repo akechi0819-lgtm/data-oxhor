@@ -112,7 +112,7 @@ def child(received, baseline, output, expected, resume_sources=False):
             paths[key]=target
         pair=refresh_daily(workspace=ws,as_of_date=m['as_of_date'],run_id=run,
             bi_snapshot_id='snapshot_bi_operations_'+suffix,study_snapshot_id='snapshot_study_abroad_'+suffix,
-            doc_id='',page_url='',cookie_file=Path('/dev/null'),input_paths=paths)
+            input_paths=paths)
         write(output/'pair.json',pair)
         if pair['status']!='passed':raise ValueError('dual Snapshot quality/identity gate failed')
         pair=assert_daily_ready(ws,m['as_of_date'])

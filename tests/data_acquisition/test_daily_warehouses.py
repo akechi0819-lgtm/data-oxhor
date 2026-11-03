@@ -102,9 +102,6 @@ class DailyWarehousesTests(unittest.TestCase):
             run_id=run_id,
             bi_snapshot_id=bi_snapshot_id,
             study_snapshot_id=study_snapshot_id,
-            doc_id="doc-fixture",
-            page_url="https://docs.example.test/page",
-            cookie_file=self.base / "cookies.txt",
         )
 
     def test_success_records_pair_and_passes_ready_guard(self) -> None:
@@ -133,6 +130,39 @@ class DailyWarehousesTests(unittest.TestCase):
         )
         self.assertEqual("passed", receipt["status"])
         self.assertTrue((self.workspace / "Work/DailyWarehouseRefresh/last_good.json").is_file())
+
+    def test_content_delivery_uses_the_successful_bi_export(self) -> None:
+        _write_json(self.workspace / ".private/content-work-orders.json", {})
+        rebuild, update = self._success_mocks()
+        with (
+            patch.object(daily_warehouses.rebuild_bi_warehouse, "rebuild", side_effect=rebuild),
+            patch.object(daily_warehouses.update_tencent_study_abroad, "update", side_effect=update),
+            patch.object(daily_warehouses.sync_content_work_orders, "sync",
+                         return_value={"status": "passed", "added": 2}) as delivery,
+        ):
+            result = self._refresh()
+        self.assertEqual("passed", result["status"])
+        self.assertEqual(2, result["content_work_orders"]["added"])
+        self.assertEqual(self.base / "exports/orders.xlsx", delivery.call_args.kwargs["source_file"])
+        self.assertEqual(AS_OF, delivery.call_args.kwargs["as_of_date"])
+        self.assertEqual("run_daily_fixture", delivery.call_args.kwargs["run_id"])
+
+    def test_content_delivery_failure_does_not_invalidate_the_warehouses(self) -> None:
+        _write_json(self.workspace / ".private/content-work-orders.json", {})
+        rebuild, update = self._success_mocks()
+        with (
+            patch.object(daily_warehouses.rebuild_bi_warehouse, "rebuild", side_effect=rebuild),
+            patch.object(daily_warehouses.update_tencent_study_abroad, "update", side_effect=update),
+            patch.object(daily_warehouses.sync_content_work_orders, "sync",
+                         side_effect=RuntimeError("private token must not appear")),
+        ):
+            result = self._refresh()
+        self.assertEqual("passed", result["status"])
+        self.assertEqual("success", result["sources"]["bi"]["status"])
+        self.assertEqual("success", result["sources"]["study_abroad"]["status"])
+        self.assertEqual("failed", result["content_work_orders"]["status"])
+        self.assertNotIn("private token", json.dumps(result))
+        daily_warehouses.assert_daily_ready(self.workspace, AS_OF)
 
     def test_running_attempt_blocks_old_ready_state_before_either_source_moves(self) -> None:
         state_root = self.workspace / "Work/DailyWarehouseRefresh"
@@ -282,10 +312,12 @@ class DailyWarehousesTests(unittest.TestCase):
         self.assertIn("not initialized", receipt["sources"]["bi"]["error"])
 
     def test_bi_failure_still_publishes_successful_tencent_source(self) -> None:
+        _write_json(self.workspace / ".private/content-work-orders.json", {})
         _, update = self._success_mocks()
         with (
             patch.object(daily_warehouses.rebuild_bi_warehouse, "rebuild", side_effect=TimeoutError("login")),
             patch.object(daily_warehouses.update_tencent_study_abroad, "update", side_effect=update) as study_call,
+            patch.object(daily_warehouses.sync_content_work_orders, "sync") as delivery,
         ):
             result = self._refresh()
 
@@ -293,6 +325,7 @@ class DailyWarehousesTests(unittest.TestCase):
         self.assertEqual("failed", result["sources"]["bi"]["status"])
         self.assertEqual("success", result["sources"]["study_abroad"]["status"])
         study_call.assert_called_once()
+        delivery.assert_not_called()
         with self.assertRaisesRegex(ValueError, "did not pass"):
             daily_warehouses.assert_daily_ready(self.workspace, AS_OF)
 

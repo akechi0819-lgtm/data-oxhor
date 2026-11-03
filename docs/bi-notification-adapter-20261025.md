@@ -182,3 +182,8 @@ python3 -m monitoring_product.release_notifications deliver \
 ## 2026-10-28 用户授权本日补发
 
 看板正式release为`daily-20261028_104710`、业务截至10月27日。10:57:58固定send-scheduled在附件生成后跨出10点窗口，回执8条pending、未发送。用户明确允许今天补发；随后使用原release_notifications正式发送入口，仅针对本日、该release，沿用shadowbi-notify身份及原资源限制/状态/同批校验/去重，8条消息全部sent。独立读取当日持久状态确认8条sent，无unknown/失败。今后定时入口及10点窗口未改。证据`.local/audits/shadow-bi-p5-20261028-manual/`中的`manual-send-authorization.json`、`dingtalk-send.log`、`dingtalk-catchup.log`、`dingtalk-verification.json`。
+
+
+## 2026-10-29 用户授权刷新后立即发
+
+用户明确选择“刷新好立即发”。正式版本`daily-20261029_091155-retry091740`、业务截至10月28日，构建通知前核对当天双仓、服务器current、18值、原状态迁移及当日无unknown/sending。以原shadowbi-notify身份及768MiB/CPU75%限制执行既有release_notifications，同批/当日/截止日及逐消息去重门禁保持；未等待10点，不改今后调度。8消息/原5通道全部sent，独立持久记录确认当天8条sent。回执目录`/var/lib/shadow-bi-notify/runs/manual-20261029T092217`，本地主工作树证据`.local/audits/bi-daily-20261029/dingtalk-send.log`、`manual-send-authorization.json`和`dingtalk-verification.json`。ROI费用输入及费用表保持上版不变。

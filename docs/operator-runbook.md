@@ -1,6 +1,6 @@
-> **最新运行记录（2026-10-26）**：[清理与暂停回执](server-cleanup-20261026.md)记载自建raw接收、计算和发布路径已暂停，保留Mac更新与原生成品发布/通知入口。服务器数仓与聚合能力、代码和必要历史基线仍保留；“能力已部署”不等于raw目前启用。本轮仅收录另一工作树的日期回执，未实读或更改服务器/日程。
+> **最新日期回执（2026-11-03）**：`prepare_full_daily --publish` 是 Mac 业务优先日更代码入口：基础业务发布→立即通知→广告费用采集与发布；默认模式（含 `--prepare`）仅准备隔离候选。云端127个源文件 SHA 与本机一致；回执记录次日 bi-3 仍为本机09:30执行，但本手册不据此声称实时调度状态已核验。服务器 raw 接收/计算/发布 path 仍 inactive；10/26暂停及失败批次见下方历史记录。
 
-> **2026-10-26 日期回执摘要（本轮未实读服务器或调度平台）**：正式产品为 Superset 原生 BI。服务器 raw receiver、root 只读历史基线、受限双 Snapshot / quality / 共享计算 worker 和固定 publisher 已部署；真实 Dot 批次完成双 Snapshot、quality 查询并实际运行到39张表，最终因截止不匹配以 `failed/published=false` 结束，没有发布 raw release。Mac `p5.daily` 是仍存在的手动入口，并有更新 `daily-20261026_094052` 的日期记录，不代表长期默认路径。有效新包正式发布、持续日更和唯一生产者收口仍待分别验收。Dot 10:00 日程记录针对通知，与 BI 更新分开。详见[部署说明](../dashboard_product/DEPLOYMENT.md)及本页 4.1。
+> **2026-10-26 历史回执**：正式产品为 Superset 原生 BI。服务器 raw worker 实际运行到39张表，Dot 批次因截止不匹配以 `failed/published=false` 结束，没有发布 raw release；当时 Mac `p5.daily` 更新了 `daily-20261026_094052`。这些事实是当日记录，不是当前日更入口或当前调度状态。详见[部署说明](../dashboard_product/DEPLOYMENT.md)及本页 4.1。
 
 # 本地运维手册
 
@@ -81,15 +81,13 @@ PPT Master 现由宿主全局 Skill 管理。项目只保证交给它的当前 S
 
 ## 4.1 正式 BI、服务器计算与固定发布
 
-Superset 原生 BI 已正式上线。服务器 raw 接收、受限计算和固定发布程序已部署：worker读取root只读历史基线，在新副本中完成双 Snapshot、两份 quality 查询及共享聚合计算；10月26日真实批次已实际跑到39张表。该批候选 `data_through` 为10月24日，低于业务截止要求10月25日，因此最终状态是 `failed/published=false`，没有调用固定 publisher 切换 current。
+Mac 日更总入口为 `data_acquisition.jobs.prepare_full_daily --publish`。该流程先更新双仓并发布基础看板，随即调用固定通知入口发送日报；只有8条消息全部确认后才继续采集和发布费用。费用阶段复用同一双仓 Snapshot，失败保留已成功的基础发布和日报。默认运行及显式 `--prepare` 只生成隔离的本地候选，不发布、不发送。阶段结果写入本批 `pipeline-result.json`；排查时按其中 business、notification、expenses 状态定位，不用费用失败覆盖已发布的基础current。
 
-同批计算、封存39表、`prepared`、发布队列和正式 `published` 是不同状态。接收／计算到39表不能作为发布通过的证据；物理库 COUNT 门禁在业务截止门禁之后，该批未执行该COUNT检查。raw服务部署本身和已执行的服务器数仓/计算能力已落地；仍待验收的是有效新raw包正式发布、持续日更与唯一生产者收口。对应详情见[固定发布回执](server-raw-fixed-publisher-20261026.md)、[接收部署回执](server-raw-receiver-deployment-20261026.md)和[raw合同](server-raw-pipeline-contract.md)。
+11/3 完成回执记录正式云端代码目录与通知 current 的127个源文件 SHA 一致，并记载次日 bi-3 仍由 Mac 本机09:30调用采集及云端P4／通知。该日期回执不是调度平台的实时状态查询。服务器 raw 接收、计算与发布路径仍未启用；10/26 raw 服务的部署、失败批次及暂停安排均属历史，不是上述当前总入口。有关 raw 状态机和历史批次详情见[固定发布回执](server-raw-fixed-publisher-20261026.md)、[接收部署回执](server-raw-receiver-deployment-20261026.md)和[raw合同](server-raw-pipeline-contract.md)。
 
-10月26日 current `daily-20261026_094052`（数据截止10月25日）由 Mac `dashboard_product.shadow_bi.p5.daily` 手动入口更新，这是具体日期的运行记录；最新清理回执明确保留此Mac命令更新链路，本轮不改其日程。正式操作前应确认当前服务器 manifest、候选状态、业务截止、来源质量及明确的发布授权；本轮未实读服务器和调度平台，不推断当前实时状态。`p5.daily` 是会采集、重算和发布的写入入口，若有明确需求使用仍须单独核对身份和授权。
+服务器通知适配已部署。10-26 历史人工触发中，DeliveryState 有 8 条 `sent` 回执；另一个 HTTP send job 仍保留 `unknown`，其只读对账回执确认这 8 条发送来自此前执行，并标记 `no_send_performed=true`。这不是该 HTTP job 自身成功发送的证明；不得重发这 8 条或清空状态。通知作业控制修复见[回执](notification-job-receipt-repair-20261026.md)。
 
-服务器通知适配已部署。10-26 的人工触发中，DeliveryState 有 8 条 `sent` 回执；另一个 HTTP send job 仍保留 `unknown`，其只读对账回执确认这 8 条发送来自此前执行，并标记 `no_send_performed=true`。这不是该 HTTP job 自身成功发送的证明；不得重发这 8 条或清空状态。通知作业控制修复见[回执](notification-job-receipt-repair-20261026.md)。
-
-Dot 每日上海10:00通知日程有10-26建立记录，属于通知触发，不代表 BI 采集／刷新调度；Grok例行按用户要求停止。10-26回执记录 Mac `bi-2` 为ACTIVE/09:40，但本次文档更新没有实读任何调度平台，因此不据此宣称当前启停。有效raw包的门禁、正式发布和唯一生产者切换分别验收；持续日更运行安排也需独立核实。
+Dot 每日上海10:00通知日程及 Mac `bi-2` ACTIVE/09:40 都是10/26回执中的历史记录，不代表当前调度状态；Grok例行按用户要求停止。11/3完成回执另记载次日 bi-3 由本机09:30运行，但未实时读取调度平台。服务器 raw 路径目前未启用；其门禁和发布状态仍以相应历史合同与批次回执为准。
 
 ## 5. 升级策略
 

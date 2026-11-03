@@ -39,20 +39,22 @@ def run(mode, *, warehouse=Path('/var/lib/shadow-bi'), home=Path('/var/lib/shado
                 'batch_id':manifest['batch_id'],'as_of_date':manifest['as_of_date'],
                 'data_through':manifest['coverage']['data_through'],'imported_state_ready':ready,
                 'credential_file_exists':env_file.is_file(),'scheduler_installed':False}
-    if mode not in {'preview','send-scheduled'}:
+    if mode not in {'preview','send-scheduled','send-published'}:
         raise ValueError('unsupported notification operation')
-    sending=mode=='send-scheduled'
+    sending=mode in {'send-scheduled','send-published'}
+    if mode=='send-published' and (expected_release is None or expected_date is None):
+        raise ValueError('published sending requires expected release and date')
     if sending:
         # The authorized daily trigger is 10:00 Shanghai. No catch-up outside
         # that hour, temporary test sends, or earlier delivery is enabled here.
-        if now.hour!=10:
+        if mode=='send-scheduled' and now.hour!=10:
             raise ValueError('scheduled sending only allowed in the Shanghai 10:00 hour')
         if manifest['as_of_date']!=now.date().isoformat():
             raise ValueError('scheduled sending requires today formal release')
         n.require_send_date(state, manifest['as_of_date'])
     def send_clock_guard():
         clock = now if injected_clock else datetime.now(ZoneInfo('Asia/Shanghai'))
-        if clock.hour != 10 or clock.date().isoformat() != manifest['as_of_date']:
+        if (mode=='send-scheduled' and clock.hour != 10) or clock.date().isoformat() != manifest['as_of_date']:
             raise ValueError('scheduled sending window elapsed')
         n.require_send_date(state, manifest['as_of_date'])
     if not home.is_dir():
@@ -88,7 +90,7 @@ def run(mode, *, warehouse=Path('/var/lib/shadow-bi'), home=Path('/var/lib/shado
 
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('mode',choices=['status','preview','send-scheduled'],nargs='?',default='preview')
+    parser.add_argument('mode',choices=['status','preview','send-scheduled','send-published'],nargs='?',default='preview')
     parser.add_argument('--expected-release')
     parser.add_argument('--expected-date')
     args=parser.parse_args()

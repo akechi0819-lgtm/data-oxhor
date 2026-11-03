@@ -1,5 +1,6 @@
 """钉钉SEM原生整本的已确认叶表接入；不改原表、不分摊费用。"""
-from datetime import date
+from collections import Counter
+from datetime import date, timedelta
 from decimal import Decimal, ROUND_HALF_UP
 import io
 import re
@@ -40,19 +41,28 @@ def parse_sem(item):
     path = item["resolved_path"]
     rows, sources = [], []
     with_book = load_workbook(io.BytesIO(item["raw"]), read_only=True, data_only=True)
+    formula_book = load_workbook(io.BytesIO(item["raw"]), read_only=True, data_only=False)
     try:
         for sheet, mapping in item["sheets"].items():
             if sheet not in with_book.sheetnames:
                 raise ValueError(f"SEM叶表不存在: {sheet}")
             ws = with_book[sheet]
+            formula_ws = formula_book[sheet]
             ws.reset_dimensions()  # 钉钉导出曾把实际多行表的dimension声明为A1。
+            formula_ws.reset_dimensions()
             values = iter(ws.values)
+            formula_values = iter(formula_ws.values)
             header = _header_map(next(values, ()), path, 1)
+            formula_header = _header_map(next(formula_values, ()), path, 1)
             _require_columns(header, ("时间", "消费", "现金消费"), path)
+            _require_columns(formula_header, ("时间", "消费", "现金消费"), path)
             leaf = {**item, **mapping, "source_id": item["source_id"] + ":" + sheet}
-            seen, dates = set(), []
-            for number, row in enumerate(values, 2):
+            seen, dates, missing_amount_dates = set(), [], []
+            missing_consumption_dates = []
+            amount_statuses = Counter()
+            for number, (row, formula_row) in enumerate(zip(values, formula_values), 2):
                 cells = _row_values(header, row)
+                formula_cells = _row_values(formula_header, formula_row)
                 raw_date = cells.get("时间")
                 if raw_date is None or str(raw_date).strip().startswith(("合计", "总计")):
                     continue
@@ -64,24 +74,54 @@ def parse_sem(item):
                 seen.add(day)
                 consume = _parse_amount(cells.get("消费"), path, number, "消费")
                 cash = _parse_amount(cells.get("现金消费"), path, number, "现金消费")
-                # 用户2026-10-27确认：SEM空白消费表示未消费；只作用于窗口内实际日期行。
-                if consume is None or consume == 0:
-                    if cash not in (None, Decimal(0)):
-                        raise ValueError(f"SEM消费为空或0但现金费用非0: {sheet}/{day}")
-                    amount = Decimal(0)
+                raw_cash = formula_cells.get("现金消费")
+                cash_formula = raw_cash if isinstance(raw_cash, str) and raw_cash.startswith("=") else None
+                # A cached formula zero derived from a blank consumption cell is
+                # not evidence of a reported zero. Preserve the source values and
+                # leave the amount unknown so downstream coverage stays partial.
+                if cash is None:
+                    amount, amount_status = None, "missing_cash_consumption"
+                elif cash_formula is not None and consume is None:
+                    amount, amount_status = None, "formula_derived_from_blank_consumption"
                 else:
                     amount = None if cash is None else cash.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+                    amount_status = "reported_zero" if amount == 0 else "reported_value"
                 rows.append({"source_id": leaf["source_id"], "source_row": number,
                              **mapping, "start_date": day, "end_date": day,
                              "amount": None if amount is None else float(amount),
                              "source_sheet": sheet, "raw_consume": None if consume is None else str(consume),
-                             "raw_cash_consume": None if cash is None else str(cash)})
+                             "raw_cash_consume": None if cash is None else str(cash),
+                             "raw_cash_formula": cash_formula,
+                             "amount_status": amount_status})
                 dates.append(day)
-            if dates:
-                sources.append({**_source_metadata(leaf, grain="daily", platform=mapping["platform"],
-                                                   start_date=min(dates), end_date=max(dates)),
-                                "source_sheet": sheet, "amount_basis": "现金消费", "rounding": "每账号每日四舍五入到分",
-                                "blank_consumption": "按用户2026-10-27确认计为零消费"})
+                amount_statuses[amount_status] += 1
+                if amount is None:
+                    missing_amount_dates.append(day)
+                if consume is None:
+                    missing_consumption_dates.append(day)
+            window_dates = {
+                (date.fromisoformat(item["start_date"]) + timedelta(days=offset)).isoformat()
+                for offset in range((date.fromisoformat(item["end_date"]) - date.fromisoformat(item["start_date"])).days + 1)
+            }
+            observed_dates = set(dates)
+            missing_date_rows = sorted(window_dates - observed_dates)
+            sources.append({**_source_metadata(leaf, grain="daily", platform=mapping["platform"],
+                                               start_date=min(dates) if dates else None,
+                                               end_date=max(dates) if dates else None),
+                            "source_sheet": sheet, "amount_basis": "现金消费", "rounding": "每账号每日四舍五入到分",
+                            "requested_start_date": item["start_date"],
+                            "requested_end_date": item["end_date"],
+                            "observed_date_count": len(dates),
+                            "observed_dates": sorted(observed_dates),
+                            "missing_date_count": len(missing_date_rows),
+                            "missing_date_rows": missing_date_rows,
+                            "missing_amount_count": len(missing_amount_dates),
+                            "missing_amount_dates": missing_amount_dates,
+                            "missing_consumption_dates": missing_consumption_dates,
+                            "amount_status_counts": dict(amount_statuses),
+                            "coverage_state": "partial" if missing_date_rows or missing_amount_dates else "available",
+                            "blank_amount_policy": "blank or formula-derived value from a blank consumption cell remains missing; available rows are used"})
     finally:
         with_book.close()
+        formula_book.close()
     return rows, sources

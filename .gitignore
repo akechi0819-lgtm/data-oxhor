@@ -10,3 +10,6 @@ outputs/
 
 # Local runtime/history/sync materials; never package or commit
 .local/
+
+# Authentication material is machine-local and must never enter Git.
+/data_acquisition/storage/auth_sessions/

@@ -17,7 +17,7 @@
 | 留学事实与归属 | 本sheet归属权威；渠道已确认决策及关联BI年级证据补齐；现金不被资源行覆盖归属；SSC/unassigned留总盘 | study_abroad_facts/channels/grade/query；事实来源行及全部团队/国家视图核对 |
 | 留学覆盖与历史 | 独立仓截至10/13，无同比；活动保留各来源自己的有效累计；6—8月已有汇总不生成明细 | personnel_history.load_history/apply_history；coverage与历史原表、视图核对 |
 | 官方记分卡 | 官方确认覆盖内优先；绑定文件但不入仓，不自动回写目标；与数仓不同时保留差异 | Input/Reference/留学板块-官方记分卡.md/json；既有两条not_comparable保留 |
-| 目标与汇总 | 现有目标配置及缺失状态；大学另一业务线10%按原规则；缺配置不补0 | aggregate.py、project_targets/offline_market_targets/study_abroad_targets/capacity_targets；全部期间目标比较 |
+| 目标与汇总 | 现有目标配置及缺失状态；大学另一业务线10%按原规则，2026年11月语培线下人员留学目标优先采用花名册显式确认值；缺配置不补0 | aggregate.py、project_targets/offline_market_targets/study_abroad_targets/capacity_targets；全部期间目标比较 |
 | 线上平台与费用 | 业务事实先按原线上范围/平台匹配；费用保留来源粒度；共同业务组/平台/覆盖窗口算ROI，期间费不摊日 | platforms.py、advertising_sources/costs.py、sql/advertising_rollup.sql；全部线上期间、费用及匹配依据核对 |
 | 活动/学校/渠道 | 活动独立累计；学校×年级、渠道×业务组各自人数与分母，不加总分组人数冒充总数 | aggregate/breakdowns；活动5049项、各期间分析全比；P3再验页面交互 |
 

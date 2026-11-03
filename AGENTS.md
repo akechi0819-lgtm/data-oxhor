@@ -80,3 +80,7 @@
 - 看板发布：`dashboard_product/DEPLOYMENT.md`、`agents/dashboard_publisher/AGENT.md`
 - 日常监控与钉钉：`monitoring_product/README.md`、`agents/daily_monitor/AGENT.md`
 - 云电脑分层同步：`SYNC.md`（A 代码 / B 数据 / C 密钥；不建设双向 MCP）
+
+## 当前运行状态的历史提示
+
+BI日更代码入口和最新日期回执见 `docs/shadow-bi-full-daily-20261028.md`。10/26 raw暂停与失败批次为历史事实；11/3同步回执仍记载服务器raw路径inactive，并记载次日 bi-3 的本机09:30执行计划。该回执不是实时调度状态核验。

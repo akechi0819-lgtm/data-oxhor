@@ -90,35 +90,42 @@ class MergeOrdersTests(unittest.TestCase):
             root = Path(tmp)
             prior = root / "orders.parquet"
             export = root / "orders.xlsx"
-            # meta columns should be stripped from output columns via business merge
+            export_headers = ["资源录入人", "团队", "ID", "分配时间", "姓名"]
             _write_parquet(
                 prior,
-                ["source_id", "snapshot_id", "ID", "分配时间", "姓名"],
+                ["source_id", "snapshot_id", "ID", "分配时间", "姓名", "资源录入人", "录入来源", "预计到访时间"],
                 [
-                    ["src", "snap", "A", str(_excel_serial(date(2026, 1, 1))), "old-A"],  # outside
-                    ["src", "snap", "B", str(_excel_serial(date(2026, 4, 1))), "old-B"],  # inside prior (dropped)
-                    ["src", "snap", "C", str(_excel_serial(date(2025, 12, 1))), "old-C"],  # outside
+                    ["src", "snap", "A", str(_excel_serial(date(2026, 1, 1))), "old-A", "entry-old-A", "legacy-A", "2026-01-02"],  # outside
+                    ["src", "snap", "B", str(_excel_serial(date(2026, 4, 1))), "old-B", "entry-old-B", "legacy-B", "2026-04-02"],  # inside prior (dropped)
+                    ["src", "snap", "C", str(_excel_serial(date(2025, 12, 1))), "old-C", "entry-old-C", "legacy-C", "2025-12-02"],  # outside
                 ],
             )
             _write_xlsx(
                 export,
-                ["ID", "分配时间", "姓名"],
+                export_headers,
                 [
-                    ["B", _excel_serial(date(2026, 4, 2)), "new-B"],
-                    ["D", _excel_serial(date(2026, 5, 1)), "new-D"],
-                    ["A", _excel_serial(date(2026, 3, 20)), "new-A"],  # same ID as outside → near wins
+                    ["entry-new-B", "new-team-B", "B", _excel_serial(date(2026, 4, 2)), "new-B"],
+                    ["entry-new-D", "new-team-D", "D", _excel_serial(date(2026, 5, 1)), "new-D"],
+                    ["entry-new-A", "new-team-A", "A", _excel_serial(date(2026, 3, 20)), "new-A"],  # same ID as outside → near wins
                 ],
                 sheet_name="工单明细导出用表",
             )
             sheet, cols, rows, stats = merge_orders(export_xlsx=export, prior_parquet=prior, start=start)
             self.assertEqual(sheet, "工单明细导出用表")
+            self.assertEqual(cols, export_headers)
             self.assertNotIn("source_id", cols)
             self.assertNotIn("snapshot_id", cols)
+            self.assertNotIn("录入来源", cols)
+            self.assertNotIn("预计到访时间", cols)
+            self.assertTrue(all(set(row) == set(export_headers) for row in rows))
             self.assertGreater(stats["merged_rows"], stats["export_rows"])
             by_id = {str(r["ID"]): r for r in rows}
             self.assertEqual(by_id["A"]["姓名"], "new-A")  # near override
+            self.assertEqual(by_id["A"]["资源录入人"], "entry-new-A")
             self.assertEqual(by_id["C"]["姓名"], "old-C")  # outside kept
+            self.assertEqual(by_id["C"]["资源录入人"], "entry-old-C")
             self.assertEqual(by_id["B"]["姓名"], "new-B")
+            self.assertEqual(by_id["B"]["资源录入人"], "entry-new-B")
             self.assertEqual(by_id["D"]["姓名"], "new-D")
             outside_dates = [
                 excel_serial_to_date(r["分配时间"])
@@ -128,6 +135,44 @@ class MergeOrdersTests(unittest.TestCase):
             ]
             self.assertTrue(outside_dates)
             self.assertEqual(stats["outside_rows"], 2)
+
+    def test_full_history_window_uses_export_schema_and_replaces_prior_rows(self) -> None:
+        start = date(2025, 3, 1)
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            prior = root / "orders.parquet"
+            export = root / "orders.xlsx"
+            export_headers = ["团队", "资源录入人", "ID", "分配时间", "活动名称"]
+            _write_parquet(
+                prior,
+                ["source_id", "snapshot_id", "ID", "分配时间", "团队", "录入来源"],
+                [
+                    ["src", "snap", "old-1", str(_excel_serial(date(2026, 5, 1))), "旧团队", "legacy-1"],
+                    ["src", "snap", "same-id", str(_excel_serial(date(2026, 8, 1))), "旧团队", "legacy-2"],
+                ],
+            )
+            _write_xlsx(
+                export,
+                export_headers,
+                [
+                    ["新团队", "新录入人", "same-id", _excel_serial(date(2026, 8, 2)), "新活动"],
+                    ["新团队", "新录入人2", "new-id", _excel_serial(date(2025, 3, 1)), "新活动2"],
+                ],
+                sheet_name="工单明细导出用表",
+            )
+
+            _, columns, rows, stats = merge_orders(
+                export_xlsx=export, prior_parquet=prior, start=start,
+            )
+
+            self.assertEqual(columns, export_headers)
+            self.assertEqual(stats["outside_rows"], 0)
+            self.assertEqual(stats["merged_rows"], stats["export_rows"])
+            self.assertEqual({row["ID"] for row in rows}, {"same-id", "new-id"})
+            updated = next(row for row in rows if row["ID"] == "same-id")
+            self.assertEqual(updated["团队"], "新团队")
+            self.assertEqual(updated["活动名称"], "新活动")
+            self.assertTrue(all("录入来源" not in row for row in rows))
 
 
 class MergeCashTests(unittest.TestCase):
@@ -159,6 +204,7 @@ class MergeCashTests(unittest.TestCase):
             )
             sheet, cols, rows, stats = merge_cash(export_xlsx=export, prior_parquet=prior, start=start)
             self.assertEqual(sheet, "现金明细表")
+            self.assertEqual(cols, ["工单ID", "业务日期", "学员编号", "现金收入", "业务类型"])
             self.assertNotIn("source_row_number", cols)
             self.assertGreater(stats["merged_rows"], stats["export_rows"])
             self.assertEqual(stats["outside_rows"], 2)

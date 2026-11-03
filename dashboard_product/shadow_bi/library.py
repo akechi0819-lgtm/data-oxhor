@@ -29,7 +29,22 @@ def table_digest(rows):
 
 def source_files(workspace):
     # Bind only immutable input closure, not new query evidence produced by rebuild.
-    files=[p for folder in ('Work','Input') for p in (workspace/folder).rglob('*') if p.is_file()]
+    from workspace_modeling.bridge_alignment.workspace import current_snapshot_root
+    snapshot_root = current_snapshot_root(workspace)
+    if snapshot_root is None:
+        raise ValueError('BI workspace has no current Snapshot')
+    runs_root = Path(workspace).resolve() / 'Work' / 'Runs'
+    current_run = snapshot_root.relative_to(runs_root).parts[0]
+    files=[]
+    for folder in ('Work','Input'):
+        for p in (workspace/folder).rglob('*'):
+            if not p.is_file():
+                continue
+            parts = p.relative_to(workspace).parts
+            if (parts[:2] == ('Work', 'Runs') and len(parts) >= 3
+                    and parts[2].startswith('run_') and parts[2] != current_run):
+                continue
+            files.append(p)
     pointer=read(workspace/'Work/StudyAbroad/current.json')
     lineage=read(workspace/pointer['source_lineage'])
     history=lineage.get('normalized_history',{})
@@ -41,7 +56,7 @@ def source_files(workspace):
 def code_files():
     roots = ['dashboard_product/management', 'dashboard_product/online_team',
              'dashboard_product/config', 'workspace_modeling/operations',
-             'data_acquisition/jobs', 'data_platform/query', 'data_platform/business_library.py',
+             'data_acquisition/jobs', 'data_acquisition/connectors/advertising', 'data_platform/query', 'data_platform/business_library.py',
              'dashboard_product/shadow_bi/library.py', 'dashboard_product/shadow_bi/acquisition.py', 'interfaces/business_library.py',
              'dashboard_product/shadow_bi/p5/raw_inputs.py', 'dashboard_product/shadow_bi/p5/raw_compute.py',
              'dashboard_product/shadow_bi/p5/raw_receiver.py', 'dashboard_product/shadow_bi/p5/raw_consumer.py',
@@ -55,9 +70,26 @@ def code_files():
     return sorted(set(p for p in paths if p.is_file() and p.suffix in {'.py','.sql','.json','.toml'}))
 
 
-def binding(workspace):
-    return {'inputs': {p.relative_to(workspace).as_posix():sha(p) for p in source_files(workspace)},
-            'rules': {p.relative_to(ROOT).as_posix():sha(p) for p in code_files()}}
+def binding(workspace, advertising_manifest=None):
+    inputs = source_files(workspace)
+    if advertising_manifest is not None:
+        # Explicit fee selection owns its complete closure below. In particular,
+        # a business-only build must not read or depend on registered fee inputs.
+        registered_fees = workspace / 'Input/AdvertisingCosts'
+        inputs = [p for p in inputs if not p.is_relative_to(registered_fees)]
+    result = {'inputs': {p.relative_to(workspace).as_posix():sha(p) for p in inputs},
+              'rules': {p.relative_to(ROOT).as_posix():sha(p) for p in code_files()}}
+    if advertising_manifest is not None:
+        from dashboard_product.management.candidate_sources import load_candidate_sources
+        manifest = Path(advertising_manifest).resolve(strict=True)
+        costs = load_candidate_sources(manifest)
+        # The candidate may live outside Input. Bind its actual manifest and
+        # validated native file closure without editing the registered manifest.
+        result['advertising_inputs'] = {
+            'manifest': {'path': str(manifest), 'sha256': sha(manifest)},
+            'files': {s['path']: s['sha256'] for s in costs['sources']},
+        }
+    return result
 
 
 def initialize(frozen_workspace, target):
@@ -172,6 +204,8 @@ def write_table(connection, root, name, rows):
         elif key in {'event_date','start_date','end_date','through_date','window_start','window_end'} and values and all(re.fullmatch(r'\d{4}-\d{2}-\d{2}',str(v)) for v in values): typ='DATE'
         else: typ='VARCHAR'
         types[key]=typ
+    if not rows and name == 'expense_sources':
+        types.update({'business_line':'VARCHAR','platform':'VARCHAR','end_date':'DATE','grain':'VARCHAR'})
     types['row_json']='JSON'
     def scalar(v):
         return encode(v).decode() if isinstance(v,(dict,list)) else v
@@ -181,10 +215,7 @@ def write_table(connection, root, name, rows):
             f.write(encode({**{k:scalar(row.get(k)) for k in columns},'row_json':row})+b'\n')
     def quote(text): return "'"+text.replace("'","''")+"'"
     schema='{'+','.join(quote(k)+':'+quote(t) for k,t in types.items())+'}'
-    if rows:
-        connection.execute(f'CREATE TABLE queries."{name}" AS SELECT * FROM read_json(?, columns={schema}, format=\'newline_delimited\')',[str(data)])
-    else:
-        connection.execute(f'CREATE TABLE queries."{name}" (row_json JSON)')
+    connection.execute(f'CREATE TABLE queries."{name}" AS SELECT * FROM read_json(?, columns={schema}, format=\'newline_delimited\')',[str(data)])
     return {'rows':len(rows),'logical_sha256':table_digest(rows),'columns':types,
             'data':file_ref(data,root,'application/x-ndjson')}
 
@@ -192,11 +223,12 @@ def write_table(connection, root, name, rows):
 def build(args):
     ws=args.workspace.resolve(); out=ws/'Output/ShadowBI'/args.run_id
     if out.exists(): raise ValueError('拒绝覆盖既有业务库批次；使用新的run-id')
-    before=binding(ws)
+    advertising_manifest=getattr(args, 'advertising_manifest', None)
+    before=binding(ws, advertising_manifest)
     model=calculate(args)
     from dashboard_product.shadow_bi.acquisition import scoped_tables
     scope_values=scoped_tables(model)
-    after=binding(ws)
+    after=binding(ws, advertising_manifest)
     if before!=after: raise ValueError('计算期间输入或规则发生变化')
     library=out/'library'; library.mkdir()
     db=library/'business.duckdb'
@@ -231,7 +263,7 @@ def build(args):
         source_queries.append({'path':p.relative_to(ws).as_posix(),'sha256':sha(p),
                                'snapshot_ref':doc['snapshot_ref'],'relations':doc['referenced_relations'],
                                'source_ids':doc['referenced_source_ids']})
-    if binding(ws)!=before: raise ValueError('业务库封口前输入或规则发生变化')
+    if binding(ws, advertising_manifest)!=before: raise ValueError('业务库封口前输入或规则发生变化')
     manifest={'schema_version':'business_query_library.v1','batch_id':args.run_id,
         'created_at':datetime.now(UTC).isoformat(),'as_of_date':args.as_of_date,
         'snapshots':{'training':args.snapshot_id,'abroad':args.study_abroad_snapshot_id},
@@ -250,6 +282,7 @@ def main():
     init=sub.add_parser('copy-inputs'); init.add_argument('--frozen-workspace',type=Path,required=True);init.add_argument('--workspace',type=Path,required=True)
     b=sub.add_parser('build');b.add_argument('--workspace',type=Path,required=True);b.add_argument('--snapshot-id',required=True)
     b.add_argument('--study-abroad-snapshot-id',required=True);b.add_argument('--run-id',required=True);b.add_argument('--as-of-date',required=True)
+    b.add_argument('--advertising-manifest', type=Path, help='Explicit candidate fee manifest; bind and use it without changing registered fees')
     a=p.parse_args()
     if a.command=='copy-inputs':initialize(a.frozen_workspace.resolve(),a.workspace.resolve())
     else:build(a)

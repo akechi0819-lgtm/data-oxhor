@@ -1,15 +1,17 @@
-"""Tencent Docs export downloader."""
+"""Tencent Docs MCP client and XLSX exporter."""
 
-from data_acquisition.connectors.tencent_docs.downloader import (
+from data_acquisition.connectors.tencent_docs.export import (
     DownloadReceipt,
-    TencentDocsDownloadError,
-    TencentDocsExportConfig,
     download_tencent_doc_xlsx,
+)
+from data_acquisition.connectors.tencent_docs.mcp import (
+    TencentDocsMCPClient,
+    TencentDocsMCPError,
 )
 
 __all__ = [
     "DownloadReceipt",
-    "TencentDocsDownloadError",
-    "TencentDocsExportConfig",
+    "TencentDocsMCPClient",
+    "TencentDocsMCPError",
     "download_tencent_doc_xlsx",
 ]

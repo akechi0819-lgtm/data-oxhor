@@ -22,13 +22,13 @@ def _rolling_default_start_date() -> str:
 
 
 DEFAULT_ORDER_FILTER_META = {
-    "分配时间": {
-        "fdId": "vbd72e8252b6a4959bd2d8e4",
+    "分配日期": {
+        "fdId": "bf9ab43250ab34a98836dcf4",
         "dsId": "i2e269a4ea5d34590ad16727",
-        "cdId": "tb6163fe63c3346039f72bd6",
+        "cdId": "j7378d2612e2242ab85e3140",
         "fdType": "DATE",
         "filterType": "BT",
-        "sourceCdId": "o443253f328874c938238599",
+        "sourceCdId": "xa6e577520eb543e7913a773",
     },
 }
 
@@ -47,7 +47,7 @@ DEFAULT_CASH_FILTERS = [
 
 @dataclass(frozen=True)
 class BIExportConfig:
-    page_url: str = "https://bibr.staff.xdf.cn/page/c72ee6c698a5d416ba55733a"
+    page_url: str = "https://bibr.staff.xdf.cn/page/dc1bca538e57f49038476541"
     browser_profile_dir: Path = Path("data_acquisition/storage/browser_profiles/bi")
     auth_session_paths: AuthSessionPaths = field(default_factory=lambda: AuthSessionPaths(Path("."), "bi"))
     download_dir: Path = Path("data_acquisition/storage/raw/bi_downloads")
@@ -56,7 +56,7 @@ class BIExportConfig:
     retry_backoff_sec: float = 5.0
     poll_log_interval_sec: float = 30.0
     default_start_date: str = field(default_factory=_rolling_default_start_date)
-    order_card_id: str = "tb6163fe63c3346039f72bd6"
+    order_card_id: str = "j7378d2612e2242ab85e3140"
     order_filter_meta: dict[str, dict] = field(default_factory=lambda: copy.deepcopy(DEFAULT_ORDER_FILTER_META))
     cash_page_id: str = "u9325e10935054279894536e"
     cash_card_id: str = "l7c4c81c230394601874711e"
@@ -118,16 +118,24 @@ def build_order_export_request(
             filters.append({**meta, "name": name, "filterValue": [start_date, end_date], "displayValue": [start_date, end_date]})
     return BIExportRequest(
         target="orders",
-        api=f"/api/write/file/{config.order_card_id}?typeOp=EXCEL",
+        api="/api/batchExportCardExcel",
         headers=build_common_headers(config),
         payload={
-            "filters": filters,
-            "treeFilters": [],
-            "dynamicParams": [],
-            "dynamicFieldFilters": [],
-            "combinationFilters": [],
-            "layerTreeFilters": [],
-            "saveFilters": False,
+            "pgId": config.page_url.rstrip("/").rsplit("/", 1)[-1],
+            "cards": [
+                {
+                    "cdId": config.order_card_id,
+                    "saveFilters": False,
+                    "filters": filters,
+                    "treeFilters": [],
+                    "dynamicParams": [],
+                    "dynamicFieldFilters": [],
+                    "combinationFilters": [],
+                    "layerTreeFilters": [],
+                }
+            ],
+            "exportType": "PIVOT",
+            "saveType": "MANY_SHEET",
         },
     )
 

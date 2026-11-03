@@ -190,6 +190,12 @@
                   "study_abroad_orders": 16,
                   "heads": 20,
                   "virtual_person_additions": 100
+                },
+                "2026-11": {
+                  "orders": 74,
+                  "study_abroad_orders": 30,
+                  "heads": 10,
+                  "virtual_person_additions": 100
                 }
               },
               "note": "南大"
@@ -209,6 +215,12 @@
                   "orders": 85,
                   "study_abroad_orders": 17,
                   "heads": 20,
+                  "virtual_person_additions": 100
+                },
+                "2026-11": {
+                  "orders": 79,
+                  "study_abroad_orders": 32,
+                  "heads": 10,
                   "virtual_person_additions": 100
                 }
               },
@@ -230,6 +242,12 @@
                   "study_abroad_orders": 14,
                   "heads": 15,
                   "virtual_person_additions": 100
+                },
+                "2026-11": {
+                  "orders": 69,
+                  "study_abroad_orders": 28,
+                  "heads": 8,
+                  "virtual_person_additions": 100
                 }
               },
               "note": "南大仁爱"
@@ -249,6 +267,12 @@
                   "orders": 50,
                   "study_abroad_orders": 10,
                   "heads": 8,
+                  "virtual_person_additions": 100
+                },
+                "2026-11": {
+                  "orders": 49,
+                  "study_abroad_orders": 20,
+                  "heads": 5,
                   "virtual_person_additions": 100
                 }
               },

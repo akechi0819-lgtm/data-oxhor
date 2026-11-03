@@ -1,6 +1,12 @@
 # 腾讯文档留学来源抓取
 
-## 当前验收状态（2026-10-09）
+## 当前下载入口（2026-11-02）
+
+留学表在线下载已统一为官方腾讯文档MCP。与原脚本同时间段导出的8个页签，数据、公式、缓存值、样式和透视表关联一致；验证见`.local/audits/tencent-mcp-export-20261102/`。旧网页Cookie导出连接器及其CLI参数已删除，不保留回退分支。宿主全局Token供留学整本下载与工单反馈追加共同使用；项目只保留一个共享MCP客户端。
+
+工作区`.private/tencent-source.json`仅配置`file_id`与`token_file`，后者指向宿主全局私有Token文件。当前来源为《FY27 前途-市场看板》，不在代码中写入Token。不需要浏览器登录profile、Cookie文件或旧TENCENT_DOC_ID/URL/COOKIE环境变量。Token失效或额度/权限不足时失败退出并报告，不能伪造成功。
+
+## 2026-10-09历史标准化验收
 
 Chrome实抓完整Excel导出流程，并用独立Python重新导出下载成功。用户提供的6—8月腾讯业务历史已一次性标准化并写入本地隔离留学仓，保留9月并接入10月；当前标准历史Snapshot为 `snapshot_study_abroad_cloud_aligned_20261009_v5`。这份腾讯资源与签约历史独立于人员产能使用的6—8月确认汇总。BI仓与 `Work/workspace.json` 不变，未激活网页或真实发送。本轮源码与6—9月标准历史已按A/B分包同步Grok，云端本人登录态重新抓取10月：233工单、451,960元现金、人头留学12／小语种10；本机通过同一回传原件已对齐。云端同批看板／人员预览和8空跑／18组包通过，正式网页与通知尚未切换。
 
@@ -12,22 +18,32 @@ Chrome实抓完整Excel导出流程，并用独立Python重新导出下载成功
 
 ## 下载合同
 
-`data_acquisition.connectors.tencent_docs` 使用本次实抓的腾讯文档网页接口，不宣称为腾讯公开稳定API：
+唯一在线导出路径：
 
-1. `POST /v1/export/check` 校验导出权限。
-2. `POST /v1/export/export_office`，以 `exportType=0` 创建完整Excel导出任务，取得 `operationId`。
-3. `GET /v1/export/query_progress` 轮询，完成响应含 `status=Done`、`file_url`、`file_name` 和 `file_size`。
-4. 下载腾讯COS返回的临时文件。实抓链接有效期1800秒，每次运行重新建任务，不固定保存下载链接。
-
-Cookie仅发送给 `docs.qq.com`，文件下载请求不带文档Cookie。登录失效、非JSON响应、任务失败、超时、异常下载域、文件大小不符或损坏XLSX均失败退出，原始文件以唯一文件名保留，不覆盖之前导出。会话文件在本机私有忽略目录，权限0600，不随源码包上传。本次Grok已用本人在云端独立登录的腾讯会话完成实抓；长期有效性需后续运行检查，Mac Cookie不传云端。
+1. `manage.export_file(file_id)` 创建导出任务，取得`task_id`。
+2. `manage.export_progress(task_id)` 每5秒查询一次，`progress=100`后取得临时文件地址。
+3. 无Cookie下载腾讯COS文件，校验HTTPS域、HTTP状态、ZIP/CRC、工作簿及工作表关系完整性，保留原件、SHA-256和字节数。
 
 ```bash
 python3 -m data_acquisition.connectors.tencent_docs \
-  --doc-id '<实抓docId>' --page-url '<腾讯文档页面URL>' \
-  --cookie-file '<私有cookies.json>' --output-dir '<本次run原件目录>'
+  --file-id '<腾讯文档file_id>' \
+  --token-file '<宿主全局私有Token文件>' \
+  --output-dir '<本次唯一run原件目录>'
 ```
 
-Cookie文件接受Chrome抓取的 `{ "cookies": [...] }` 或Cookie数组。TLS证书校验保持启用；环境需要显式CA时使用 `--ca-file <CA文件>`。下载回执只输出原件路径、字节数及SHA-256，不输出Cookie或签名地址。
+导出目录中的`export-task.json`保存文件身份、任务ID及完成原件的路径/hash，不保存Token和签名URL。同目录中断恢复只查询原任务；创建任务时结果未知则明确报错，不盲目重提。已下载文件仅在hash与XLSX校验通过后复用。系统curl校验TLS，不关闭证书验证、不跟随下载重定向，凭据及签名URL不进入命令行参数或回执。
+
+## 工单反馈追加合同（2026-11-02）
+
+留学整本下载与工单反馈追加共用 `TencentDocsMCPClient` 和私有Token，但属于两个独立操作。追加入口读取本地已导出的BI工单工作簿，按私有配置的 `start_date` 与显式 `--as-of-date` 筛选 `分配时间`，以工单 `ID` 识别已存在记录；只追加远端缺少的ID，重复ID内容冲突则失败。每批写入后回读校验；`素材ID`、`账号来源`、`工单跟进情况`三列由人工维护，追加时不写入、不覆盖。
+
+```bash
+python3 -m data_acquisition.jobs.sync_content_work_orders \
+  --workspace '<客户工作区>' --source-file '<本批BI工单工作簿>' \
+  --as-of-date '<YYYY-MM-DD>' --run-id '<本次唯一run_id>'
+```
+
+默认配置为工作区 `.private/content-work-orders.json`，其中绑定目标文件／页签、Token文件、104个目标列和起始日期。成功或失败回执写入 `Work/ContentWorkOrders/Runs/<run_id>/receipt.json`；同一 `run_id` 不可复用。该入口会将新工单实际追加到配置的腾讯文档，不属于只读下载。
 
 ## 工作簿读取
 
@@ -70,15 +86,14 @@ python3 -m data_acquisition.jobs.build_study_abroad_warehouse \
 
 ```bash
 python3 -m data_acquisition.jobs.update_tencent_study_abroad \
-  --workspace '<客户工作区>' --doc-id '<实抓docId>' \
-  --page-url '<腾讯文档页面URL>' --cookie-file '<云端私有登录态>' \
+  --workspace '<客户工作区>' \
   --run-id '<本次唯一run_id>' --snapshot-id '<本次新snapshot_id>' \
   --through-date '<明确来源截止日>' --refresh-month '<YYYY-MM>'
 ```
 
-该入口从 `Work/StudyAbroad/current.json` 获取明确父Snapshot身份，下载后只刷新指定月份，不再读历史Excel。失败保留上一成功指针，导出任务每次重新创建。Grok使用自己已登录的腾讯浏览器会话，Mac Cookie不随A/B包传输。
+该入口从 `Work/StudyAbroad/current.json` 获取明确父Snapshot身份，从工作区私有配置读取MCP文档与Token绑定，下载后只刷新指定月份，不再读历史Excel。失败保留上一成功指针。服务器raw接收流程仍可显式提供已验证的本地`source_file`，该模式不联网，也不需要MCP配置；这属于当前原件入仓合同，并非旧Cookie兼容。
 
-看板与人员贡献都消费同一个显式留学Snapshot；人员贡献不再在管理构建中另取九月参考工作簿。跨业务工单由BI工单一级渠道精确为“双分”（留学向语培输出）和腾讯标准行归属组“国际市场”（语培向留学输出）识别，不再读取原资源流转表。旧 `资源流转.xlsx` 及双分流转明细只保留历史追溯，不参与当前计数、姓名覆盖或缺失门禁；6—8月业务确认的留学／小语种人员历史结果继续只读沿用，9月人员表仅作对账。名单与既定共创分摊由人员产能模块处理，腾讯签约／实缴归属仍以本行人工归属为准。这里的腾讯导出更新针对留学资源与签约数据，不会自动抓取广告费用；ROI费用由用户手工提供并登记到 `Input/AdvertisingCosts/sources.json`，Grok 端同样如此。既有例行时间、收件人和密钥不因本次更新改变；真实发布或发送须遵循具体任务范围。
+看板与人员贡献都消费同一个显式留学Snapshot；人员贡献不再在管理构建中另取九月参考工作簿。跨业务工单由BI工单一级渠道精确为“双分”（留学向语培输出）和腾讯标准行归属组“国际市场”（语培向留学输出）识别，不再读取原资源流转表。旧 `资源流转.xlsx` 及双分流转明细只保留历史追溯，不参与当前计数、姓名覆盖或缺失门禁；6—8月业务确认的留学／小语种人员历史结果继续只读沿用，9月人员表仅作对账。名单与既定共创分摊由人员产能模块处理，腾讯签约／实缴归属仍以本行人工归属为准。`update_tencent_study_abroad` 只更新留学资源与签约数据，不抓取广告费用；广告费有独立的 `prepare_full_daily` 采集／候选入口，仍可按明确来源映射登记手工来源，见[看板费用与ROI](dashboard-advertising-costs.md)。留学更新流程不会自动启动广告采集、发布或发送；具体范围遵循对应日更入口。
 
 本轮证据：`.local/audits/study-history-678-20261009/`；前轮抓取证据：`.local/audits/tencent-study-capture-20261009/`。会话与原始请求位于私有忽略目录，不进入Git或公开交付。
 
@@ -88,17 +103,16 @@ python3 -m data_acquisition.jobs.update_tencent_study_abroad \
 
 看板日常和日推日常不重复抓取来源：前者先校验当天联合回执及两仓当前身份后构建／发布；后者校验同一联合配对与同批通知再投递。腾讯历史从已标准化仓受控读取，只替换上海当天所在月份，不因新月份导出缺旧月而清空历史。月底迟到历史需明确来源另补，不无证推数据。
 
-数仓例行调用环境（ID、URL取已核验腾讯文档，Cookie使用Grok本人的云端会话）：
+数仓例行只读取已绑定工作区，MCP来源身份与Token路径来自其私有配置：
 
 ```bash
 PYTHON='<warehouse虚拟环境Python>' PROJECT_ROOT='<warehouse根>' \
-WORKSPACE='<客户工作区>' TENCENT_DOC_ID='<已核验docId>' \
-TENCENT_DOC_URL='<已核验页面URL>' TENCENT_COOKIE_FILE='<云端私有0600 Cookie>' \
+WORKSPACE='<客户工作区>' \
 bash data_acquisition/deploy/run_daily_warehouses.sh
 ```
 
-脚本默认按上海日期与时分秒生成新run和两仓Snapshot身份；也可显式传入AS_OF_DATE、RUN_ID、BI_SNAPSHOT_ID、STUDY_SNAPSHOT_ID。有必要时通过TENCENT_CA_FILE指定信任CA，证书校验保持开启。来源任务每天先从云端已登录腾讯会话刷新私有Cookie，不上传或显示凭据；登录无法续期时报告需本人登录，来源失败阻断后续消费者。
+脚本默认按上海日期与时分秒生成新run和两仓Snapshot身份；也可显式传入AS_OF_DATE、RUN_ID、BI_SNAPSHOT_ID、STUDY_SNAPSHOT_ID。来源任务通过官方MCP直接导出，失败阻断原有消费者门禁，不刷新或读取腾讯文档Cookie。
 
-现有数仓09:30、看板09:45、日推10:24为三条原例行；本次只更新执行正文，不另建任务、不改时刻／启停／通道。代码和失败门禁已安装云端并通过261项／67subtests回归；三条原Routine均已获得UpdateRoutine回执，原ID／时刻／开关保持，最终提交正文和摘要留在 `.local/sync/inbox/grok-daily-dual-20261009/prompts/`。平台无法完整回读正文，不把提交副本当全文回读。真实联合运行 `run_daily_sources_20261009_210221` 已结束：BI因本人登录超时失败，腾讯在同轮成功更新 `snapshot_study_abroad_20261009_daily_210221`，6—9历史不变。联合failed已阻断下游，未新建生产batch／发布／发送；BI本人扫码后才可验收双源成功及新批预览。失败来源终态状态已修复，不改旧运行收据。
+以下为2026-10-09云端历史回执，不代表当前本地日程；现行本地bi-3每日09:30业务优先流程见[完整日更说明](shadow-bi-full-daily-20261028.md)。当时数仓09:30、看板09:45、日推10:24为三条原例行；本次只更新执行正文，不另建任务、不改时刻／启停／通道。代码和失败门禁已安装云端并通过261项／67subtests回归；三条原Routine均已获得UpdateRoutine回执，原ID／时刻／开关保持，最终提交正文和摘要留在 `.local/sync/inbox/grok-daily-dual-20261009/prompts/`。平台无法完整回读正文，不把提交副本当全文回读。真实联合运行 `run_daily_sources_20261009_210221` 已结束：BI因本人登录超时失败，腾讯在同轮成功更新 `snapshot_study_abroad_20261009_daily_210221`，6—9历史不变。联合failed已阻断下游，未新建生产batch／发布／发送；BI本人扫码后才可验收双源成功及新批预览。失败来源终态状态已修复，不改旧运行收据。
 
 腾讯当前导出不提供删除／回收状态列。个人状态开关保留，只影响源中有明确状态的行；缺状态行不被推断为删除或回收。

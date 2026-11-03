@@ -1,6 +1,8 @@
 > **2026-10-28唯一正式数据源**：本机main只使用 `customers/shadow_bi_daily`。旧 `bi_operations` 与独立 `shadow_bi_operations` 数仓、c373客户副本和废弃派生成品已清理。原始输入、确认资产和必要证据保留；P1 Superset运行环境是测试依赖，不是另一套正式数仓。验收与回执见[开发文档](../DEVELOPMENT.md)。
 
-> 正式BI维护入口：`dashboard_product/DEPLOYMENT.md`与`docs/bi-production-baseline-20261025.md`。10月26日暂停前回执，服务器raw计算链路已部署并实际运行到39张业务表；真实批次因截止门禁失败而未发布。有效新包正式发布、持续日更和唯一生产者收口分别待验收。通用核心回归可用已有Python3.12执行`python3 -B -m pytest tests dashboard_product/tests dashboard_product/management/tests monitoring_product/tests -p no:cacheprovider`；Superset认证测试在核心环境明确skip，必须另外在固定Superset环境运行`python -B -m unittest tests.test_shadow_bi_legacy_auth`。两类环境分别报告，不把skip计为通过。
+> **当前日更代码入口**：Mac 本地 `data_acquisition.jobs.prepare_full_daily --publish` 执行业务基础发布、即时通知、广告费用采集与发布；默认模式（含 `--prepare`）只准备隔离候选。腾讯文档下载统一走官方 MCP。11/3 完成回执记录 127 个云端源文件与本机 SHA 一致，并记载次日 bi-3 本机 09:30 运行；该回执不是实时调度核验。服务器 raw 路径仍未启用，10/26 raw 暂停与失败批次保留为历史记录。详细状态见[完整日更接入状态](shadow-bi-full-daily-20261028.md)。
+
+通用核心回归可用已有Python3.12执行`python3 -B -m pytest tests dashboard_product/tests dashboard_product/management/tests monitoring_product/tests -p no:cacheprovider`；Superset认证测试在核心环境明确skip，必须另外在固定Superset环境运行`python -B -m unittest tests.test_shadow_bi_legacy_auth`。两类环境分别报告，不把skip计为通过。
 
 # 维护者指南
 
@@ -53,7 +55,7 @@
 
 旧静态退出后的进一步死代码/入口复查见[第二轮记录](dashboard-second-pass-20261026.md)。历史阶段文档不作为启动指令，P1环境/依赖锁保留不代表P1实验入口仍在main。
 
-以下为10月26日历史收口状态，10月28日整合见文首。10月26日本地代码、文档与工作树收口见[整合记录](local-project-alignment-20261026.md)。`main`为整合基线；c373保留数据、证据和稳定运行路径，其源码对齐main后以detached HEAD保留，不作为另一条开发分支。服务器raw receiver、只读历史基线、受限双Snapshot/quality/共享聚合计算和固定publisher已有实际部署及运行回执；本地来源完成证明门禁本轮未部署。有效raw包发布、持续日更、唯一生产者切换以及实时调度状态另行验收，本地代码收口不代表这些事项完成。
+以下为10月26日历史收口状态，10月28日整合见文首。10月26日本地代码、文档与工作树收口见[整合记录](local-project-alignment-20261026.md)。`main`为整合基线；c373保留数据、证据和稳定运行路径，其源码对齐main后以detached HEAD保留，不作为另一条开发分支。服务器raw receiver、只读历史基线、受限双Snapshot/quality/共享聚合计算和固定publisher当时已有实际部署及运行回执；raw候选因截止门禁失败而未发布。此段只记录当时状态，服务器 raw 路径目前未启用，当前日更代码入口见本页顶部及[完整日更接入状态](shadow-bi-full-daily-20261028.md)。
 
 当前状态、已知限制与本次施工记录统一维护在 [DEVELOPMENT.md](../DEVELOPMENT.md)。[历史交接](history/project-handoff-through-20260918.md) 仅保留过去决策与验收事实，不作为日常操作入口；看板运行以模块 README 和 DEPLOYMENT 为准。
 

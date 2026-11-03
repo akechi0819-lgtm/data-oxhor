@@ -2,7 +2,9 @@
 
 # P5 每日更新与全量开放
 
-当前运行版为 **daily-20261028_104710**，业务批次为 `run_shadow_daily_20261028_104710_business`。语培、留学均显示截至 **2026-10-27**。历史合并和主被动平台返修已由总线程独立验收。用户已确认灰度反馈良好并授权全量开放；新版已接入全部18个原账号的原密码，连续日更观察继续。
+本页记录10月24—29日灰度及人工运行；现行入口与版本见[完整日更说明](shadow-bi-full-daily-20261028.md)。以下命令和运行结果保留当时阶段，不能替代现行总入口。
+
+10月29日当时运行版为 **daily-20261029_091155-retry091740**，业务批次为 `run_shadow_daily_20261029_091155_business`。语培、留学均显示截至 **2026-10-28**。历史合并和主被动平台返修已由总线程独立验收。用户已确认灰度反馈良好并授权全量开放；新版已接入全部18个原账号的原密码，连续日更观察继续。
 
 ## 范围与运行
 
@@ -135,3 +137,14 @@ python3 -u -m dashboard_product.shadow_bi.p5.daily --workspace customers/shadow_
 定时通知在10:57:58启动，145.053秒构建后跨过11点，时间门禁保留8条pending、network_send_attempted=false。用户已明确“允许今天补发”；随后仅对本日/本release执行既有release_notifications正式投递，沿用专用服务身份、资源限制、原状态迁移、同批/当日/截止日校验及去重，不改今后10点调度规则。8消息/原5通道全部sent，持久状态独立复核8条sent，无unknown/失败。
 
 证据`.local/audits/shadow-bi-p5-20261028-manual/`：`daily-longwait.log`、`server-verification.json`、`expense-tables-unchanged.json`、`live-dashboard.png`、`manual-send-authorization.json`、`dingtalk-send.log`、`dingtalk-catchup.log`及`dingtalk-verification.json`。当日成功回执`Output/ShadowDaily/2026-10-28.json`。等待常数及文档差异检查通过；未为常数变更新增镜像测试，真实采集/发布链路已执行。
+
+
+## 2026-10-29 只刷新业务与立即推送
+
+用户明确ROI费用不动，只更新BI/腾讯工单、现金等业务，并选择刷新好立即发。按新根入口使用主目录`customers/shadow_bi_daily`，不再使用c373客户镜像。来源批次`run_shadow_daily_20261029_091155`，双Snapshot为`snapshot_bi_operations_20261029_091155`及`snapshot_study_abroad_20261029_091155`；BI工单21秒、现金11秒取回，两仓联合passed。每轮15分钟等待设置沿用。
+
+首轮重算因共享源码在计算期间变化被阻断，未发布。失败输出保留，随后将当时现有已用源码及其摘要固定到审计副本，复用同日双仓按原`--resume`续算；没有改动、回退其他线程源码。费用28份输入与运行前摘要一致，3202条费用明细及56条来源的逻辑摘要与上一正式`daily-20261028_104710`一致，未采集或更换ROI来源。
+
+已发布`daily-20261029_091155-retry091740`，语培/留学均截至10月28日；服务器current、日回执、三范围18值及Chrome真实日期核验通过。用户授权刷新好立即发，因此未等待10点；使用原release_notifications构建/投递，原服务身份及资源限制保持，显式本日/本release及所有原来源、迁移状态、截止日、逐消息去重门禁保留。8消息全部sent，独立持久状态确认当日8条sent；10点调度未变，后续同日调用应去重。
+
+证据`.local/audits/bi-daily-20261029/`包含`daily.log`、`resume.log`、`frozen-code-receipt.json`、`expense-inputs-before.json`、`expense-tables-unchanged.json`、`server-verification.json`、`live-dashboard.png`、`manual-send-authorization.json`、`dingtalk-send.log`及`dingtalk-verification.json`。服务器通知回执目录`/var/lib/shadow-bi-notify/runs/manual-20261029T092217`。当日成功回执在主工作区`Output/ShadowDaily/2026-10-29.json`。

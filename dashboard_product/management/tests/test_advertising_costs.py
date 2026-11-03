@@ -63,6 +63,23 @@ class AdvertisingSqlTests(unittest.TestCase):
         self.assertIsNone(leaf['大学']['roi'])
         self.assertIsNone(leaf['高中']['spend'])
 
+    def test_sem_available_amount_sums_but_missing_rows_keep_partial_coverage(self):
+        rows=[expense('sem:百度','留学整体',10,'2026-10-03','2026-10-03','abroad','百度'),
+              expense('sem:百度','留学整体',None,'2026-10-04','2026-10-04','abroad','百度')]
+        source=[{'source_id':'sem:百度','business_line':'abroad','business_group':'留学整体',
+                 'platform':'百度','grain':'daily','start_date':'2026-10-03','end_date':'2026-10-04',
+                 'missing_amount_count':1,'missing_amount_dates':['2026-10-04']}]
+        sql=render_sql([dict(id='test',start_date='2026-10-03',through_date='2026-10-04',
+                             prior_start_date='2025-10-03',prior_through_date='2025-10-04',status='available')],
+                       [],{'rows':rows,'sources':source})
+        with duckdb.connect(':memory:') as connection:
+            cursor=connection.execute(sql)
+            names=[column[0] for column in cursor.description]
+            result=[dict(zip(names,row)) for row in cursor.fetchall()]
+        line=next(row for row in result if row['record_type']=='line' and row['business_line']=='abroad')
+        self.assertEqual(line['spend'],10)
+        self.assertEqual(line['spend_status'],'partial')
+
     def test_week_total_is_not_divided_into_daily_bars(self):
         result=self.execute([('2026-10-03','abroad','留学整体','抖音',2,500)],
                             [expense('week','留学整体',70,'2026-10-03','2026-10-09','abroad','抖音')],end='2026-10-09')

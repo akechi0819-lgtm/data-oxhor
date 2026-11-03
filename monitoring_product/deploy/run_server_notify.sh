@@ -12,7 +12,7 @@ if [ "$#" -eq 3 ]; then
   [[ "$3" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] || exit 2
   extra=(--expected-release "$2" --expected-date "$3")
 fi
-case "$mode" in status|preview|send-scheduled) ;; *) exit 2;; esac
+case "$mode" in status|preview|send-scheduled|send-published) ;; *) exit 2;; esac
 exec 9>/run/shadow-bi-notify-entry.lock
 flock -n 9 || exit 75
 # Limit the service identity to the currently published derived library only.

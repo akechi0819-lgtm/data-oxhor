@@ -2,7 +2,6 @@
 import json,os
 from pathlib import Path
 from datetime import datetime,UTC
-from dashboard_product.shadow_bi.p3 import bootstrap as original
 from dashboard_product.shadow_bi.p3.catalog import AUDIT,PAGES,VIEWS,LIBRARY
 from dashboard_product.shadow_bi.p35.native_catalog import native_views,numeric_sort_bindings
 
@@ -35,6 +34,13 @@ def percentage_bar_css(charts):
 """
 
 
+def configure_window_table(params, columns):
+    params['all_columns']=list(columns)
+    params.update(server_pagination=False,include_search=False,page_length=0)
+    if '时间进度' in columns:
+        params.setdefault('column_config',{})['时间进度']={'d3NumberFormat':'.1%','showCellBars':True}
+
+
 def coverage_note(coverage):
     return '![观近头像](/p3/assets/01-avatar.png) ![观近数据助手](/p3/assets/02-data-tablet.png)\n\n## 观近 · 市场经营\n\n语培截至 '+coverage['data_through']+' · 留学截至 '+coverage['study_abroad_source']['through_date']+' · 金额单位：元'
 
@@ -62,6 +68,7 @@ def attach_overview_options(filters,database_id,user):
 
 
 def main():
+    from dashboard_product.shadow_bi.p3 import bootstrap as original
     base=list(VIEWS);extra=native_views();original.VIEWS=base+extra
     sorting={v.key:{k:v.filters.pop(k) for k in ['排序依据','排序方向','学校主被动'] if k in v.filters} for v in extra}
     original.main()
@@ -111,7 +118,8 @@ def main():
                 for c in params['all_columns']:
                     if c not in ['学校表现','渠道表现','费用与回收'] and any(x in c for x in ['工单','现金','人头','花费','成本','倍数']) and not any(x in c for x in ['同比','占比','完成率','进度']) and '%' not in params.get('column_config',{}).get(c,{}).get('d3NumberFormat',''):
                         params.setdefault('column_config',{}).setdefault(c,{})['d3NumberFormat']=',.2~f'
-                if v.key.endswith('_window'):params['all_columns']=v.columns
+                if v.key.endswith('_window'):
+                    configure_window_table(params,v.columns)
                 if v.more and v.more.get('allow_render_html'):params.update(v.more)
                 if v.key.endswith('_personal_channels'):params.update(page_length=50,server_pagination=True,server_page_length=50)
             params['slice_id']=chart.id;chart.params=json.dumps(params,ensure_ascii=False)
@@ -173,6 +181,7 @@ def main():
             for idx,(section,keys) in enumerate(sections.items()):
                 tab='TAB-'+page+'-'+str(idx);pos[nested]['children'].append(tab);pos[tab]={'id':tab,'type':'TAB','parents':parents+[tid,nested],'children':[],'meta':{'text':section}}
                 if section=='经营与目标':
+                    row(tab,[f'{page}_window'],20)
                     summaries=[f'native_{page}_{kind}' for kind in ['training','abroad'] if f'native_{page}_{kind}' in charts]
                     row(tab,summaries,26)
                     if page=='online':

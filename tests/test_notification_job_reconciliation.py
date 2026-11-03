@@ -67,3 +67,32 @@ def test_deduplicated_server_result_does_not_claim_a_new_http_send(fixture):
     with patch.object(n.n,'require_imported_state'),patch.object(n.n,'require_send_date'),patch.object(n,'load_library',return_value=(manifest,None,None)),patch.object(n.n,'rule_binding',return_value={}),patch.object(n.n,'deliver_bundle',return_value=result),patch('monitoring_product.delivery_transport.post_dingtalk',side_effect=AssertionError('no send')):
         report=n.run('send-scheduled',warehouse=base,home=home,env_file=home/'never-read.env',asset_root=home,now=datetime(2026,10,26,10,tzinfo=ZoneInfo('Asia/Shanghai')))
     assert report['status']=='sent' and report['deduplicated']==8 and report['network_send_attempted'] is False
+
+
+@pytest.mark.parametrize('hour', [9, 11])
+def test_published_send_has_no_hour_gate_and_checks_each_send(fixture, hour):
+    from monitoring_product import server_notify as n
+    base,home,control,identifier,state=fixture
+    manifest=json.loads((base/'current/library/library_manifest.json').read_bytes())
+    def deliver(**kwargs):
+        assert kwargs['dry_run'] is False
+        kwargs['before_send']()
+        return {'status':'sent','messages':[{'status':'sent'} for _ in range(8)]}
+    with patch.object(n.n,'require_imported_state'),patch.object(n.n,'require_send_date'),patch.object(n,'load_library',return_value=(manifest,None,None)),patch.object(n.n,'rule_binding',return_value={}),patch.object(n.n,'build_bundle'),patch.object(n.n,'deliver_bundle',side_effect=deliver):
+        value=n.run('send-published',warehouse=base,home=home,now=datetime(2026,10,26,hour,35,tzinfo=ZoneInfo('Asia/Shanghai')),expected_release='daily-fixture',expected_date='2026-10-26')
+    assert value['status']=='sent'
+
+
+@pytest.mark.parametrize('release,day', [(None,None),('daily-other','2026-10-26'),('daily-fixture','2026-10-25')])
+def test_published_send_requires_bound_current(fixture, release, day):
+    from monitoring_product import server_notify as n
+    base,home,*_=fixture
+    with pytest.raises(ValueError):
+        n.run('send-published',warehouse=base,home=home,now=datetime(2026,10,26,9,35,tzinfo=ZoneInfo('Asia/Shanghai')),expected_release=release,expected_date=day)
+
+
+def test_published_send_rejects_stale_formal_date(fixture):
+    from monitoring_product import server_notify as n
+    base,home,*_=fixture
+    with pytest.raises(ValueError,match='today formal release'):
+        n.run('send-published',warehouse=base,home=home,now=datetime(2026,10,27,9,35,tzinfo=ZoneInfo('Asia/Shanghai')),expected_release='daily-fixture',expected_date='2026-10-26')

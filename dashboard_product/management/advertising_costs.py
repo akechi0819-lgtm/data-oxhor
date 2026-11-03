@@ -76,11 +76,22 @@ def _advertising(row, line, costs):
     if not sources:
         note = '未提供对应平台费用，不能按0元处理。'
     else:
-        start = min(s['start_date'] for s in sources)
-        end = max(s['end_date'] for s in sources)
-        note = f'已提供费用来源：{start}至{end}；只覆盖已提供账户。'
+        ranges = [(s['start_date'], s['end_date']) for s in sources
+                  if s.get('start_date') and s.get('end_date')]
+        if ranges:
+            start = min(value[0] for value in ranges)
+            end = max(value[1] for value in ranges)
+            note = f'已提供费用来源：{start}至{end}；只覆盖已提供账户。'
+        else:
+            note = '已登记费用来源，但当前来源没有可用日期行；不按0元处理。'
         if status != 'complete':
             note += 'ROI与单条工单成本按费用共同覆盖日期计算。'
+        missing_amount_count = sum(int(s.get('missing_amount_count') or 0) for s in sources)
+        missing_date_count = sum(int(s.get('missing_date_count') or 0) for s in sources)
+        if missing_amount_count:
+            note += f'来源中{missing_amount_count}条日期金额为空，保持缺失、不按零计。'
+        if missing_date_count:
+            note += f'来源未提供{missing_date_count}个日期行。'
     if line == 'abroad' and sources and all(s['grain'] == 'period' for s in sources):
         note += '留学费用来自期间总表，不拆分到日。'
     if any(s.get('derivation') for s in sources):
@@ -149,10 +160,15 @@ def apply_result(online, rows, costs, classifications):
     return online
 
 
-def attach_advertising(online, facts, workspace, snapshot_id, run_id, output, *, order_facts=None):
+def attach_advertising(online, facts, workspace, snapshot_id, run_id, output, *, order_facts=None, manifest_path=None):
     workspace, output = Path(workspace), Path(output)
-    manifest = workspace / 'Input/AdvertisingCosts/sources.json'
-    costs = load_sources(manifest if manifest.exists() else None)
+    # An explicit candidate is mandatory input: never fall back to registered fees.
+    manifest = Path(manifest_path).resolve(strict=True) if manifest_path is not None else workspace / 'Input/AdvertisingCosts/sources.json'
+    if manifest_path is not None:
+        from .candidate_sources import load_candidate_sources
+        costs = load_candidate_sources(manifest)
+    else:
+        costs = load_sources(manifest if manifest.exists() else None)
     classifications = classified_facts(facts, order_facts=order_facts)
     daily = business_daily(facts, online['periods'], order_facts=order_facts)
     sql_path = output / 'advertising.sql'

@@ -37,8 +37,8 @@ def load_sources(manifest_path: Path | None) -> dict[str, Any]:
     manifest = Path(manifest_path)
     manifest_data = json.loads(manifest.read_text(encoding="utf-8-sig"))
     if (not isinstance(manifest_data, dict) or "sources" not in manifest_data
-            or not set(manifest_data).issubset({"sources", "network_period_differences"})):
-        raise ValueError("费用manifest必须包含sources，且只允许network_period_differences扩展字段")
+            or not set(manifest_data).issubset({"sources", "network_period_differences", "business_scope_confirmation"})):
+        raise ValueError("费用manifest扩展字段无效")
     entries = manifest_data["sources"]
     if not isinstance(entries, list):
         raise ValueError("费用manifest的sources必须是数组")
@@ -95,6 +95,9 @@ def load_sources(manifest_path: Path | None) -> dict[str, Any]:
         elif item["kind"] == "xhs_mcc_daily":
             from .xhs_sources import parse_xhs_mcc
             parsed_rows, parsed_sources = parse_xhs_mcc(item)
+        elif item["kind"] == "tencent_native_csv":
+            from .tencent_sources import parse_tencent
+            parsed_rows, parsed_sources = parse_tencent(item)
         elif item["kind"] == "sem_daily":
             from .sem_sources import parse_sem
             parsed_rows, parsed_sources = parse_sem(item)
@@ -143,6 +146,9 @@ def _validate_manifest_entry(entry: Any, index: int) -> dict[str, Any]:
     if entry.get("kind") == "xhs_mcc_daily":
         from .xhs_sources import validate_xhs_mcc_entry
         return validate_xhs_mcc_entry(entry)
+    if entry.get("kind") == "tencent_native_csv":
+        from .tencent_sources import validate_tencent_entry
+        return validate_tencent_entry(entry)
     if entry.get("kind") == "sem_daily":
         from .sem_sources import validate_sem_entry
         return validate_sem_entry(entry)

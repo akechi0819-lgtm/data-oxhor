@@ -50,8 +50,11 @@ def _base_env(tmp_path: Path) -> tuple[dict[str, str], Path]:
     trace = tmp_path / "python argv trace.jsonl"
     trace.write_text("", encoding="utf-8")
     env = os.environ.copy()
+    for name in ("TENCENT_DOC_ID", "TENCENT_DOC_URL", "TENCENT_COOKIE_FILE", "TENCENT_CA_FILE"):
+        env.pop(name, None)
     env.update(
         PYTHON=str(python),
+        PROJECT_ROOT=str(PROJECT_ROOT),
         TRACE_FILE=str(trace),
         PATH=f"{runtime}{os.pathsep}{env.get('PATH', '')}",
     )
@@ -74,13 +77,9 @@ def _run(script: Path, env: dict[str, str]) -> subprocess.CompletedProcess[str]:
     )
 
 
-def test_producer_passes_explicit_source_identity_and_literal_values_once(tmp_path: Path) -> None:
+def test_producer_passes_explicit_source_identity_without_legacy_credentials(tmp_path: Path) -> None:
     env, trace = _base_env(tmp_path)
     workspace = tmp_path / "customer workspace"
-    cookie_file = tmp_path / "dummy private cookie file.json"
-    marker = tmp_path / "must not be shell-expanded"
-    doc_id = f"doc $HOME $(touch {marker}) with spaces"
-    doc_url = f"https://docs.example.invalid/export?literal=$TOKEN&value=$(touch {marker})"
     run_id = "run_daily_sources_test_001"
     bi_snapshot_id = "snapshot_bi_operations_test_001"
     study_snapshot_id = "snapshot_study_abroad_test_001"
@@ -90,9 +89,6 @@ def test_producer_passes_explicit_source_identity_and_literal_values_once(tmp_pa
         RUN_ID=run_id,
         BI_SNAPSHOT_ID=bi_snapshot_id,
         STUDY_SNAPSHOT_ID=study_snapshot_id,
-        TENCENT_DOC_ID=doc_id,
-        TENCENT_DOC_URL=doc_url,
-        TENCENT_COOKIE_FILE=str(cookie_file),
     )
 
     result = _run(PRODUCER, env)
@@ -113,27 +109,16 @@ def test_producer_passes_explicit_source_identity_and_literal_values_once(tmp_pa
         bi_snapshot_id,
         "--study-snapshot-id",
         study_snapshot_id,
-        "--doc-id",
-        doc_id,
-        "--page-url",
-        doc_url,
-        "--cookie-file",
-        str(cookie_file),
     ]
     assert len({run_id, bi_snapshot_id, study_snapshot_id}) == 3
-    assert not marker.exists()
+    assert not {"TENCENT_DOC_ID", "TENCENT_DOC_URL", "TENCENT_COOKIE_FILE", "TENCENT_CA_FILE"} & env.keys()
 
 
 def test_producer_rejects_each_missing_required_environment_value(tmp_path: Path) -> None:
-    required = ["WORKSPACE", "PYTHON", "TENCENT_DOC_ID", "TENCENT_DOC_URL", "TENCENT_COOKIE_FILE"]
+    required = ["WORKSPACE", "PYTHON"]
     for missing in required:
         env, trace = _base_env(tmp_path / missing)
-        env.update(
-            WORKSPACE=str(tmp_path / "customer workspace"),
-            TENCENT_DOC_ID="dummy-doc-id",
-            TENCENT_DOC_URL="https://docs.example.invalid/dummy",
-            TENCENT_COOKIE_FILE=str(tmp_path / "dummy-cookie-file"),
-        )
+        env["WORKSPACE"] = str(tmp_path / "customer workspace")
         if missing == "PYTHON":
             env.pop("PYTHON")
         else:

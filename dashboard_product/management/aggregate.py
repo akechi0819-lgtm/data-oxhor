@@ -529,9 +529,13 @@ def _person_month_target(person, month_id, target_line):
         return None
     if own == 'training' and not any(team_id == 'offline_market' for team_id in person['team_ids']):
         return None
+    # 2026-11大学语培线下人员的留学目标按用户确认值优先，不套用10%规则。
+    if (target_line == 'abroad' and own == 'training' and month_id == '2026-11'
+            and 'study_abroad_orders' in primary):
+        return _round_target(primary['study_abroad_orders'])
     if base is None:
         return None
-    # The reciprocal line is 10% of the roster's primary monthly order target.
+    # Other reciprocal targets use 10%; the 2026-11 explicit abroad target returns above.
     return _round_target(_decimal(base) * Decimal('0.1'))
 
 

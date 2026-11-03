@@ -217,7 +217,7 @@ def calculate(args):
     notes = [
         '语培市场总盘按观远工单总看板的8类原始团队及被动工单统计，不以顾问推断补入空团队；保留全部工单状态。',
         '团队按自然月，个人业绩按上月26日至本月25日；线下跨部门工单只计产能，线上虚拟人个人工单和现金按活动、录入人、描述中的姓名独立认领，不改团队归属。',
-        '大学原本业务线工单目标不变，另一业务线目标为原月目标10%四舍五入；其他团队不强制下跨业务线目标。',
+        '大学原本业务线工单目标不变，另一业务线目标按原月目标10%四舍五入；2026年11月语培线下人员留学目标采用用户确认值；其他团队不强制下跨业务线目标。',
         '语培经营人头按观远口径：筛选范围内按学员编号和班级编码汇总报入现金，金额绝对值达到1500元且报名人次为正，按学员编号去重；个人业绩与产能维持原独立规则。',
         '留学工单、现金和人头消费独立留学仓，替换旧BI留学来源；小语种计入留学专项。客户ID/学员编号优先，缺编号按确认姓名规则同域暂定去重，跨系统不合成唯一人数；活动现金按各来源实际覆盖，不是利润率。',
         f"活动按当前Snapshot可用历史累计；工单起于{coverage['orders_start']}，现金起于{coverage['cash_start']}，均截至{through}，不保证覆盖活动完整生命周期。",
@@ -269,10 +269,11 @@ def calculate(args):
                                  'preview_only': True}
     online_data = online_view(public, facts, read(online_target_path), order_facts=scope_training_facts)
     from dashboard_product.management.advertising_costs import attach_advertising
+    expense_manifest = getattr(args, 'advertising_manifest', None)
     receipts.append(attach_advertising(online_data, facts, ws, args.snapshot_id, args.run_id, out,
-                                     order_facts=scope_training_facts))
+                                     order_facts=scope_training_facts, manifest_path=expense_manifest))
     sources.extend([HERE/'advertising_costs.py', HERE/'advertising_sources.py', HERE/'sem_sources.py', HERE/'xhs_sources.py', HERE/'platforms.py', HERE/'sql/advertising_rollup.sql'])
-    expense_manifest = ws/'Input/AdvertisingCosts/sources.json'
+    expense_manifest = Path(expense_manifest).resolve(strict=True) if expense_manifest is not None else ws/'Input/AdvertisingCosts/sources.json'
     if expense_manifest.exists():
         sources.append(expense_manifest)
     return dict(out=out, workspace=ws, public=public, online_data=online_data,
