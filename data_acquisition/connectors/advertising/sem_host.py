@@ -1,7 +1,8 @@
-"""Normal-browser SEM export host with a dedicated, protected auth session.
+"""Request-based SEM export host with a dedicated, protected auth session.
 
-Launches a fresh, ephemeral Chrome context and opens only the approved DingTalk
-workbook. An explicit login flow saves only that origin's applicable cookies and
+Loads the current workbook in a headless, cookie-injected context to use its
+official Excel serializer, then creates/polls/downloads using requests only.
+An explicit login flow saves only that origin's applicable cookies and
 localStorage through the project's 0700/0600 auth-session writer. Collection
 loads that service-specific state into a new context; it never attaches to an
 existing browser or reads a browser profile.
@@ -27,7 +28,7 @@ from data_acquisition.auth.auth_sessions import (
     write_auth_session,
 )
 from .native_exports import (
-    ExportError, ExportPending, download_sem, visible_exact_text_locator,
+    ExportError, ExportPending, download_sem,
 )
 from .sem_candidate import stage_sem
 
@@ -98,7 +99,7 @@ def _record_attempt_phase(attempt: dict, path: str | Path, phase: str,
     attempt["phase"] = phase
     if state is not None:
         attempt["state"] = state
-    elif phase == "export_click_pending":
+    elif phase == "export_request_pending":
         attempt["state"] = "submission_outcome_unknown"
     elif phase == "download_received":
         attempt["state"] = "download_received"
@@ -107,7 +108,7 @@ def _record_attempt_phase(attempt: dict, path: str | Path, phase: str,
     elif phase == "candidate_receipt_written":
         attempt["state"] = "verified"
     elif attempt.get("state") not in {"submission_outcome_unknown", "task_submitted",
-                                       "download_received", "downloaded", "verified"}:
+                                       "submitted_download_unknown", "download_received", "downloaded", "verified"}:
         attempt["state"] = "pre_submit"
     attempt["updated_at"] = datetime.now(SHANGHAI).isoformat()
     _atomic_write_json(path, attempt)
@@ -155,8 +156,7 @@ def _safe_error_record(exc: Exception) -> dict:
     }
     diagnostics = getattr(exc, "diagnostics", None)
     safe_keys = {
-        "title_matches", "editor_iframe_count", "menu_count",
-        "visible_menu_count", "menu_visible", "reason",
+        "title_matches", "editor_iframe_count", "reason",
         "label", "visible_match_count",
     }
     if isinstance(diagnostics, dict):
@@ -229,8 +229,7 @@ def _workbook_readiness_probe(page) -> dict:
     """Return only safe page readiness booleans/counts; never expose query data or text."""
     probe = {
         "page_host": None, "page_path": None, "title_matches": None,
-        "editor_iframe_count": None, "menu_count": None,
-        "visible_menu_count": None, "menu_visible": None,
+        "editor_iframe_count": None,
         "reason": None,
     }
     try:
@@ -262,31 +261,7 @@ def _workbook_readiness_probe(page) -> dict:
     if probe["editor_iframe_count"] != 1:
         probe["reason"] = "editor_iframe_ambiguous"
         return probe
-    try:
-        frame = page.frame_locator("#wiki-new-sheet-iframe")
-        menu = frame.get_by_text("菜单", exact=True)
-        probe["menu_count"] = menu.count()
-        visible_menu = visible_exact_text_locator(frame, "菜单")
-        probe["visible_menu_count"] = visible_menu.count()
-    except Exception:
-        probe["reason"] = "editor_menu_unavailable"
-        return probe
-    if probe["menu_count"] == 0:
-        probe["reason"] = "editor_menu_missing"
-        return probe
-    if probe["visible_menu_count"] == 0:
-        probe["reason"] = "editor_menu_not_visible"
-        return probe
-    if probe["visible_menu_count"] != 1:
-        probe["reason"] = "editor_menu_ambiguous"
-        return probe
-    try:
-        probe["menu_visible"] = visible_menu.is_visible()
-    except Exception:
-        probe["reason"] = "editor_menu_visibility_unavailable"
-        return probe
-    if not probe["menu_visible"]:
-        probe["reason"] = "editor_menu_not_visible"
+    # The request exporter waits for the editor model, not menu controls.
     return probe
 
 
@@ -296,8 +271,7 @@ def wait_for_workbook(page, *, timeout_sec: int = 300, poll_sec: float = 1.0,
     deadline = time.monotonic() + timeout_sec
     last_probe = {
         "page_host": None, "page_path": None, "title_matches": None,
-        "editor_iframe_count": None, "menu_count": None,
-        "visible_menu_count": None, "menu_visible": None,
+        "editor_iframe_count": None,
         "reason": "navigation_pending",
     }
     while time.monotonic() < deadline:
@@ -405,13 +379,13 @@ def _persist_login_state(page, context, workspace: str | Path) -> dict:
             "local_storage_file_mode": oct(paths.local_storage.stat().st_mode & 0o777)}
 
 
-def _launch_browser(playwright, executable_path: str | Path | None = None):
+def _launch_browser(playwright, executable_path: str | Path | None = None, *, headless=False):
     if executable_path is None:
-        return playwright.chromium.launch(channel="chrome", headless=False)
+        return playwright.chromium.launch(channel="chrome", headless=headless, args=["--no-proxy-server"])
     binary = Path(executable_path).expanduser()
     if not binary.is_absolute() or not binary.is_file() or not binary.stat().st_mode & 0o111:
         raise SEMHostError("approved_chrome_executable_unavailable")
-    return playwright.chromium.launch(executable_path=str(binary), headless=False)
+    return playwright.chromium.launch(executable_path=str(binary), headless=headless, args=["--no-proxy-server"])
 
 
 def save_login(*, workspace: str | Path, executable_path: str | Path | None = None,
@@ -466,7 +440,11 @@ def capture_page(page, *, mapping_manifest: str | Path, output: str | Path,
 
     expected_sheets = mapped_sem_sheets(mapping_manifest)
     root = Path(output).absolute()
-    root.mkdir(parents=True, exist_ok=False, mode=0o700)
+    if root.exists():
+        if not (root / "native.request-state.json").is_file():
+            raise ExportError("existing_sem_request_state_missing")
+    else:
+        root.mkdir(parents=True, exist_ok=False, mode=0o700)
     native = root / "native.xlsx"
     state_path = root / "export-state.json"
     attempt = attempt or _new_export_attempt(start_date, through_date)
@@ -488,6 +466,7 @@ def capture_page(page, *, mapping_manifest: str | Path, output: str | Path,
         through_date=through_date, phase_callback=record_phase,
         submission_callback=record_submission,
     )
+    attempt["remote_task_id"] = result.get("task_id")
     attempt["native_sha256"] = result["files"][0]["sha256"]
     record_phase("native_export_verified", "downloaded")
     capture_path = root / "collector-capture.json"
@@ -645,18 +624,32 @@ def run_one_off(*, workspace: str | Path, mapping_manifest: str | Path,
     root = Path(output).absolute()
     if root.is_symlink():
         raise ExportError("destination_is_symlink")
+    recovered_attempt = None
     if root.exists():
-        return _verified_existing_output(
-            root=root, mapping_manifest=mapping_manifest,
-            start_date=start_date, through_date=through_date)
+        request_state = root / "native.request-state.json"
+        if not request_state.is_file() or (root / "sem-candidate/capture.json").is_file():
+            return _verified_existing_output(
+                root=root, mapping_manifest=mapping_manifest,
+                start_date=start_date, through_date=through_date)
+        saved_request = json.loads(request_state.read_text())
+        if saved_request.get("state") == "submission_outcome_unknown" and not saved_request.get("job_id"):
+            raise ExportPending("sem_export_submission_outcome_unknown")
+        # The request exporter alone decides whether a saved job may resume.
+        # Preserve its original attempt; never create a second task to recover it.
+        recovered_attempt = json.loads((root / "export-state.json").read_text())
+        if (recovered_attempt.get("workbook_title") != WORKBOOK_TITLE
+                or recovered_attempt.get("start_date") != start_date
+                or recovered_attempt.get("through_date") != through_date):
+            raise ExportError("existing_sem_job_scope_mismatch")
     prior_attempts = list(root.parent.glob(f"{root.name}.attempt-*.json"))
-    if prior_attempts:
+    if prior_attempts and recovered_attempt is None:
         raise ExportError("existing_sem_attempt_requires_review")
     cookies, local_storage = load_auth_state(workspace)
     root.parent.mkdir(parents=True, exist_ok=True)
-    attempt = _new_export_attempt(start_date, through_date)
+    attempt = recovered_attempt or _new_export_attempt(start_date, through_date)
     attempt_log = root.with_name(f"{root.name}.attempt-{attempt['attempt_id']}.json")
-    _record_attempt_phase(attempt, attempt_log, "auth_state_loaded", "pre_submit")
+    _record_attempt_phase(attempt, attempt_log, "auth_state_loaded",
+                          "task_submitted" if recovered_attempt and attempt.get("remote_task_id") else "pre_submit")
 
     def record_run_phase(phase: str, current: dict | None = None) -> None:
         if current is not None and current is not attempt:
@@ -670,7 +663,7 @@ def run_one_off(*, workspace: str | Path, mapping_manifest: str | Path,
         record_run_phase("playwright_startup")
         with sync_playwright() as playwright:
             record_run_phase("browser_launch")
-            browser = _launch_browser(playwright, executable_path)
+            browser = _launch_browser(playwright, executable_path, headless=True)
             try:
                 record_run_phase("browser_launched")
                 context = browser.new_context(accept_downloads=True)

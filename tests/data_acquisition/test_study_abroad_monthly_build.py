@@ -281,21 +281,26 @@ def test_cross_month_resource_id_keeps_latest_assignment_and_same_day_conflict_f
     assert not (conflict_workspace / "Work" / "StudyAbroad" / "current.json").exists()
 
 
-def test_contract_archive_month_datetime_is_canonical_and_mismatch_still_fails(tmp_path: Path) -> None:
-    workspace, people_path, abroad_people_path = _workspace(tmp_path / "valid")
-    valid_source = tmp_path / "contract-valid-datetime.xlsx"
-    contract = warehouse_fixtures._contract("C-DATETIME", "U-DATETIME", "线下甲", 100)
-    contract["归档月份"] = datetime(2026, 9, 1, 0, 0)
-    warehouse_fixtures._write_workbook(valid_source, _contract_only(contract))
+@pytest.mark.parametrize(
+    "source_month",
+    [datetime(2026, 9, 1, 0, 0), None, datetime(2026, 8, 1, 0, 0)],
+    ids=["matching-datetime", "missing", "mismatched-datetime"],
+)
+def test_contract_month_comes_from_archive_date(tmp_path: Path, source_month: object) -> None:
+    workspace, people_path, abroad_people_path = _workspace(tmp_path / "workspace")
+    source = tmp_path / "contract-source-month.xlsx"
+    contract = warehouse_fixtures._contract("C-MONTH", "U-MONTH", "线下甲", 100)
+    contract["归档月份"] = source_month
+    warehouse_fixtures._write_workbook(source, _contract_only(contract))
 
     built = _build(
         workspace=workspace,
         people_path=people_path,
         abroad_people_path=abroad_people_path,
-        current=valid_source,
+        current=source,
         history=[],
-        run_id="run_study_abroad_contract_month_datetime",
-        snapshot_id="snapshot_study_abroad_contract_month_datetime",
+        run_id="run_study_abroad_contract_month_canonical",
+        snapshot_id="snapshot_study_abroad_contract_month_canonical",
         through_date="2026-09-30",
     )
     lineage_path = workspace / built["source_lineage"]
@@ -308,25 +313,9 @@ def test_contract_archive_month_datetime_is_canonical_and_mismatch_still_fails(t
         headers = next(values)
         row = next(values)
         assert row[headers.index("month")] == "2026-09"
+        assert row[headers.index("event_date")] == "2026-09-12"
     finally:
         book.close()
-
-    mismatch_workspace, mismatch_people, mismatch_abroad_people = _workspace(tmp_path / "mismatch")
-    mismatch_source = tmp_path / "contract-mismatch-datetime.xlsx"
-    mismatch = warehouse_fixtures._contract("C-MISMATCH", "U-MISMATCH", "线下甲", 100)
-    mismatch["归档月份"] = datetime(2026, 8, 1, 0, 0)
-    warehouse_fixtures._write_workbook(mismatch_source, _contract_only(mismatch))
-    with pytest.raises(ValueError, match="归档月份与归档日期不一致"):
-        _build(
-            workspace=mismatch_workspace,
-            people_path=mismatch_people,
-            abroad_people_path=mismatch_abroad_people,
-            current=mismatch_source,
-            history=[],
-            run_id="run_study_abroad_contract_month_mismatch",
-            snapshot_id="snapshot_study_abroad_contract_month_mismatch",
-            through_date="2026-09-30",
-        )
 
 
 def test_changed_frozen_history_source_is_rejected_by_facts_reader(tmp_path: Path) -> None:

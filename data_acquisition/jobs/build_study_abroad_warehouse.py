@@ -245,10 +245,7 @@ def normalize_sources(source, people, abroad):
                 row['customer_key'] = f'{kind}:{customer_id}' if customer_id else None
                 if kind == 'contracts':
                     row['customer_id'] = customer_id
-                    month_value = raw.get('month')
-                    row['month'] = month_value.isoformat()[:7] if isinstance(month_value, (date, datetime)) else _text(month_value)
-                    if market and row['month'] != event_date[:7]:
-                        raise ValueError('留学合同归档月份与归档日期不一致')
+                    row['month'] = event_date[:7] if event_date else ''
                     business_key = _text(raw['contract_id'])
                 else:
                     row['student_id'] = customer_id

@@ -14,41 +14,13 @@ import json
 from pathlib import Path
 import re
 import time
-from urllib.parse import parse_qs, urlsplit
+from urllib.parse import urlsplit
 from zoneinfo import ZoneInfo
 from zipfile import ZipFile, BadZipFile
 
 SHANGHAI = ZoneInfo('Asia/Shanghai')
 TASK_ID = re.compile(r'\bT\d{12,}\b')
 STAMP = re.compile(r'\b(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\b')
-SEM_SUBMIT_EXPORT_PATH = '/core/api/document/submitExportJob'
-SEM_QUERY_EXPORT_PATH = '/core/api/document/queryExportJobInfo'
-
-
-def visible_exact_text_locator(frame, text):
-    # Scope exact text to visible elements in this already-verified frame.
-    return frame.locator(f':text-is({json.dumps(text, ensure_ascii=False)}):visible')
-
-
-def _extract_sem_job_id(payload):
-    """Extract only the observed jobId field; never retain the response body."""
-    found = set()
-
-    def visit(value):
-        if isinstance(value, dict):
-            for key, child in value.items():
-                if key == 'jobId' and isinstance(child, (str, int)) and not isinstance(child, bool):
-                    candidate = str(child)
-                    if re.fullmatch(r'[A-Za-z0-9_-]{1,100}', candidate):
-                        found.add(candidate)
-                elif isinstance(child, (dict, list)):
-                    visit(child)
-        elif isinstance(value, list):
-            for child in value:
-                visit(child)
-
-    visit(payload)
-    return next(iter(found)) if len(found) == 1 else None
 
 
 class ExportError(RuntimeError):
@@ -283,124 +255,11 @@ def download_xhs(report_page, task_page, *, start_date, through_date, expected_a
 
 def download_sem(page, *, destination, workbook_title, expected_sheets, start_date, through_date,
                  timeout_sec=180, phase_callback=None, submission_callback=None):
-    """Download the WHOLE native workbook. Export success is not fill completion."""
-    start, through = _window(start_date, through_date)
-    try:
-        title = page.title()
-    except Exception:
-        raise ExportError('sem_workbook_title_unavailable') from None
-    if workbook_title not in title:
-        raise ExportError('sem_workbook_title_mismatch')
-    try:
-        sheet = page.frame_locator('#wiki-new-sheet-iframe')
-    except Exception:
-        raise ExportError('sem_sheet_frame_unavailable') from None
-    for label, code in (('菜单', 'sem_menu_open_failed'),
-                        ('表格', 'sem_table_menu_open_failed'),
-                        ('下载为', 'sem_download_menu_open_failed')):
-        try:
-            target = visible_exact_text_locator(sheet, label)
-            try:
-                target.wait_for(state='visible', timeout=10000)
-            except Exception:
-                raise ExportError(code, diagnostics={
-                    'label': label, 'visible_match_count': target.count(),
-                }) from None
-            match_count = target.count()
-            if match_count != 1:
-                raise ExportError(code, diagnostics={
-                    'label': label, 'visible_match_count': match_count,
-                })
-            target.click(timeout=10000)
-        except ExportError:
-            raise
-        except Exception:
-            raise ExportError(code) from None
-    option = sheet.get_by_text('Excel (.xlsx，表格整体)', exact=True)
-    try:
-        option.wait_for(state='visible', timeout=10000)
-        option_count = option.count()
-    except Exception:
-        raise ExportError('sem_whole_workbook_option_unavailable') from None
-    if option_count != 1:
-        raise ExportError('sem_whole_workbook_option_missing_or_ambiguous')
-    submit_responses = []
-
-    def observe_response(response):
-        try:
-            request = response.request
-            parsed = urlsplit(response.url)
-            method = request.method.upper()
-            if method == 'POST' and parsed.path == SEM_SUBMIT_EXPORT_PATH:
-                try:
-                    task_id = _extract_sem_job_id(response.json())
-                    body_status = 'parsed'
-                except Exception:
-                    task_id, body_status = None, 'unavailable'
-                event = {'kind': 'submit', 'http_status': response.status,
-                         'task_id': task_id, 'response_body_status': body_status}
-            elif method == 'GET' and parsed.path == SEM_QUERY_EXPORT_PATH:
-                query = parse_qs(parsed.query)
-                values = query.get('jobId', [])
-                task_id = values[0] if len(values) == 1 and re.fullmatch(r'[A-Za-z0-9_-]{1,100}', values[0]) else None
-                event = {'kind': 'query', 'http_status': response.status,
-                         'task_id': task_id, 'response_body_status': 'not_read'}
-            else:
-                return
-            submit_responses.append(event)
-            if submission_callback:
-                submission_callback(event)
-        except Exception:
-            # The durable pending marker remains authoritative if observation fails.
-            return
-
-    listener_installed = bool(submission_callback and hasattr(page, 'on'))
-    if listener_installed:
-        page.on('response', observe_response)
-    if phase_callback:
-        phase_callback('export_click_pending')
-    try:
-        with page.expect_download(timeout=timeout_sec * 1000) as pending:
-            option.click(timeout=10000)
-    except Exception:
-        # The click may have reached DingTalk even if Playwright did not observe
-        # its resulting download. Never repeat this UI submission automatically.
-        raise ExportPending('sem_export_submission_or_download_unknown') from None
-    finally:
-        if listener_installed:
-            try:
-                page.remove_listener('response', observe_response)
-            except Exception:
-                pass
-    if phase_callback:
-        phase_callback('download_received')
-    saved = _save_download(pending.value, destination)
-    if phase_callback:
-        phase_callback('native_file_saved')
-    from openpyxl import load_workbook
-    book = load_workbook(saved['path'], read_only=True, data_only=True)
-    try:
-        if not expected_sheets or not set(expected_sheets) <= set(book.sheetnames):
-            raise ExportError('sem_whole_workbook_missing_sheets')
-        names = book.sheetnames
-    finally:
-        book.close()
-    if phase_callback:
-        phase_callback('native_workbook_validated')
-    # Native explicit completion labels can be evidence; ordinary last-edit time
-    # and prefilled full-month dates are deliberately not treated as completion.
-    visible = _text(page)
-    completed = re.findall(r'(?:数据更新至|数据截至|已更新至|填报完成至)\s*[:：]?\s*(\d{4}-\d{2}-\d{2})', visible)
-    complete = bool(completed) and set(completed) == {through_date}
-    evidence = Path(destination).with_suffix('.evidence.json')
-    evidence.write_text(json.dumps({'workbook_title': workbook_title, 'sheetnames': names,
-        'requested_window': [start_date, through_date], 'native_completed_dates': completed,
-        'completion_missing': not complete}, ensure_ascii=False, indent=2))
-    task_ids = {event['task_id'] for event in submit_responses if event.get('kind') == 'submit' and event.get('task_id')}
-    task_id = next(iter(task_ids)) if len(task_ids) == 1 else None
-    return {'source_id': 'sem', 'status': 'success', 'captured_at': datetime.now(SHANGHAI).isoformat(),
-        'start_date': start_date, 'through_date': through_date, 'account_ids': list(expected_sheets),
-        'task_id': task_id,
-        'files': [saved], 'evidence': {'path': str(evidence.resolve()), 'sha256': hashlib.sha256(evidence.read_bytes()).hexdigest()},
-        'completion': {'complete': complete, 'through_date': through_date if complete else None,
-                       'basis': 'source_updated_through' if complete else 'download_only'}}
+    """Export the current whole SEM workbook through authenticated requests."""
+    from .sem_requests import download_sem_requests
+    return download_sem_requests(
+        page, destination=destination, workbook_title=workbook_title,
+        expected_sheets=expected_sheets, start_date=start_date, through_date=through_date,
+        timeout_sec=timeout_sec, phase_callback=phase_callback,
+        submission_callback=submission_callback,
+    )

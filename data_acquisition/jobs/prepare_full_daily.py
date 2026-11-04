@@ -38,8 +38,8 @@ def resolve_sem_receipt(*, workspace, mapping_manifest, output, start, through,
     if not use_saved_session:
         raise DailyBlocked("sem_capture_receipt_required")
     if sem_runner is None:
-        from data_acquisition.connectors.advertising.sem_host import run_one_off
-        sem_runner = run_one_off
+        from data_acquisition.connectors.advertising.sem_host import run_authenticated
+        sem_runner = run_authenticated
     result = sem_runner(
         workspace=workspace,
         mapping_manifest=mapping_manifest,
@@ -446,7 +446,7 @@ def build_parser():
                    help='Use a SHA-verified orders/cash/Tencent manifest; requires --publish --refresh-business')
     sem_mode=p.add_mutually_exclusive_group()
     sem_mode.add_argument('--sem-receipt',type=Path)
-    sem_mode.add_argument('--sem-auto',action='store_true',help='Call the dedicated DingTalk SEM host using saved site-scoped auth; expired/missing auth blocks without opening a login prompt')
+    sem_mode.add_argument('--sem-auto',action='store_true',help='Export SEM through requests with its saved site-scoped auth; missing/expired auth uses the dedicated login recovery once')
     p.add_argument('--sem-executable-path',type=Path,help='Explicit installed Chrome for Testing binary for the SEM host')
     p.add_argument('--tencent-scope-confirmation',type=Path,help='Evidence record for the user-confirmed Tencent search+display sum rule')
     return p

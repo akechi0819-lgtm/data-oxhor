@@ -1,6 +1,26 @@
 # 完整日更接入状态（2026-10-28）
 
-## 当前最新：新工单全历史与费用验版完成，旧仓已退役（2026-11-03）
+## 当前最新：临时CSV日更与全来源费用ROI发布完成（2026-11-04）
+
+费用已沿同批`prepare_full_daily --sem-receipt --publish`恢复，未重跑双仓或重发日报。用户在固定专用Cookie注入窗口完成整本SEM导出；随后使用抓包中的原任务`32566313513`，经独立直连HTTP查询和下载，原件SHA与手动下载一致，15个来源页签、465条SEM费用行通过现有候选门禁。小红书、巨量／抖音、腾讯广告复用当天已verified原件，腾讯仍按竞价＋品牌、排除智能逐日对账，全来源阻断项为0。
+
+费用及ROI正式版本为`daily-20261104_110112`；P4／P5验版18项关键指标通过，独立受控查询本机／云端平台费用一致，39表行数与逻辑摘要一致，核心业务事实未变。3860条费用行，已知金额866455.64元，226条空金额保持缺失。双仓Snapshot仍为`20261104_103334`、业务截至11/3；基础版`daily-20261104_103334-retry104056`的5通道8条sent及持久DeliveryState摘要均未改变。工单反馈当天新增104条，恢复核对334候选已存在、最大分配日期11/3，三个人工列保留。
+
+后续SEM请求式创建也已单独补齐：后台Cookie注入当前文档，调用官方当前模型序列化，再直接上传临时副本、创建任务、轮询并下载，无菜单点击或回退。独立验收任务`32358779316`提交1次，17页签值和公式与当天手动原件一致；第二进程同目录复用原任务，无重复创建。该验收未重发版／日报，其他来源和日更顺序保持，详见`docs/sem-host-handoff.md`当前入口与`.local/audits/sem-request-automation-20261104/`。腾讯语培费用未接入、SEM完成标记缺失及未报告日期不补零等缺口保持，未改变任何日程、未发微信。
+
+最终证据：`.local/audits/full-daily-20261104-manual-csv-datefix/automation-run-summary.json`、`expense-final-verification.json`、`expense-final-server-verification.json`、`pipeline-result.json`及`sem-manual-request-capture/request-reuse-verification.json`。下节为费用恢复前的历史阶段。
+
+## 历史阶段：临时CSV完成业务与日报，费用SEM阶段失败（2026-11-04，已恢复）
+
+当天BI工单自动与手动导出曾取消；用户提供CSV作为仅本次临时原件，不修改永久连接器或原日更链路。CSV共19441条唯一工单、126列，日期6/1—11/3；保留原CSV，仅将临时XLSX的分配时间转为原有Excel日期序号，其他125列逐格核验一致。现金使用当天成功自动导出的原件，腾讯文档复用09:30官方MCP已下载且SHA通过的原件，无重复下载。
+
+双仓`run_shadow_daily_20261104_103334`通过，两Snapshot同后缀；受控查询工单、现金均截至11/3、缺日期均0。基础39表构建后首次SSH连接关闭，经核对服务器无本次incoming/target、current仍昨日且今日投递0条，使用原发布器续同一封存批次，正式版`daily-20261104_103334-retry104056`验版通过。原5通道8条日报全部sent，持久DeliveryState独立核验。工单反馈当天合计新增104条；恢复核对334候选均已存在、新增0，最大分配日期11/3，三个人工列未覆盖。
+
+通知确认后费用采集执行：小红书、巨量、腾讯原生与新推广范围校验通过；SEM在已验证工作簿中无法找到“表格”菜单，`sem_table_menu_open_failed`、`pre_submit_failed`且无远端任务ID，非认证失败。按约定只记录费用失败，未重开登录或修改采集链路，基础正式current和8条sent保留；当天费用及ROI未发布，费用显示缺失不补零。腾讯语培费用未接入、SEM空金额及未报告费用日期仍为缺口。
+
+证据索引：`.local/audits/full-daily-20261104-manual-csv-datefix/automation-run-summary.json`、`pipeline-result.json`、`server-final-verification.json`、`collection-report.json`；临时原件及转换回执在`.local/audits/full-daily-20261104-manual-csv/`。未发送微信、未改变任何日程。后续只恢复费用阶段并复用本次双仓，不重抓业务或重发日报。
+
+## 历史完成：新工单全历史与费用验版完成，旧仓已退役（2026-11-03）
 
 云端代码后续已同步：正式`/srv/shadow-bi/code`及独立通知current均127源文件与本机SHA一致，代码版本`bi3-20261103-3fea1baf8401393a`；正式目录与通知服务身份各通过17品牌＋21原生费用检查。明日bi-3仍本机09:30采集，经新进程调用云端新版P4／通知；旧Cookie下载器已在两个现行目录退役。无业务数据发布或通知重发，current／DeliveryState和暂停raw状态保持。回执`.local/audits/tencent-brand-cloud-code-20261103/completion.md`。
 

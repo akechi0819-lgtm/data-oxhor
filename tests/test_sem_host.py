@@ -31,21 +31,11 @@ class SEMHostTests(unittest.TestCase):
                 "bing": {"business_line": "abroad", "business_group": "留学整体", "platform": "必应"},
             },
         }]}), encoding="utf-8")
-        class Menu:
-            def __init__(self, count=1, visible=True):
-                self._count, self._visible = count, visible
-            def count(self): return self._count
-            def is_visible(self): return self._visible
-        class Frame:
-            def get_by_text(self, _text, **_kwargs): return Menu(count=2)
-            def locator(self, selector):
-                self.visible_selector = selector
-                return Menu(count=1, visible=True)
         self.page = type("Page", (), {
             "url": sem_host.WORKBOOK_URL,
             "title": lambda _: sem_host.WORKBOOK_TITLE,
             "locator": lambda _self, _selector: type("Iframe", (), {"count": lambda _self: 1})(),
-            "frame_locator": lambda _self, _selector: Frame(),
+            "frame_locator": lambda _self, _selector: None,
         })()
 
     def test_only_exact_approved_document_url_is_accepted(self):
@@ -65,9 +55,8 @@ class SEMHostTests(unittest.TestCase):
         self.assertEqual(ready["page_path"], sem_host.WORKBOOK_PATH)
         self.assertTrue(ready["title_matches"])
         self.assertEqual(ready["editor_iframe_count"], 1)
-        self.assertEqual(ready["menu_count"], 2)
-        self.assertEqual(ready["visible_menu_count"], 1)
-        self.assertTrue(ready["menu_visible"])
+        with mock.patch.object(self.page, "frame_locator", side_effect=AssertionError("menu access")):
+            self.assertIsNone(sem_host.wait_for_workbook(self.page, timeout_sec=1)["reason"])
         other = type("Page", (), {
             "url": "https://alidocs.dingtalk.com/i/nodes/other",
             "title": lambda _: sem_host.WORKBOOK_TITLE,
@@ -89,19 +78,19 @@ class SEMHostTests(unittest.TestCase):
         self.assertEqual(caught.exception.diagnostics["editor_iframe_count"], 0)
         self.assertNotIn("?", json.dumps(caught.exception.diagnostics))
 
-    def test_visible_menu_count_is_retained_in_safe_attempt_error(self):
+    def test_frame_count_is_retained_in_safe_attempt_error(self):
         exc = sem_host.SEMHostError(
-            "sem_workbook_not_ready_editor_menu_ambiguous",
+            "sem_workbook_not_ready_editor_iframe_ambiguous",
             diagnostics={
-                "menu_count": 2, "visible_menu_count": 2,
-                "reason": "editor_menu_ambiguous",
+                "editor_iframe_count": 2,
+                "reason": "editor_iframe_ambiguous",
                 "page_path": "/must-not-be-retained",
             },
         )
         record = sem_host._safe_error_record(exc)
         self.assertEqual(record["diagnostics"], {
-            "menu_count": 2, "visible_menu_count": 2,
-            "reason": "editor_menu_ambiguous",
+            "editor_iframe_count": 2,
+            "reason": "editor_iframe_ambiguous",
         })
         self.assertNotIn("page_path", json.dumps(record))
 
@@ -174,7 +163,7 @@ class SEMHostTests(unittest.TestCase):
         output = self.root / "pending-export"
 
         def pending_once(_page, *, phase_callback, **_kwargs):
-            phase_callback("export_click_pending")
+            phase_callback("export_request_pending")
             raise sem_host.ExportPending("sem_export_submission_or_download_unknown")
 
         with mock.patch.object(sem_host, "download_sem", side_effect=pending_once) as export:
@@ -184,7 +173,7 @@ class SEMHostTests(unittest.TestCase):
                     start_date="2026-10-01", through_date="2026-10-28")
         export.assert_called_once()
         attempt = json.loads((output / "export-state.json").read_text())
-        self.assertEqual(attempt["phase"], "export_click_pending")
+        self.assertEqual(attempt["phase"], "export_request_pending")
         self.assertEqual(attempt["state"], "submission_outcome_unknown")
         self.assertFalse((output / "native.xlsx").exists())
         self.assertTrue(attempt["attempt_id"])
@@ -385,7 +374,7 @@ class SEMHostTests(unittest.TestCase):
         output, _captured = self._make_verified_export_output()
         prior = sem_host._new_export_attempt("2026-10-01", "2026-10-28")
         prior["state"] = "submission_outcome_unknown"
-        prior["phase"] = "export_click_pending"
+        prior["phase"] = "export_request_pending"
         prior_path = output.with_name(f"{output.name}.attempt-{prior['attempt_id']}.json")
         sem_host._atomic_write_json(prior_path, prior)
         with mock.patch.object(
@@ -405,7 +394,7 @@ class SEMHostTests(unittest.TestCase):
         output.mkdir()
         state = sem_host._new_export_attempt("2026-10-01", "2026-10-28")
         state["state"] = "submission_outcome_unknown"
-        state["phase"] = "export_click_pending"
+        state["phase"] = "export_request_pending"
         sem_host._atomic_write_json(output / "export-state.json", state)
         sem_host._atomic_write_json(
             output.parent / f"unknown-job.attempt-{state['attempt_id']}.json",
