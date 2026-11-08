@@ -7,6 +7,8 @@ from unittest import mock
 
 from openpyxl import Workbook
 import pytest
+from playwright.sync_api import Error as PlaywrightError
+from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 
 from data_acquisition.connectors.advertising import native_exports as exports
 from data_acquisition.connectors.advertising import sem_requests as sem
@@ -113,6 +115,110 @@ def _complete_download(tmp_path):
     page = _Page(_xlsx())
     result, calls = _run(page, destination, _new_actions())
     return destination, page, result, calls
+
+
+def test_evaluate_waits_for_frontend_runtime_after_iframe_body_exists():
+    waits = []
+    requests = []
+
+    class Body:
+        def wait_for_function(self, expression, *, timeout):
+            waits.append((expression, timeout))
+
+        def evaluate(self, expression, _arg=None):
+            assert expression == sem._REQUEST
+            requests.append(expression)
+            return {"isSuccess": True}
+
+    class Frame:
+        def locator(self, selector):
+            assert selector == "body"
+            return Body()
+
+    class Page:
+        def frame_locator(self, selector):
+            assert selector == "#wiki-new-sheet-iframe"
+            return Frame()
+
+    assert sem._evaluate(Page(), "guard", {"document": sem.DOCUMENT}) == {"isSuccess": True}
+    assert waits == [(sem._FRONTEND_READY, 30000)]
+    assert len(requests) == 1
+    assert "Array.isArray(w.webpackChunkflex_table_app)" in sem._FRONTEND_READY
+    assert "w.webpackChunkflex_table_app.push !== w.Array.prototype.push" in sem._FRONTEND_READY
+
+
+def test_evaluate_blocks_request_when_frontend_runtime_does_not_become_ready():
+    waits = []
+    requests = []
+
+    class Body:
+        def wait_for_function(self, expression, *, timeout):
+            waits.append((expression, timeout))
+            raise PlaywrightTimeoutError("Timeout 30000ms exceeded")
+
+        def evaluate(self, expression, _arg=None):
+            requests.append(expression)
+            return {"isSuccess": True}
+
+    class Frame:
+        def locator(self, selector):
+            assert selector == "body"
+            return Body()
+
+    class Page:
+        def frame_locator(self, selector):
+            assert selector == "#wiki-new-sheet-iframe"
+            return Frame()
+
+    with pytest.raises(exports.ExportError, match="sem_frontend_contract_changed"):
+        sem._evaluate(Page(), "guard", {"document": sem.DOCUMENT})
+
+    assert waits == [(sem._FRONTEND_READY, 30000)]
+    assert requests == []
+
+
+def test_evaluate_preserves_non_timeout_readiness_errors():
+    failure = PlaywrightError("Execution context was destroyed")
+
+    class Body:
+        def wait_for_function(self, _expression, *, timeout):
+            assert timeout == 30000
+            raise failure
+
+    class Frame:
+        def locator(self, _selector):
+            return Body()
+
+    class Page:
+        def frame_locator(self, _selector):
+            return Frame()
+
+    with pytest.raises(PlaywrightError, match="Execution context was destroyed") as caught:
+        sem._evaluate(Page(), "guard", {"document": sem.DOCUMENT})
+    assert caught.value is failure
+
+
+def test_non_callable_frontend_require_is_reported_as_contract_change():
+    class Body:
+        def wait_for_function(self, expression, *, timeout):
+            assert expression == sem._FRONTEND_READY
+            assert timeout == 30000
+
+        def evaluate(self, expression, _arg=None):
+            assert expression == sem._REQUEST
+            return {"__sem_error": True, "code": "sem_frontend_contract_changed"}
+
+    class Frame:
+        def locator(self, _selector):
+            return Body()
+
+    class Page:
+        def frame_locator(self, _selector):
+            return Frame()
+
+    assert "typeof req !== 'function'" in sem._REQUEST
+    with pytest.raises(exports.ExportError, match="sem_frontend_contract_changed"):
+        sem._evaluate(Page(), "guard", {"document": sem.DOCUMENT})
 
 
 def test_happy_path_submits_once_validates_native_file_and_writes_safe_state(tmp_path):

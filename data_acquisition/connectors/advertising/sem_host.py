@@ -21,6 +21,8 @@ from urllib.parse import urlsplit, parse_qs
 import uuid
 from zoneinfo import ZoneInfo
 
+from playwright.sync_api import Error as PlaywrightError
+
 from data_acquisition.auth.auth_sessions import (
     AuthSessionExpiredError,
     AuthSessionMissingError,
@@ -154,6 +156,25 @@ def _safe_error_record(exc: Exception) -> dict:
                     "function": frame.name, "line": frame.lineno}
                    for frame in frames[-8:]],
     }
+    if isinstance(exc, PlaywrightError):
+        message = str(exc).lower()
+        if "execution context was destroyed" in message or "context was destroyed" in message:
+            reason = "context_destroyed"
+        elif "frame was detached" in message or "frame detached" in message:
+            reason = "frame_detached"
+        elif ("page closed" in message or "page has been closed" in message
+              or "context or browser has been closed" in message
+              or "target closed" in message):
+            reason = "page_closed"
+        elif "typeerror" in message:
+            reason = "js_type"
+        elif "referenceerror" in message:
+            reason = "js_reference"
+        elif "syntaxerror" in message:
+            reason = "js_syntax"
+        else:
+            reason = "other"
+        record["reason"] = reason
     diagnostics = getattr(exc, "diagnostics", None)
     safe_keys = {
         "title_matches", "editor_iframe_count", "reason",

@@ -7,6 +7,8 @@ from pathlib import Path
 from unittest import mock
 
 from openpyxl import Workbook
+from playwright.sync_api import Error as PlaywrightError
+from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 
 from data_acquisition.auth.auth_sessions import (
     AuthSessionExpiredError,
@@ -93,6 +95,26 @@ class SEMHostTests(unittest.TestCase):
             "reason": "editor_iframe_ambiguous",
         })
         self.assertNotIn("page_path", json.dumps(record))
+
+    def test_playwright_error_records_only_a_fixed_safe_reason(self):
+        cases = (
+            (PlaywrightError, "Execution context was destroyed", "context_destroyed"),
+            (PlaywrightError, "Frame was detached", "frame_detached"),
+            (PlaywrightError, "Target page, context or browser has been closed", "page_closed"),
+            (PlaywrightError, "TypeError: Cannot read properties of undefined", "js_type"),
+            (PlaywrightError, "ReferenceError: secret is not defined", "js_reference"),
+            (PlaywrightError, "SyntaxError: unexpected token", "js_syntax"),
+            (PlaywrightTimeoutError, "Timeout 30000ms exceeded", "other"),
+        )
+        for error_type, message, expected in cases:
+            exc = error_type(f"{message} https://private.example/private/path?token=fixture-secret")
+            with self.subTest(reason=expected):
+                record = sem_host._safe_error_record(exc)
+                self.assertEqual(record["reason"], expected)
+                serialized = json.dumps(record)
+                self.assertNotIn("private.example", serialized)
+                self.assertNotIn("private/path", serialized)
+                self.assertNotIn("fixture-secret", serialized)
 
     def test_export_capture_is_staged_with_real_bytes_and_completion_signal(self):
         native = self.root / "export.xlsx"

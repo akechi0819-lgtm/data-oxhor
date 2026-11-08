@@ -17,6 +17,8 @@ from urllib.parse import urlsplit
 import uuid
 from zoneinfo import ZoneInfo
 
+from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
+
 from data_acquisition.auth.auth_sessions import AuthSessionExpiredError
 from .native_exports import ExportError, ExportPending, _text
 
@@ -34,6 +36,8 @@ _REQUEST = r"""async (el, arg) => {
    ]);
  }
  const req=w.__oxhorSEMRequire;
+ if (typeof req !== 'function')
+   return {__sem_error:true, code:'sem_frontend_contract_changed'};
  const http=(path, options)=>req(400094).he(path, options);
  try {
    if (arg.action === 'prepare') {
@@ -82,10 +86,16 @@ _REQUEST = r"""async (el, arg) => {
  }
 }"""
 
+_FRONTEND_READY = "el => {const w=el.ownerDocument.defaultView; return Array.isArray(w.webpackChunkflex_table_app) && w.webpackChunkflex_table_app.push !== w.Array.prototype.push;}"
+
 
 def _evaluate(page, action, payload=None):
-    value = page.frame_locator('#wiki-new-sheet-iframe').locator('body').evaluate(
-        _REQUEST, {'action': action, 'data': payload or {}})
+    body = page.frame_locator('#wiki-new-sheet-iframe').locator('body')
+    try:
+        body.wait_for_function(_FRONTEND_READY, timeout=30000)
+    except PlaywrightTimeoutError:
+        raise ExportError('sem_frontend_contract_changed') from None
+    value = body.evaluate(_REQUEST, {'action': action, 'data': payload or {}})
     if not isinstance(value, dict):
         raise ExportError('sem_request_response_invalid')
     if value.get('__sem_error'):

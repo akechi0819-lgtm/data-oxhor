@@ -6,6 +6,8 @@
 
 请求实现位于 `sem_requests.py`；已验证前端版本为 `flex-table-app 2.72.0`。序列化与鉴权接口的运行时入口改变会明确失败，不猜参数或回退旧菜单。仅缺失或明确过期的专用授权触发一次原正常登录恢复，权限／业务错误不触发登录。
 
+等待编辑器运行时就绪时，使用 Playwright `Locator.wait_for_function` 等待官方谓词；Locator 每次检查会重新定位元素，支持等待期间 body 被重渲染。等待超时沿用 `sem_frontend_contract_changed`；其他错误清晰失败。attempt 错误记录对 Playwright Error 只保留固定类别 (`context_destroyed`、`frame_detached`、`page_closed`、`js_type`、`js_reference`、`js_syntax`、`other`)，不保存原始消息或 URL。此前 readiness 错误没有足够的原始信息，不能据此确认历史根因。
+
 任务状态保存在输出目录 `native.request-state.json`（0600）：提交前先写结果未知标记；取得 `job_id` 后持久保存，同目录恢复只查原任务，不重新创建。未知结果且没有任务号时阻断，不盲目重提。已下载原件校验SHA后复用；既有 `export-state.json`、attempt、`sem-candidate/capture.json` 和 `--sem-receipt` 合同保持。
 
 11/4独立新进程已真实全自动创建任务 `32358779316`，提交1次，后台下载17个页签、15个费用叶表，原件SHA `b99fd9147fb28098d30b5a3cabe3a651d78773354608fdb3a9ddd19d1bfe8c65`；与当天手动原件全部页签的值和公式一致。第二个进程同目录运行复用同一任务，`exported=false`，没有新建任务。此验收未发布BI、未推送消息、未采集其他平台。证据 `.local/audits/sem-request-automation-20261104/live-auto-1/` 和 `live-native-comparison.json`。
