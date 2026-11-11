@@ -1,5 +1,11 @@
 # Data OXHor 开发文档
 
+## SQL迁移历史附件最小化（2026-11-11）
+
+按用户授权对上一轮迁回的 `.local/archive/business-sql-local-20261111/` 逐文件核销：初始26,732,523,190字节，删除23,612个普通文件及7条试验符号链接、26,640,524,073字节；含清理说明最终剩691文件、92,000,836字节。以上是文件逻辑体积，不等于APFS实际新增可用空间。删除85份旧DuckDB／Superset数据库及试验候选、重复响应／导出、传输包和冗余脚本；保留最终验收与明确引用的对账、来源顺序受控查询、一套93图导出、最终画廊及直接图片闭包。原始回执与哈希保留，原目录 `CLEANED.md` 明确旧仓／环境／传输路径不再可完整重放。
+
+当前3632个输入、SQL候选、Snapshot、配置、登录态及投递等保护文件逐项SHA不变；语培／留学当前Snapshot受控describe通过，当前SQL仓身份、摘要及受控计数查询前后相同。最终验收索引、当前迁移验收引用和画廊本地链接均验证通过。没有数据采集、发布、通知或日程变更。逐文件处置与SHA见 `.local/audits/sql-migration-cleanup-20261111/cleanup-plan.json.gz`，保护摘要及最终统计见同目录 `final-result.json`。
+
 ## 工作树与源码收口（2026-11-11）
 
 本轮仅在本机核对和提交源码，未刷新数据、部署服务器、发送通知或修改日程。当前正式日更代码为 `prepare_full_daily --publish` → `business_first_daily` → `p5.daily` / `sql_daily`，构建 SQL 单仓并通过 P4 激活；Superset、Business Data MCP 与通知读取同批 release。双 Snapshot 继续作为来源身份，不代表继续发布旧39表结果仓。SQL 切换的历史验收见[迁移记录](docs/shadow-bi-sql-local-migration.md)，实时版本由显式指针确定，不以本文日期推断。
