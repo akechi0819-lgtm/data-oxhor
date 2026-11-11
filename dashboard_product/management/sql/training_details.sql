@@ -70,7 +70,8 @@ orders_raw AS (
  FROM orders_raw
 ), orders_dim AS (
  SELECT work_order_id, business_group, active_type, online_offline, second_channel, first_channel, campaign_name, school_name, grade_name, entry_person, order_status,
- CASE WHEN online_offline='线下' THEN 'offline_market'
+ CASE WHEN first_channel='TMK激活-平台' THEN 'online_platform'
+      WHEN online_offline='线下' THEN 'offline_market'
       WHEN second_channel='虚拟人' THEN 'online_private'
       WHEN online_offline='线上' THEN 'online_platform' END AS team_id
  FROM mapped_orders WHERE rn=1 AND work_order_id IS NOT NULL

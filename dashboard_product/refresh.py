@@ -7,7 +7,7 @@ from workspace_modeling.operations.personnel import (
     is_displayable_person,
     match_person_names,
 )
-from dashboard_product.fallback_mapping import infer_team, resolve_cash_channel
+from dashboard_product.fallback_mapping import TMK_PLATFORM_CHANNEL, infer_team, resolve_cash_channel
 DASHBOARD_QUERY_COLUMNS=(
     'event_date','team_id','business_group','first_channel','second_channel',
     'campaign_name','entry_person','school_name','grade_name','metric',
@@ -24,26 +24,6 @@ PRIOR_MONTHS=[f'2025-{m:02d}' for m in range(6,13)]+[f'2026-{m:02d}' for m in ra
 YOY_GROUPS=('青少','初中','高中','大学')
 TARGET_GROUP={'青少':'留学预备','初中':'留学预备','高中':'高中','大学':'大学'}
 UNASSIGNED_GROUP='业务组暂无法拆分'
-
-SCHOOL_AGENT_RESOURCE_MARK='校代系统资源'
-TMK_PLATFORM_CHANNEL='TMK激活-平台'
-
-def remap_tmk_school_agent_team(team, first_channel, campaign, entry_person, offline_names):
-    """Temporary patch: TMK-activated school-agent resources owned by offline roster count as offline."""
-    if team != 'online_platform':
-        return team
-    if str(first_channel or '') != TMK_PLATFORM_CHANNEL:
-        return team
-    if SCHOOL_AGENT_RESOURCE_MARK not in str(campaign or ''):
-        return team
-    name=str(entry_person or '').strip()
-    note_positions=[position for marker in ('备注:', '备注：')
-                    if (position := name.find(marker)) >= 0]
-    if note_positions:
-        name=name[:min(note_positions)].strip()
-    if name and name in offline_names:
-        return 'offline_market'
-    return team
 
 def project(q,p,tg,people,capacity=None):
  from dashboard_product.capacity import add_contribution, annual_cash_capacity, credit_unique, empty_contributions, person_line, unique_total
@@ -67,8 +47,6 @@ def project(q,p,tg,people,capacity=None):
     })
     roster_row['team_ids'].add(team_id)
     roster_row['business_groups_by_team'].setdefault(team_id,set()).add(business_group)
- offline_names={name for configured_team,_,name in configured_people if configured_team=='offline_market'}
-
  def matched_people(team, business_group, campaign, entry_person):
   # Match co-creators across the source team's groups. Original group
   # qualification is applied after the shared denominator is known.
@@ -99,15 +77,19 @@ def project(q,p,tg,people,capacity=None):
   if group not in (*YOY_GROUPS,UNASSIGNED_GROUP) or metric not in ('work_orders','passive_reported_cash') or val in (None, ''): return
   month=str(dt)[:7]; value=float(val); target=TARGET_GROUP.get(group,UNASSIGNED_GROUP)
   fallback_team=False
+  original_team=team
+  source_platform=first_ch == TMK_PLATFORM_CHANNEL
   if metric=='passive_reported_cash':
-   original_team=team
    channel_result=resolve_cash_channel(cash_channel, cash_campaign or campaign, first_ch, second_ch, work_order_active_type)
    first_ch=channel_result['first_channel']
    second_ch=channel_result['second_channel']
    if not original_team or 'TMK' in str(cash_channel or '').upper():
     team,_=infer_team(original_team,cash_channel,cash_campaign or campaign,first_ch,second_ch,channel_result['decision'])
    fallback_team=team!=original_team
-  team=remap_tmk_school_agent_team(team, first_ch, campaign, entry_person, offline_names)
+  if source_platform or first_ch == TMK_PLATFORM_CHANNEL:
+   team='online_platform'
+   if metric=='passive_reported_cash':
+    fallback_team=team!=original_team
   team_bucket=team if team in MARKET_TOTAL_TEAM_IDS else None
   team_actuals=market_team_act if is_current else market_team_prior
   team_key=(month,team_bucket,metric)

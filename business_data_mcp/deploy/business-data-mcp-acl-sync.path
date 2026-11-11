@@ -1,0 +1,9 @@
+[Unit]
+Description=Refresh Business Data MCP read access after a foundation activation
+
+[Path]
+PathChanged=/var/lib/shadow-bi
+Unit=business-data-mcp-acl-sync.service
+
+[Install]
+WantedBy=multi-user.target

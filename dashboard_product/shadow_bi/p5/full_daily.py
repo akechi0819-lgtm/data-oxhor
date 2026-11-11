@@ -283,6 +283,7 @@ def code_files(root):
     # validates its complete rules/input closure; do not crawl other products.
     names = [
         'shadow_bi/p5/full_daily.py', 'shadow_bi/p5/daily.py',
+        'shadow_bi/p5/foundation_candidate.py',
         'shadow_bi/library.py', 'shadow_bi/acquisition.py',
         'shadow_bi/p3/build_projection.py', 'shadow_bi/p3/catalog.py',
         'management/calculation.py', 'management/advertising_costs.py',
@@ -293,6 +294,7 @@ def code_files(root):
     ]
     files = [Path(root) / 'dashboard_product' / name for name in names]
     files += [Path(root) / 'data_acquisition/jobs/daily_warehouses.py',
+              Path(root) / 'data_acquisition/transfer/foundation.py',
               Path(root) / 'data_acquisition/jobs/prepare_full_daily.py',
               Path(root) / 'data_acquisition/jobs/rebuild_bi_warehouse.py',
               Path(root) / 'data_acquisition/jobs/update_tencent_study_abroad.py']

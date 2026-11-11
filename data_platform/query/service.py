@@ -38,17 +38,31 @@ def _json_value(value: Any) -> Any:
         return str(value)
     if isinstance(value, bytes):
         return value.hex()
+    if isinstance(value, dict):
+        return {str(key): _json_value(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_json_value(item) for item in value]
     return value
 
 
-def _connect(warehouse: Path, *, read_only: bool = True) -> duckdb.DuckDBPyConnection:
+def _connect(
+    warehouse: Path,
+    *,
+    read_only: bool = True,
+    config: dict[str, str] | None = None,
+) -> duckdb.DuckDBPyConnection:
     if not warehouse.is_file():
         raise QueryError("WAREHOUSE_NOT_FOUND", "warehouse file does not exist")
     if read_only:
+        connection_config = {
+            "enable_external_access": "false",
+            **(config or {}),
+            "lock_configuration": "true",
+        }
         return duckdb.connect(
             str(warehouse),
             read_only=True,
-            config={"enable_external_access": "false", "lock_configuration": "true"},
+            config=connection_config,
         )
     return duckdb.connect(str(warehouse))
 
@@ -126,7 +140,13 @@ def _query_source_provenance(connection: duckdb.DuckDBPyConnection, sql: str) ->
     return sorted({f"landing.{table}" for table, _ in referenced}), sorted({source for _, source in referenced})
 
 
-def validate_query(connection: duckdb.DuckDBPyConnection, sql: str, parameters: Any = None) -> None:
+def validate_query(
+    connection: duckdb.DuckDBPyConnection,
+    sql: str,
+    parameters: Any = None,
+    *,
+    allowed_schemas: frozenset[str] | set[str] = ALLOWED_SCHEMAS,
+) -> None:
     try:
         statements = duckdb.extract_statements(sql)
     except duckdb.Error as exc:
@@ -150,8 +170,186 @@ def validate_query(connection: duckdb.DuckDBPyConnection, sql: str, parameters: 
     plan_text = plan[1] if plan else ""
     for match in re.finditer(r'"Table":\s*"([^"]+)"', plan_text):
         parts = match.group(1).split(".")
-        if len(parts) >= 2 and parts[-2] not in ALLOWED_SCHEMAS:
+        if len(parts) >= 2 and parts[-2] not in allowed_schemas:
             raise QueryError("QUERY_REJECTED", f"schema is not allowed: {parts[-2]}")
+
+
+_BUSINESS_DENIED_FUNCTIONS = frozenset({
+    "current_catalog", "current_database", "current_query", "current_schema",
+    "current_setting", "current_user", "getenv", "glob", "session_user",
+    "user", "version",
+})
+
+
+def _validate_business_query_ast(
+    connection: duckdb.DuckDBPyConnection,
+    sql: str,
+    *,
+    allowed_relations: set[str] | frozenset[str],
+    allowed_schema: str = "landing",
+    allowed_table_macros: set[str] | frozenset[str] = frozenset(),
+) -> None:
+    """Allow SQL over registered landing tables without DuckDB's dynamic sources."""
+    try:
+        statement = json.loads(connection.execute("SELECT json_serialize_sql(?)", [sql]).fetchone()[0])
+    except (duckdb.Error, TypeError, ValueError) as exc:
+        raise QueryError("QUERY_INVALID", "cannot parse query") from exc
+    if statement.get("error") or len(statement.get("statements", [])) != 1:
+        raise QueryError("QUERY_REJECTED", "exactly one SELECT statement is required")
+
+    cte_names: set[str] = set()
+
+    def collect_ctes(value: Any) -> None:
+        if isinstance(value, dict):
+            cte_map = value.get("cte_map")
+            if isinstance(cte_map, dict):
+                for item in cte_map.get("map", []):
+                    if isinstance(item, dict) and isinstance(item.get("key"), str):
+                        cte_names.add(item["key"].casefold())
+            for child in value.values():
+                collect_ctes(child)
+        elif isinstance(value, list):
+            for child in value:
+                collect_ctes(child)
+
+    collect_ctes(statement)
+    allowed = {name.casefold() for name in allowed_relations}
+
+    def inspect(value: Any) -> None:
+        if isinstance(value, dict):
+            node_type = value.get("type")
+            node_class = value.get("class")
+            if node_type == "TABLE_FUNCTION":
+                function = value.get("function", {})
+                if (function.get("catalog") or
+                    str(function.get("schema", "")).casefold() != allowed_schema.casefold() or
+                    str(function.get("function_name", "")).casefold() not in allowed_table_macros):
+                    raise QueryError("QUERY_REJECTED", "table functions are not available")
+            if node_type == "BASE_TABLE":
+                schema = value.get("schema_name", "")
+                table = value.get("table_name", "")
+                catalog = value.get("catalog_name", "")
+                if catalog:
+                    raise QueryError("QUERY_REJECTED", "catalog-qualified tables are not available")
+                if not schema and str(table).casefold() in cte_names:
+                    pass
+                elif schema.casefold() != allowed_schema.casefold() or table.casefold() not in allowed:
+                    raise QueryError("QUERY_REJECTED", "query may read only registered " + allowed_schema + " tables")
+            if node_class == "FUNCTION":
+                name = str(value.get("function_name", "")).casefold()
+                if (name in _BUSINESS_DENIED_FUNCTIONS or name.startswith(("duckdb_", "pg_", "pragma_", "read_"))):
+                    raise QueryError("QUERY_REJECTED", "system and external-reader functions are not available")
+            if node_class == "COLUMN_REF":
+                names = value.get("column_names", [])
+                if any(str(name).casefold() in _BUSINESS_DENIED_FUNCTIONS for name in names):
+                    raise QueryError("QUERY_REJECTED", "system metadata is not available")
+            for child in value.values():
+                inspect(child)
+        elif isinstance(value, list):
+            for child in value:
+                inspect(child)
+
+    inspect(statement)
+
+
+def _business_csv_cell(value: Any) -> str:
+    if value is None:
+        return ""
+    value = _json_value(value)
+    if isinstance(value, (dict, list, tuple)):
+        value = json.dumps(value, ensure_ascii=False, separators=(",", ":"), sort_keys=True, allow_nan=False)
+    raw = str(value)
+    return '"' + raw.replace('"', '""') + '"'
+
+
+def _business_csv_row(values: list[Any]) -> str:
+    return ",".join(_business_csv_cell(value) for value in values) + "\r\n"
+
+
+def _minimum_json_size(value: Any) -> int:
+    if value is None:
+        return 4
+    if isinstance(value, str):
+        return len(value)
+    if isinstance(value, bytes):
+        return len(value) * 2
+    if isinstance(value, dict):
+        return sum(_minimum_json_size(key) + _minimum_json_size(item) + 2 for key, item in value.items())
+    if isinstance(value, (list, tuple)):
+        return sum(_minimum_json_size(item) + 1 for item in value)
+    return len(str(value))
+
+
+def execute_query_bundle(
+    *,
+    warehouse: Path,
+    snapshot_id: str,
+    sql: str,
+    parameters: Any = None,
+    output_dir: Path,
+    allowed_relations: set[str] | frozenset[str],
+    max_result_bytes: int = 128 * 1024 * 1024,
+) -> dict[str, Any]:
+    """Execute once, saving the full typed result as JSONL.
+
+    This is a service-facing extension for paged delivery. It intentionally has
+    no row preview limit: callers receive a full row count and may page over the
+    artifacts created by this execution.
+    """
+    if max_result_bytes < 1:
+        raise QueryError("QUERY_LIMIT_INVALID", "max_result_bytes must be positive")
+    try:
+        identity = snapshot_ref(warehouse, snapshot_id)
+    except EvidenceError as exc:
+        raise QueryError("SNAPSHOT_MANIFEST_INVALID", str(exc)) from exc
+    output_dir.mkdir(parents=True, exist_ok=False)
+    temporary = output_dir / ".duckdb-tmp"
+    try:
+        temporary.mkdir(mode=0o700)
+        with _connect(warehouse, config={
+            "memory_limit": "1GB",
+            "threads": "2",
+            "temp_directory": str(temporary),
+            "max_temp_directory_size": "256MB",
+        }) as connection:
+            _require_snapshot(connection, snapshot_id)
+            _validate_business_query_ast(connection, sql, allowed_relations=allowed_relations)
+            validate_query(connection, sql, parameters, allowed_schemas={"landing"})
+            referenced_relations, referenced_source_ids = _query_source_provenance(connection, sql)
+            if not set(referenced_relations).issubset({f"landing.{name}" for name in allowed_relations}):
+                raise QueryError("QUERY_REJECTED", "query references an unavailable landing table")
+            cursor = connection.execute(sql, parameters)
+            columns = [item[0] for item in cursor.description]
+            count = 0
+            result_bytes = 0
+            with (output_dir / "rows.jsonl").open("w", encoding="utf-8", newline="\n") as rows_file:
+                while True:
+                    chunk = cursor.fetchmany(100)
+                    if not chunk:
+                        break
+                    for row in chunk:
+                        if sum(_minimum_json_size(value) for value in row) > max_result_bytes:
+                            raise QueryError("QUERY_RESULT_TOO_LARGE", "query result exceeds the configured byte limit")
+                        values = [_json_value(value) for value in row]
+                        line = json.dumps(values, ensure_ascii=False, separators=(",", ":"), allow_nan=False) + "\n"
+                        result_bytes += len(line.encode("utf-8"))
+                        if result_bytes > max_result_bytes:
+                            raise QueryError("QUERY_RESULT_TOO_LARGE", "query result exceeds the configured byte limit")
+                        rows_file.write(line)
+                        count += 1
+        shutil.rmtree(temporary, ignore_errors=True)
+        return {
+            "columns": columns,
+            "row_count": count,
+            "referenced_relations": referenced_relations,
+            "referenced_source_ids": referenced_source_ids,
+            "snapshot_ref": identity,
+            "rows_path": str(output_dir / "rows.jsonl"),
+            "result_bytes": result_bytes,
+        }
+    except Exception:
+        shutil.rmtree(output_dir, ignore_errors=True)
+        raise
 
 
 def describe_warehouse(*, warehouse: Path, snapshot_id: str) -> dict[str, Any]:

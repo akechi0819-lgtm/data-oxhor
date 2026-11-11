@@ -205,7 +205,8 @@ def _safe_daily_root(workspace: Path) -> Path:
 def refresh_daily(*, workspace: Path, as_of_date: str, run_id: str,
                   bi_snapshot_id: str, study_snapshot_id: str,
                   bi_start_date: str | None = None,
-                  input_paths: dict[str, Path] | None = None) -> dict:
+                  input_paths: dict[str, Path] | None = None,
+                  orders_start_date: str | None = None, orders_end_date: str | None = None) -> dict:
     """Refresh both warehouses for an explicit Asia/Shanghai business date.
 
     ``as_of_date`` is supplied by the caller. BI uses the existing six-calendar-
@@ -291,6 +292,8 @@ def refresh_daily(*, workspace: Path, as_of_date: str, run_id: str,
                     snapshot_id=bi_snapshot_id,
                     start_date=start.isoformat(),
                     end_date=as_of.isoformat(),
+                    **({'orders_start_date': orders_start_date, 'orders_end_date': orders_end_date}
+                       if orders_start_date is not None else {}),
                     **({'export_paths': {key: input_paths[key] for key in ('orders', 'cash')}} if input_paths else {}),
                 )
                 if result.get("snapshot_id") != bi_snapshot_id or result.get("status") != "snapshot_ready":
@@ -304,6 +307,7 @@ def refresh_daily(*, workspace: Path, as_of_date: str, run_id: str,
                     "captured_at": _now_shanghai(),
                     "value_sha256": _canonical_sha256(values),
                     "company_id": company_id,
+                    "order_refresh": result.get("order_refresh"),
                     "orders_export": {"path": str(Path(result["export_orders"]).resolve()),
                                       "sha256": values["orders"]},
                 })

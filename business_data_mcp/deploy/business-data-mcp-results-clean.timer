@@ -1,0 +1,11 @@
+[Unit]
+Description=Clean expired Business Data MCP query results every 5 minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+Persistent=true
+Unit=business-data-mcp-results-clean.service
+
+[Install]
+WantedBy=timers.target

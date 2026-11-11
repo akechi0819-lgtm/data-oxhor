@@ -1,0 +1,36 @@
+[Unit]
+Description=Business Data MCP service
+After=network-online.target
+Wants=network-online.target
+Requires=business-data-mcp-acl-sync.service
+After=business-data-mcp-acl-sync.service
+
+[Service]
+Type=simple
+User=business-mcp
+Group=business-mcp
+WorkingDirectory=/srv/business-data-mcp
+EnvironmentFile=/etc/business-data-mcp/service.env
+ExecStart=/srv/business-data-mcp/venv/bin/python -m business_data_mcp.server
+Restart=on-failure
+RestartSec=3
+UMask=0077
+CPUQuota=200%
+MemoryMax=3G
+MemorySwapMax=0
+OOMPolicy=kill
+TasksMax=32
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+ReadWritePaths=/var/lib/business-data-mcp/results
+
+[Install]
+WantedBy=multi-user.target

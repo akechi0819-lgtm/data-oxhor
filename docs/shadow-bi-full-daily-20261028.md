@@ -1,6 +1,78 @@
+## 最新业务组筛选状态（2026-11-07）
+
+正式 release `daily-sql-overview-group-20261107` 已激活。市场总览的业务组筛选为“市场总计／高中／大学／留学预备”；语培按所选业务组汇总线上、线下各渠道产出，留学及小语种固定显示总盘。11 张语培图联动该筛选，语培学校图已补入；其他页面的口径和样式保持不变。
+
+原有 5,508 行指标与旧仓一致，新增 243 行分组指标与明细独立核算一致；40 项测试通过，2 项按条件跳过。费用为 4,041 行、43 个来源，标注截至 2026-11-06；复用同一批数据，不重采业务及费用源表、不触发日报推送。18 项正式指标与 MCP 5 项检查通过。bi-3 只读复查通过，采集、发布及通知回调均为 0；正式站 93 图、270 个业务分页已完成核对，字段、行数及记录集合全部一致；旧版已退役，服务器仅保留 1 份分析仓，投递状态逐字节不变。
+
+证据：[activation.json](</Users/akechi/Desktop/manager -CowH/.local/archive/business-sql-local-20261111/audits/overview-group-20261107/activation.json>)、[publication-receipt.json](</Users/akechi/Desktop/manager -CowH/.local/archive/business-sql-local-20261111/audits/overview-group-20261107/publication-receipt.json>)；本批审计目录：[overview-group-20261107](</Users/akechi/Desktop/manager -CowH/.local/archive/business-sql-local-20261111/audits/overview-group-20261107/>).
+
+最终核验：88 张图逐行顺序相同；5 张图（231、320、331、332、333）仅同值并列行换位，93 张图完整记录集合相同。保留原排序规则；图 231 原网页分页现象未作次排序修复，完整 CSV 的 59 条唯一记录与旧版一致。线上曾触发旧 1400M 服务限额 OOM，已持久调至 4G，3 并发与后续全页复验通过；未改数据、线程数或查询内存配置。
+
+最终回执：[completion.json](</Users/akechi/Desktop/manager -CowH/.local/archive/business-sql-local-20261111/audits/overview-group-20261107/completion.json>)。
+
+## 云端基础仓日更（2026-11-04）
+
+每天 09:30 仍由原 bi-3 在 Mac 调用 `data_acquisition.jobs.prepare_full_daily --publish`，沿用原观远和腾讯文档采集、双仓 Snapshot 配对与费用来源门禁。Mac 发送这对基础 Snapshot、联合回执及计算需要的来源文件。云端以受控 SQL 读取基础仓，调用同一套管理计算生成 Superset 使用的业务库。基础看板成功后沿用原通知合同。费用按单批表格快照另行校验和发布，失败保留已经成功的业务版本。
+
+正式入口为服务器 `/var/lib/shadow-bi/current`。同一发布目录的 `foundation/Work/workspace.json` 和 `foundation/Work/StudyAbroad/current.json` 分别给出语培和留学的显式 Snapshot 与基础库位置，`library/library_manifest.json` 给出看板批次与两仓身份。保留当前版全部业务历史。新版本验收成功后，删除上一版及其回滚指针，候选构建期间用原 current 提供服务。历史 raw 接收和 HTTP 成品上传不用于此日更。
+
+排查时先读当批 `Output/ShadowDaily/<run_id>/result.json`、`prepare.log`、`publish.log` 和云端 `prepared.json`。基础查询操作和本次验收详见 [部署说明](../dashboard_product/DEPLOYMENT.md)。
+
+## 2026-11-07 BI 导出终态文件校验补充
+
+BI 导出可能出现官方任务状态为 `FINISHED`、下载接口返回文件但工作簿 ZIP 不完整。下载器会继续等待 `RUNNING` 中的同一任务；只有官方已 `FINISHED` 且响应确认为无效 XLSX 时，才将原任务标记 `INVALID_XLSX` 并走现有工单日期窗口回退。已记录的原任务不会再次提交。现金导出不使用工单回退，遇到无效 XLSX 明确失败。原件不绕过 ZIP 校验，也不作为 Snapshot 输入。
+
+## 2026-11-07 BI 导出文件完整性门禁
+
+导出状态显示 `FINISHED` 但返回无效 XLSX 时，下载器会区分任务状态与文件校验结果：`RUNNING` 保持同一任务轮询；官方 `FINISHED` 的无效工单文件写为 `INVALID_XLSX`，只触发现有工单日期窗口回退，原任务不重提；现金无效文件明确失败，不走工单回退。所有工作簿继续经过 ZIP 校验。
+
 # 完整日更接入状态（2026-10-28）
 
-## 当前最新：临时CSV日更与全来源费用ROI发布完成（2026-11-04）
+## 历史：2026-11-06 日更及费用状态
+
+SEM失败已实网复现为前端加载竞态：chunk数组先出现，但Webpack尚未接管push，注入回调未执行导致require未初始化、TypeError发生于提交前；同一登录稍后官方权限查询成功，非认证或权限失败。Mac请求模块现等待运行时实际就绪，超时及require非函数明确报合同错误。12项SEM回归及46项相关检查／7子测试通过；原任务状态pre_submit、提交数0，恢复后只提交一次`32648737711`，整本SHA `4bdd03639bf6e1ad2f2f0fa9bc66baf430d2ef87e9b601f4a32b5528b195c038`。
+
+原批次全来源费用门禁无阻断，正式费用版`daily-20261106_162100`已发布，18项看板指标验版通过。服务器current及受控业务库费用／ROI查询独立复核，所查ROI公式不符0。两Snapshot仍为早间093634，双仓／工单反馈四份状态及回执SHA不变；持久DeliveryState仍8sent，SHA与补费用前一致，无重发。反馈新增12、已存在0、最大分配日期11/5。腾讯语培未接入、SEM完成标记缺失／空金额、腾讯展示未报告日期仍如实保留，不补零。
+
+用户指出云端重算耗时过长，要求优先本机计算后上传成品；本轮核实时原云端候选已完成，直接完成既有激活最快，没有另起重算。本轮未修改日程或实现发布架构切换。证据`.local/audits/full-daily-20261106-scheduled/automation-run-summary.json`、`server-fee-final-verification.json`、`sem-diagnosis/`及费用批次`publish.log`。
+
+## 历史阶段：基础发布恢复，日报成功，SEM费用阻断（2026-11-06）
+
+今日双仓`run_shadow_daily_20261106_093634`配对通过。六个月工单导出官方`CANCELED`后，原入口自动仅一次缩窗补11/5；现金独立六个月窗口、留学官方MCP正常。工单历史完整刷新仍11/3 13:51:07，不把增量当全历史刷新。工单反馈当月三类新增12、已存在0、最大分配日期11/5，正式读回passed。
+
+云端prepare期间SSH连接关闭，本地先记失败；原云端进程继续计算后生成成功prepared.json，未自动激活。用户随后授权刷新正式看板，生产锁内校验原候选身份、双Snapshot、11/5截止、本地payload SHA后，调用既有激活/验版/清理步骤复用候选，不重采或重算基础。正式`daily-20261106_093634`，18指标验版passed，服务器current独立确认。固定通知入口原5通道8条sent，持久DeliveryState独立确认。
+
+沿唯一总入口原batch继续费用：小红书、巨量、腾讯广告推广范围均verified；SEM在提交前`sem_request_failed`，没有远端任务ID，非认证失效。费用及ROI未发布，基础current和8sent保留；腾讯语培费用仍缺失，未报告日期及空金额不补零。无微信、无代码或日程修改。
+
+证据`.local/audits/full-daily-20261106-scheduled/`内`automation-run-summary.json`、`activation-recovery-result.json`、`server-post-recovery-verification.json`、`pipeline-result.json`、`collection-report.json`与`sem.attempt-*.json`；激活及18指标验版日志为`Output/ShadowDaily/run_shadow_daily_20261106_093634/publish-recovery.log`。
+
+## 历史完成：用户成功原件换源及回填完成（2026-11-05）
+
+用户提供11:38:43手动成功原件，SHA `a05e0591d4ba21e9183fd7d387ab75a40c57267804cf9be6df501eee77ab618f`，126列、11/4单日73条；工单ID归一后与早上73条完全一致，资源描述66条非空、7条源内仍空。早上原件还缺一级渠道22条、二级渠道18条、资源录入人73条、资源-资源ID73条、主被动13条、线上线下9条，故本次整批替换11/4工单窗口，现金、腾讯文档与费用仍复用今天已验证原件，不将新文件当作全历史原件。
+
+双仓Snapshot后缀`20261105_114519`已passed；受控查询确认61468行/唯一ID、11/4仍73条、66条描述非空、73条录入人非空、ID无`.0`尾缀；历史最后完整刷新时间仍为11/3 13:51:07。腾讯反馈按ID定向更新274个来源单元格，0冲突；66条描述回填、7条空白保留，三个人工列与ID摘要前后一致。独立回填回执不改写原追加同步回执（本轮追加0，已存在73）。
+
+基础正式`daily-20261105_114519`发布、18指标验版通过。原8条日报全部去重，`network_send_attempted=false`，没有重发。费用复用副本最初因巨量核验引用仍指原目录而阻断；仅重绑定副本引用并逐文件校验原件SHA，未重采或修改旧证据。全来源恢复0阻断后，费用版`daily-20261105_120126`已正式发布并独立核验。3919费用行、已知881043.25元、226空金额，逐平台与换源前完全一致；4核心业务表摘要与新基础版一致，8sent/5通道及DeliveryState SHA未变。
+
+用户随后纠正：同日工单换源不需要重复计算已有费用。本轮沿完整入口重算费用属于范围扩大；尝试停止前已完成发布，之后仅只读核对。后续同日纠错应复用已封口费用，只更新工单及必要关联/ROI；本轮未实现新的快捷纠错发布入口，不得把此要求写成已落地能力。
+
+证据`.local/audits/full-daily-20261105-source-replacement/`内`source-validation.json`、`warehouse-source-verification.json`、`apply-receipt.json`、`manual-sha.json`、`notification-result.json`、`server-final-verification.json`、`automation-run-summary.json`及`pipeline-result.json`。本次只更换今天工单原件，例行BI来源入口、其他日程与发布顺序不改。
+
+## 历史阶段：工单单日兜底恢复，基础、日报及费用发布完成（2026-11-05）
+
+已加入工单与现金独立更新窗口、官方明确失败才缩窗、未知任务不重提及已下载SHA复用。今日脚本六个月及单日任务均被平台取消；复用用户已成功的官方任务`697734e0-d8bb-11f1-953e-63bfec15180c`下载原件，原件含11/3和11/4共177行，保留原件后只筛11/4的73条作为显式单日输入。现金继续5/5—11/5原窗口自动导出，腾讯文档复用今日官方MCP已下载原件；不是重复创建工单导出。
+
+双仓`20261105_101457`配对通过，基础正式`daily-20261105_101457`已发布，业务截至11/4；原5通道8条日报均sent，服务器独立核验。原61395条历史工单ID/分配日期/状态摘要与旧服务器基础仓一致，新增73条后为61468条；工单反馈新增73、已存在0、最大分配日期11/4、读回passed。历史最后完整刷新时间保留11/3 13:51:07，单日更新不覆盖。
+
+用户随后反馈资源描述空白：只读核实本次73条在原始成功导出中就全部为空，筛选后及远端G337:G409一致；此前11/3的104条中98条非空。写入读回passed不等于来源字段完整，该73条描述缺口已补记，BI网页本身是否有描述尚待核查。当前同步只追加新ID，后续源字段补齐不会自动回填既有行。证据`.local/audits/content-description-check-20261105/result.json`。
+
+费用已在原批次单独恢复：小红书重新登录已验证，巨量及腾讯原生导出复用；修复实际出现的腾讯查询金额千分号与原生CSV解析不一致，推广范围逐日门禁保留；SEM补等待iframe官方脚本就绪，真实guard/serialize通过，任务`32695256509`仅提交一次并已下载。全来源blockers为0，SEM完成标记缺失仍为警告。费用正式`daily-20261105_104009`已发布并独立实读服务器current，业务截至11/4；3919费用行、已知881043.25元，226空金额保留缺失。核心facts、personnel_facts、market_orders、acquisition_facts摘要与基础版相同，原8条sent/5通道及持久DeliveryState SHA完全未变。腾讯语培、SEM完成标记及未报告日期缺口保持。
+
+同日已完整完成，后续只核对真实服务器，不再重抓或重发。原scheduled失败回执保留，`.local/audits/full-daily-20261105-scheduled/recovery-result.json`指向本次成功批次；平台自动单日任务取消原因仍未知，不能将本次复用用户已成功任务冒称自动单日生产导出已成功。
+
+证据：`.local/audits/full-daily-20261105-single-day-recovery/` 中`pipeline-result.json`、`server-final-verification.json`、`automation-run-summary.json`、`history-preservation-verification.json`、`manual-orders-validation.json`、`collection-report.json`与`regression-tests.txt`。目前相关回归198 passed、19 subtests；10份日程配置SHA一致，未发微信。
+
+## 历史完成：临时CSV日更与全来源费用ROI发布完成（2026-11-04）
 
 费用已沿同批`prepare_full_daily --sem-receipt --publish`恢复，未重跑双仓或重发日报。用户在固定专用Cookie注入窗口完成整本SEM导出；随后使用抓包中的原任务`32566313513`，经独立直连HTTP查询和下载，原件SHA与手动下载一致，15个来源页签、465条SEM费用行通过现有候选门禁。小红书、巨量／抖音、腾讯广告复用当天已verified原件，腾讯仍按竞价＋品牌、排除智能逐日对账，全来源阻断项为0。
 
@@ -74,11 +146,15 @@
 
 新下载器真实导出、原件读取及同目录重复运行通过，重复运行复用相同任务ID、路径和SHA。完整回归1152 passed、1 skipped、214 subtests passed；证据位于`.local/audits/tencent-mcp-switch-20261102/`。此次不重新采集BI、不更新正式数仓指针、不发布看板或发送消息，下一次09:30由既有bi-3调用新入口。
 
-## 工单反馈明细日更（现行104列；2026-11-02接入）
+## 工单反馈明细日更（现行105列；2026-11-10对齐）
 
-正式腾讯文档《新媒体内容组项目进度表》的“工单反馈明细”页签（`0apMZH`）现行合同为104列：11月2日曾追加“账号来源”形成105列，11月3日随新源迁移删除“录入来源”后恢复104列，旧105列绑定不再接受。`素材ID`、`账号来源`、`工单跟进情况`均为人工列，程序不写入、不覆盖。“数据反馈流水”等原页签不参与写入。连接使用宿主全局腾讯文档MCP，项目仅保存私有业务绑定。
+正式腾讯文档《新媒体内容组项目进度表》的“工单反馈明细”页签（`0apMZH`）2026-11-10实读为105列（原私有配置实际103列，旧文档104列记载不准确），新增G列「重点资源意向」、H列「所属条线」。这两列与`素材ID`、`账号来源`、`工单跟进情况`均为人工列，程序不写入、不覆盖。B1误改为「·」后已按用户确认恢复为「分配时间」。表头和源字段仍严格按列名验证，不静默容忍未知列。“数据反馈流水”等原页签不参与写入。连接使用宿主全局腾讯文档MCP，项目仅保存私有业务绑定。
 
-`daily_warehouses.refresh_daily` 在BI成功入仓后复用本次 `export_orders`，调用 `data_acquisition.jobs.sync_content_work_orders.sync`。绑定配置为工作区私有文件 `.private/content-work-orders.json`，包含正式文档/页签、104列、`start_date=2026-11-01`及全局Token文件路径。未配置的工作区不启用此步骤。每次按“分配时间”筛选11月1日起至本次日期的记录，读取远端工单`ID`后只追加缺失项，后续日期会补齐晚到记录；不以学员号或资源ID去重，不清空历史、不按日期整段覆盖。
+`daily_warehouses.refresh_daily` 在BI成功入仓后复用本次 `export_orders`，调用 `data_acquisition.jobs.sync_content_work_orders.sync`。绑定配置为工作区私有文件 `.private/content-work-orders.json`，包含正式文档/页签、105列、`start_date=2026-11-01`、`window_mode=current_month`、`secondary_channel_platforms=[腾讯广告,抖音,小红书]`及全局Token文件路径。未配置的工作区不启用此步骤。例行按“分配时间”筛选当前自然月月初至本次日期（11月从11/1起，跨月切至新月月初）；只按二级渠道归一判断三类平台，抖音包含本地推、来客和巨量飞鱼，不从一级渠道或描述补推。读取远端工单`ID`后只追加缺失项，不覆盖已有记录或五个人工列；历史已补记录继续保留，不在日常同步中重复清理。10月1日起的数据只做本次一次性历史回补，使用独立固定窗口配置，不把例行起点永久改为10/1。其他未启用平台筛选或月窗口的工作区保持其原有配置行为。
+
+2026-11-05本次获批范围清理：非三类且三个人工列均未填的325条已原生删行，保留83条（含7条非目标渠道人工填写例外）；36条人工内容按ID核验前后一致。10月一次性历史回补已追加599条，正式页签最终682条（腾讯广告6、抖音404、小红书265，加7条人工填写例外），官方MCP全量读回及36条人工内容校验通过。当前正式源只到11/4，11/5尚未采入，不补零。后续仅新增符合三类及当前月窗口的工单，不自动重复执行本次删除。
+
+2026-11-10用户进一步要求只保留三类投流工单，原7条非目标渠道人工填写例外也纳入本次一次性删除；历史人工填写不再构成非目标渠道保留条件。日更依旧只追加三类平台，不自动重复删行。当前本地证据目录：`.local/audits/content-work-orders-20261110-columns/`。本次正式清理全量读回：删除7条，保留747条（抖音439、小红书296、腾讯广告12），保留行内容一致。复用11/10双仓回执中路径与SHA核验通过的原件，运行`run_content_columns_20261110_verify`：19条当月候选均已存在，新增0、总数747，源最大分配日期11/9，正式表头/ID读取通过；30项同步测试通过。bi-3经应用工具更新并逐字读回，时间、启停、模型、项目等其余配置不变。
 
 新增行分批写入源字段，最后提交工单ID；实际读回核对后记录结果。工作区锁防止手动同步与日更同时追加。同步回执独立保存于 `Work/ContentWorkOrders/Runs/<run_id>/receipt.json`，双仓回执的 `content_work_orders` 记录本次交付结果，BI来源的 `orders_export` 保存原件路径与SHA。同步失败单独报告，不把BI成功改成失败、不阻断原基础看板/日报/费用顺序；不得把失败或缺数据描述成已经同步完整。
 
@@ -393,3 +469,13 @@ Cookie优先改动最终核心回归598 passed、1 skipped、130 subtests passed
 ## 腾讯两个已知范围独立HTTP验收完成
 
 详见[腾讯原生报表采集](tencent-advertising-export.md)。展示/多产品T117172083687：16行2278.58元，连续1.894秒；旧搜索T117173583721：57行19761.93元，连续2.130秒。均关闭浏览器后独立HTTP创建、轮询、本站授权表单下载和intake，原件与原生历史SHA一致，保护状态复用成功。没有将内部CDN401改成绕过请求；实际正常浏览器下载使用/ap/async_task/download，已捕获并接通。未知创建通过实测任务列表唯一匹配，不盲目重发；截断CSV不接受为完整原件。两个产品分开保存、不相加、41天不补0；品牌等范围、费用候选映射和完整全源仍未通过，正式manifest/current与定时不动。
+
+## 工单缩窗兜底与独立更新窗口（2026-11-05）
+
+例行工单仍先导出原六个月窗口，现金继续按自己的六个月窗口更新。工单下载失败后，仅当官方任务历史确认该任务为 `CANCELED` 或 `FAILED`，才自动缩窗一次：从既有工单实际覆盖日次日起补至上海昨天；中间断档一起补，不只取最后一天。超时、提交结果未知或权限问题不创建第二任务，保留原任务回执。下载任务按业务日期保存在 `Work/BIExportTasks/<as_of_date>/`，已完成文件校验SHA后复用。
+
+工单按独立闭区间替换，区间外历史保留，ID冲突以新导出首行为准；现金仍按原窗口整体替换，不随工单缩窗。单日原件必须通过实际分配日期范围校验，不把单日文件当成六个月完整原表。明确恢复可在同一 `prepare_full_daily --publish` 总入口增加 `--orders-start-date` 与 `--orders-end-date`；原基础发布→固定日报→费用顺序和日程均不变。
+
+每个成功Snapshot的 `Work/BIRefresh/<snapshot_id>.json` 及双仓回执 `sources.bi.order_refresh` 分别记录工单/现金窗口、工单实际覆盖日期、增量或正常窗口刷新模式、历史最后正常完整刷新时间与Snapshot。增量更新沿用上次完整刷新时间，不声称历史状态已同步；旧Snapshot没有该记录时，完整刷新时间保持未知，不能由文件mtime猜测。本次历史基线由11月3日全历史正式回执补证，11月4日临时CSV不作为全历史刷新证明。
+
+语培现金金额与经营人头使用现金事实，工单签约状态不决定现金资格；历史工单的删除/回收/死单、渠道、活动及人员字段变化仍可能影响工单指标及现金归属拆分。增量兜底不能代替后续正常历史刷新。

@@ -196,7 +196,8 @@ def _default_publishers():
 
 def run(workspace, *, batch_dir, collect, prepare=False, day=None, now=None,
         publish_business=None, publish_expenses=None, notify=None,
-        assert_ready=None, refresh_business=False, business_inputs=None):
+        assert_ready=None, refresh_business=False, business_inputs=None,
+        orders_start_date=None, orders_end_date=None):
     """Run the two-stage daily release while persisting each confirmed boundary."""
     if prepare:
         raise DailyBlocked('business_first_publish_only')
@@ -291,6 +292,8 @@ def run(workspace, *, batch_dir, collect, prepare=False, day=None, now=None,
                             _validated_business_inputs(business_inputs, selected_day, batch_dir))
                 elif business_inputs is not None:
                     raise DailyBlocked('business_inputs_requires_new_batch')
+                if orders_start_date is not None:
+                    publish_kwargs.update(orders_start_date=orders_start_date, orders_end_date=orders_end_date)
                 raw_business = publish_business(workspace, selected_day, **publish_kwargs)
                 business = _business_result(raw_business, workspace, selected_day, assert_ready)
             except Exception as error:

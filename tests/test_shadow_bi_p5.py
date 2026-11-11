@@ -1,146 +1,14 @@
-import hashlib
 import json
 from pathlib import Path
 import tempfile
 import unittest
 from argparse import Namespace
-from datetime import datetime
 from unittest import mock
-from zoneinfo import ZoneInfo
 
-from dashboard_product.shadow_bi.p5 import daily as daily_runner
-from dashboard_product.shadow_bi.p5.daily import package_tables
 from data_platform.query.evidence import EvidenceError
 from data_platform.query.service import execute_query
 from tests.platform.test_query_service import warehouse
 
-
-class SealedTransferTests(unittest.TestCase):
-    def prepare(self, root):
-        source, presentation = root/'source', root/'presentation'
-        source.mkdir(); presentation.mkdir()
-        (source/'tables').mkdir()
-        table = source/'tables/known.jsonl'
-        table.write_text('{"orders":7}\n')
-        (source/'business.duckdb').write_bytes(b'private customer database must stay local')
-        manifest = {'tables': {'known': {'data': {'path': 'tables/known.jsonl',
-                    'sha256': hashlib.sha256(table.read_bytes()).hexdigest()}}}}
-        (presentation/'library_manifest.json').write_text(json.dumps(manifest))
-        return source, presentation, manifest
-
-    def test_only_manifest_jsonl_is_transferred(self):
-        with tempfile.TemporaryDirectory() as t:
-            root = Path(t); source, presentation, _ = self.prepare(root)
-            package_tables(source, presentation, root/'transfer')
-            files = {p.relative_to(root/'transfer').as_posix() for p in (root/'transfer').rglob('*') if p.is_file()}
-            self.assertEqual(files, {'tables/known.jsonl', 'library_manifest.json'})
-
-    def test_corruption_prevents_package(self):
-        with tempfile.TemporaryDirectory() as t:
-            root = Path(t); source, presentation, _ = self.prepare(root)
-            (source/'tables/known.jsonl').write_text('corrupted')
-            with self.assertRaisesRegex(ValueError, '摘要不符'):
-                package_tables(source, presentation, root/'transfer')
-
-    def test_path_outside_manifest_root_is_rejected(self):
-        with tempfile.TemporaryDirectory() as t:
-            root = Path(t); source, presentation, manifest = self.prepare(root)
-            manifest['tables']['known']['data']['path'] = '../outside.jsonl'
-            (presentation/'library_manifest.json').write_text(json.dumps(manifest))
-            with self.assertRaisesRegex(ValueError, '路径无效'):
-                package_tables(source, presentation, root/'transfer')
-
-
-class DailyRunPointerTests(unittest.TestCase):
-    def setUp(self):
-        self.tmp = tempfile.TemporaryDirectory()
-        self.addCleanup(self.tmp.cleanup)
-        self.workspace = Path(self.tmp.name) / 'workspace'
-        private = self.workspace / '.private'
-        private.mkdir(parents=True)
-        (private / 'tencent-source.json').write_text('{}')
-        self.day = datetime.now(ZoneInfo('Asia/Shanghai')).date().isoformat()
-        self.run_id = f"run_shadow_daily_{self.day.replace('-', '')}_fixture01"
-        self.pair = {
-            'run_id': self.run_id,
-            'sources': {
-                'bi': {'snapshot_id': 'snapshot_bi_fixture'},
-                'study_abroad': {'snapshot_id': 'snapshot_study_fixture'},
-            },
-        }
-        self.commands = []
-        self.library_manifest = {'batch_id': self.run_id, 'coverage': {'fixture': True}}
-
-    def run_daily(self, *, advertising_manifest=None, fail_publish=False):
-        source = self.workspace / 'Output/ShadowBI' / (self.run_id + '_business') / 'library'
-
-        def fake_command(args, log, **kwargs):
-            args = list(args)
-            self.commands.append(args)
-            if args[:4] == [daily_runner.sys.executable, '-m',
-                            'dashboard_product.shadow_bi.library', 'build']:
-                source.mkdir(parents=True, exist_ok=True)
-            elif 'dashboard_product.shadow_bi.p3.build_projection' in args:
-                (Path(log).parent / 'presentation').mkdir(parents=True, exist_ok=True)
-            if args[-1:] == ['bash -s'] and fail_publish:
-                raise RuntimeError('synthetic publish failure')
-
-        def fake_package_tables(_source, _presentation, destination):
-            destination.mkdir(parents=True)
-            return self.library_manifest
-
-        with mock.patch('data_acquisition.jobs.daily_warehouses.assert_daily_ready',
-                        return_value=self.pair), \
-             mock.patch.object(daily_runner, 'command', side_effect=fake_command), \
-             mock.patch.object(daily_runner, 'ssh_config', return_value=(['ssh'], {})), \
-             mock.patch.object(daily_runner, 'package_tables', side_effect=fake_package_tables), \
-             mock.patch('data_platform.business_library.load_library',
-                        return_value=(self.library_manifest, None, None)):
-            return daily_runner.run(
-                self.workspace, self.day, prepared_sources=self.pair,
-                advertising_manifest=advertising_manifest,
-            )
-
-    def build_command(self):
-        return next(args for args in self.commands
-                    if args[:4] == [daily_runner.sys.executable, '-m',
-                                    'dashboard_product.shadow_bi.library', 'build'])
-
-    def test_default_build_publishes_and_advances_current_pointer(self):
-        result = self.run_daily()
-
-        self.assertEqual(result['status'], 'published')
-        self.assertNotIn('--advertising-manifest', self.build_command())
-        current = json.loads((self.workspace / 'Output/ShadowDaily/current.json').read_text())
-        self.assertEqual(current['status'], 'published')
-        self.assertEqual(current['run_id'], self.run_id)
-
-    def test_explicit_empty_advertising_manifest_is_passed_to_business_build(self):
-        manifest = self.workspace / 'Input/AdvertisingCosts/empty-candidate.json'
-        manifest.parent.mkdir(parents=True)
-        manifest.write_text(json.dumps({'sources': []}))
-
-        result = self.run_daily(advertising_manifest=manifest)
-
-        build = self.build_command()
-        option = build.index('--advertising-manifest')
-        self.assertEqual(build[option + 1], str(manifest))
-        self.assertEqual(result['status'], 'published')
-
-    def test_failed_run_writes_batch_result_and_preserves_current_pointer(self):
-        state = self.workspace / 'Output/ShadowDaily'
-        state.mkdir(parents=True)
-        previous = {'run_id': 'run_shadow_daily_previous', 'status': 'published'}
-        (state / 'current.json').write_text(json.dumps(previous))
-
-        with self.assertRaisesRegex(RuntimeError, 'synthetic publish failure'):
-            self.run_daily(fail_publish=True)
-
-        current = json.loads((state / 'current.json').read_text())
-        batch = json.loads((state / self.run_id / 'result.json').read_text())
-        self.assertEqual(current, previous)
-        self.assertEqual(batch['status'], 'failed')
-        self.assertEqual(batch['error_type'], 'RuntimeError')
 
 class SourceReceiptCollectionTests(unittest.TestCase):
     def build_fixture(self, root, corrupt=False):

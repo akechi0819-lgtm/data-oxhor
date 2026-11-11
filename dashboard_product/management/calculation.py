@@ -55,20 +55,19 @@ def reconciliation(result, old_rows, people, training_targets, facts):
                 after = team['lines']['training'][kind]['actual']
                 difference = None if after is None else round(after-before, 2)
                 confirmed_delta = 0
-                if kind == 'cash':
-                    for fact in facts:
-                        if (fact.get('team_override_reason') and fact['metric'] == 'cash'
-                                and period['start_date'] <= fact['event_date'] <= period['through_date']
-                                and (group is None or fact.get('business_group') == group)):
-                            confirmed_delta += fact['value'] * (
-                                int(fact.get('team_id') == tid) - int(fact.get('team_before_override') == tid))
+                for fact in facts:
+                    if (fact.get('team_override_reason') and fact['metric'] == kind
+                            and period['start_date'] <= fact['event_date'] <= period['through_date']
+                            and (group is None or fact.get('business_group') == group)):
+                        confirmed_delta += fact['value'] * (
+                            int(fact.get('team_id') == tid) - int(fact.get('team_before_override') == tid))
                 confirmed_delta = round(confirmed_delta, 2)
                 status = ('matched' if difference == 0 else 'confirmed_change'
                           if confirmed_delta != 0 and difference == confirmed_delta else 'difference')
                 rows.append({'label': f"{period['label']} · {team['name']} · 语培{'工单' if kind == 'orders' else '现金'}",
                              'baseline': before, 'current': after, 'difference': difference,
                              'status': status,
-                             'reason': '用户确认的逐笔现金团队归属调整' if status == 'confirmed_change' else ''})
+                             'reason': '用户确认的线上来源或逐笔现金团队归属调整' if status == 'confirmed_change' else ''})
     return {'rows': rows, 'notes': [
         '基线为同一Snapshot、同一截止日按现有V14 SQL和现有归属代码复算，不是抓取公网旧页。',
         '空团队顾问标签修正、跨部门产能独立展示等变化应逐项解释，不要求无条件强行对齐。',
@@ -132,6 +131,9 @@ def calculate(args):
                                   [start, end, attachment_start, study_advisers, prep_advisers, ['主动','被动']], f'training_{i}'))
         order_rows.extend(fetch(HERE / 'sql/orders.sql', [start, end, attachment_start], f'orders_{i}'))
     all_training_rows = training_rows
+    from dashboard_product.management.school_attributes import attach_school_attributes
+    school_rows = fetch(HERE / 'sql/school_attributes.sql', [], 'school_attributes')
+    attach_school_attributes(all_training_rows, school_rows)
     training_rows = [r for r in all_training_rows if r['acquisition_mode'] == '被动']
     new_student_cash_rows = fetch(
         HERE / 'sql/new_student_cash.sql',
@@ -215,6 +217,7 @@ def calculate(args):
     attach_team_scope_views(body['periods'], facts, market_order_rows, targets, new_student_cash_rows)
     segments = selection_views(body['periods'], facts, people, targets)
     notes = [
+        'TMK平台及已核实的直接线上投放归线上平台；虚拟人、总部在线分别归虚拟人和SSC。外呼、死单返打等保留原归属，个人考核与跨部门产能按原资格规则。',
         '语培市场总盘按观远工单总看板的8类原始团队及被动工单统计，不以顾问推断补入空团队；保留全部工单状态。',
         '团队按自然月，个人业绩按上月26日至本月25日；线下跨部门工单只计产能，线上虚拟人个人工单和现金按活动、录入人、描述中的姓名独立认领，不改团队归属。',
         '大学原本业务线工单目标不变，另一业务线目标按原月目标10%四舍五入；2026年11月语培线下人员留学目标采用用户确认值；其他团队不强制下跨业务线目标。',
@@ -224,7 +227,7 @@ def calculate(args):
         'SSC及待确认归属只计留学总盘，不计线上/线下留学团队；国际市场资源按真实来源标记进入人员产能，SSC和unassigned范围保持既定规则；语培市场总盘不混入已确认留学工单。',
         '删除、回收工单计入总盘和各团队核算，但不计原个人业绩；现金资格不因关联工单状态改变。',
         '新版人员产能按自然月、语培/留学本业务拆分自创、接收和输出；BI一级渠道“双分”标记留学到语培，留学Snapshot国际市场标记语培到留学，关联现金保留签约/实缴本行归属；删除／回收与死单独立切换，默认排除删除／回收、包含死单，仅影响工单及相关率；主看板与通知留学工单、现金及人头消费独立仓事实。',
-        '留学团队归属以本sheet市场归属人为权威，通过花名册/已确认映射拆分；现金不从关联资源覆盖归属。缺覆盖期间不补零，留学不做同比。',
+        '留学正常市场分段中明确的网络资源、虚拟人和总部在线优先归对应板块；其余按本sheet市场归属人及已确认映射拆分，现金不从关联资源覆盖归属。缺覆盖期间不补零，留学不做同比。',
     ]
     public = {'schema_version': 'dashboard_rebuild.v1', 'metadata': {
         'title': '市场经营 · 管理融合看板', 'snapshot_id': args.snapshot_id, 'run_id': args.run_id,

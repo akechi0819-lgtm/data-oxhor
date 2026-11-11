@@ -761,6 +761,56 @@ class ManagementAggregateTest(unittest.TestCase):
         self.assertEqual(by_team(september, 'university')['lines']['training']['orders']['actual'], 1)
         self.assertEqual(by_team(september, 'university')['lines']['abroad']['orders']['actual'], 0)
 
+    def test_virtual_abroad_segment_and_supplemental_rows_reconcile_to_total(self):
+        people = inputs(
+            [training_person('大学同事', '大学')], [],
+            virtual=[training_person('虚拟甲', '大学')],
+        )
+        rows = [
+            fact('abroad-offline', 'orders', 'abroad', '2026-09-10', 1,
+                 team='offline_market', owners=['大学同事'],
+                 acquisition_mode='offline', offline_channel_eligible=True,
+                 segment_id='study_abroad_offline'),
+            fact('abroad-online', 'orders', 'abroad', '2026-09-10', 1,
+                 team='online_platform', owners=['平台同事'],
+                 acquisition_mode='online', segment_id='study_abroad_online'),
+            fact('abroad-virtual', 'orders', 'abroad', '2026-09-10', 1,
+                 team='online_private', owners=['虚拟甲'], virtual_owners=['虚拟甲'],
+                 segment_id='study_abroad_virtual'),
+            fact('abroad-ssc', 'orders', 'abroad', '2026-09-10', 1,
+                 team=None, segment_id='ssc'),
+            fact('abroad-international', 'orders', 'abroad', '2026-09-10', 1,
+                 team=None, segment_id='international_market'),
+            fact('abroad-unassigned', 'orders', 'abroad', '2026-09-10', 1,
+                 team=None, segment_id='unassigned'),
+        ]
+
+        result = build(rows, people, through='2026-09-28', abroad={'people': []})
+        september = next(period for period in result['periods'] if period['id'] == '2026-09')
+        total = by_team(september, 'total')
+        university = by_team(september, 'university')
+        online = by_team(september, 'online')
+        virtual = by_team(september, 'virtual')
+        supplemental = {
+            row['id']: row for row in total['lines']['abroad']['supplemental']
+        }
+
+        self.assertEqual(university['lines']['abroad']['orders']['actual'], 1)
+        self.assertEqual(online['lines']['abroad']['orders']['actual'], 1)
+        self.assertEqual(virtual['lines']['abroad']['orders']['actual'], 1)
+        self.assertEqual(virtual['lines']['abroad']['orders']['status'], 'available')
+        self.assertEqual(supplemental['ssc']['orders']['actual'], 1)
+        self.assertEqual(supplemental['international_market']['orders']['actual'], 1)
+        self.assertEqual(supplemental['unassigned']['orders']['actual'], 1)
+        self.assertEqual(
+            university['lines']['abroad']['orders']['actual']
+            + online['lines']['abroad']['orders']['actual']
+            + virtual['lines']['abroad']['orders']['actual']
+            + sum(row['orders']['actual'] for row in supplemental.values()),
+            total['lines']['abroad']['orders']['actual'],
+        )
+        self.assertEqual(total['lines']['abroad']['orders']['actual'], 6)
+
     def test_virtual_personal_orders_and_cash_use_virtual_owners_across_team_and_group(self):
         people = inputs(
             [training_person('大学同事', '大学')],

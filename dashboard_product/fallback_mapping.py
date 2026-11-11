@@ -4,6 +4,8 @@ import json
 from functools import lru_cache
 from pathlib import Path
 
+from dashboard_product.management.platforms import OTHER as OTHER_PLATFORM, canonical_platform
+
 
 RULES_PATH = Path(__file__).parent / 'config' / 'cash_channel_fallback_rules.json'
 CHANNEL_UNASSIGNED = '暂时无法识别渠道'
@@ -17,6 +19,11 @@ TEAM_NAMES = {
     'online_platform': '线上市场',
     'online_private': '虚拟人团队',
 }
+TMK_PLATFORM_CHANNEL = 'TMK激活-平台'
+NON_PLATFORM_CATEGORIES = frozenset({
+    OTHER_PLATFORM, '个人渠道', '合作推荐', '市场活动', '电话/在线咨询',
+    '官网/自有入口', '总部电商',
+})
 
 
 @lru_cache(maxsize=1)
@@ -59,6 +66,34 @@ def _has_existing_combo(first_channel, second_channel):
         value is not None and str(value).strip() not in CHANNEL_PLACEHOLDERS
         for value in (first_channel, second_channel)
     )
+
+
+def confirmed_training_platform_team(resource_first_channel, resource_second_channel,
+                                     source_channel, campaign_name):
+    """Return a team only for the reviewed direct-training online-source patterns."""
+    first = str(resource_first_channel or '').strip()
+    second = str(resource_second_channel or '').strip()
+    source = str(source_channel or '').strip()
+    campaign = str(campaign_name or '').strip()
+
+    if first != '市场活动':
+        return None
+    if second == '大学媒体投放':
+        if source == '虚拟人':
+            return 'online_private', '经核实原渠道为虚拟人（市场活动→大学媒体投放）'
+        platform = canonical_platform(source)
+        if platform not in NON_PLATFORM_CATEGORIES:
+            return (
+                'online_platform',
+                f'经核实直接线上投放（市场活动→大学媒体投放，原渠道：{source}）',
+            )
+    if (second == '异业渠道' and source == '全媒体平台（其他）'
+            and '抖音咨询-线上渠道推荐' in campaign):
+        return (
+            'online_platform',
+            '经核实抖音咨询-线上渠道推荐（市场活动→异业渠道，全媒体平台）',
+        )
+    return None
 
 
 def resolve_cash_channel(cash_channel, cash_campaign_name, work_order_first_channel,
@@ -137,12 +172,14 @@ def resolve_cash_channel(cash_channel, cash_campaign_name, work_order_first_chan
 
 
 def infer_team(existing_team_id, cash_channel, campaign_name, first_channel, second_channel, decision):
-    """Infer only a missing cash team; return None when the evidence conflicts or is weak."""
+    """优先执行平台资源归属，再应用既有现金团队兜底规则。"""
     title = str(campaign_name or '')
     raw_channel = str(cash_channel or '')
     first = str(first_channel or '')
     second = str(second_channel or '')
 
+    if first == TMK_PLATFORM_CHANNEL:
+        return 'online_platform', '标准一级渠道为TMK激活-平台'
     if 'TMK' in raw_channel.upper() or first.startswith('TMK激活'):
         return 'offline_market', 'TMK 按确认规则归线下市场'
     if decision == CHANNEL_NATURAL:
@@ -166,7 +203,7 @@ def infer_team(existing_team_id, cash_channel, campaign_name, first_channel, sec
     if offline:
         return 'offline_market', '活动名明确线下/活动信号'
 
-    if first in ('平台', 'TMK激活-平台'):
+    if first == '平台':
         return 'online_platform', '标准一级渠道为平台'
     if first in ('市场活动', 'TMK激活-市场活动', 'TMK激活'):
         return 'offline_market', '标准一级渠道为市场活动/TMK'

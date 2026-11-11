@@ -53,6 +53,9 @@ def install(app):
         from superset import db
         from superset.models.core import Database
         database=db.session.query(Database).filter_by(database_name='市场经营 · 2026-10-22独立批次').one()
+        if (LIBRARY/'candidate.json').is_file():
+            from dashboard_product.shadow_bi.p4.sql_release import version as sql_version
+            return jsonify(sql_version(LIBRARY,database))
         with database.get_sqla_engine() as engine:
             with engine.connect() as con:batch=con.exec_driver_sql('SELECT batch_id FROM queries.batch').scalar()
         manifest=json.loads((LIBRARY/'library_manifest.json').read_text())

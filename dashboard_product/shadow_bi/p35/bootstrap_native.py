@@ -4,6 +4,7 @@ from pathlib import Path
 from datetime import datetime,UTC
 from dashboard_product.shadow_bi.p3.catalog import AUDIT,PAGES,VIEWS,LIBRARY
 from dashboard_product.shadow_bi.p35.native_catalog import native_views,numeric_sort_bindings
+from dashboard_product.shadow_bi.p35.coverage_note import coverage_note
 
 
 def percentage_bar_css(charts):
@@ -41,10 +42,6 @@ def configure_window_table(params, columns):
         params.setdefault('column_config',{})['时间进度']={'d3NumberFormat':'.1%','showCellBars':True}
 
 
-def coverage_note(coverage):
-    return '![观近头像](/p3/assets/01-avatar.png) ![观近数据助手](/p3/assets/02-data-tablet.png)\n\n## 观近 · 市场经营\n\n语培截至 '+coverage['data_through']+' · 留学截至 '+coverage['study_abroad_source']['through_date']+' · 金额单位：元'
-
-
 def overview_option_sql():
     # 候选值只读现有维度列；不为加载下拉框展开经营JSON及指标。
     return {
@@ -64,6 +61,38 @@ def attach_overview_options(filters,database_id,user):
         if not dataset.columns:dataset.fetch_metadata()
         for item in filters:
             if item['id'].startswith('NATIVE_FILTER-p3-overview-') and item['targets'][0]['column']['name']==name:
+                item['targets'][0]['datasetId']=dataset.id
+
+
+def prep_period_option_sql():
+    # 期间选项独立于业务组；下拉框请求不携带经营图表的业务组筛选。
+    return "SELECT DISTINCT period_id AS 期间 FROM queries.scoped_selection_team_periods WHERE acquisition_scope='被动'"
+
+
+def prep_filter_option_sql():
+    return {
+        '期间':prep_period_option_sql(),
+        '月模式':"SELECT unnest(['绩效月','自然月']) AS 月模式",
+        '含删除回收':"SELECT unnest(['不含','包含']) AS 含删除回收",
+        '含死单':"SELECT unnest(['不含','包含']) AS 含死单",
+    }
+
+
+def attach_prep_filter_options(filters,database_id,user):
+    from superset import db,security_manager
+    from superset.connectors.sqla.models import SqlaTable
+    reader_role=security_manager.find_role('ShadowReaderData')
+    for index,(name,sql) in enumerate(prep_filter_option_sql().items()):
+        table='p35_prep_period_options' if name=='期间' else 'p35_prep_control_options_'+str(index)
+        dataset=db.session.query(SqlaTable).filter_by(table_name=table,database_id=database_id).first() or SqlaTable(table_name=table,database_id=database_id,schema='queries',owners=[user])
+        dataset.sql=sql;db.session.add(dataset);db.session.flush()
+        if not dataset.columns:dataset.fetch_metadata()
+        # 原生筛选请求不带图表ID，沿用阅读角色的逐数据集授权。
+        if reader_role:
+            permission=security_manager.find_permission_view_menu('datasource_access',dataset.perm) or security_manager.add_permission_view_menu('datasource_access',dataset.perm)
+            security_manager.add_permission_role(reader_role,permission)
+        for item in filters:
+            if item['id'].startswith('NATIVE_FILTER-p3-prep-') and item['targets'][0]['column']['name']==name:
                 item['targets'][0]['datasetId']=dataset.id
 
 
@@ -259,6 +288,7 @@ def main():
         cid=platform_chart.id
         filters.append({'id':'NATIVE_FILTER-p35-platform-group','name':'平台业务组','filterType':'filter_select','type':'NATIVE_FILTER','targets':[{'datasetId':group_ds.id,'column':{'name':'平台业务组'}}],'defaultDataMask':{},'cascadeParentIds':[],'controlValues':{'enableEmptyFilter':False,'multiSelect':False,'searchAllOptions':True,'inverseSelection':False,'defaultToFirstItem':False},'chartsInScope':[cid],'scope':{'rootPath':['ROOT_ID'],'excluded':sorted(allids-{cid})},'tabsInScope':chart_tabs[cid],'description':'清除回到全部业务组；仅影响语培平台板块。'})
         attach_overview_options(filters,platform_ds.database_id,user)
+        attach_prep_filter_options(filters,platform_ds.database_id,user)
         # 每个控件只声明实际子页，不借团队父Tab扩大可见范围。
         priority={name:i for i,name in enumerate(['期间','线上期间','产能月份','个人月份','学校主被动','语培统计范围','管理单元','业务组','业务线','目标团队','平台业务组','平台','学校','人员','六维人员','排序依据','排序方向','条线','平台业务线','产品范围','线下团队','月模式','含删除回收','含死单'])}
         for item in filters:

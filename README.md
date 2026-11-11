@@ -1,6 +1,6 @@
 > **本地正式主线（2026-10-28）**：新版已取代旧正式 BI，唯一数据工作区为 `customers/shadow_bi_daily`。旧正式仓、重导基线仓、c373数据副本与旧看板派生产物已清理；原始输入和正式证据保留。当前状态、验证与清理回执见 [开发文档](DEVELOPMENT.md)。以下旧日期记录保留当时事实。
 
-> **2026-11-03 日更入口状态**：Mac 本地完整日更代码入口为 `data_acquisition.jobs.prepare_full_daily --publish`：发布业务基础看板后立即发送日报，通知确认后再采集并发布广告费用。默认模式（包括显式 `--prepare`）只生成隔离的本地候选。11/3 完成回执记录次日 bi-3 仍由本机 09:30 执行；这是日期回执，不是当前实时调度核验。服务器 raw 接收/计算/发布路径目前未启用；10/26 暂停记录保留为历史，详见[最新日更状态](docs/shadow-bi-full-daily-20261028.md)。
+> **SQL 日更链路（2026-11-07 已切换）**：`data_acquisition.jobs.prepare_full_daily --publish` 先发布 SQL 业务 release，再发送日报，随后刷新并发布费用；Superset、MCP 和通知读取同一正式 SQL release。旧 raw receiver、39 表 Python 计算与上传通道已退役。默认模式（含显式 `--prepare`）只生成隔离的本地候选。部署验收见[看板部署说明](dashboard_product/DEPLOYMENT.md)和[SQL 迁移记录](docs/shadow-bi-sql-local-migration.md)；bi-3 当前调度状态未在本说明中实时核验。
 
 # Data OXHor
 
@@ -26,7 +26,7 @@ grok_workspace/      Grok Bot 隔离工作面，角色与自主积累材料不�
 .local/              本地日志、同步中转和历史运行材料，不进入 Git
 ```
 
-正式维护对象为SQL数仓与BI刷新，旧静态HTML和可视化计算副本已退役。Mac 完整日更按业务发布→立即通知→广告费用发布执行，基础发布不依赖费用原件；`--prepare` 默认隔离，仅生成本地候选。广告费用由授权的日更采集流程接入，不再只有手工原表路径；腾讯品牌非空记录可自动分页、对账和入仓，其他来源的缺口仍如实保留。腾讯文档下载统一使用官方 MCP，旧 Cookie 下载器已退役。`monitoring_product` 从正式release构建固定通知包并投递，不承担自由分析或任意SQL；共享人员规则仍在 `workspace_modeling/operations/`。
+正式维护对象为 SQL 数仓与 BI 刷新，旧静态 HTML 和可视化计算副本已退役。Mac 完整日更按 SQL 业务发布→立即通知→SQL 费用发布执行；`--prepare` 默认隔离，仅生成本地候选。广告费用由授权的日更采集流程接入，不再只有手工原表路径；腾讯品牌非空记录可自动分页、对账和入仓，其他来源的缺口仍如实保留。腾讯文档下载统一使用官方 MCP，旧 Cookie 下载器已退役。`monitoring_product` 从正式 release 构建固定通知包并投递，不承担自由分析或任意 SQL；共享人员规则仍在 `workspace_modeling/operations/`。
 
 模块关系如下：
 
@@ -60,7 +60,7 @@ grok_workspace/      Grok Bot 隔离工作面，角色与自主积累材料不�
 
 ## 阶段状态
 
-2026-09-18 架构阶段的查询证据、自由分析交付和 Casebook 验证已完成，历史记录见[施工计划与验收](./docs/history/agent-architecture-plan-20260918.md)。正式 BI 产品为 Superset 原生界面。11/3 完成回执记录正式代码与独立通知 current 的 127 个源文件 SHA 一致；bi-3 仍由本机负责采集并调用云端 P4／通知入口，旧 Cookie 下载器已从两个现行代码目录移除。该回执记载 11/4 09:30 计划运行，但不是实时调度核验；服务器 raw 接收/计算/发布路径仍 inactive。10/26 Dot raw 批次因业务截止不符而 `failed/published=false`、未产生正式 release，是历史批次事实；不代表 Mac 当前日更方式。完整运行顺序与已知来源缺口见[最新日更状态](./docs/shadow-bi-full-daily-20261028.md)，通知与发布边界见[日常监控](./monitoring_product/README.md)和[部署说明](./dashboard_product/DEPLOYMENT.md)。
+2026-09-18 架构阶段的查询证据、自由分析交付和 Casebook 验证已完成，历史记录见[施工计划与验收](./docs/history/agent-architecture-plan-20260918.md)。正式 BI 产品为 Superset 原生界面。2026-11-07 的验收记录了 SQL 单仓切换、旧 raw 计算/传输通道清理及业务→通知→费用的发布顺序；bi-3 调度状态没有在此处实时核验。10/26 Dot raw 批次因业务截止不符而 `failed/published=false`、未产生正式 release，是历史批次事实。运行顺序与已知来源缺口见[日更记录](./docs/shadow-bi-full-daily-20261028.md)、[SQL 迁移记录](./docs/shadow-bi-sql-local-migration.md)，部署和通知边界见[看板部署说明](./dashboard_product/DEPLOYMENT.md)与[日常监控](./monitoring_product/README.md)。
 
 ## 常用入口
 

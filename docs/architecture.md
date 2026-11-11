@@ -1,6 +1,6 @@
 > **2026-10-28唯一正式BI数据源**：本机main使用 `customers/shadow_bi_daily`，旧正式仓、独立基线仓和c373数据镜像已退役；不维护双轨。语培/留学Snapshot仍是这一套链路内部的必要分工。原始输入及少量正式附件归档保留，当前状态见[开发文档](../DEVELOPMENT.md)。本轮未操作服务器或日程；以下旧日期记录保留历史边界。
 
-> **当前日更代码入口（2026-11-03）**：Mac 本地 `prepare_full_daily --publish` 按“业务基础发布→立即通知→采集并发布广告费用”执行；默认模式（含 `--prepare`）只生成隔离候选。11/3 完成回执记录 127 个云端源文件与本机 SHA 一致，并记载次日 bi-3 仍由本机 09:30 执行；这是日期回执，不是实时调度核验。服务器 raw 接收/计算/发布目前未启用，10/26 暂停及失败批次是历史事实。完整状态见[日更说明](shadow-bi-full-daily-20261028.md)。
+> **SQL 日更链路（2026-11-07 已切换）**：Mac `prepare_full_daily --publish` 经 `business_first_daily` 调用 `p5.daily` 的 SQL 建仓与 P4 SQL release 发布；业务发布后发送日报，再以 SQL release 刷新费用。默认模式（含 `--prepare`）只生成隔离候选。正式切换与验收见[部署说明](../dashboard_product/DEPLOYMENT.md)及[SQL 迁移记录](shadow-bi-sql-local-migration.md)；bi-3 调度是否仍启用须另行实时核验。
 
 > **历史部署背景（2026-10-26）**：当日 Mac `p5.daily` 更新了 `daily-20261026_094052`；服务器 raw worker 跑到39张表后因截止不匹配以 `failed/published=false` 结束，没有发布 raw release。10/26 清理回执记录暂停 raw 接收/计算/发布；11/3 完成回执仍记载 raw 路径未启用。旧批次、Dot 10:00 通知记录与当前 Mac 日更入口各自独立。部署细节见[正式基线](bi-production-baseline-20261025.md)、[raw接收回执](server-raw-receiver-deployment-20261026.md)及[固定发布回执](server-raw-fixed-publisher-20261026.md)。
 
@@ -75,25 +75,25 @@
 
 运行以显式 `run_id` 区分，查询和恢复以显式 `snapshot_id` 定位仓库。源 SHA-256 用于 inspect/ingest 的源绑定以及 Snapshot/Artifact manifest。每个受控查询结果同时记录由 `ingest.sheets` 反查的 `referenced_relations` 与 `referenced_source_ids`；这只服务于冻结分析的来源校验，不扩张为统一血缘平台。SQL 是直接查询输入或保存查询内容。Education Pack 1.0.0 与 Company Bridge 按企业工作区独立版本化；Data Platform 不伪造 Pack/Bridge 选择。
 
-公共证据演进只统一查询回执、文件身份与业务交付清单的公共字段和引用，不统一产品业务内容，也不建设 Artifact Registry。Data Platform 生产物理执行证据，业务层绑定工作区与 Pack/Bridge，Casebook 复制最小引用闭包并验证；Pack.metrics 保持指标定义权威，不新建第二套指标库。字段责任、路径和分轮状态见 [公共证据合同](./evidence-contract.md)。第 2 轮已实现自由分析链路：查询始终落盘回执，交付组包与 Casebook 可独立验证；自由分析和市场入口通过 Data Platform 受控查询读取。BI 产品界面为 Superset 原生看板，服务器计算链路复用同一份业务计算代码；通知只消费固定正式 release，不独立查询数仓。
+公共证据演进只统一查询回执、文件身份与业务交付清单的公共字段和引用，不统一产品业务内容，也不建设 Artifact Registry。Data Platform 生产物理执行证据，业务层绑定工作区与 Pack/Bridge，Casebook 复制最小引用闭包并验证；Pack.metrics 保持指标定义权威，不新建第二套指标库。字段责任、路径和分轮状态见 [公共证据合同](./evidence-contract.md)。第 2 轮已实现自由分析链路：查询始终落盘回执，交付组包与 Casebook 可独立验证；自由分析和市场入口通过 Data Platform 受控查询读取。BI 产品界面为 Superset 原生看板；当前日更由 SQL warehouse build 与 SQL release activation 生成单仓，通知读取同批正式 release，不独立查询或重算数仓。
 
 固定看板和推送共用一条管理批次链路，不经过自由分析交付：
 
 ```text
-当前日更：Mac bi-3 → prepare_full_daily --publish
-  → 双Snapshot / 共同计算 → 基础BI release / current
-                  ├→ 固定通知入口 → shared_delivery → 8条通知
-                  └→ 复用同批 Snapshot 采集费用 → 费用 / ROI release
+当前 SQL 日更：Mac bi-3 → prepare_full_daily --publish
+  → 双Snapshot → SQL warehouse build → P4 SQL release / current
+                                     ├→ 固定通知入口 → shared_delivery
+                                     └→ 同批费用采集 → SQL warehouse 更新与 release
 
-当前 raw 路径未启用：Dot三Excel → raw receiver / 双仓worker / 固定publisher
-  （10/26 的暂停与失败状态保留为历史；11/3 回执仍记载该路径未启用）
+旧 raw 路径：Dot三Excel → raw receiver / Python 39表 worker / 固定publisher
+  （已于 2026-11-07 SQL 切换时退役；10/26 失败批次仅保留作历史记录）
 ```
 
 同批通知内容、查询回执和 DeliveryState 保存在受限工作目录，不发布到 BI 页面根；只将投递所需的图片与表格资源提供给固定通知资产路径。钉钉 webhook 和发布凭据属于 C 层，不进入公开仓库或 MCP。
 
-本地main的raw计算与固定发布代码另要求受保护来源完成证明：计算预检缺证据则停止，候选封口/复用及固定发布前复核同一证明；最大记录日与经验证截止分开。10月26日部署回执对应服务器已安装版本，不含本轮本地新增的完成证明门禁，因此不能推断该新门禁已在服务器生效。合同见[来源完整性](server-source-completion-candidate.md)。
+保留的旧 raw 计算/固定发布代码另要求受保护来源完成证明；该门禁只约束旧 raw 路径，不是当前 SQL 日更的发布合同。10月26日服务器部署回执不含该本地门禁；旧 raw 路径随后在 SQL 切换中退役。合同见[来源完整性](server-source-completion-candidate.md)。
 
-11/3 完成回执记录正式云端代码与本机 127 个源文件 SHA 一致，次日 bi-3 仍计划由 Mac 09:30 采集，再调用云端 P4 与通知入口；回执没有实读当前调度平台。当天双仓基础版、费用版已发布，日报 8 条已 sent 且本次未重发；正式current为 `daily-20261103_141437`。服务器 raw 计算与发布路径仍未启用。
+**历史（2026-11-03）**：当日回执记录正式云端代码与本机 127 个源文件 SHA 一致，次日 bi-3 计划由 Mac 09:30 采集，再调用云端 P4 与通知入口；回执没有读取实时调度状态。当天双仓基础版、费用版已发布，日报 8 条已 sent 且未重发；current 为 `daily-20261103_141437`。服务器 raw 路径当时未启用，之后的 SQL 切换记录见[部署说明](../dashboard_product/DEPLOYMENT.md)。
 
 10/26 历史日期回执记录当时 current `daily-20261026_094052`（数据截止10-25），由 Mac `p5.daily` 更新。Dot 批次 `raw-20261026-dot-001` 跑完双Snapshot、quality及39表计算后，因业务截止不匹配以 `failed/published=false` 结束，未激活新版本；10/26 清理回执暂停 raw 路径。Dot 10:00 日程记录针对通知，与 BI 采集／刷新分开；Grok 例行按用户要求停止。详见[通知作业修复回执](./notification-job-receipt-repair-20261026.md)、[接收部署回执](./server-raw-receiver-deployment-20261026.md)和[固定发布回执](./server-raw-fixed-publisher-20261026.md)。
 

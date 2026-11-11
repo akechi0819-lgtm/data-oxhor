@@ -18,7 +18,7 @@ ProtectHome=true
 ProtectSystem=strict
 ReadWritePaths=/var/lib/shadow-bi/app
 ReadOnlyPaths=/var/lib/shadow-bi/releases
-MemoryMax=1400M
+MemoryMax=4G
 TasksMax=128
 [Install]
 WantedBy=multi-user.target

@@ -1,4 +1,4 @@
-from workspace_modeling.operations.personnel import PEOPLE_CONFIG_PATH, is_displayable_person
+from workspace_modeling.operations.personnel import PEOPLE_CONFIG_PATH
 import json
 import unittest
 from pathlib import Path
@@ -178,131 +178,11 @@ class ProjectTest(unittest.TestCase):
 
         self.assertEqual(ma_ao["monthly_drilldowns"]["2026-09"]["orders"]["TMK||校园"], 3)
 
-    def test_tmk_school_agent_owned_by_offline_roster_counts_offline(self):
-
-        from dashboard_product.refresh import remap_tmk_school_agent_team
+    def test_tmk_platform_school_agent_routes_to_platform(self):
 
         root = Path(__file__).resolve().parents[1]
 
         people = read(PEOPLE_CONFIG_PATH)
-
-        offline_names = {
-
-            person.get("display_name")
-
-            for team in people["teams"] if team["team_id"] == "offline_market"
-
-            for group in team.get("groups", [])
-
-            for person in group.get("members", [])
-
-            if is_displayable_person(person)
-
-        }
-
-        self.assertEqual(
-
-            remap_tmk_school_agent_team(
-
-                "online_platform",
-
-                "TMK激活-平台",
-
-                "2027财年第4财月91校代系统资源活动",
-
-                "石仁达",
-
-                offline_names,
-
-            ),
-
-            "offline_market",
-
-        )
-
-        for person_name in ("刘彬", "马澳", "石仁达"):
-
-            for note_label in ("备注:", "备注："):
-
-                self.assertEqual(
-
-                    remap_tmk_school_agent_team(
-
-                        "online_platform",
-
-                        "TMK激活-平台",
-
-                        "2027财年第4财月91校代系统资源活动",
-
-                        f"{person_name}{note_label}联系人刘彬",
-
-                        offline_names,
-
-                    ),
-
-                    "offline_market",
-
-                )
-
-        self.assertEqual(
-
-            remap_tmk_school_agent_team(
-
-                "online_platform",
-
-                "TMK激活-平台",
-
-                "2027财年第4财月91校代系统资源活动",
-
-                "无名人员备注：石仁达",
-
-                offline_names,
-
-            ),
-
-            "online_platform",
-
-        )
-
-        self.assertEqual(
-
-            remap_tmk_school_agent_team(
-
-                "online_platform",
-
-                "平台",
-
-                "2027财年第4财月91校代系统资源活动",
-
-                "石仁达",
-
-                offline_names,
-
-            ),
-
-            "online_platform",
-
-        )
-
-        self.assertEqual(
-
-            remap_tmk_school_agent_team(
-
-                "online_platform",
-
-                "TMK激活-平台",
-
-                "2027财年第4财月抖音来客-新媒体管家",
-
-                "石仁达",
-
-                offline_names,
-
-            ),
-
-            "online_platform",
-
-        )
 
         rows = [
 
@@ -324,15 +204,13 @@ class ProjectTest(unittest.TestCase):
 
         uni_platform = next(item for item in platform["groups"] if item["display_name"] == "大学")
 
-        self.assertEqual(shi["orders_actual"], 3)
+        self.assertEqual(shi["orders_actual"], 0)
 
-        self.assertEqual(shi["monthly_actuals"]["orders"][3], 3)
+        self.assertEqual(uni_offline["monthly_actuals"]["orders"][3], 0)
 
-        self.assertEqual(shi["monthly_drilldowns"]["2026-09"]["orders"]["TMK激活-平台||小表单"], 3)
+        self.assertEqual(uni_platform["monthly_actuals"]["orders"][3], 7)
 
-        self.assertEqual(uni_offline["monthly_actuals"]["orders"][3], 3)
-
-        self.assertEqual(uni_platform["monthly_actuals"]["orders"][3], 4)
+        self.assertIn("2026-09|online_platform|大学|TMK激活-平台|小表单", result["drilldowns"]["current"]["orders"]["channel"])
 
     def test_cash_channel_contract_uses_work_order_left_join(self):
 

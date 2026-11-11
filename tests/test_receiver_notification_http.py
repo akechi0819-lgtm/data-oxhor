@@ -14,12 +14,28 @@ except ModuleNotFoundError:
     raise unittest.SkipTest('receiver HTTP tests require locked Flask runtime')
 from dashboard_product.shadow_bi.p5 import notification_contract as c
 
+
+def write_sql_release(library, *, as_of_date='2026-10-25', through='2026-10-24'):
+    snapshots={'training':'snapshot_training','abroad':'snapshot_abroad'}
+    coverage={'data_through':through,'snapshot_id':snapshots['training'],
+              'study_abroad_source':{'snapshot_id':snapshots['abroad'],'through_date':through}}
+    candidate={'schema_version':'sql_warehouse_candidate.v1','batch_id':'run_http_fixture',
+               'as_of_date':as_of_date,'through_date':through,'snapshots':snapshots,
+               'database':{'path':'warehouse.duckdb','sha256':'d'*64}}
+    raw=json.dumps(candidate).encode();(library/'candidate.json').write_bytes(raw)
+    digest=hashlib.sha256(raw).hexdigest()
+    release={'schema_version':'sql_warehouse_release.v1','release_id':library.parent.name,
+             'batch_id':candidate['batch_id'],'as_of_date':as_of_date,'snapshots':snapshots,
+             'coverage':coverage,'candidate':{'path':'candidate.json','sha256':digest},
+             'candidate_sha256':digest,'database_sha256':'d'*64}
+    (library/'release.json').write_text(json.dumps(release))
+
 class ReceiverNotificationHTTPTests(unittest.TestCase):
     def setUp(self):
         tmp=tempfile.TemporaryDirectory();self.addCleanup(tmp.cleanup)
         base=Path(tmp.name);root=base/'receiver';release=base/'releases/daily-fixture'
         (release/'library').mkdir(parents=True);(base/'current').symlink_to(release)
-        (release/'library/library_manifest.json').write_text(json.dumps({'as_of_date':'2026-10-25','coverage':{'data_through':'2026-10-24'}}))
+        write_sql_release(release/'library')
         self.control=base/'control';(self.control/'results').mkdir(parents=True)
         (self.control/'policy.json').write_text(json.dumps({'send_start_date':'2026-10-26','no_backfill':True,'history_complete':False,'imported_state_ready':True}))
         token='synthetic-only'

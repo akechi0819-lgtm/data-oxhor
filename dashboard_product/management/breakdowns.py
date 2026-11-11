@@ -15,6 +15,10 @@ UNASSIGNED_GROUP = '业务组暂无法拆分'
 UNKNOWN_CHANNEL = '二级渠道待确认'
 UNKNOWN_FIRST_CHANNEL = '一级渠道待确认'
 UNKNOWN_SCHOOL = '暂无归属'
+UNIVERSITY_SCHOOL_ATTRIBUTES = (
+    '大学*', '本地大学', '归巢大学', '国外大学', '毕业及其他',
+)
+UNIVERSITY_OTHER_ATTRIBUTE = '毕业及其他'
 
 
 # Display-only aliases explicitly confirmed by the user on 2026-09-30.
@@ -98,6 +102,20 @@ def _channel_group(fact, line):
         return _source_group(fact) or UNASSIGNED_GROUP
     group = str(fact.get('business_group') or '').strip()
     return group if group in BUSINESS_GROUPS else UNASSIGNED_GROUP
+
+
+def _university_school_attribute(fact, line):
+    """Use the normalized school attribute; abroad facts have no school identity."""
+    if line == 'abroad':
+        return UNIVERSITY_OTHER_ATTRIBUTE
+    attribute = str(fact.get('school_attribute') or '').strip()
+    return attribute if attribute in UNIVERSITY_SCHOOL_ATTRIBUTES else UNIVERSITY_OTHER_ATTRIBUTE
+
+
+def _university_school_name(fact, line):
+    if line == 'abroad':
+        return UNKNOWN_SCHOOL
+    return str(fact.get('channel_school_name') or fact.get('school_name') or '').strip() or UNKNOWN_SCHOOL
 
 
 def _fact_matches(fact, predicate, *, field=None, value=None):
@@ -212,26 +230,63 @@ def _channels(facts, team, period):
             orders = _measure(channel_facts, line, 'orders', channel_filter, period, team_id)
             cash = _measure(channel_facts, line, 'cash', channel_filter, period, team_id)
             heads = _measure(channel_facts, line, 'heads', channel_filter, period, team_id)
-            group_names = sorted({
-                _channel_group(fact, line)
-                for fact in channel_facts
-                if _channel_identity(fact) == (first_channel, second_channel)
-            })
+            if team_id == 'university':
+                present_attributes = {
+                    _university_school_attribute(fact, line)
+                    for fact in channel_facts
+                    if _channel_identity(fact) == (first_channel, second_channel)
+                }
+                group_names = [name for name in UNIVERSITY_SCHOOL_ATTRIBUTES
+                               if name in present_attributes]
+            else:
+                group_names = sorted({
+                    _channel_group(fact, line)
+                    for fact in channel_facts
+                    if _channel_identity(fact) == (first_channel, second_channel)
+                })
             groups = []
             for group_name in group_names:
-                group_filter = lambda fact, group=group_name: (
-                    channel_filter(fact) and _channel_group(fact, line) == group
-                )
-                groups.append({
+                if team_id == 'university':
+                    group_filter = lambda fact, group=group_name: (
+                        channel_filter(fact) and _university_school_attribute(fact, line) == group
+                    )
+                else:
+                    group_filter = lambda fact, group=group_name: (
+                        channel_filter(fact) and _channel_group(fact, line) == group
+                    )
+                group = {
                     'name': group_name,
                     'orders': _measure(channel_facts, line, 'orders', group_filter, period, team_id),
                     'cash': _measure(channel_facts, line, 'cash', group_filter, period, team_id),
                     'heads': _measure(channel_facts, line, 'heads', group_filter, period, team_id),
-                })
+                }
+                if team_id == 'university':
+                    school_names = sorted({
+                        _university_school_name(fact, line)
+                        for fact in channel_facts if group_filter(fact)
+                    })
+                    group['schools'] = []
+                    for school_name in school_names:
+                        school_filter = lambda fact, school=school_name: (
+                            group_filter(fact) and _university_school_name(fact, line) == school
+                        )
+                        group['schools'].append({
+                            'name': school_name,
+                            **{
+                                kind: _measure(channel_facts, line, kind, school_filter, period, team_id)
+                                for kind in ('orders', 'cash', 'heads')
+                            },
+                        })
+                groups.append(group)
             for group in groups:
                 group['share'] = group['orders']['actual'] / all_orders['actual'] if all_orders.get('actual') and group['orders']['actual'] is not None else None
                 group['cash_share'] = group['cash']['actual'] / all_cash['actual'] if all_cash.get('actual') and group['cash']['actual'] is not None else None
                 group['channel_cash_share'] = group['cash']['actual'] / cash['actual'] if cash.get('actual') and group['cash']['actual'] is not None else None
+                if team_id == 'university':
+                    for school in group['schools']:
+                        school['share'] = school['orders']['actual'] / all_orders['actual'] if all_orders.get('actual') and school['orders']['actual'] is not None else None
+                        school['cash_share'] = school['cash']['actual'] / all_cash['actual'] if all_cash.get('actual') and school['cash']['actual'] is not None else None
+                        school['channel_cash_share'] = school['cash']['actual'] / cash['actual'] if cash.get('actual') and school['cash']['actual'] is not None else None
             share = None
             cash_share = None
             if orders.get('actual') is not None and all_orders.get('actual'):

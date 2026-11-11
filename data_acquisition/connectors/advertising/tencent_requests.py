@@ -431,13 +431,20 @@ class TencentExport:
         query_rows=[]
         for query_path in sorted(folder.glob('query-page-*.json')):
             query_rows+=json.loads(query_path.read_text())['data']['list']
-        expected={r['report']['date']:r['report']['cost'] for r in query_rows}
-        from decimal import Decimal
+        expected = {}
+        for row in query_rows:
+            try:
+                amount = Decimal(str(row['report'].get('cost')).replace(',', ''))
+                if not amount.is_finite():
+                    raise InvalidOperation
+            except InvalidOperation:
+                raise ExportBlocked('tencent_query_cost_invalid') from None
+            expected[row['report']['date']] = amount
         def inspect(path):
             native=inspect_report(path,account_id='74749810',product_scope=self.scope,time_basis='播放口径',start_date=start,through_date=through)
             if native['rows']!=state['query_rows'] or {r['date'] for r in native['rows_data']}!=set(expected):
                 raise ExportBlocked('tencent_native_query_row_mismatch')
-            if any(Decimal(r['spend'])!=Decimal(expected[r['date']]) for r in native['rows_data']):
+            if any(Decimal(r['spend'])!=expected[r['date']] for r in native['rows_data']):
                 raise ExportBlocked('tencent_native_query_cost_mismatch')
             return native
         if not final.exists():
@@ -647,7 +654,7 @@ def verify_promotion_scope(workspace, *, contract_path, contract_sha256,
                 raw_cost = report.get('cost')
                 if raw_cost is None or (isinstance(raw_cost, str) and not raw_cost.strip()):
                     raise InvalidOperation
-                amount = Decimal(str(raw_cost))
+                amount = Decimal(str(raw_cost).replace(',', ''))
                 if not amount.is_finite():
                     raise InvalidOperation
             except (TypeError, ValueError, InvalidOperation):

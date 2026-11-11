@@ -1,3 +1,36 @@
+## SQL 看板迁移同步边界（2026-11-07；本地同批核验中、未切服务器）
+
+## 最新完整链路实测及费用恢复（2026-11-07）
+
+当前正式费用版为 `daily-sql-20261107-153941950641-7520a35133`；语培、留学和费用更新标注均为 2026-11-06，费用受控查询确认 4,041 行、43 个来源。原总入口费用补跑已成功，最终 complete／退出码 0；复用今日双 Snapshot，不重新采集业务。18 条经营指标补跑前后相同，正式单仓、18 项激活指标、MCP 5 表及公网查询通过。
+
+本次费用恢复没有发日报：发送入口调用 0 次，补跑前后全部 96 条投递记录逐值不变；今日此前 8 条 sent 保持原记录。最初业务实测的旧 88 条记录也未变；工单反馈此前新增 15 条且已读回。既有费用覆盖缺口仍如实展示，不补零。
+
+最新证据见[费用补跑结果](</Users/akechi/Desktop/manager -CowH/.local/audits/sql-fee-recovery-20261107/费用补跑结果.md>)。此前[首次业务实测结果](</Users/akechi/Desktop/manager -CowH/.local/audits/sql-daily-e2e-20261107/完整流程实测结果.md>)记录了当时的费用认证失败；该阶段现已恢复。下方迁移首发记录保留当时批次和日期，当前状态以最新回执为准。
+
+## 迁移首发部署记录（2026-11-07）：已切换并完成旧仓清理
+
+正式 current 为 `daily-sql-20261106-cutover-20261107`，业务批次 `run_sql_online_exact_20261107`；绑定 2026-11-06 的原双 Snapshot，语培、留学和费用均截至 2026-11-05。仓库 SHA-256 `155840e6fd3cf348aa42f62ad7b97fc26b36b15283e22c6cd71b9740b1cc4fee`。本地同批核验的 93 份 CSV 字节一致、93 份 XLSX 语义一致；正式切换后 94/94 API 请求及 12 份导出与旧线上一致。
+
+chart 231 保留原有分页表现：网页返回 59 行、58 条唯一记录，跨页重复一行；完整 CSV 含 59 条唯一记录，与旧导出一致，没有完整导出数据丢失。页面覆盖 7 个页签、43 个分区；截图对照不宣称逐像素相同。
+
+bi-3 仍为每天 09:30，原命令、来源和日程不变；提示词仅更新两处 SQL 说明。本次未触发新日更、通知或推送。46 项运行文件哈希、18 项业务指标、MCP 5 项检查及 8 条 dry-run 通知状态均通过／保持不变；DeliveryState 未变，未发送通知。
+
+旧服务器仓清理已完成：分析仓从 37 份收敛为 1 份；旧正式版本 164 个文件已归档本地，旧候选、校验仓及 raw 计算／传输目录已清理。保留必要运行文件、Superset 元数据库、配置密钥、DeliveryState 与有限运维日志。清理后运行检查通过，旧业务发布路径停用，通知路径保留。
+
+完整验收证据已归档到主目录 `.local/archive/business-sql-local-20261111/sql-migration/online-acceptance-20261107/`，详见[上线结果与 bi-3 衔接回执](</Users/akechi/Desktop/manager -CowH/.local/archive/business-sql-local-20261111/sql-migration/online-acceptance-20261107/上线结果与BI3衔接.md>)。原 checkout 的日更基线位于 `.local/sql-daily/candidates/`，显式指针位于 `customers/shadow_bi_daily/Output/ShadowDaily/sql-current.json`；本批验收证据保留在上述主目录归档。以下标明“历史”的未上线描述仅记录其当时状态，不是现行操作指令。
+
+
+当前 SQL 候选和接线代码只在隔离 worktree 验收。候选批次 `run_sql_online_exact_20261107` 绑定 2026-11-06 的同一双 Snapshot，业务／费用截至 11 月 5 日，费用 3,975 行、43 个来源；warehouse SHA-256 为 `155840e6fd3cf348aa42f62ad7b97fc26b36b15283e22c6cd71b9740b1cc4fee`。93 份 CSV 字节一致、93 份 XLSX 工作簿语义一致；269 个 API 页仍在复验。图表 231 的旧分页有 1 行跨页重复并漏显 1 条独立记录，新端 59 条唯一记录；旧端完整 CSV/XLSX 与新端一致。43 个分区有 41 个完整采集、2 个自然补拍；本期紫 `#454E7C`、同期绿 `#5AC189` 已本地恢复，5 个分区仍在补验。细节见[本地 SQL 迁移验收](docs/shadow-bi-sql-local-migration.md)。
+
+Mac 仍按原 bi-3 来源和日程运行；worktree 中的 `p5.daily` 新路径从本地 SQL 建仓、打包后提交 SQL release，不运行 Python `calculate` 生成旧 39 张逐图业务结果表。服务器未接线、未切 `current`，未更改正式 warehouse、旧 release、ACL 或 `DeliveryState`。
+
+切换计划为单一 warehouse 与七个运行文件：Superset 使用 `/srv/shadow-bi/code`，旧业务 receiver 在 `/srv/shadow-bi/raw-code`，通知共享 `/srv/shadow-bi-notify/current` 和 `/usr/local/sbin/shadow-bi-notify`，MCP 更新其 venv `site-packages`、`/usr/local/libexec/business-data-mcp/acl_sync.py` 及 venv `ExecStart` drop-in。切换时停旧 `shadow-bi-publisher.path`、`shadow-bi-receiver-publish.path` 和 raw 业务处理入口，保留 `shadow-bi-receiver-notify.path`；原子切换失败回滚。旧仓先归档本地，核销 32+4 份旧仓引用后再保留单仓；旧 SQL release 的退役另留成功核验维护回执。费用阶段失败沿用上批已提交费用及日期，不阻断业务发布后的通知。
+
+## 历史：云端基础仓与看板 SQL（日更切换于 2026-11-05）
+
+以下为此前的双仓／Python 39 表日更历史，不是当前 SQL 候选状态。11 月 4 日双仓批次曾在 BI 服务器重算并发布；语培与留学工单、签约／现金使用云端基础 Snapshot，费用作为单批表格快照。原 09:30 入口继续采集和校验来源。完整历史见[原日更说明](docs/shadow-bi-full-daily-20261028.md)，该说明本轮未修改。
+
 > **2026-11-03云端日更代码已对齐**：按明确A层清单同步正式`/srv/shadow-bi/code`，127源文件逐项SHA一致（更新47）；固定通知入口的`/srv/shadow-bi-notify/current`也已切至`bi3-20261103-3fea1baf8401393a`，同127文件一致。新工单源、腾讯竞价＋品牌v2非空自动采集入仓、MCP及总入口均已安装；两个现行目录的旧Cookie downloader已删除。云端正式目录及实际通知身份各通过17品牌＋21原生费用入仓检查。bi-3仍由Mac上海09:30启动，来源私有合同与登录态留在Mac，服务器用新进程执行P4与通知。未重采/发版/发消息/改日程/恢复raw；业务current、DeliveryState、crontab不变。真实回执见`.local/audits/tencent-brand-cloud-code-20261103/completion.md`；下方早期未同步状态均为历史。
 
 > **2026-10-28本地收口**：main唯一正式BI数据工作区为 `customers/shadow_bi_daily`。旧仓、c373客户数据镜像、废弃计算成品及已验收10月12日B层传输副本已核销；原始输入保留。旧outbox残留的hash/manifest只作历史记录，不能把残缺批次重新当作可发送封存包。未同步Grok/服务器、未刷新、未改外部日程；以下同步回执保留各日期事实。

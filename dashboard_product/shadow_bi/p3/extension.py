@@ -6,6 +6,8 @@ from flask_login import login_required
 from dashboard_product.shadow_bi.p3.catalog import AUDIT,PAGES
 
 def install(app):
+ from dashboard_product.shadow_bi.p35.readable_exports import install_readable_exports
+ install_readable_exports()
  @app.route('/p3/')
  def home():
   # 入口仅跳转；身份校验由目标Superset看板路由处理。

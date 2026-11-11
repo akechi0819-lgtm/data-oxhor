@@ -5,6 +5,8 @@ import copy
 from dataclasses import dataclass, field
 from datetime import date, datetime
 import io
+import hashlib
+import json
 from pathlib import Path
 import platform
 import time
@@ -52,8 +54,6 @@ class BIExportConfig:
     auth_session_paths: AuthSessionPaths = field(default_factory=lambda: AuthSessionPaths(Path("."), "bi"))
     download_dir: Path = Path("data_acquisition/storage/raw/bi_downloads")
     export_timeout_sec: int = 900
-    max_export_attempts: int = 2
-    retry_backoff_sec: float = 5.0
     poll_log_interval_sec: float = 30.0
     default_start_date: str = field(default_factory=_rolling_default_start_date)
     order_card_id: str = "j7378d2612e2242ab85e3140"
@@ -84,6 +84,18 @@ class ExportTask:
 class DownloadedArtifact:
     target: str
     path: Path
+    start_date: str | None = None
+    end_date: str | None = None
+    mode: str = "full"
+
+
+class OfficialExportFailed(RuntimeError):
+    """The official history proves failure, or a finished task has an invalid workbook."""
+
+    def __init__(self, task: ExportTask, status: str):
+        self.task = task
+        self.status = status
+        super().__init__(f"{task.target} export {status} (task_id={task.task_id})")
 
 
 class BIExportClient(Protocol):
@@ -368,6 +380,13 @@ class PlaywrightBIExportClient:
                 elapsed = int(time.time() - started_at)
                 print(f"[BI] target={task.target} task_id={task.task_id} state=file_ready elapsed={elapsed}s")
                 return path
+            if data.get("isFile") and data.get("b64"):
+                # A file response can arrive before the workbook is complete.
+                # Keep polling a RUNNING task; only the official terminal status
+                # lets the caller use the existing order-window fallback.
+                self.require_not_failed(task, invalid_workbook=True)
+            if not data.get("ok", True):
+                self.require_not_failed(task)
             state = _poll_state_label(data)
             now = time.time()
             if last_state != state or now - last_log_at >= config.poll_log_interval_sec:
@@ -380,6 +399,25 @@ class PlaywrightBIExportClient:
             f"{task.target} BI export timed out after {config.export_timeout_sec}s "
             f"(task_id={task.task_id})"
         )
+
+    def require_not_failed(self, task: ExportTask, *, invalid_workbook: bool = False) -> None:
+        result = self._require_page().evaluate(
+            """async () => {
+                const r = await fetch('/api/task-offline/guandata/history', {credentials:'include'});
+                if (!r.ok) return null;
+                return await r.json();
+            }"""
+        )
+        if not isinstance(result, dict) or not isinstance(result.get("data"), list):
+            return
+        for row in result["data"]:
+            if row.get("taskId") != task.task_id:
+                continue
+            status = row.get("taskStatus")
+            if status in {"CANCELED", "FAILED"}:
+                raise OfficialExportFailed(task, status)
+            if invalid_workbook and status == "FINISHED":
+                raise OfficialExportFailed(task, "INVALID_XLSX")
 
     def _require_page(self):
         if self._page is None:
@@ -422,81 +460,147 @@ def run_bi_download(
     targets: Iterable[str] = ("orders", "cash"),
     start_date: str | None = None,
     end_date: str | None = None,
+    orders_start_date: str | None = None,
+    orders_end_date: str | None = None,
+    orders_fallback_start_date: str | None = None,
+    orders_fallback_end_date: str | None = None,
 ) -> list[DownloadedArtifact]:
     config = config or BIExportConfig()
     start_date = start_date or config.default_start_date
     end_date = end_date or date.today().isoformat()
     selected = list(targets)
     config.download_dir.mkdir(parents=True, exist_ok=True)
+    if bool(orders_start_date) != bool(orders_end_date):
+        raise ValueError("both order window dates are required")
+    if bool(orders_fallback_start_date) != bool(orders_fallback_end_date):
+        raise ValueError("both order fallback window dates are required")
 
-    requests: list[BIExportRequest] = []
+    def download_all(active_client: BIExportClient) -> list[DownloadedArtifact]:
+        artifacts = []
+        if "orders" in selected:
+            first_start = orders_start_date or start_date
+            first_end = orders_end_date or end_date
+            try:
+                artifact = _download_request(
+                    client=active_client,
+                    request=build_order_export_request(config, first_start, first_end, ""),
+                    config=config, start_date=first_start, end_date=first_end,
+                    mode="incremental" if orders_start_date else "full",
+                )
+            except OfficialExportFailed:
+                if orders_start_date or not orders_fallback_start_date:
+                    raise
+                artifact = _download_request(
+                    client=active_client,
+                    request=build_order_export_request(config, orders_fallback_start_date, orders_fallback_end_date, ""),
+                    config=config, start_date=orders_fallback_start_date, end_date=orders_fallback_end_date,
+                    mode="incremental",
+                )
+            artifacts.append(artifact)
+        if "cash" in selected:
+            if not config.cash_card_id:
+                raise ValueError("BI cash card id is not configured")
+            artifacts.append(_download_request(
+                client=active_client, request=build_cash_export_request(config, start_date, end_date),
+                config=config, start_date=start_date, end_date=end_date, mode="full",
+            ))
+        return artifacts
+
+    # Inspect all required task receipts before opening a login window. An
+    # interrupted submission without an ID cannot safely create another task.
+    cached = []
+    pending = False
+    windows = []
     if "orders" in selected:
-        requests.append(build_order_export_request(config, start_date=start_date, end_date=end_date, team=""))
+        windows.append((build_order_export_request(config, orders_start_date or start_date,
+                        orders_end_date or end_date, ""), orders_start_date or start_date,
+                        orders_end_date or end_date, "incremental" if orders_start_date else "full"))
     if "cash" in selected:
         if not config.cash_card_id:
             raise ValueError("BI cash card id is not configured")
-        requests.append(build_cash_export_request(config, start_date=start_date, end_date=end_date))
-
-    artifacts: list[DownloadedArtifact] = []
-    preexisting_paths = {path.resolve() for path in config.download_dir.glob("*") if path.is_file()}
-    created_paths: list[Path] = []
-
-    def download_all(active_client: BIExportClient) -> list[DownloadedArtifact]:
-        for request in requests:
-            artifact = _download_request_with_retries(client=active_client, request=request, config=config)
-            artifacts.append(artifact)
-            if artifact.path.resolve() not in preexisting_paths:
-                created_paths.append(artifact.path)
-        return artifacts
-
-    try:
-        if client is not None:
-            return download_all(client)
-
-        with PlaywrightBIExportClient() as browser_client:
-            browser_client.open(config)
-            return download_all(browser_client)
-    except Exception:
-        # Never leave a newly downloaded half-pair that a later latest-file fallback
-        # could mistake for a complete orders/cash snapshot.
-        for path in created_paths:
-            try:
-                path.unlink(missing_ok=True)
-            except OSError:
-                pass
-        raise
-
-
-def _download_request_with_retries(
-    *,
-    client: BIExportClient,
-    request: BIExportRequest,
-    config: BIExportConfig,
-) -> DownloadedArtifact:
-    max_attempts = max(1, int(config.max_export_attempts))
-    last_error: TimeoutError | None = None
-    for attempt in range(1, max_attempts + 1):
-        task: ExportTask | None = None
+        windows.append((build_cash_export_request(config, start_date, end_date), start_date, end_date, "full"))
+    for request, window_start, window_end, mode in windows:
         try:
-            task = client.trigger_export(request)
-            print(
-                f"[BI] target={request.target} attempt={attempt}/{max_attempts} "
-                f"task_id={task.task_id} state=submitted"
-            )
-            path = client.poll_download(task, config).resolve()
-            return DownloadedArtifact(task.target, path)
-        except TimeoutError as exc:
-            last_error = exc
-            if attempt >= max_attempts:
-                raise TimeoutError(
-                    f"{request.target} BI export failed after {max_attempts} attempts: {exc}"
-                ) from exc
-            task_id = task.task_id if task is not None else "unknown"
-            print(
-                f"[BI] target={request.target} attempt={attempt}/{max_attempts} "
-                f"task_id={task_id} state=retrying reason=timeout"
-            )
-            if config.retry_backoff_sec > 0:
-                time.sleep(config.retry_backoff_sec)
-    assert last_error is not None
-    raise last_error
+            state = _load_request_state(request, config, window_start, window_end)
+        except OfficialExportFailed:
+            if request.target != "orders" or orders_start_date or not orders_fallback_start_date:
+                raise
+            window_start, window_end, mode = orders_fallback_start_date, orders_fallback_end_date, "incremental"
+            request = build_order_export_request(config, window_start, window_end, "")
+            state = _load_request_state(request, config, window_start, window_end)
+        if state is not None and state["status"] == "downloaded":
+            cached.append(_cached_artifact(request.target, state, window_start, window_end, mode))
+        else:
+            pending = True
+    if not pending:
+        return cached
+    if client is not None:
+        return download_all(client)
+    with PlaywrightBIExportClient() as browser_client:
+        browser_client.open(config)
+        return download_all(browser_client)
+
+
+def _download_request(*, client: BIExportClient, request: BIExportRequest,
+                      config: BIExportConfig, start_date: str, end_date: str,
+                      mode: str) -> DownloadedArtifact:
+    if date.fromisoformat(start_date) > date.fromisoformat(end_date):
+        raise ValueError("invalid BI export date window")
+    state_path = config.download_dir / f"{request.target}-{start_date}-{end_date}.task.json"
+    fingerprint = hashlib.sha256(json.dumps(request.payload, sort_keys=True).encode()).hexdigest()
+
+    def save(state):
+        temporary = state_path.with_suffix(".tmp")
+        temporary.write_text(json.dumps(state, ensure_ascii=False, indent=2))
+        temporary.chmod(0o600)
+        temporary.replace(state_path)
+
+    state = _load_request_state(request, config, start_date, end_date)
+    if state is not None:
+        if state["status"] == "downloaded":
+            return _cached_artifact(request.target, state, start_date, end_date, mode)
+        task = ExportTask(request.target, state["task_id"], state["file_name"])
+    else:
+        state = {"target": request.target, "start_date": start_date, "end_date": end_date,
+                 "mode": mode, "request_sha256": fingerprint, "status": "submitting"}
+        save(state)
+        task = client.trigger_export(request)
+        state.update(task_id=task.task_id, file_name=task.file_name, status="submitted")
+        save(state)
+        print(f"[BI] target={request.target} task_id={task.task_id} state=submitted")
+    try:
+        path = client.poll_download(task, config).resolve()
+    except OfficialExportFailed as error:
+        state["status"] = error.status
+        save(state)
+        raise
+    state.update(status="downloaded", path=str(path), sha256=hashlib.sha256(path.read_bytes()).hexdigest())
+    save(state)
+    return DownloadedArtifact(task.target, path, start_date, end_date, mode)
+
+
+def _load_request_state(request: BIExportRequest, config: BIExportConfig,
+                        start_date: str, end_date: str) -> dict | None:
+    if date.fromisoformat(start_date) > date.fromisoformat(end_date):
+        raise ValueError("invalid BI export date window")
+    state_path = config.download_dir / f"{request.target}-{start_date}-{end_date}.task.json"
+    if not state_path.exists():
+        return None
+    state = json.loads(state_path.read_text())
+    fingerprint = hashlib.sha256(json.dumps(request.payload, sort_keys=True).encode()).hexdigest()
+    if state.get("request_sha256") != fingerprint:
+        raise ValueError("BI saved task request mismatch")
+    if state["status"] != "downloaded" and not state.get("task_id"):
+        raise RuntimeError("BI export submission result unknown; inspect original task before retry")
+    if state["status"] in {"CANCELED", "FAILED", "INVALID_XLSX"}:
+        task = ExportTask(request.target, state["task_id"], state["file_name"])
+        raise OfficialExportFailed(task, state["status"])
+    return state
+
+
+def _cached_artifact(target: str, state: dict, start_date: str, end_date: str,
+                     mode: str) -> DownloadedArtifact:
+    path = Path(state["path"])
+    if hashlib.sha256(path.read_bytes()).hexdigest() != state["sha256"]:
+        raise ValueError("BI saved export SHA mismatch")
+    return DownloadedArtifact(target, path, start_date, end_date, mode)

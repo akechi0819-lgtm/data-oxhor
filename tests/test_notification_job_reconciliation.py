@@ -9,13 +9,35 @@ import pytest
 from monitoring_product import notification_job_reconcile as r
 from dashboard_product.shadow_bi.p5 import notification_contract as c
 
+
+def write_sql_release(library):
+    snapshots={'training':'snapshot_training','abroad':'snapshot_abroad'}
+    through='2026-10-25';as_of='2026-10-26';batch='run_fixture'
+    coverage={'data_through':through,'snapshot_id':snapshots['training'],
+              'study_abroad_source':{'snapshot_id':snapshots['abroad'],'through_date':through}}
+    warehouse_bytes=b'synthetic warehouse bytes'
+    (library/'warehouse.duckdb').write_bytes(warehouse_bytes)
+    database={'path':'warehouse.duckdb','sha256':hashlib.sha256(warehouse_bytes).hexdigest(),
+              'size_bytes':len(warehouse_bytes),'media_type':'application/vnd.duckdb'}
+    candidate={'schema_version':'sql_warehouse_candidate.v1','batch_id':batch,
+               'snapshots':snapshots,'as_of_date':as_of,'through_date':through,
+               'database':database}
+    raw=json.dumps(candidate).encode();(library/'candidate.json').write_bytes(raw)
+    digest=hashlib.sha256(raw).hexdigest()
+    release={'schema_version':'sql_warehouse_release.v1','release_id':library.parent.name,
+             'batch_id':batch,'snapshots':snapshots,'as_of_date':as_of,'coverage':coverage,
+             'candidate':{'path':'candidate.json','sha256':digest,'size_bytes':len(raw),
+                          'media_type':'application/json'},'candidate_sha256':digest,
+             'database_sha256':database['sha256']}
+    (library/'release.json').write_text(json.dumps(release))
+    return release
+
 @pytest.fixture
 def fixture(tmp_path):
     base=tmp_path/'warehouse';home=tmp_path/'notify';control=base/'notify-control'
     (control/'results').mkdir(parents=True);(home/'state').mkdir(parents=True)
     release=base/'releases/daily-fixture';(release/'library').mkdir(parents=True);(base/'current').symlink_to(release)
-    manifest={'batch_id':'run_fixture','as_of_date':'2026-10-26','snapshots':{'training':'snapshot_training','abroad':'snapshot_abroad'},'coverage':{'data_through':'2026-10-25'}}
-    (release/'library/library_manifest.json').write_text(json.dumps(manifest))
+    manifest=write_sql_release(release/'library')
     job={'operation':'send-scheduled','expected_release':'daily-fixture','as_of_date':'2026-10-26','status':'unknown','retryable':False,'network_send_attempted':True}
     identifier=c.job_id({k:job[k] for k in ['operation','expected_release','as_of_date']});(control/'results'/(identifier+'.json')).write_text(json.dumps(job))
     rows={}
@@ -61,7 +83,7 @@ def test_server_run_lock_busy_returns_before_build_or_credentials(fixture):
 
 def test_deduplicated_server_result_does_not_claim_a_new_http_send(fixture):
     from monitoring_product import server_notify as n
-    base,home,control,identifier,state=fixture;manifest=json.loads((base/'current/library/library_manifest.json').read_bytes())
+    base,home,control,identifier,state=fixture;manifest=json.loads((base/'current/library/release.json').read_bytes())
     version=hashlib.sha256(n.n.canonical({})).hexdigest()[:16];bundle=home/'bundles'/('daily-fixture-'+version);bundle.mkdir(parents=True);(bundle/'bundle.json').write_text('{}')
     result={'status':'sent','messages':[{'status':'sent','deduplicated':True} for _ in range(8)]}
     with patch.object(n.n,'require_imported_state'),patch.object(n.n,'require_send_date'),patch.object(n,'load_library',return_value=(manifest,None,None)),patch.object(n.n,'rule_binding',return_value={}),patch.object(n.n,'deliver_bundle',return_value=result),patch('monitoring_product.delivery_transport.post_dingtalk',side_effect=AssertionError('no send')):
@@ -73,7 +95,7 @@ def test_deduplicated_server_result_does_not_claim_a_new_http_send(fixture):
 def test_published_send_has_no_hour_gate_and_checks_each_send(fixture, hour):
     from monitoring_product import server_notify as n
     base,home,control,identifier,state=fixture
-    manifest=json.loads((base/'current/library/library_manifest.json').read_bytes())
+    manifest=json.loads((base/'current/library/release.json').read_bytes())
     def deliver(**kwargs):
         assert kwargs['dry_run'] is False
         kwargs['before_send']()

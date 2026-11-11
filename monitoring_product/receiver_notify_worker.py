@@ -91,7 +91,7 @@ def process(identifier, *, root=ROOT, control=CONTROL, execute=subprocess.run, n
             pending.unlink(missing_ok=True);return
         release=(root.parent/'current').resolve(strict=True)
         if release.parent!=root.parent/'releases':raise ValueError('invalid current path')
-        manifest=json.loads((release/'library/library_manifest.json').read_bytes())
+        manifest=nc.current_manifest(release/'library')
         policy=json.loads((control/'policy.json').read_bytes())
         item=nc.validate(raw,release.name,manifest,policy,now)
         result.update(item,status='running')

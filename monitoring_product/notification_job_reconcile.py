@@ -20,7 +20,7 @@ def reconcile(identifier,*,control=Path('/var/lib/shadow-bi/notify-control'),hom
     release=job['expected_release']
     if not nc.RELEASE.fullmatch(release):raise ValueError('invalid release')
     target=warehouse/'releases'/release
-    manifest_path=target/'library/library_manifest.json';manifest=json.loads(manifest_path.read_bytes())
+    manifest=nc.current_manifest(target/'library')
     if (warehouse/'current').resolve()!=target.resolve() or manifest['as_of_date']!=job['as_of_date']:
         raise ValueError('formal identity changed')
     state_path=home/'state/shared_delivery_state.json'

@@ -13,3 +13,7 @@ outputs/
 
 # Authentication material is machine-local and must never enter Git.
 /data_acquisition/storage/auth_sessions/
+
+# Local browser sessions and generated installation metadata.
+/data_acquisition/storage/browser_profiles/
+*.egg-info/

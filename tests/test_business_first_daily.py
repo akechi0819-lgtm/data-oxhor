@@ -1,6 +1,6 @@
 import hashlib
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from unittest.mock import Mock
 from zoneinfo import ZoneInfo
@@ -378,36 +378,32 @@ def test_business_inputs_cli_requires_publish_and_refresh_business(
 
 
 def test_daily_default_reuses_same_day_success_receipt(tmp_path, monkeypatch):
-    from types import SimpleNamespace
     from data_acquisition.jobs import daily_warehouses
+    from dashboard_product.shadow_bi.p5 import sql_daily
 
     day = datetime.now(ZoneInfo('Asia/Shanghai')).date().isoformat()
     workspace = tmp_path / 'workspace'
     state = workspace / 'Output/ShadowDaily'
     state.mkdir(parents=True)
-    receipt = {'status': 'published', 'day': day, 'release': 'daily-existing'}
+    receipt = {'status': 'published', 'day': day, 'release': 'daily-sql-existing'}
     (state / f'{day}.json').write_text(json.dumps(receipt))
-    commands = []
     refresh = Mock()
     monkeypatch.setattr(daily_warehouses, 'refresh_daily', refresh)
     monkeypatch.setattr(daily_runner, 'ssh_config', lambda private: (['ssh'], {}))
-    monkeypatch.setattr(daily_runner, 'command',
-                        lambda args, log, **kwargs: commands.append((args, kwargs)))
-    monkeypatch.setattr(daily_runner.subprocess, 'run',
-                        lambda *args, **kwargs: SimpleNamespace(stdout='daily-existing\n'))
+    monkeypatch.setattr(sql_daily, 'verify_current_pointer',
+                        lambda **kwargs: ({'release': 'daily-sql-existing'}, {}, {},
+                                          Path('/unused'), {}, 'a' * 64))
 
     result = daily_runner.run(workspace, day)
 
     assert result == receipt
     refresh.assert_not_called()
-    assert len(commands) == 1
-    assert '--verify-only' in commands[0][1]['input']
 
 
 def test_daily_force_refresh_runs_full_business_refresh_despite_same_day_receipt(
         tmp_path, monkeypatch):
     from data_acquisition.jobs import daily_warehouses
-    from data_platform import business_library
+    from dashboard_product.shadow_bi.p5 import sql_daily
 
     day = datetime.now(ZoneInfo('Asia/Shanghai')).date().isoformat()
     workspace = tmp_path / 'workspace'
@@ -417,38 +413,37 @@ def test_daily_force_refresh_runs_full_business_refresh_despite_same_day_receipt
         'status': 'published', 'day': day, 'release': 'daily-existing',
     }))
     pair = {
+        'run_id': 'run_shadow_daily_' + day.replace('-', '') + '_feesfixture',
         'sources': {
-            'bi': {'snapshot_id': 'snapshot-bi', 'run_id': 'run-bi'},
-            'study_abroad': {'snapshot_id': 'snapshot-study', 'run_id': 'run-study'},
+            'bi': {'snapshot_id': 'snapshot_bi_fixture', 'run_id': 'run-bi'},
+            'study_abroad': {'snapshot_id': 'snapshot_study_fixture', 'run_id': 'run-study'},
         },
     }
     refresh = Mock(return_value={'status': 'passed'})
-    commands = []
+    def publish(**kwargs):
+        return {'status': 'published', 'day': day, 'release': kwargs['release_id'],
+                'batch_id': kwargs['run_id'], 'sources': kwargs['pair']}
+    publish = Mock(side_effect=publish)
     monkeypatch.setattr(daily_warehouses, 'refresh_daily', refresh)
     monkeypatch.setattr(daily_warehouses, 'assert_daily_ready', Mock(return_value=pair))
     monkeypatch.setattr(daily_runner, 'ssh_config', lambda private: (['ssh'], {}))
-    monkeypatch.setattr(daily_runner, 'command',
-                        lambda args, log, **kwargs: commands.append((args, kwargs)))
-    monkeypatch.setattr(business_library, 'load_library',
-                        lambda path, batch: ({'batch_id': batch, 'coverage': {'rows': 1}}, None, None))
-
-    def package_tables(source, presentation, destination):
-        destination.mkdir(parents=True)
-        return {}
-
-    monkeypatch.setattr(daily_runner, 'package_tables', package_tables)
+    monkeypatch.setattr(sql_daily, 'verify_current_pointer',
+                        lambda **kwargs: ({'release': 'daily-sql-existing'}, {}, {},
+                                          Path('/unused'), {}, 'a' * 64))
+    monkeypatch.setattr(sql_daily, 'publish', publish)
 
     result = daily_runner.run(workspace, day, force_refresh=True)
 
     assert result['status'] == 'published'
-    assert result['release'] != 'daily-existing'
+    assert result['release'].startswith('daily-sql-')
     refresh.assert_called_once()
-    assert len(commands) == 4
+    publish.assert_called_once()
     assert (state / 'current.json').exists()
 
 
 def test_daily_passes_explicit_business_inputs_to_existing_refresh(tmp_path, monkeypatch):
     from data_acquisition.jobs import daily_warehouses
+    from dashboard_product.shadow_bi.p5 import sql_daily
 
     day = datetime.now(ZoneInfo('Asia/Shanghai')).date().isoformat()
     workspace = tmp_path / 'workspace'
@@ -462,6 +457,10 @@ def test_daily_passes_explicit_business_inputs_to_existing_refresh(tmp_path, mon
         path.write_bytes(b'input')
     refresh = Mock(side_effect=RuntimeError('stop after call capture'))
     monkeypatch.setattr(daily_warehouses, 'refresh_daily', refresh)
+    monkeypatch.setattr(daily_runner, 'ssh_config', lambda private: (['ssh'], {}))
+    monkeypatch.setattr(sql_daily, 'verify_current_pointer',
+                        lambda **kwargs: ({'release': 'daily-sql-existing'}, {}, {},
+                                          Path('/unused'), {}, 'a' * 64))
 
     with pytest.raises(RuntimeError, match='stop after call capture'):
         daily_runner.run(
@@ -471,6 +470,68 @@ def test_daily_passes_explicit_business_inputs_to_existing_refresh(tmp_path, mon
 
     assert refresh.call_args.kwargs['bi_start_date'] == '2025-03-01'
     assert refresh.call_args.kwargs['input_paths'] == input_paths
+
+
+def test_daily_requires_explicit_sql_current_before_collecting(tmp_path, monkeypatch):
+    from data_acquisition.jobs import daily_warehouses
+
+    day = datetime.now(ZoneInfo('Asia/Shanghai')).date().isoformat()
+    workspace = tmp_path / 'workspace'
+    refresh = Mock()
+    monkeypatch.setattr(daily_warehouses, 'refresh_daily', refresh)
+    monkeypatch.setattr(daily_runner, 'ssh_config', lambda private: (['ssh'], {}))
+
+    with pytest.raises(ValueError, match='SQL daily pointer is missing'):
+        daily_runner.run(workspace, day)
+
+    refresh.assert_not_called()
+
+
+@pytest.mark.parametrize(('sources', 'raises'), [([], False), ([{'source_id': 'fee'}], True)])
+def test_daily_fee_failure_keeps_published_business_and_reports_fee_boundary(
+        tmp_path, monkeypatch, sources, raises):
+    from data_acquisition.jobs import daily_warehouses
+    from dashboard_product.shadow_bi.p5 import sql_daily
+
+    day = datetime.now(ZoneInfo('Asia/Shanghai')).date().isoformat()
+    workspace = tmp_path / 'workspace'
+    state = workspace / 'Output/ShadowDaily'
+    state.mkdir(parents=True)
+    fee_manifest = workspace / 'Input/AdvertisingCosts/sources.json'
+    fee_manifest.parent.mkdir(parents=True)
+    fee_manifest.write_text(json.dumps({'sources': sources}))
+    pair = {
+        'run_id': 'run_shadow_daily_' + day.replace('-', '') + '_feesfixture',
+        'sources': {
+            'bi': {'snapshot_id': 'snapshot_bi_fixture'},
+            'study_abroad': {'snapshot_id': 'snapshot_study_fixture'},
+        },
+    }
+    monkeypatch.setattr(daily_warehouses, 'assert_daily_ready', Mock(return_value=pair))
+    monkeypatch.setattr(daily_runner, 'ssh_config', lambda private: (['ssh'], {}))
+    monkeypatch.setattr(sql_daily, 'verify_current_pointer',
+                        lambda **kwargs: ({'release': 'daily-sql-existing'}, {}, {},
+                                          Path('/unused'), {}, 'a' * 64))
+
+    def publish(**kwargs):
+        return {'status': 'published', 'day': day, 'release': kwargs['release_id'],
+                'batch_id': kwargs['run_id'], 'sources': pair,
+                'expenses': {'status': 'failed', 'error_type': 'ValueError', 'retained_rows': 7}}
+
+    monkeypatch.setattr(sql_daily, 'publish', publish)
+    if raises:
+        with pytest.raises(daily_runner.FeeRefreshFailed, match='prior fees were retained'):
+            daily_runner.run(workspace, day, prepared_sources=pair)
+    else:
+        result = daily_runner.run(workspace, day, prepared_sources=pair)
+        assert result['status'] == 'published'
+        assert result['expenses']['status'] == 'failed'
+    current = json.loads((state / 'current.json').read_text())
+    assert current['status'] == 'published'
+    if raises:
+        assert current['fee_refresh_failure'] == {
+            'status': 'failed', 'error_type': 'ValueError', 'retained_rows': 7,
+        }
 
 
 def test_daily_rejects_explicit_inputs_without_start_or_with_prepared_sources(tmp_path):
@@ -486,3 +547,21 @@ def test_daily_rejects_explicit_inputs_without_start_or_with_prepared_sources(tm
             workspace, day, force_refresh=True, bi_start_date='2025-03-01',
             input_paths=input_paths, prepared_sources=PAIR,
         )
+
+
+def test_order_recovery_cli_and_publisher_keep_separate_window(tmp_path):
+    cli = Mock(return_value={'status': 'complete', 'published': True})
+    assert main([
+        '--workspace', str(tmp_path / 'workspace'), '--batch-dir', str(tmp_path / 'batch'),
+        '--source-contracts', str(tmp_path / 'contracts'), '--xhs-scope', str(tmp_path / 'scope'),
+        '--publish', '--orders-start-date', '2026-10-29', '--orders-end-date', '2026-10-29',
+    ], run_fn=cli) == 0
+    assert cli.call_args.kwargs['orders_start_date'] == '2026-10-29'
+    assert cli.call_args.kwargs['orders_end_date'] == '2026-10-29'
+    publisher = Mock(side_effect=DailyBlocked('stop_before_publish'))
+    result = run(**args(tmp_path, publish_business=publisher, publish_expenses=Mock(), notify=Mock(),
+                        orders_start_date='2026-10-29', orders_end_date='2026-10-29'))
+    assert result['status'] == 'blocked'
+    assert publisher.call_args.kwargs['orders_start_date'] == '2026-10-29'
+    assert publisher.call_args.kwargs['orders_end_date'] == '2026-10-29'
+    assert 'bi_start_date' not in publisher.call_args.kwargs

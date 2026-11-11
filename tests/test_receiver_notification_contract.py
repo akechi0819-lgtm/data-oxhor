@@ -1,5 +1,6 @@
 import json
 from datetime import datetime
+import hashlib
 from pathlib import Path
 import tempfile
 import unittest
@@ -8,6 +9,30 @@ from unittest.mock import Mock
 from zoneinfo import ZoneInfo
 from dashboard_product.shadow_bi.p5 import notification_contract as c
 from monitoring_product import receiver_notify_worker as w
+
+
+def write_sql_release(library, *, as_of_date='2026-10-26', through='2026-10-25', batch_id='run_fixture'):
+    snapshots={'training':'snapshot_training','abroad':'snapshot_abroad'}
+    coverage={'data_through':through,'snapshot_id':snapshots['training'],
+              'study_abroad_source':{'snapshot_id':snapshots['abroad'],'through_date':through}}
+    warehouse_bytes=b'synthetic warehouse bytes'
+    (library/'warehouse.duckdb').write_bytes(warehouse_bytes)
+    database={'path':'warehouse.duckdb','sha256':hashlib.sha256(warehouse_bytes).hexdigest(),
+              'size_bytes':len(warehouse_bytes),'media_type':'application/vnd.duckdb'}
+    candidate={'schema_version':'sql_warehouse_candidate.v1','batch_id':batch_id,
+               'as_of_date':as_of_date,'through_date':through,'snapshots':snapshots,
+               'database':database}
+    candidate_bytes=json.dumps(candidate).encode()
+    (library/'candidate.json').write_bytes(candidate_bytes)
+    candidate_sha=hashlib.sha256(candidate_bytes).hexdigest()
+    release={'schema_version':'sql_warehouse_release.v1','release_id':library.parent.name,
+             'batch_id':batch_id,'as_of_date':as_of_date,'through_date':through,
+             'snapshots':snapshots,'coverage':coverage,
+             'candidate':{'path':'candidate.json','sha256':candidate_sha,
+                          'size_bytes':len(candidate_bytes),'media_type':'application/json'},
+             'candidate_sha256':candidate_sha,'database_sha256':database['sha256']}
+    (library/'release.json').write_text(json.dumps(release))
+    return release
 
 class NotificationContractTests(unittest.TestCase):
     def setUp(self):
@@ -35,14 +60,48 @@ class NotificationContractTests(unittest.TestCase):
     def test_preview_ignores_sending_window_without_granting_send(self):
         c.validate(self.payload,'daily-fixture',self.manifest,{},self.now.replace(hour=18))
 
+    def test_current_manifest_validates_candidate_identity_and_digest(self):
+        with tempfile.TemporaryDirectory() as folder:
+            library=Path(folder)/'releases/daily-fixture/library'
+            library.mkdir(parents=True)
+            release=write_sql_release(library)
+            self.assertEqual(c.current_manifest(library),release)
+            tampered=json.loads((library/'candidate.json').read_bytes())
+            tampered['status']='tampered'
+            (library/'candidate.json').write_text(json.dumps(tampered))
+            with self.assertRaisesRegex(ValueError,'candidate digest'):
+                c.current_manifest(library)
+
+    def test_current_manifest_rejects_release_identity_drift(self):
+        for field,value in [('batch_id','run_other'),('as_of_date','2026-10-27'),
+                            ('snapshots',{'training':'snapshot_other','abroad':'snapshot_abroad'})]:
+            with self.subTest(field=field), tempfile.TemporaryDirectory() as folder:
+                library=Path(folder)/'releases/daily-fixture/library'
+                library.mkdir(parents=True)
+                write_sql_release(library)
+                release=json.loads((library/'release.json').read_bytes())
+                release[field]=value
+                (library/'release.json').write_text(json.dumps(release))
+                with self.assertRaises(ValueError):c.current_manifest(library)
+
+    def test_legacy_manifest_is_available_for_explicit_rollback(self):
+        with tempfile.TemporaryDirectory() as folder:
+            library=Path(folder)/'releases/daily-fixture/library'
+            library.mkdir(parents=True)
+            legacy={'schema_version':'business_query_library.v1','batch_id':'run_legacy',
+                    'as_of_date':'2026-10-26','coverage':{'data_through':'2026-10-25'}}
+            (library/'library_manifest.json').write_text(json.dumps(legacy))
+            self.assertEqual(c.current_manifest(library),legacy)
+
 class WorkerTests(NotificationContractTests):
     def setUp(self):
         super().setUp()
         self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup)
         self.base=Path(self.tmp.name);self.root=self.base/'receiver';self.control=self.base/'control'
-        for p in (self.root/'notify-requests',self.root/'notify-pending',self.control/'results',self.base/'releases/daily-fixture/library'):p.mkdir(parents=True,exist_ok=True)
+        library=self.base/'releases/daily-fixture/library'
+        for p in (self.root/'notify-requests',self.root/'notify-pending',self.control/'results',library):p.mkdir(parents=True,exist_ok=True)
         (self.base/'current').symlink_to(self.base/'releases/daily-fixture')
-        (self.base/'current/library/library_manifest.json').write_text(json.dumps(self.manifest))
+        self.manifest=write_sql_release(library)
         (self.control/'policy.json').write_text(json.dumps(self.policy))
     def save(self,control,identifier,result):
         (control/'results'/(identifier+'.json')).write_text(json.dumps(result))
@@ -62,7 +121,7 @@ class WorkerTests(NotificationContractTests):
         self.assertEqual(execute.call_args.args[0],[w.ENTRY,'preview','daily-fixture','2026-10-26'])
     def test_stale_request_and_symlink_do_not_execute(self):
         execute=Mock()
-        self.manifest['as_of_date']='2026-10-25';(self.base/'current/library/library_manifest.json').write_text(json.dumps(self.manifest))
+        self.manifest=write_sql_release(self.base/'current/library',as_of_date='2026-10-25',through='2026-10-24')
         self.assertEqual(self.invoke(execute=execute)['status'],'blocked');execute.assert_not_called()
         p=self.root/'notify-requests'/'bad.json';p.symlink_to(self.control/'policy.json')
         with self.assertRaises(OSError):w.read_request(p.parent,p.name)

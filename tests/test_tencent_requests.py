@@ -147,3 +147,39 @@ def test_native_download_uses_observed_authorized_form_and_never_cdn(tmp_path):
     request=opener.open.call_args.args[0]
     assert request.get_method()=='POST' and urlsplit(request.full_url).netloc=='ad.qq.com' and urlsplit(request.full_url).path==t.DOWNLOAD
     body=parse_qs(request.data.decode());assert body['task_id']==['12345'] and body['file_id']==['new-file'] and body['format']==['xls']
+
+
+def test_query_thousands_amount_matches_quoted_native_csv(setup):
+    root,contract,post,transfer,run,calls,raw=setup
+    def grouped(kind,body):
+        result=post(kind,body)
+        if kind=='query':result['data']['list'][0]['report']['cost']='1,001.00'
+        return result
+    def grouped_transfer(task,path):
+        path.write_bytes(raw.replace(b'10%,1.00,1.00', b'10%,1.00,"1,001.00"'))
+    result=run(grouped,grouped_transfer)
+    assert result['phase']=='verified' and result['native']['total']=='1003.00'
+    assert sum(kind=='create' for kind,body in calls)==1
+
+
+def test_query_thousands_amount_mismatch_still_blocks(setup):
+    root,contract,post,transfer,run,calls,raw=setup
+    def grouped(kind,body):
+        result=post(kind,body)
+        if kind=='query':result['data']['list'][0]['report']['cost']='1,001.00'
+        return result
+    with pytest.raises(t.ExportBlocked,match='native_query_cost_mismatch'):
+        run(grouped)
+    assert not (root/'job/native.csv').exists()
+    assert sum(kind=='create' for kind,body in calls)==1
+
+
+@pytest.mark.parametrize('invalid_cost', [None, '', 'NaN', 'Infinity', 'bad'])
+def test_query_missing_or_nonfinite_amount_remains_blocked(setup,invalid_cost):
+    root,contract,post,transfer,run,calls,raw=setup
+    def invalid(kind,body):
+        result=post(kind,body)
+        if kind=='query':result['data']['list'][0]['report']['cost']=invalid_cost
+        return result
+    with pytest.raises(t.ExportBlocked,match='query_cost_invalid'):
+        run(invalid)

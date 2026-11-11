@@ -442,6 +442,8 @@ def build_parser():
     run_mode.add_argument('--publish',action='store_true',help='Publish business, send the daily notification, then update fees through the existing gates')
     p.add_argument('--refresh-business',action='store_true',
                    help='Force a fresh same-day business source refresh for a manual correction; requires --publish')
+    p.add_argument('--orders-start-date', help='Explicit recovery order window start; cash keeps its normal window')
+    p.add_argument('--orders-end-date', help='Explicit recovery order window end')
     p.add_argument('--business-inputs',type=Path,
                    help='Use a SHA-verified orders/cash/Tencent manifest; requires --publish --refresh-business')
     sem_mode=p.add_mutually_exclusive_group()
@@ -454,6 +456,8 @@ def build_parser():
 def main(argv=None, *, run_fn=None):
     parser=build_parser()
     a=parser.parse_args(argv)
+    if bool(a.orders_start_date) != bool(a.orders_end_date) or (a.orders_start_date and not a.publish):
+        parser.error('order recovery requires both dates and --publish')
     if a.refresh_business and not a.publish:
         parser.error('--refresh-business requires --publish')
     if a.business_inputs is not None and not (a.publish and a.refresh_business):
@@ -475,6 +479,8 @@ def main(argv=None, *, run_fn=None):
             kwargs['refresh_business']=True
         if a.business_inputs is not None:
             kwargs['business_inputs']=a.business_inputs
+        if a.orders_start_date:
+            kwargs.update(orders_start_date=a.orders_start_date, orders_end_date=a.orders_end_date)
         result=selected_run(a.workspace.resolve(),**kwargs)
         print(json.dumps(result))
         return 2 if result.get('status') in {'blocked','failed','partial'} else 0

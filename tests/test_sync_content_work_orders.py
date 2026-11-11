@@ -7,26 +7,41 @@ import tempfile
 
 import openpyxl
 import pytest
+from openpyxl.utils.datetime import CALENDAR_MAC_1904, to_excel
 
 from data_acquisition.jobs.sync_content_work_orders import sync
 
 
-MANUAL_FIELDS = ("素材ID", "账号来源", "工单跟进情况")
-BASE_HEADERS = ["团队", "分配时间", "学员号", "素材ID", "账号来源", "跟进顾问", "工单跟进情况", "ID"]
-COLUMNS = BASE_HEADERS + [f"业务字段_{index:03d}" for index in range(104 - len(BASE_HEADERS))]
+MANUAL_FIELDS = ("素材ID", "账号来源", "工单跟进情况", "重点资源意向", "所属条线")
+BASE_HEADERS = [
+    "团队", "分配时间", "学员号", "素材ID", "账号来源", "跟进顾问",
+    "工单跟进情况", "ID", "重点资源意向", "所属条线",
+]
+COLUMNS = BASE_HEADERS + [f"业务字段_{index:03d}" for index in range(103 - len(BASE_HEADERS))]
 SOURCE_EXTRA_HEADERS = [f"源文件额外字段_{index:03d}" for index in range(25)]
 ID_COLUMN = COLUMNS.index("ID")
 
 
-def _config(tmp_path: Path) -> Path:
+def _config(
+    tmp_path: Path,
+    *,
+    secondary_channel_platforms: list[str] | None = None,
+    start_date: str = "2026-11-01",
+    window_mode: str | None = None,
+) -> Path:
     path = tmp_path / "content-work-orders.json"
-    path.write_text(json.dumps({
+    config = {
         "file_id": "file-test",
         "sheet_id": "sheet-test",
         "token_file": "unused-token",
-        "start_date": "2026-11-01",
+        "start_date": start_date,
         "columns": COLUMNS,
-    }, ensure_ascii=False), encoding="utf-8")
+    }
+    if secondary_channel_platforms is not None:
+        config["secondary_channel_platforms"] = secondary_channel_platforms
+    if window_mode is not None:
+        config["window_mode"] = window_mode
+    path.write_text(json.dumps(config, ensure_ascii=False), encoding="utf-8")
     return path
 
 
@@ -36,13 +51,20 @@ def _write_source(
     *,
     reverse: bool = True,
     omit: set[str] | None = None,
+    epoch=None,
 ) -> Path:
     omitted = omit or set()
     source_headers = [header for header in COLUMNS if header not in MANUAL_FIELDS and header not in omitted]
     source_headers.extend(SOURCE_EXTRA_HEADERS)
+    source_headers.extend(
+        field for field in ("二级渠道", "一级渠道", "资源描述")
+        if any(field in row for row in rows)
+    )
     if reverse:
         source_headers.reverse()
     workbook = openpyxl.Workbook()
+    if epoch is not None:
+        workbook.epoch = epoch
     sheet = workbook.active
     sheet.title = "工单明细导出用表"
     sheet.append(source_headers)
@@ -205,6 +227,73 @@ def test_pre_november_source_is_successful_zero_with_real_max_date(tmp_path: Pat
     assert not any(name == "sheet.set_range_value" for name, _ in client.calls)
 
 
+def test_current_month_window_advances_from_november_to_december(tmp_path: Path) -> None:
+    source = _write_source(tmp_path / "source.xlsx", [
+        _row("wo-oct", date(2026, 10, 31)),
+        _row("wo-nov-start", date(2026, 11, 1)),
+        _row("wo-nov-end", date(2026, 11, 30)),
+        _row("wo-dec-start", date(2026, 12, 1)),
+        _row("wo-dec-end", date(2026, 12, 2)),
+    ])
+    config_path = _config(tmp_path, window_mode="current_month")
+    november_client = FakeMCPClient(rows=1)
+    december_client = FakeMCPClient(rows=1)
+
+    november = sync(
+        workspace=tmp_path / "workspace", source_file=source,
+        as_of_date="2026-11-30", run_id="run-current-month-november",
+        config_path=config_path, client=november_client,
+    )
+    december = sync(
+        workspace=tmp_path / "workspace", source_file=source,
+        as_of_date="2026-12-02", run_id="run-current-month-december",
+        config_path=config_path, client=december_client,
+    )
+
+    assert november["start_date"] == "2026-11-01"
+    assert november["window_mode"] == "current_month"
+    assert november["added"] == 2
+    assert _remote_ids(november_client) == ["wo-nov-start", "wo-nov-end"]
+    assert december["start_date"] == "2026-12-01"
+    assert december["window_mode"] == "current_month"
+    assert december["added"] == 2
+    assert _remote_ids(december_client) == ["wo-dec-start", "wo-dec-end"]
+
+
+def test_unconfigured_window_mode_keeps_fixed_start_date(tmp_path: Path) -> None:
+    source = _write_source(tmp_path / "source.xlsx", [
+        _row("wo-nov", date(2026, 11, 30)),
+        _row("wo-dec", date(2026, 12, 1)),
+    ])
+    client = FakeMCPClient(rows=1)
+
+    result = sync(
+        workspace=tmp_path / "workspace", source_file=source,
+        as_of_date="2026-12-01", run_id="run-fixed-window",
+        config_path=_config(tmp_path), client=client,
+    )
+
+    assert result["start_date"] == "2026-11-01"
+    assert result["window_mode"] == "fixed"
+    assert result["added"] == 2
+    assert _remote_ids(client) == ["wo-nov", "wo-dec"]
+
+
+def test_unknown_window_mode_is_rejected(tmp_path: Path) -> None:
+    source = _write_source(tmp_path / "source.xlsx", [_row("wo-1", date(2026, 11, 1))])
+    client = FakeMCPClient(rows=1)
+
+    with pytest.raises(RuntimeError, match="config_window_mode_unsupported"):
+        sync(
+            workspace=tmp_path / "workspace", source_file=source,
+            as_of_date="2026-11-01", run_id="run-unknown-window",
+            config_path=_config(tmp_path, window_mode="previous_month"), client=client,
+        )
+
+    assert not any(name in {"sheet.set_range_value", "sheet.insert_dimension"}
+                   for name, _ in client.calls)
+
+
 def test_manual_columns_are_never_overwritten(tmp_path: Path) -> None:
     source = _write_source(tmp_path / "source.xlsx", [
         _row("wo-new", date(2026, 11, 1), extra={
@@ -238,7 +327,42 @@ def test_manual_columns_are_never_overwritten(tmp_path: Path) -> None:
     assert client.grid[2][COLUMNS.index("业务字段_000")] == "next-day-value"
 
 
-def test_source_fields_around_manual_columns_keep_header_mapping_and_104_column_schema(tmp_path: Path) -> None:
+def test_new_manual_columns_may_be_absent_from_source_and_are_never_written(tmp_path: Path) -> None:
+    source = _write_source(tmp_path / "source.xlsx", [
+        _row("wo-existing", date(2026, 11, 1)),
+        _row("wo-new", date(2026, 11, 2)),
+    ])
+    source_workbook = openpyxl.load_workbook(source, read_only=True, data_only=True)
+    try:
+        source_headers = list(next(source_workbook.active.iter_rows(min_row=1, max_row=1, values_only=True)))
+    finally:
+        source_workbook.close()
+    assert "重点资源意向" not in source_headers
+    assert "所属条线" not in source_headers
+
+    client = FakeMCPClient(rows=2)
+    client.grid[1][ID_COLUMN] = "wo-existing"
+    intent_col = COLUMNS.index("重点资源意向")
+    line_col = COLUMNS.index("所属条线")
+    client.grid[1][intent_col] = "重点资源人工标记"
+    client.grid[1][line_col] = "人工归属条线"
+
+    result = _run(tmp_path, client, source, day="2026-11-02")
+
+    assert result["added"] == 1
+    assert client.grid[1][intent_col] == "重点资源人工标记"
+    assert client.grid[1][line_col] == "人工归属条线"
+    assert client.grid[2][intent_col] is None
+    assert client.grid[2][line_col] is None
+    writes = [
+        cell
+        for name, arguments in client.calls if name == "sheet.set_range_value"
+        for cell in arguments["values"]
+    ]
+    assert not any(cell["col"] in {intent_col, line_col} for cell in writes)
+
+
+def test_source_fields_around_manual_columns_keep_header_mapping_and_103_column_schema(tmp_path: Path) -> None:
     source = _write_source(tmp_path / "source.xlsx", [
         _row("wo-map", date(2026, 11, 1), learner=88031, team="团队映射值",
              extra={"跟进顾问": "顾问映射值", "业务字段_000": "ID后业务字段"}),
@@ -253,9 +377,9 @@ def test_source_fields_around_manual_columns_keep_header_mapping_and_104_column_
     finally:
         workbook.close()
 
-    assert len(COLUMNS) == 104
-    assert schema["col_count"] == 104
-    assert len(source_headers) == 126
+    assert len(COLUMNS) == 103
+    assert schema["col_count"] == 103
+    assert len(source_headers) == 123
     assert "录入来源" not in source_headers
     assert source_headers != [header for header in COLUMNS if header not in MANUAL_FIELDS]
     assert result["added"] == 1
@@ -271,20 +395,19 @@ def test_source_fields_around_manual_columns_keep_header_mapping_and_104_column_
     assert client.grid[1][COLUMNS.index("业务字段_000")] == "ID后业务字段"
 
 
-def test_105_column_config_is_rejected(tmp_path: Path) -> None:
+def test_103_column_config_matches_remote_and_syncs(tmp_path: Path) -> None:
     source = _write_source(tmp_path / "source.xlsx", [_row("wo-1", date(2026, 11, 1))])
     config_path = _config(tmp_path)
-    config = json.loads(config_path.read_text(encoding="utf-8"))
-    config["columns"].append("录入来源")
-    config_path.write_text(json.dumps(config, ensure_ascii=False), encoding="utf-8")
     client = FakeMCPClient(rows=1)
 
-    with pytest.raises(RuntimeError, match="config_columns_must_be_104_unique_headers"):
-        sync(tmp_path / "workspace", source, "2026-11-01", "run-legacy-config",
-             config_path=config_path, client=client)
+    result = sync(
+        tmp_path / "workspace", source, "2026-11-01", "run-current-config",
+        config_path=config_path, client=client,
+    )
 
-    assert not any(name in {"sheet.set_range_value", "sheet.insert_dimension"}
-                   for name, _ in client.calls)
+    assert result["added"] == 1
+    assert client.grid[1][COLUMNS.index("ID")] == "wo-1"
+    assert client.call_tool("sheet.get_sheet_info", {"file_id": "file-test"})["sheets"][0]["col_count"] == 103
 
 
 def test_missing_nonmanual_source_column_fails_without_writing(tmp_path: Path) -> None:
@@ -376,6 +499,124 @@ def test_id_date_normalization_and_source_cutoff(tmp_path: Path) -> None:
     assert client.grid[2][COLUMNS.index("学员号")] == "77002"
     assert client.grid[1][COLUMNS.index("分配时间")] == "2026-11-01"
     assert client.grid[2][COLUMNS.index("分配时间")] == "2026-11-02"
+
+
+@pytest.mark.parametrize("epoch", [None, CALENDAR_MAC_1904], ids=["1900-epoch", "1904-epoch"])
+def test_numeric_string_source_date_uses_workbook_epoch(tmp_path: Path, epoch) -> None:
+    assigned = date(2026, 11, 1)
+    serial = str(to_excel(assigned, epoch=epoch)) if epoch is not None else str(to_excel(assigned))
+    source = _write_source(
+        tmp_path / "source.xlsx", [_row("wo-serial", serial)], epoch=epoch,
+    )
+    client = FakeMCPClient(rows=1)
+
+    result = _run(tmp_path, client, source)
+
+    assert result["added"] == 1
+    assert client.grid[1][COLUMNS.index("分配时间")] == "2026-11-01"
+    assert _remote_ids(client) == ["wo-serial"]
+
+
+@pytest.mark.parametrize("assigned", ["not a date", "NaN", "1e309", "1e20"])
+def test_invalid_numeric_string_source_date_is_rejected(tmp_path: Path, assigned: str) -> None:
+    source = _write_source(tmp_path / "source.xlsx", [_row("wo-invalid-date", assigned)])
+    client = FakeMCPClient(rows=1)
+
+    with pytest.raises(RuntimeError, match="source_work_order_date_invalid"):
+        _run(tmp_path, client, source)
+
+    assert not any(name in {"sheet.set_range_value", "sheet.insert_dimension"}
+                   for name, _ in client.calls)
+
+
+def test_secondary_channel_filter_uses_canonical_platform_and_only_secondary_channel(tmp_path: Path) -> None:
+    source = _write_source(tmp_path / "source.xlsx", [
+        _row("wo-tencent", date(2026, 11, 1), extra={"二级渠道": "腾讯广告"}),
+        _row("wo-douyin", date(2026, 11, 1), extra={"二级渠道": "抖音本地推"}),
+        _row("wo-laike", date(2026, 11, 1), extra={"二级渠道": "抖音来客"}),
+        _row("wo-feiyu", date(2026, 11, 1), extra={"二级渠道": "巨量飞鱼"}),
+        _row("wo-xhs", date(2026, 11, 1), extra={"二级渠道": "小红书"}),
+        _row("wo-first-channel-only", date(2026, 11, 1), extra={
+            "二级渠道": "大众点评", "一级渠道": "腾讯广告", "资源描述": "抖音推广"
+        }),
+        _row("wo-description-only", date(2026, 11, 1), extra={
+            "二级渠道": "其他线上来源", "一级渠道": "小红书", "资源描述": "腾讯广告"
+        }),
+        _row("wo-after-cutoff", date(2026, 11, 3), extra={"二级渠道": "小红书"}),
+    ])
+    client = FakeMCPClient(rows=1)
+    config_path = _config(
+        tmp_path, secondary_channel_platforms=["腾讯广告", "抖音", "小红书"]
+    )
+
+    result = sync(
+        workspace=tmp_path / "workspace", source_file=source,
+        as_of_date="2026-11-02", run_id="run-secondary-filter",
+        config_path=config_path, client=client,
+    )
+
+    assert result["candidates"] == 5
+    assert result["added"] == 5
+    assert result["max_source_date"] == "2026-11-03"
+    assert _remote_ids(client) == [
+        "wo-tencent", "wo-douyin", "wo-laike", "wo-feiyu", "wo-xhs",
+    ]
+    assert result["secondary_channel_filter"] == {
+        "field": "二级渠道",
+        "canonical_platforms": ["腾讯广告", "抖音", "小红书"],
+    }
+
+
+def test_unconfigured_secondary_channel_filter_preserves_existing_behavior(tmp_path: Path) -> None:
+    source = _write_source(tmp_path / "source.xlsx", [
+        _row("wo-any-channel", date(2026, 11, 1), extra={"二级渠道": "大众点评"}),
+    ])
+    client = FakeMCPClient(rows=1)
+
+    result = _run(tmp_path, client, source)
+
+    assert result["added"] == 1
+    assert _remote_ids(client) == ["wo-any-channel"]
+    assert result["secondary_channel_filter"] is None
+
+
+def test_configured_secondary_channel_filter_requires_source_field(tmp_path: Path) -> None:
+    source = _write_source(tmp_path / "source.xlsx", [_row("wo-no-channel", date(2026, 11, 1))])
+    client = FakeMCPClient(rows=1)
+    config_path = _config(tmp_path, secondary_channel_platforms=["腾讯广告"])
+
+    with pytest.raises(RuntimeError, match="source_secondary_channel_missing"):
+        sync(
+            workspace=tmp_path / "workspace", source_file=source,
+            as_of_date="2026-11-01", run_id="run-missing-secondary-channel",
+            config_path=config_path, client=client,
+        )
+
+    assert not any(name in {"sheet.set_range_value", "sheet.insert_dimension"}
+                   for name, _ in client.calls)
+
+
+@pytest.mark.parametrize(("platforms", "error"), [
+    ([], "config_secondary_channel_platforms_must_be_nonempty_unique_list"),
+    (["抖音", "抖音"], "config_secondary_channel_platforms_must_be_nonempty_unique_list"),
+    (["微信"], "config_secondary_channel_platform_unsupported"),
+])
+def test_secondary_channel_filter_config_requires_unique_supported_platforms(
+    tmp_path: Path, platforms: list[str], error: str,
+) -> None:
+    source = _write_source(tmp_path / "source.xlsx", [_row("wo-1", date(2026, 11, 1))])
+    client = FakeMCPClient(rows=1)
+    config_path = _config(tmp_path, secondary_channel_platforms=platforms)
+
+    with pytest.raises(RuntimeError, match=error):
+        sync(
+            workspace=tmp_path / "workspace", source_file=source,
+            as_of_date="2026-11-01", run_id="run-invalid-secondary-filter",
+            config_path=config_path, client=client,
+        )
+
+    assert not any(name in {"sheet.set_range_value", "sheet.insert_dimension"}
+                   for name, _ in client.calls)
 
 
 def test_identical_source_ids_deduplicate_but_conflicting_source_ids_fail(tmp_path: Path) -> None:

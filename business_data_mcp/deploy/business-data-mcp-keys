@@ -1,0 +1,16 @@
+#!/bin/sh
+set -eu
+umask 077
+
+registry=/etc/business-data-mcp/keys.json
+output=$(mktemp /run/business-data-mcp-keys.XXXXXX)
+trap 'rm -f "$output"' EXIT HUP INT TERM
+
+if ! /srv/business-data-mcp/venv/bin/business-data-mcp-keys --registry "$registry" "$@" >"$output"; then
+    cat "$output" >&2
+    exit 1
+fi
+
+chgrp business-mcp "$registry"
+chmod 0640 "$registry"
+cat "$output"

@@ -1,12 +1,12 @@
 """Merge a rolling BI export window with prior landing history outside the window.
 
-Orders (工单): unique key ``ID``. Outside-window rows come from the previous
-landing where ``分配时间`` (Excel serial or date-like) converts to a date ``< start``.
-Near-window rows come from the fresh export xlsx in full. On ID conflict, near-window
-rows win. Within each source, the first physical row wins, matching the business
-queries' source_row_number ordering. Output columns follow the fresh export after
-metadata removal; prior rows are projected into that schema. A later duplicate
-must not move a historical order across a reporting-period boundary.
+Orders (工单): unique key ``ID``. With a closed window, outside-window rows come
+from the previous landing where ``分配时间`` (Excel serial or date-like) converts
+to a date before the start or after the end. Fresh rows must have a parseable date
+inside the inclusive window. On ID conflict, fresh rows win. Within each source,
+the first physical row wins, matching the business queries' source_row_number
+ordering. Output columns follow the fresh export after metadata removal; prior rows
+are projected into that schema.
 
 Cash (现金): do **not** invent a hard unique key for upsert — landing may contain
 fully duplicate business rows. Outside-window = prior landing rows whose
@@ -215,7 +215,11 @@ def merge_orders(
     export_xlsx: Path,
     prior_parquet: Path | None,
     start: date,
+    end: date | None = None,
 ) -> tuple[str, list[str], list[dict[str, Any]], dict[str, int]]:
+    if end is not None and end < start:
+        raise ValueError(f"orders end date {end.isoformat()} is before start date {start.isoformat()}")
+
     sheet_name, export_cols, export_rows = _read_xlsx_rows(export_xlsx)
     prior_rows: list[dict[str, Any]] = []
     if prior_parquet is not None:
@@ -225,10 +229,24 @@ def merge_orders(
     outside: list[dict[str, Any]] = []
     for row in prior_rows:
         assigned = excel_serial_to_date(row.get("分配时间"))
-        if assigned is not None and assigned < start:
+        if assigned is not None and (assigned < start or (end is not None and assigned > end)):
             outside.append({c: row.get(c) for c in columns})
 
     near = [{c: row.get(c) for c in columns} for row in export_rows]
+    if end is not None:
+        for index, row in enumerate(near, start=1):
+            raw_date = row.get("分配时间")
+            assigned = excel_serial_to_date(raw_date)
+            if assigned is None:
+                raise ValueError(
+                    f"fresh order export row {index} has an invalid 分配时间: {raw_date!r}"
+                )
+            if assigned < start or assigned > end:
+                raise ValueError(
+                    f"fresh order export row {index} date {assigned.isoformat()} is outside "
+                    f"the inclusive window {start.isoformat()}..{end.isoformat()}"
+                )
+
     by_id: dict[str, dict[str, Any]] = {}
     order: list[str] = []
 
@@ -314,9 +332,20 @@ def merge_exports_with_prior(
     cash_xlsx: Path,
     start_date: str,
     output_dir: Path,
+    orders_start_date: str | None = None,
+    orders_end_date: str | None = None,
 ) -> dict[str, Any]:
-    """Build merged Input xlsx for orders+cash; return paths and stats."""
+    """Build merged Input xlsx for orders+cash; return paths and stats.
+
+    ``start_date`` remains the cash rolling-window start. To apply a closed order
+    replacement window, pass both order dates; leaving both unset preserves the
+    legacy lower-bound-only order merge.
+    """
     start = date.fromisoformat(start_date)
+    if (orders_start_date is None) != (orders_end_date is None):
+        raise ValueError("orders_start_date and orders_end_date must be provided together")
+    orders_start = date.fromisoformat(orders_start_date) if orders_start_date is not None else start
+    orders_end = date.fromisoformat(orders_end_date) if orders_end_date is not None else None
     landing = resolve_prior_landing_dir(workspace)
     orders_parquet = find_landing_parquet(landing, "br_work_orders") if landing else None
     cash_parquet = find_landing_parquet(landing, "br_cash") if landing else None
@@ -326,10 +355,18 @@ def merge_exports_with_prior(
     cash_out = output_dir / "现金表_merged.xlsx"
 
     o_sheet, o_cols, o_rows, o_stats = merge_orders(
-        export_xlsx=orders_xlsx, prior_parquet=orders_parquet, start=start
+        export_xlsx=orders_xlsx, prior_parquet=orders_parquet, start=orders_start, end=orders_end
     )
     c_sheet, c_cols, c_rows, c_stats = merge_cash(
         export_xlsx=cash_xlsx, prior_parquet=cash_parquet, start=start
+    )
+    max_assignment_date = max(
+        (
+            assigned
+            for row in o_rows
+            if (assigned := excel_serial_to_date(row.get("分配时间"))) is not None
+        ),
+        default=None,
     )
     _write_xlsx(orders_out, o_cols, o_rows, o_sheet)
     _write_xlsx(cash_out, c_cols, c_rows, c_sheet)
@@ -349,6 +386,9 @@ def merge_exports_with_prior(
         "outside_orders_rows": o_stats["outside_rows"],
         "outside_cash_rows": c_stats["outside_rows"],
         "start_date": start_date,
+        "orders_max_assignment_date": (
+            max_assignment_date.isoformat() if max_assignment_date is not None else None
+        ),
     }
 
 

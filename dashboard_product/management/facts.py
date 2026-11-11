@@ -7,8 +7,13 @@ import json
 import re
 from typing import Any
 
-from dashboard_product.fallback_mapping import infer_team, resolve_cash_channel
-from dashboard_product.refresh import remap_tmk_school_agent_team, TARGET_GROUP
+from dashboard_product.fallback_mapping import (
+    TMK_PLATFORM_CHANNEL,
+    confirmed_training_platform_team,
+    infer_team,
+    resolve_cash_channel,
+)
+from dashboard_product.refresh import TARGET_GROUP
 from workspace_modeling.operations.personnel import (
     campaign_allows_person_match,
     is_displayable_person,
@@ -200,17 +205,8 @@ def normalize_facts(
             _text(row.get("adviser") or row.get("follow_adviser")), ""
         )) == "留学"
     }
-    offline_training_names = {
-        _text(person.get("display_name"))
-        for team in people_config.get("teams", [])
-        if team.get("team_id") == "offline_market"
-        for group in team.get("groups", [])
-        for person in group.get("members", [])
-        if is_displayable_person(person)
-    }
-
-    # Preserve the P1 cash-channel fallback and the accepted TMK school-agent
-    # remap while retaining each source cash row as its own fact.
+    # Preserve the P1 cash-channel fallback while retaining each source cash row
+    # as its own fact.
     for row in training_rows:
         raw_metric = _text(row.get("metric"))
         if raw_metric == "work_orders":
@@ -224,7 +220,11 @@ def normalize_facts(
         group = _text(row.get("business_group"))
         business_group = TRAINING_GROUPS.get(group)
         team_id = _text(row.get("team_id")) or None
+        source_team_id = team_id
+        work_order_id = _text(row.get("work_order_id")) or None
+        order_source = orders_by_id.get(work_order_id or "", {})
         first = row.get("first_channel")
+        source_platform = _text(first) == TMK_PLATFORM_CHANNEL
         second = row.get("second_channel")
         cash_campaign = row.get("cash_campaign_name")
         linked_campaign = row.get("work_order_campaign_name", row.get("campaign_name"))
@@ -232,6 +232,8 @@ def normalize_facts(
 
         team_inferred = False
         cash_override = None
+        team_before_override = None
+        team_override_reason = None
         if metric == "cash":
             # Match P1's pure fallback contract: the raw cash activity is the
             # primary fallback evidence for channel inference.
@@ -248,22 +250,27 @@ def normalize_facts(
                     resolved["decision"],
                 )
                 team_inferred = team_id != original_team_id
-            team_id = remap_tmk_school_agent_team(
-                team_id, first, campaign, row.get("entry_person"), offline_training_names
-            )
-            cash_override = _cash_team_override(row, cash_team_overrides)
-            if cash_override:
+            matched_override = _cash_team_override(row, cash_team_overrides)
+            if matched_override and not (source_platform or first == TMK_PLATFORM_CHANNEL):
+                cash_override = matched_override
                 team_before_override = team_id
                 team_id = _text(cash_override.get("team_id"))
+                team_override_reason = _text(cash_override.get("note")) or None
                 team_inferred = False
-        elif team_id in TEAM_IDS:
-            team_id = remap_tmk_school_agent_team(
-                team_id, first, campaign, row.get("entry_person"), offline_training_names
+        if source_platform or first == TMK_PLATFORM_CHANNEL:
+            team_inferred = source_team_id != "online_platform"
+            team_id = "online_platform"
+        if not (source_platform or first == TMK_PLATFORM_CHANNEL):
+            confirmed_team = confirmed_training_platform_team(
+                order_source.get("first_channel"), order_source.get("second_channel"),
+                order_source.get("source_channel"), order_source.get("campaign_name"),
             )
+            if confirmed_team and confirmed_team[0] != team_id:
+                team_before_override = team_id
+                team_id, team_override_reason = confirmed_team
+                team_inferred = False
 
         source_row_number = row.get("source_row_number")
-        work_order_id = _text(row.get("work_order_id")) or None
-        order_source = orders_by_id.get(work_order_id or "", {})
         if metric == "orders":
             if not work_order_id:
                 diagnostics["training_order_missing_id"] += 1
@@ -329,6 +336,9 @@ def normalize_facts(
             # business_group remains the normalized target bucket above.
             "comparison_group": _text(row.get("business_group")) or None,
             "school_name": _text(row.get("school_name")) or None,
+            "school_attribute": row.get("school_attribute"),
+            "school_attribute_status": row.get("school_attribute_status"),
+            "channel_school_name": row.get("channel_school_name"),
             "grade_name": _text(row.get("grade_name")) or None,
             "campaign_name": campaign,
             "first_channel": first,
@@ -350,9 +360,9 @@ def normalize_facts(
             "registration_count": row.get("registration_count"),
             "team_inferred": team_inferred,
         }
-        if cash_override:
+        if cash_override or team_override_reason:
             fact["team_before_override"] = team_before_override
-            fact["team_override_reason"] = _text(cash_override.get("note")) or None
+            fact["team_override_reason"] = team_override_reason
         facts.append(fact)
 
     diagnostics["training_facts"] = sum(f["business_line"] == "training" for f in facts)

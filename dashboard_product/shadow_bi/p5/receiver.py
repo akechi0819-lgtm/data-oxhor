@@ -125,6 +125,8 @@ def health():
 def receive():
     if not _authorized():
         return jsonify({'error': 'unauthorized'}), 401
+    if _sql_current_active():
+        return jsonify({'error': 'legacy business upload retired for SQL current'}), 410
     release = request.headers.get('X-Shadow-BI-Release', '')
     if not RELEASE_RE.fullmatch(release):
         return jsonify({'error': 'invalid release'}), 400
@@ -192,6 +194,18 @@ def receive():
             fcntl.flock(lock_file, fcntl.LOCK_UN)
 
 
+def _sql_current_active():
+    root = ROOT.parent
+    try:
+        formal_root = root.resolve(strict=True)
+        current = (root / 'current').resolve(strict=True)
+    except (OSError, RuntimeError):
+        return False
+    if current.parent != formal_root / 'releases':
+        return False
+    return (current / 'library' / 'candidate.json').is_file()
+
+
 @app.get('/v1/batches/<release>')
 def status(release):
     if not _authorized():
@@ -219,7 +233,7 @@ def _notify_context():
     current = (ROOT.parent/'current').resolve(strict=True)
     if current.parent != ROOT.parent.resolve()/'releases':
         raise nc.Rejected('formal current path invalid', 503)
-    manifest = json.loads((current/'library/library_manifest.json').read_bytes())
+    manifest = nc.current_manifest(current/'library')
     policy = json.loads((NOTIFY_CONTROL/'policy.json').read_bytes())
     return current.name, manifest, policy
 

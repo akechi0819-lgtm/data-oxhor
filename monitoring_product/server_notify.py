@@ -23,7 +23,12 @@ def run(mode, *, warehouse=Path('/var/lib/shadow-bi'), home=Path('/var/lib/shado
     now=now.astimezone(ZoneInfo('Asia/Shanghai'))
     current=warehouse/'current'
     release=current.resolve(strict=True)
-    manifest=json.loads((release/'library/library_manifest.json').read_bytes())
+    sql_mode=(release/'library/candidate.json').is_file()
+    if sql_mode:
+        from monitoring_product.sql_release_notifications import source
+        manifest,_=source(release/'library')
+    else:
+        manifest=json.loads((release/'library/library_manifest.json').read_bytes())
     if expected_release is not None and release.name != expected_release:
         raise ValueError('expected current release changed')
     if expected_date is not None and manifest['as_of_date'] != expected_date:
@@ -66,7 +71,8 @@ def run(mode, *, warehouse=Path('/var/lib/shadow-bi'), home=Path('/var/lib/shado
             return {'status':'blocked','reason':'notification_executor_busy','release_id':release.name,
                     'as_of_date':manifest['as_of_date'],'network_send_attempted':False,
                     'message_count':0,'message_status_counts':{}}
-        manifest,_,_=load_library(release/'library',manifest['batch_id'])
+        if not sql_mode:
+            manifest,_,_=load_library(release/'library',manifest['batch_id'])
         rules=n.rule_binding()
         version=hashlib.sha256(n.canonical(rules)).hexdigest()[:16]
         bundle=home/'bundles'/(release.name+'-'+version)

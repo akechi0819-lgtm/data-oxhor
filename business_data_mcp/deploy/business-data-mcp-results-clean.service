@@ -1,0 +1,7 @@
+[Unit]
+Description=Remove expired Business Data MCP query results
+After=local-fs.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/systemd-tmpfiles --clean --prefix=/var/lib/business-data-mcp/results /etc/tmpfiles.d/business-data-mcp-results.conf

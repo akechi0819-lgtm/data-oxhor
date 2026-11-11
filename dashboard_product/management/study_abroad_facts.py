@@ -29,6 +29,7 @@ PENDING_CHANNEL = "渠道待确认"
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 _HISTORY_KINDS = ("resources", "contracts", "languages")
 _RESOURCE_ID_PREFIX = re.compile(r"^(?:资源\s*ID|ID)\s*[:：]\s*", re.IGNORECASE)
+_NORMAL_MARKET_SEGMENTS = frozenset({"study_abroad_offline", "study_abroad_online"})
 
 
 def _text(value: Any) -> str:
@@ -396,6 +397,26 @@ def _fact_value(row: dict[str, Any], diagnostics: Counter[str]) -> tuple[str, fl
     return "cash", float(amount)
 
 
+def _correct_market_segment(row: dict[str, Any], first: str | None,
+                            second: str | None) -> str:
+    """Apply confirmed channel ownership only to regular study-abroad market rows."""
+    segment = _text(row.get("segment_id"))
+    if segment not in _NORMAL_MARKET_SEGMENTS:
+        return segment
+
+    raw_first = _text(row.get("first_channel"))
+    raw_second = _text(row.get("second_channel"))
+    third = _text(row.get("third_channel"))
+    if second == "虚拟人" or raw_second == "虚拟人" or third == "虚拟人":
+        return "study_abroad_virtual"
+    if second == "SSC" or raw_second == "欧亚总部在线":
+        return "ssc"
+    if (first in {"网络资源", "TMK激活-平台"}
+            or raw_first in {"网络资源", "线上运营", "网络", "TMK激活-平台"}):
+        return "study_abroad_online"
+    return segment
+
+
 def _make_fact(row: dict[str, Any], channel: tuple[Any, ...], diagnostics: Counter[str],
                reference: Any) -> dict[str, Any] | None:
     metric_value = _fact_value(row, diagnostics)
@@ -413,19 +434,10 @@ def _make_fact(row: dict[str, Any], channel: tuple[Any, ...], diagnostics: Count
     if not _SHA256.fullmatch(source_sha256):
         raise ValueError("留学facts缺少有效origin_sha256")
 
-    segment = _text(row.get("segment_id"))
-    team_id = {
-        "study_abroad_online": "online_platform",
-        "study_abroad_offline": "offline_market",
-    }.get(segment)
-    acquisition_mode = {
-        "study_abroad_online": "online",
-        "study_abroad_offline": "offline",
-    }.get(segment, "supplemental")
-    offline_channel_eligible = segment == "study_abroad_offline"
+    source_segment = _text(row.get("segment_id"))
     owner = _text(row.get("owner")) or None
     personal_eligible = _boolean(row.get("personal_eligible"))
-    owners = [] if segment == "international_market" or not personal_eligible or not owner else [owner]
+    owners = [] if source_segment == "international_market" or not personal_eligible or not owner else [owner]
     resource_status = _text(row.get("resource_status")) or None
     is_resource = _text(row.get("fact_type")) == "resource"
     counts_toward_completion = (resource_status not in {"删除", "回收"}) if is_resource else True
@@ -442,6 +454,18 @@ def _make_fact(row: dict[str, Any], channel: tuple[Any, ...], diagnostics: Count
     raw_path = f"{raw_first}-{raw_second}" if raw_first and raw_second else raw_first
     line = _resolve_line(country or "", raw_path, reference)
     first, second, channel_status, channel_rule = channel
+    segment = _correct_market_segment(row, first, second)
+    team_id = {
+        "study_abroad_online": "online_platform",
+        "study_abroad_offline": "offline_market",
+        "study_abroad_virtual": "online_private",
+    }.get(segment)
+    acquisition_mode = {
+        "study_abroad_online": "online",
+        "study_abroad_offline": "offline",
+        "study_abroad_virtual": "online",
+    }.get(segment, "supplemental")
+    offline_channel_eligible = segment == "study_abroad_offline"
     if channel_status not in {"matched_existing", "confirmed_new_source"}:
         diagnostics["unresolved_channel_rows"] += 1
     if segment == "international_market":

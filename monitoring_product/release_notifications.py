@@ -29,6 +29,8 @@ RULE_FILES = ('dashboard_product/management/notifications.py', 'dashboard_produc
               'data_platform/business_library.py', 'data_platform/query/service.py', 'data_platform/query/evidence.py',
               'monitoring_product/release_notifications.py', 'monitoring_product/server_notify.py', 'monitoring_product/shared_delivery.py',
               'monitoring_product/shared_preview.py', 'monitoring_product/delivery_transport.py')
+RULE_FILES += ('monitoring_product/sql_release_notifications.py',
+               'dashboard_product/shadow_bi/p4/sql_release.py')
 
 
 def canonical(value):
@@ -108,6 +110,9 @@ def reconstruct(manifest, read_rows):
 
 
 def build_bundle(*, library, batch_id, release_id, output_dir):
+    if (Path(library)/'candidate.json').is_file():
+        from monitoring_product.sql_release_notifications import build_bundle as build_sql_bundle
+        return build_sql_bundle(library=library,batch_id=batch_id,release_id=release_id,output_dir=output_dir)
     library, output_dir = Path(library).resolve(), Path(output_dir).resolve()
     if output_dir.exists():
         raise ValueError('refuse to overwrite notification bundle')
@@ -173,6 +178,9 @@ def verify_bundle(bundle_path, current_release, *, fresh=False):
     bundle = json.loads(bundle_path.read_bytes())
     if bundle.get('schema_version') != SCHEMA:
         raise ValueError('unsupported notification bundle')
+    if bundle.get('source_mode') == 'sql_warehouse':
+        from monitoring_product.sql_release_notifications import verify_bundle as verify_sql_bundle
+        return verify_sql_bundle(bundle_path,current_release,fresh=fresh)
     current = Path(current_release).resolve(strict=True)
     manifest, _, ref = load_library(current/'library', bundle['source']['batch_id'])
     if identity(manifest, current.name) != bundle['source'] or ref['sha256'] != bundle['source_manifest_sha256']:
@@ -267,7 +275,8 @@ def deliver_bundle(*, bundle_path, current_release, output_dir, state_dir, env_f
         if before_send is not None:
             before_send()
         current = Path(current_release).resolve(strict=True)
-        if current.name != bundle['source']['release_id'] or sha(current/'library/library_manifest.json') != bundle['source_manifest_sha256']:
+        manifest_name='release.json' if bundle.get('source_mode')=='sql_warehouse' else 'library_manifest.json'
+        if current.name != bundle['source']['release_id'] or sha(current/'library'/manifest_name) != bundle['source_manifest_sha256']:
             raise ValueError('current release changed before notification send')
     def publisher(stage, token, env_file=None):
         current_guard()

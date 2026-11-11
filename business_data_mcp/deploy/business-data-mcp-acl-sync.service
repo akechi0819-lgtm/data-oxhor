@@ -1,0 +1,7 @@
+[Unit]
+Description=Authorize the Business Data MCP reader for the current foundation
+After=local-fs.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /usr/local/libexec/business-data-mcp/acl_sync.py

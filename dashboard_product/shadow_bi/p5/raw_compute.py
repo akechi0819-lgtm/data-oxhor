@@ -33,16 +33,13 @@ def limits():
     duckdb.connect=connect
 
 
-def gates(library, batch, day, expected=None, completion=None):
+def library_gates(library, batch, day, expected=None):
+    """Verify a sealed library's identity, cutoff, payload hashes and physical counts."""
     from data_platform.business_library import load_library, execute_library_query, read_library_result
     m,_,_=load_library(library,batch)
     if len(m['tables'])!=39 or m['as_of_date']!=day:raise ValueError('incomplete business library')
     from datetime import date,timedelta
     if m['coverage']['data_through']!=(date.fromisoformat(day)-timedelta(days=1)).isoformat():raise ValueError('business cutoff mismatch')
-    if completion is None:
-        raise ValueError('verified completion required for this candidate')
-    if completion is not None and m['coverage'].get('source_completion') != completion.metadata():
-        raise ValueError('business completion proof differs')
     for key,spec in m['tables'].items():
         rel=Path(spec['data']['path'])
         if rel.is_absolute() or '..' in rel.parts or sha(library/rel)!=spec['data']['sha256']:raise ValueError('sealed table changed')
@@ -61,6 +58,17 @@ def gates(library, batch, day, expected=None, completion=None):
             write(library.parent/'comparison.json',comparison)
             raise ValueError('same-source reconciliation failed')
     return {'tables':39,'physical_counts_verified':True,'same_source_comparison':comparison,'manifest_sha256':sha(library/'library_manifest.json')}
+
+
+def gates(library, batch, day, expected=None, completion=None):
+    """Raw-source candidate gate; completion evidence remains mandatory."""
+    if completion is None:
+        raise ValueError('verified completion required for this candidate')
+    from data_platform.business_library import load_library
+    manifest,_,_=load_library(library,batch)
+    if manifest['coverage'].get('source_completion') != completion.metadata():
+        raise ValueError('business completion proof differs')
+    return library_gates(library,batch,day,expected)
 
 
 

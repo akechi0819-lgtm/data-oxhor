@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import tempfile
+import json
 import unittest
 import sys
 from contextlib import redirect_stdout
@@ -9,7 +10,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from openpyxl import Workbook
+from openpyxl import Workbook, load_workbook
 
 from data_acquisition.jobs import rebuild_bi_warehouse
 from workspace_modeling.bridge_alignment.service import start_session
@@ -32,7 +33,7 @@ def _write_workbook(path: Path, sheet_name: str, rows: list[list[object]]) -> No
     workbook.close()
 
 
-def _mock_download(config, targets, start_date, end_date):
+def _mock_download(config, targets, start_date, end_date, **kwargs):
     downloaded = []
     for target in targets:
         if target == "orders":
@@ -156,10 +157,64 @@ class RebuildBIWarehouseTests(unittest.TestCase):
             self.assertTrue(Path(result["export_cash"]).is_file())
             self.assertEqual(other_bytes, other_path.read_bytes())
             self.assertEqual("snapshot_rebuild_next", load_workspace(workspace)[1]["current_snapshot_id"])
+            self.assertEqual("2026-08-01", result["order_refresh"]["orders_covered_through"])
             self.assertNotIn("export_keep_orders", result)
             self.assertNotIn("export_keep_cash", result)
             self.assertNotIn("prior_landing", result)
             self.assertEqual([], list((workspace / "Work" / "Runs" / "_bi_rebuild_tmp").glob("*")))
+
+    def test_incremental_orders_preserve_history_and_last_complete_refresh_cash_keeps_six_month_window(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            workspace = self._workspace(Path(directory) / "workspace")
+            _write_workbook(
+                workspace / "Input/Data/br_cash/old-cash.xlsx", "现金明细表",
+                [["工单ID", "业务日期", "现金收入"],
+                 ["OLD", "2026-01-01", 100], ["REPLACED", "2026-07-01", 300]],
+            )
+            sync_data(root=workspace, snapshot_id="snapshot_rebuild_baseline")
+            metadata = workspace / "Work/BIRefresh/snapshot_rebuild_baseline.json"
+            metadata.parent.mkdir(parents=True)
+            complete_at = "2026-09-28T09:30:00+08:00"
+            metadata.write_text(json.dumps({
+                "snapshot_id": "snapshot_rebuild_baseline", "orders_covered_through": "2026-09-28",
+                "last_complete_refresh_at": complete_at,
+                "last_complete_refresh_snapshot_id": "snapshot_rebuild_baseline",
+            }))
+
+            def incremental_download(config, targets, start_date, end_date, **kwargs):
+                artifacts = _mock_download(config, targets, start_date, end_date)
+                orders = next(a for a in artifacts if a.target == "orders")
+                _write_workbook(orders.path, "工单明细导出用表", [
+                    ["ID", "分配时间", "姓名"], ["NEW", "2026-09-29", "新工单"]])
+                orders.start_date = kwargs["orders_start_date"]
+                orders.end_date = kwargs["orders_end_date"]
+                orders.mode = "incremental"
+                return artifacts
+
+            with patch.object(rebuild_bi_warehouse, "run_bi_download", side_effect=incremental_download) as download:
+                result = rebuild_bi_warehouse.rebuild(
+                    workspace=workspace, snapshot_id="snapshot_rebuild_incremental",
+                    start_date="2026-03-30", end_date="2026-09-30",
+                    orders_start_date="2026-09-29", orders_end_date="2026-09-29",
+                )
+            self.assertEqual("2026-03-30", download.call_args.kwargs["start_date"])
+            self.assertEqual("2026-09-30", download.call_args.kwargs["end_date"])
+            refresh = result["order_refresh"]
+            self.assertEqual("incremental", refresh["orders_mode"])
+            self.assertEqual(complete_at, refresh["last_complete_refresh_at"])
+            self.assertEqual("snapshot_rebuild_baseline", refresh["last_complete_refresh_snapshot_id"])
+            self.assertEqual("2026-09-29", refresh["orders_covered_through"])
+            self.assertFalse(refresh["historical_state_refreshed"])
+            self.assertEqual({"start": "2026-03-30", "end": "2026-09-30"}, refresh["cash_window"])
+            for key, expected_ids in (("orders", {"OLD", "NEW"}), ("cash", {"OLD", "NEW"})):
+                workbook = load_workbook(result[key], read_only=True, data_only=True)
+                try:
+                    rows = list(workbook.active.values)
+                    self.assertEqual(expected_ids, {row[0] for row in rows[1:]})
+                finally:
+                    workbook.close()
+            stored = json.loads((workspace / "Work/BIRefresh/snapshot_rebuild_incremental.json").read_text())
+            self.assertEqual(refresh, stored)
 
     def test_active_session_blocks_before_download_and_input_replacement(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -206,7 +261,7 @@ class RebuildBIWarehouseTests(unittest.TestCase):
             self.assertEqual("SOURCE_INVALID", captured.exception.code)
             self.assertEqual(before, self._bi_files(workspace))
             self.assertEqual(other_bytes, other_path.read_bytes())
-            self.assertFalse((workspace / "Work" / "Runs" / "_bi_export_keep" / "snapshot_rebuild_failed").exists())
+            self.assertTrue((workspace / "Work" / "Runs" / "_bi_export_keep" / "snapshot_rebuild_failed").exists())
             self.assertEqual("snapshot_rebuild_initial", load_workspace(workspace)[1]["current_snapshot_id"])
 
     def test_second_bi_slot_copy_failure_restores_both_original_slots(self) -> None:
@@ -299,7 +354,7 @@ class RebuildBIWarehouseTests(unittest.TestCase):
 
             with (
                 patch.object(rebuild_bi_warehouse, "run_bi_download", side_effect=_mock_download),
-                patch.object(rebuild_bi_warehouse, "load_workspace", side_effect=RuntimeError("pointer unavailable")),
+                patch.object(rebuild_bi_warehouse, "_snapshot_is_current", side_effect=RuntimeError("pointer unavailable")),
             ):
                 with self.assertRaisesRegex(RuntimeError, "backup retained at") as captured:
                     rebuild_bi_warehouse.rebuild(

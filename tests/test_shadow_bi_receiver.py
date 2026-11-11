@@ -48,6 +48,18 @@ class ReceiverContractTests(unittest.TestCase):
         self.assertEqual(self.client.post('/v1/batches',headers={'Authorization':'Bearer wrong'}).status_code,401)
         self.assertFalse(self.root.exists())
 
+    def test_sql_current_retires_business_upload_after_auth_before_body_checks(self):
+        release = self.root.parent / 'releases' / 'daily-sql-fixture'
+        library = release / 'library'
+        library.mkdir(parents=True)
+        (self.root.parent / 'current').symlink_to(release)
+        (library / 'candidate.json').write_text('{}')
+        self.assertEqual(self.client.post('/v1/batches').status_code, 401)
+        response = self.client.post('/v1/batches', headers={'Authorization': self.headers['Authorization']})
+        self.assertEqual(response.status_code, 410)
+        self.assertIn('retired', response.json['error'])
+        self.assertFalse(self.root.exists())
+
     def test_same_batch_is_idempotent_and_changed_content_is_rejected(self):
         body=self.archive()
         for _ in range(2):

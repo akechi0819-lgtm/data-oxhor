@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import argparse
-from datetime import date
+from datetime import date, datetime, timedelta
+from zoneinfo import ZoneInfo
 import json
 from pathlib import Path
 import shutil
@@ -58,8 +59,35 @@ def _restore_bi_inputs(input_data: Path, backup_root: Path, existed: dict[str, b
             shutil.copytree(backup_root / source_id, slot)
 
 
+def _prior_order_refresh(workspace: Path, snapshot_id: str) -> dict:
+    _, config = load_workspace(workspace)
+    prior_id = config.get("current_snapshot_id")
+    metadata = workspace / "Work/BIRefresh" / f"{prior_id}.json"
+    if metadata.is_file():
+        value = json.loads(metadata.read_text())
+        if value["snapshot_id"] != prior_id:
+            raise ValueError("BI refresh metadata Snapshot mismatch")
+        return value
+    if not prior_id:
+        return {}
+    from data_platform.query.service import execute_query
+    warehouse = workspace / config["current_warehouse_path"]
+    manifest = json.loads((warehouse.parent / "snapshot_manifest.json").read_text())
+    source = next(s for s in manifest["sources"] if s["source_id"] == "br_work_orders")
+    table = source["sheets"][0]["target_table"]
+    response = execute_query(
+        warehouse=warehouse, snapshot_id=prior_id,
+        sql=f'SELECT MAX(COALESCE(TRY_CAST("分配时间" AS DATE), DATE \'1899-12-30\' + CAST(TRY_CAST("分配时间" AS DOUBLE) AS INTEGER))) FROM landing."{table}"',
+        run_id="run_order_coverage_" + snapshot_id.removeprefix("snapshot_bi_operations_"),
+        output_root=workspace / "Work/BIRefresh/Queries")
+    return {"snapshot_id": prior_id, "orders_covered_through": response["result"]["rows"][0][0],
+            "last_complete_refresh_at": None, "last_complete_refresh_snapshot_id": None,
+            "coverage_receipt": response["receipt"]}
+
+
 def rebuild(*, workspace: Path, snapshot_id: str, start_date: str, end_date: str,
-            export_paths: dict[str, Path] | None = None) -> dict:
+            export_paths: dict[str, Path] | None = None,
+            orders_start_date: str | None = None, orders_end_date: str | None = None) -> dict:
     workspace = workspace.resolve()
     if not (workspace / "Work" / "workspace.json").exists():
         init_workspace(
@@ -73,6 +101,10 @@ def rebuild(*, workspace: Path, snapshot_id: str, start_date: str, end_date: str
             / "education_training_operations_cn"
             / "pack.json",
         )
+    if bool(orders_start_date) != bool(orders_end_date):
+        raise ValueError("both order recovery dates are required")
+    if orders_start_date and not (date.fromisoformat(orders_start_date) <= date.fromisoformat(orders_end_date) < date.fromisoformat(end_date)):
+        raise ValueError("order recovery window must end before as-of date")
     validate_sync_preconditions(root=workspace, snapshot_id=snapshot_id)
 
     temporary_parent = workspace / "Work" / "Runs" / "_bi_rebuild_tmp"
@@ -81,8 +113,18 @@ def rebuild(*, workspace: Path, snapshot_id: str, start_date: str, end_date: str
     keep_dir = workspace / "Work" / "Runs" / "_bi_export_keep" / snapshot_id
     backup_state = "not-created"
     try:
-        download_dir = temporary_root / "downloads"
-        download_dir.mkdir()
+        download_dir = workspace / "Work/BIExportTasks" / end_date
+        download_dir.mkdir(parents=True, exist_ok=True)
+        prior_refresh = _prior_order_refresh(workspace, snapshot_id)
+        covered = prior_refresh.get("orders_covered_through")
+        fallback_start = (date.fromisoformat(covered) + timedelta(days=1)).isoformat() if covered else None
+        if orders_start_date and (not covered or date.fromisoformat(orders_start_date) > date.fromisoformat(covered) + timedelta(days=1)):
+            raise ValueError("order recovery would leave a coverage gap")
+        fallback_end = (date.fromisoformat(end_date) - timedelta(days=1)).isoformat()
+        if fallback_start and fallback_start > fallback_end:
+            fallback_start = None
+        actual_orders_start = orders_start_date or start_date
+        actual_orders_end = orders_end_date or end_date
         if export_paths is None:
             artifacts = run_bi_download(
                 config=BIExportConfig(
@@ -94,7 +136,14 @@ def rebuild(*, workspace: Path, snapshot_id: str, start_date: str, end_date: str
                 targets=("orders", "cash"),
                 start_date=start_date,
                 end_date=end_date,
+                **({"orders_start_date": orders_start_date, "orders_end_date": orders_end_date}
+                   if orders_start_date else {}),
+                **({"orders_fallback_start_date": fallback_start, "orders_fallback_end_date": fallback_end}
+                   if fallback_start and not orders_start_date else {}),
             )
+            order_artifact = next(a for a in artifacts if a.target == "orders")
+            actual_orders_start = getattr(order_artifact, "start_date", None) or actual_orders_start
+            actual_orders_end = getattr(order_artifact, "end_date", None) or actual_orders_end
             paths = {artifact.target: artifact.path for artifact in artifacts}
         else:
             # Explicit validated receiver files; history merge and Snapshot logic stay shared.
@@ -110,16 +159,16 @@ def rebuild(*, workspace: Path, snapshot_id: str, start_date: str, end_date: str
             cash_xlsx=paths["cash"],
             start_date=start_date,
             output_dir=temporary_root / "merged",
+            orders_start_date=actual_orders_start,
+            orders_end_date=actual_orders_end,
         )
         merged_orders = Path(merge_stats["orders_path"])
         merged_cash = Path(merge_stats["cash_path"])
         _valid_xlsx(merged_orders)
         _valid_xlsx(merged_cash)
 
-        # Retain only these two raw exports; their returned paths outlive this temp directory.
-        if keep_dir.exists():
-            shutil.rmtree(keep_dir)
-        keep_dir.mkdir(parents=True)
+        # Keep raw exports for Snapshot evidence; task files also survive failed attempts.
+        keep_dir.mkdir(parents=True, exist_ok=True)
         kept = {}
         for label, source in (("orders", paths["orders"]), ("cash", paths["cash"])):
             destination = keep_dir / Path(source).name
@@ -165,10 +214,26 @@ def rebuild(*, workspace: Path, snapshot_id: str, start_date: str, end_date: str
                         f"BI Input restoration failed; backup retained at {backup_root}: {restore_error}"
                     ) from restore_error
                 backup_state = "restored"
-                shutil.rmtree(keep_dir, ignore_errors=True)
+                # Keep original exports and task receipts for recovery.
             raise
 
+        incremental = actual_orders_start != start_date or actual_orders_end != end_date
+        refresh = {
+            "snapshot_id": snapshot_id, "prior_snapshot_id": prior_refresh.get("snapshot_id"),
+            "orders_mode": "incremental" if incremental else "rolling_complete",
+            "orders_window": {"start": actual_orders_start, "end": actual_orders_end},
+            "cash_window": {"start": start_date, "end": end_date},
+            "orders_covered_through": merge_stats["orders_max_assignment_date"],
+            "last_complete_refresh_at": prior_refresh.get("last_complete_refresh_at") if incremental else datetime.now(ZoneInfo("Asia/Shanghai")).isoformat(),
+            "last_complete_refresh_snapshot_id": prior_refresh.get("last_complete_refresh_snapshot_id") if incremental else snapshot_id,
+            "last_complete_refresh_evidence": prior_refresh.get("last_complete_refresh_evidence") if incremental else None,
+            "historical_state_refreshed": not incremental,
+        }
+        metadata = workspace / "Work/BIRefresh" / f"{snapshot_id}.json"
+        metadata.parent.mkdir(parents=True, exist_ok=True)
+        metadata.write_text(json.dumps(refresh, ensure_ascii=False, indent=2))
         return {
+            "order_refresh": refresh,
             "workspace": str(workspace),
             "snapshot_id": snapshot_id,
             "orders": imported_orders["source_file"],
@@ -188,8 +253,6 @@ def rebuild(*, workspace: Path, snapshot_id: str, start_date: str, end_date: str
             "outside_cash_rows": merge_stats["outside_cash_rows"],
         }
     except Exception:
-        if backup_state in {"not-created", "restored"}:
-            shutil.rmtree(keep_dir, ignore_errors=True)
         raise
     finally:
         if backup_state != "preserve":

@@ -526,6 +526,9 @@ def test_promotion_scope_paginates_stably_and_keeps_smart_exclusion_contract(tmp
         (_row(WINDOW[0], '4', entity='a1', account=42), 'tencent_promotion_query_account_mismatch'),
         (_row('2026-11-03', '4', entity='a1'), 'tencent_promotion_query_date_or_cost_invalid'),
         (_row(WINDOW[0], '', entity='a1'), 'tencent_promotion_query_date_or_cost_invalid'),
+        (_row(WINDOW[0], None, entity='a1'), 'tencent_promotion_query_date_or_cost_invalid'),
+        (_row(WINDOW[0], 'NaN', entity='a1'), 'tencent_promotion_query_date_or_cost_invalid'),
+        (_row(WINDOW[0], 'Infinity', entity='a1'), 'tencent_promotion_query_date_or_cost_invalid'),
     ],
 )
 def test_promotion_scope_rejects_bad_rows_before_native_comparison(tmp_path, bad_row, reason):
@@ -659,3 +662,22 @@ def test_brand_proxy_404_is_a_fixed_blocker(tmp_path, monkeypatch):
         tencent._brand_proxy_post(client,
             '/bff/proxy/gdt-api/ad_manage/v1/dpmanage/get_integrated_list_upgrade',
             {'account_id_list': [74749810]})
+
+
+@pytest.mark.parametrize('native_amount, matches', [('"2,224.09"', True), ('"2,224.08"', False)])
+def test_promotion_thousands_query_reconciles_exactly_with_native_csv(tmp_path, native_amount, matches):
+    contract_path, contract_hash, contract = _contract(tmp_path)
+    rows = {
+        'bidding_display': [_row(WINDOW[0], '2,224.09', entity='display')],
+        'bidding_search': [_row(WINDOW[0], '20.00', entity='search')],
+    }
+    native = _native_files(tmp_path, {WINDOW[0]: native_amount}, {WINDOW[0]: '20.00'})
+    if matches:
+        result = _run(tmp_path, contract_path, contract_hash, native, _fake_post(contract, rows, []))
+        assert result['status'] == 'verified'
+        assert result['daily_comparison']['v3']['query_total'] == '2224.09'
+        assert result['daily_comparison']['v3']['native_total'] == '2224.09'
+        assert result['daily_comparison']['v3']['matches_exactly'] is True
+    else:
+        with pytest.raises(tencent.ExportBlocked, match='tencent_promotion_native_export_required'):
+            _run(tmp_path, contract_path, contract_hash, native, _fake_post(contract, rows, []))

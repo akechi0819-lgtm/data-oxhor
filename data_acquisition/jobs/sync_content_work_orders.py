@@ -18,13 +18,18 @@ from openpyxl import load_workbook
 from openpyxl.utils.datetime import from_excel
 
 from data_acquisition.connectors.tencent_docs.mcp import TencentDocsMCPClient, TencentDocsMCPError
+from dashboard_product.management.platforms import canonical_platform
 
 DATE_FIELD = "分配时间"
 ID_FIELD = "ID"
 LEARNER_NUMBER_FIELD = "学员号"
 MATERIAL_ID_FIELD = "素材ID"
 ACCOUNT_SOURCE_FIELD = "账号来源"
-MANUAL_FIELDS = frozenset({MATERIAL_ID_FIELD, ACCOUNT_SOURCE_FIELD, "工单跟进情况"})
+SECONDARY_CHANNEL_FIELD = "二级渠道"
+SECONDARY_CHANNEL_PLATFORMS = frozenset({"腾讯广告", "抖音", "小红书"})
+MANUAL_FIELDS = frozenset({
+    MATERIAL_ID_FIELD, ACCOUNT_SOURCE_FIELD, "工单跟进情况", "重点资源意向", "所属条线",
+})
 RECEIPT_ROOT = Path("Work/ContentWorkOrders")
 RECEIPT_SCHEMA = "content_work_orders_sync.v1"
 RUN_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$")
@@ -58,13 +63,18 @@ def _parse_source_date(value: object, epoch: Any) -> date | None:
             return None
         return converted.date() if isinstance(converted, datetime) else converted if isinstance(converted, date) else None
     if isinstance(value, str) and value.strip():
+        text = value.strip()
         try:
-            return datetime.fromisoformat(value.strip().replace("Z", "+00:00")).date()
+            return datetime.fromisoformat(text.replace("Z", "+00:00")).date()
         except ValueError:
             try:
-                return date.fromisoformat(value.strip())
+                return date.fromisoformat(text)
             except ValueError:
-                return None
+                try:
+                    numeric_value = float(text)
+                except (OverflowError, ValueError):
+                    return None
+                return _parse_source_date(numeric_value, epoch)
     return None
 
 def _identifier(value: object) -> str | None:
@@ -132,14 +142,24 @@ def _read_config(path: Path) -> dict[str, Any]:
         if not isinstance(value.get(name), str) or not value[name].strip():
             raise SyncError(f"config_{name}_missing")
     columns = value.get("columns")
-    if (not isinstance(columns, list) or len(columns) != 104
+    if (not isinstance(columns, list) or not columns
             or any(not isinstance(item, str) or not item for item in columns)
             or len(set(columns)) != len(columns)):
-        raise SyncError("config_columns_must_be_104_unique_headers")
+        raise SyncError("config_columns_must_be_nonempty_unique_headers")
     if ID_FIELD not in columns or DATE_FIELD not in columns or not MANUAL_FIELDS.issubset(columns):
         raise SyncError("config_required_headers_missing")
     if columns.index(ACCOUNT_SOURCE_FIELD) != columns.index(MATERIAL_ID_FIELD) + 1:
         raise SyncError("config_account_source_must_follow_material_id")
+    if "secondary_channel_platforms" in value:
+        platforms = value["secondary_channel_platforms"]
+        if (not isinstance(platforms, list) or not platforms
+                or any(not isinstance(platform, str) for platform in platforms)
+                or len(set(platforms)) != len(platforms)):
+            raise SyncError("config_secondary_channel_platforms_must_be_nonempty_unique_list")
+        if any(platform not in SECONDARY_CHANNEL_PLATFORMS for platform in platforms):
+            raise SyncError("config_secondary_channel_platform_unsupported")
+    if "window_mode" in value and value["window_mode"] != "current_month":
+        raise SyncError("config_window_mode_unsupported")
     value["start_date"] = _iso_date(value.get("start_date"), "start_date").isoformat()
     return value
 
@@ -148,7 +168,9 @@ def _resolve_path(value: str | Path, *, base: Path) -> Path:
     return path.resolve() if path.is_absolute() else (base / path).resolve()
 
 def _load_candidates(source_file: Path, columns: list[str], start: date,
-                     through: date) -> tuple[list[list[object]], date | None]:
+                     through: date,
+                     secondary_channel_platforms: list[str] | None = None
+                     ) -> tuple[list[list[object]], date | None]:
     if not source_file.is_file():
         raise SyncError("source_file_missing")
     try:
@@ -169,6 +191,9 @@ def _load_candidates(source_file: Path, columns: list[str], start: date,
             raise SyncError("source_headers_missing_required_fields")
         if DATE_FIELD not in source_index or ID_FIELD not in source_index:
             raise SyncError("source_required_field_missing")
+        secondary_channel_index = source_index.get(SECONDARY_CHANNEL_FIELD)
+        if secondary_channel_platforms is not None and secondary_channel_index is None:
+            raise SyncError("source_secondary_channel_missing")
         sheet = workbook.active
         indexes = [source_index.get(header) for header in columns]
         date_index = source_index[DATE_FIELD]
@@ -185,6 +210,9 @@ def _load_candidates(source_file: Path, columns: list[str], start: date,
                                 else "source_work_order_date_invalid")
             maximum_date = row_day if maximum_date is None else max(maximum_date, row_day)
             if row_day < start or row_day > through:
+                continue
+            if (secondary_channel_platforms is not None
+                    and canonical_platform(source_row[secondary_channel_index]) not in secondary_channel_platforms):
                 continue
             target_row = []
             for header, column_index in zip(columns, indexes):
@@ -429,7 +457,9 @@ def sync(workspace, source_file, as_of_date, run_id, config_path=None, client=No
             "source_sha256": None,
             "date_field": DATE_FIELD,
             "start_date": None,
+            "window_mode": None,
             "as_of_date": as_of.isoformat(),
+            "secondary_channel_filter": None,
             "max_source_date": None,
             "candidates": 0,
             "added": 0,
@@ -443,15 +473,28 @@ def sync(workspace, source_file, as_of_date, run_id, config_path=None, client=No
                                     workspace_path / ".private" / "content-work-orders.json")
             config = _read_config(selected_config_path)
             start = date.fromisoformat(config["start_date"])
+            window_mode = config.get("window_mode", "fixed")
+            if window_mode == "current_month":
+                start = max(start, as_of.replace(day=1))
             if as_of < start:
                 raise SyncError("as_of_date_before_start_date")
             receipt["start_date"] = start.isoformat()
+            receipt["window_mode"] = window_mode
+            secondary_channel_platforms = config.get("secondary_channel_platforms")
+            if secondary_channel_platforms is not None:
+                receipt["secondary_channel_filter"] = {
+                    "field": SECONDARY_CHANNEL_FIELD,
+                    "canonical_platforms": secondary_channel_platforms,
+                }
 
             source_path = _resolve_path(source_file, base=workspace_path)
             receipt["source_path"] = str(source_path)
             receipt["source_sha256"] = _hash_file(source_path) if source_path.is_file() else None
             columns = config["columns"]
-            candidates, maximum_date = _load_candidates(source_path, columns, start, as_of)
+            candidates, maximum_date = _load_candidates(
+                source_path, columns, start, as_of,
+                secondary_channel_platforms=secondary_channel_platforms,
+            )
             receipt["max_source_date"] = maximum_date.isoformat() if maximum_date else None
             receipt["candidates"] = len(candidates)
 

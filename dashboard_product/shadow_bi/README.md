@@ -1,13 +1,13 @@
-> **10月26日最新运行记录**：raw接收/计算/发布已暂停，保留Mac更新链路与既有成品/通知入口；服务器数仓和聚合代码能力仍保留。以[清理与暂停回执](../../docs/server-cleanup-20261026.md)区分能力部署与当前启停。本轮未实读或修改服务器/日程，以下raw说明为代码/已部署能力合同，不是恢复运行指令。
-
 # 正式原生 BI 模块
 
-正式产品为 Superset 原生 BI；`shadow_bi` 与 P3/P3.5/P4/P5 路径沿用已部署服务及稳定导入。运行状态、部署边界和发布验收见[部署说明](../DEPLOYMENT.md)。
+正式产品为 Superset 原生 BI；`shadow_bi` 与 P3/P3.5/P4/P5 路径沿用既有服务及稳定导入。运行与发布以[部署说明](../DEPLOYMENT.md)、[完整日更说明](../../docs/shadow-bi-full-daily-20261028.md)和[SQL 切换记录](../../docs/shadow-bi-sql-local-migration.md)为准，历史回执不用于推断实时版本或调度状态。
 
-已部署、当前暂停的服务器raw worker使用 `library.py` 和 `management/calculation.py`，基于 root 只读历史基线更新双 Snapshot，运行 quality 与共享聚合，生成39张封存业务表。P4负责重建、验收和切版；raw receiver、受限consumer、固定root publisher见 `p5/raw_*.py` 和 `p5/deploy/`，输入、队列和发布状态见[raw链路合同](../../docs/server-raw-pipeline-contract.md)。
+## 当前代码链路
 
-10月26日真实服务器批次确实完成双 Snapshot、两份 quality 查询并运行到39表，最终因业务截止不匹配以 `failed/published=false` 结束，没有发布该批。raw接收、计算与publisher已部署，不等同于有效新包正式发布、持续日更或唯一生产者切换；这些事项各自待验收。最新清理回执明确保留Mac `p5.daily` 命令更新；该入口已有10月26日current更新记录，本轮不改日程。
+Mac 总入口 `data_acquisition.jobs.prepare_full_daily --publish` 按业务发布→立即通知→广告费用发布执行。`business_first_daily` 调用 `p5.daily` / `p5.sql_daily`，从受控来源构建 SQL 单仓并通过 P4 激活；Superset、Business Data MCP 与通知读取同批 release。双 Snapshot 是语培、留学来源身份，不再发布旧39表业务结果仓。默认模式（含 `--prepare`）仅准备隔离候选。
 
-当前 `main` 已将受保护来源完整性证明接入计算和固定发布；10月26日服务器部署版本不含此项本地新增门禁，不能推断其已在服务器生效。见[来源完整性合同](../../docs/server-source-completion-candidate.md)。
+本地 SQL 基线由 `customers/shadow_bi_daily/Output/ShadowDaily/sql-current.json` 显式指定；服务器使用正式 `current`。通知沿用 DeliveryState、去重和 no-backfill 门禁，具体消费逻辑见 `monitoring_product/sql_release_notifications.py` 与 `shared_delivery`。
 
-通知从正式release取数，使用 `monitoring_product.release_notifications` 和 `shared_delivery`；不依赖旧页面，也不独立查询数仓。历史P0—P5“待验收/未上线”只描述当时状态。10月26日当前release和通知记录见[部署说明](../DEPLOYMENT.md)、[日更回执](../../docs/shadow-bi-p5-daily-gray-20261024.md)及[通知修复回执](../../docs/notification-job-receipt-repair-20261026.md)。
+## 历史 raw 链路
+
+10月26日 raw worker 曾完成双 Snapshot、quality 和39表计算，但因截止不匹配失败，未发布。11月7日 SQL 切换记录已记载旧业务发布路径停用、旧 raw 计算／传输目录清理，通知路径保留。仓库中的 `library.py`、`management/calculation.py`、`p5/raw_*.py` 及旧 raw 合同供历史验证和仍有消费者的工具使用，不是当前日更启动说明，也不表示服务器仍部署同一版本。

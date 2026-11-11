@@ -83,4 +83,4 @@
 
 ## 当前运行状态的历史提示
 
-BI日更代码入口和最新日期回执见 `docs/shadow-bi-full-daily-20261028.md`。10/26 raw暂停与失败批次为历史事实；11/3同步回执仍记载服务器raw路径inactive，并记载次日 bi-3 的本机09:30执行计划。该回执不是实时调度状态核验。
+BI 日更当前通过 `prepare_full_daily --publish` 进入 SQL 建仓与 P4 SQL release 发布；随后发送日报并刷新费用。2026-11-07 SQL 切换及旧 raw 39 表通道退役记录见 `dashboard_product/DEPLOYMENT.md`、`docs/shadow-bi-sql-local-migration.md`。10/26 raw 失败批次仅作历史追溯；调度启停以实时核验为准，文档日期回执不能代替核验。

@@ -15,6 +15,7 @@ from data_acquisition.jobs.bi_window_merge import (
     excel_serial_to_date,
     find_landing_parquet,
     merge_cash,
+    merge_exports_with_prior,
     merge_orders,
     rolling_start_date,
     resolve_prior_landing_dir,
@@ -35,6 +36,17 @@ def _write_xlsx(path: Path, headers: list[str], rows: list[list], sheet_name: st
         ws.append(row)
     wb.save(path)
     wb.close()
+
+
+def _read_xlsx_records(path: Path) -> list[dict[str, object]]:
+    wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
+    try:
+        ws = wb.active
+        iterator = ws.iter_rows(values_only=True)
+        headers = next(iterator)
+        return [dict(zip(headers, row)) for row in iterator]
+    finally:
+        wb.close()
 
 
 def _write_parquet(path: Path, headers: list[str], rows: list[list]) -> None:
@@ -174,6 +186,19 @@ class MergeOrdersTests(unittest.TestCase):
             self.assertEqual(updated["活动名称"], "新活动")
             self.assertTrue(all("录入来源" not in row for row in rows))
 
+    def test_closed_window_rejects_unparseable_or_out_of_range_fresh_dates(self) -> None:
+        for invalid_date in ("不是日期", "2026-11-03", "2026-11-05", None):
+            with self.subTest(invalid_date=invalid_date), tempfile.TemporaryDirectory() as tmp:
+                export = Path(tmp) / "orders.xlsx"
+                _write_xlsx(export, ["ID", "分配时间"], [["A", invalid_date]])
+                with self.assertRaisesRegex(ValueError, "fresh order export row 1"):
+                    merge_orders(
+                        export_xlsx=export,
+                        prior_parquet=None,
+                        start=date(2026, 11, 4),
+                        end=date(2026, 11, 4),
+                    )
+
 
 class MergeCashTests(unittest.TestCase):
     def test_window_replace_keeps_duplicate_outside(self) -> None:
@@ -234,22 +259,164 @@ class PriorSnapshotLookupTests(unittest.TestCase):
     def setUp(self) -> None:
         self.pack = Path("workspace_modeling/business_pack/packs/education_training_operations_cn/pack.json").resolve()
 
-    def _workspace(self, root: Path) -> Path:
+    def _workspace(
+        self,
+        root: Path,
+        *,
+        orders_rows: list[list] | None = None,
+        cash_rows: list[list] | None = None,
+    ) -> Path:
         init_workspace(
             root=root,
             company_id="company_bi_lookup",
             business_port="operations",
             pack_path=self.pack,
         )
-        for source_id, name, sheet, headers in (
-            ("br_work_orders", "orders.xlsx", "工单明细导出用表", ["ID", "分配时间", "姓名"]),
-            ("br_cash", "cash.xlsx", "现金明细表", ["工单ID", "业务日期", "现金收入"]),
+        for source_id, name, sheet, headers, rows in (
+            (
+                "br_work_orders", "orders.xlsx", "工单明细导出用表",
+                ["ID", "分配时间", "姓名"],
+                orders_rows if orders_rows is not None else [["A", "2026-01-01", "100"]],
+            ),
+            (
+                "br_cash", "cash.xlsx", "现金明细表",
+                ["工单ID", "业务日期", "现金收入"],
+                cash_rows if cash_rows is not None else [["A", "2026-01-01", "100"]],
+            ),
         ):
             slot = root / "Input" / "Data" / source_id
             slot.mkdir(parents=True)
-            _write_xlsx(slot / name, headers, [["A", "2026-01-01", "100"]], sheet_name=sheet)
+            _write_xlsx(slot / name, headers, rows, sheet_name=sheet)
         sync_data(root=root, snapshot_id="snapshot_bi_lookup_01")
         return root
+
+    def test_daily_order_window_keeps_old_orders_and_cash_uses_six_month_start(self) -> None:
+        cash_start = rolling_start_date(date(2026, 11, 5))
+        self.assertEqual(cash_start, "2026-05-05")
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            workspace = self._workspace(
+                root / "workspace",
+                orders_rows=[
+                    ["before", "2026-11-03", "old-before"],
+                    ["same-id", "2026-11-04", "old-same"],
+                    ["after", "2026-11-05", "old-after"],
+                ],
+                cash_rows=[
+                    ["cash-outside", "2026-05-04", "40"],
+                    ["cash-inside", "2026-05-05", "50"],
+                ],
+            )
+            orders_export = root / "fresh-orders.xlsx"
+            cash_export = root / "fresh-cash.xlsx"
+            _write_xlsx(
+                orders_export,
+                ["ID", "分配时间", "姓名"],
+                [
+                    ["same-id", "2026-11-04", "fresh-same"],
+                    ["new-id", "2026-11-04", "fresh-new"],
+                ],
+                sheet_name="工单明细导出用表",
+            )
+            _write_xlsx(
+                cash_export,
+                ["工单ID", "业务日期", "现金收入"],
+                [["cash-fresh", "2026-11-04", "60"]],
+                sheet_name="现金明细表",
+            )
+
+            result = merge_exports_with_prior(
+                workspace=workspace,
+                orders_xlsx=orders_export,
+                cash_xlsx=cash_export,
+                start_date=cash_start,
+                orders_start_date="2026-11-04",
+                orders_end_date="2026-11-04",
+                output_dir=root / "merged",
+            )
+
+            orders = _read_xlsx_records(result["orders_path"])
+            orders_by_id = {row["ID"]: row for row in orders}
+            self.assertEqual(set(orders_by_id), {"before", "same-id", "after", "new-id"})
+            self.assertEqual(orders_by_id["same-id"]["姓名"], "fresh-same")
+            self.assertEqual(orders_by_id["before"]["姓名"], "old-before")
+            self.assertEqual(orders_by_id["after"]["姓名"], "old-after")
+            self.assertEqual(orders_by_id["new-id"]["姓名"], "fresh-new")
+
+            cash = _read_xlsx_records(result["cash_path"])
+            self.assertEqual({row["工单ID"] for row in cash}, {"cash-outside", "cash-fresh"})
+            self.assertEqual(result["start_date"], cash_start)
+
+    def test_max_assignment_date_uses_merged_rows_after_window_replacement(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            workspace = self._workspace(
+                root / "workspace",
+                orders_rows=[
+                    ["same-id", "2026-11-04", "old-max-in-window"],
+                    ["outside", "2026-11-01", "old-outside"],
+                ],
+                cash_rows=[["cash", "2026-11-04", "10"]],
+            )
+            orders_export = root / "fresh-orders.xlsx"
+            cash_export = root / "fresh-cash.xlsx"
+            _write_xlsx(
+                orders_export,
+                ["ID", "分配时间", "姓名"],
+                [["same-id", "2026-11-03", "fresh-earlier"]],
+                sheet_name="工单明细导出用表",
+            )
+            _write_xlsx(
+                cash_export,
+                ["工单ID", "业务日期", "现金收入"],
+                [["cash-fresh", "2026-11-03", "20"]],
+                sheet_name="现金明细表",
+            )
+
+            result = merge_exports_with_prior(
+                workspace=workspace,
+                orders_xlsx=orders_export,
+                cash_xlsx=cash_export,
+                start_date="2026-05-05",
+                orders_start_date="2026-11-03",
+                orders_end_date="2026-11-04",
+                output_dir=root / "merged",
+            )
+
+            self.assertEqual(result["orders_max_assignment_date"], "2026-11-03")
+
+    def test_max_assignment_date_is_none_when_merged_orders_have_no_valid_dates(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            workspace = self._workspace(
+                root / "workspace",
+                orders_rows=[["prior-undated", "not-a-date", "old"]],
+                cash_rows=[["cash", "2026-11-03", "10"]],
+            )
+            orders_export = root / "fresh-orders.xlsx"
+            cash_export = root / "fresh-cash.xlsx"
+            _write_xlsx(
+                orders_export,
+                ["ID", "分配时间", "姓名"],
+                [["fresh-undated", None, "fresh"]],
+                sheet_name="工单明细导出用表",
+            )
+            _write_xlsx(
+                cash_export,
+                ["工单ID", "业务日期", "现金收入"],
+                [["cash-fresh", "2026-11-03", "20"]],
+                sheet_name="现金明细表",
+            )
+
+            result = merge_exports_with_prior(
+                workspace=workspace,
+                orders_xlsx=orders_export,
+                cash_xlsx=cash_export,
+                start_date="2026-05-05",
+                output_dir=root / "merged",
+            )
+
+            self.assertIsNone(result["orders_max_assignment_date"])
 
     def test_current_snapshot_uses_declared_artifact_and_reports_missing_source(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

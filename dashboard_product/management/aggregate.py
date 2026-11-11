@@ -29,7 +29,7 @@ TRAINING_TEAM_ID = {
     'prep': 'offline_market', 'high': 'offline_market', 'university': 'offline_market',
     'virtual': 'online_private', 'online': 'online_platform',
 }
-ABROAD_NOT_CONFIGURED_TEAMS = frozenset({'prep', 'high', 'virtual'})
+ABROAD_NOT_CONFIGURED_TEAMS = frozenset({'prep', 'high'})
 ABROAD_OFFLINE_TEAM = 'offline_market'
 ABROAD_ONLINE_TEAM = 'online_platform'
 ABROAD_METRICS_NOTE = '留学毛签使用签约金额，小语种使用实缴金额；两类客户分别去重。'
@@ -422,7 +422,9 @@ def _team_fact_filter(team_id, line):
         return lambda fact: fact.get('segment_id') == 'study_abroad_offline'
     if team_id == 'online':
         return lambda fact: fact.get('segment_id') == 'study_abroad_online'
-    # Prep/high/virtual abroad ownership has not been confirmed.
+    if team_id == 'virtual':
+        return lambda fact: fact.get('segment_id') == 'study_abroad_virtual'
+    # Prep/high abroad ownership has not been confirmed.
     return lambda fact: False
 
 
