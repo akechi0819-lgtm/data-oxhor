@@ -218,6 +218,7 @@ def test_publish_builds_runtime_contract_and_updates_pointer_only_after_activati
     release_id = "daily-sql-next"
     candidate_builds = []
     prepared_acceptance = {}
+    archives = []
 
     def source_receipts(**kwargs):
         return {"source_order_receipts": [str(tmp_path / "receipt.json")],
@@ -283,6 +284,7 @@ def test_publish_builds_runtime_contract_and_updates_pointer_only_after_activati
         archive_path = Path(output_dir) / "sql-release.tar"
         with tarfile.open(archive_path, "w") as archive:
             archive.add(release_dir, arcname=f"{release_id}/library")
+        archives.append(archive_path)
         return {"release": release_id, "library": str(release_dir),
                 "archive": str(archive_path), "archive_sha256": _sha(archive_path)}
 
@@ -306,12 +308,14 @@ def test_publish_builds_runtime_contract_and_updates_pointer_only_after_activati
     monkeypatch.setattr(sql_build, "build_local", build_local)
 
     commands = []
+    result_commands = []
 
     def command(args, log, **kwargs):
         if "stdin" in kwargs:
             commands.append((args, kwargs["stdin"].read()))
 
     def command_result(args, log, **kwargs):
+        result_commands.append(args)
         script = kwargs["input"]
         if '--retire-previous' in script:
             return {'status': 'retired', 'current': release_id, 'removed': pointer['release']}
@@ -321,10 +325,11 @@ def test_publish_builds_runtime_contract_and_updates_pointer_only_after_activati
         return {"status": "prepared", "release": release_id, "batch_id": batch_id,
                 "warehouse_sha256": candidate_doc()["database"]["sha256"]}
 
+    ssh = ["ssh", "-o", "BatchMode=yes", "example"]
     result = sql_daily.publish(
         workspace=workspace, day="2026-11-07", pair=pair, run_id=batch_id,
         release_id=release_id, folder=folder, advertising_manifest=None,
-        ssh=["ssh"], ssh_env={}, command=command, command_result=command_result,
+        ssh=ssh, ssh_env={}, command=command, command_result=command_result,
         config_root=tmp_path, current_state=current_state)
 
     assert result["status"] == "published"
@@ -335,7 +340,11 @@ def test_publish_builds_runtime_contract_and_updates_pointer_only_after_activati
         "path": pointer["migration_acceptance"], "sha256": migration_sha,
     }
     assert prepared_acceptance["runtime_contract"]["catalogue_sha256"] == current_catalogue_sha
-    assert commands and commands[0][1]
+    assert len(commands) == 1
+    assert commands[0][0][:-1] == ["ssh", "-C", "-o", "BatchMode=yes", "example"]
+    assert commands[0][1] == archives[0].read_bytes()
+    assert result_commands and all(args == ssh + ["bash -s"] for args in result_commands)
+    assert ssh == ["ssh", "-o", "BatchMode=yes", "example"]
     updated = json.loads((workspace / "Output/ShadowDaily/sql-current.json").read_text())
     assert updated["release"] == release_id
     assert updated["batch_id"] == batch_id

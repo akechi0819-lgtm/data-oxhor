@@ -445,7 +445,7 @@ def publish(*, workspace: str | Path, day: str, pair: dict, run_id: str,
 
     incoming = f"{INCOMING}/{release_id}.tar"
     with archive.open("rb") as archive_stream:
-        command(ssh + [f"umask 077; mkdir -p {INCOMING}; cat > {incoming}"],
+        command(ssh[:1] + ["-C"] + ssh[1:] + [f"umask 077; mkdir -p {INCOMING}; cat > {incoming}"],
                 attempt / "transfer.log", stdin=archive_stream, env=ssh_env)
     prepared = command_result(
         ssh + ["bash -s"], attempt / "install.log",
