@@ -11,6 +11,15 @@ from dashboard_product.online_team import build
 
 
 class PeriodAndTargetTests(unittest.TestCase):
+    def test_study_abroad_cash_targets_preserve_channel_and_quarter_values(self):
+        cash = build.read(build.HERE / 'config/study_abroad_targets.json')['cash']
+        self.assertEqual(cash['total']['annual'], 2993)
+        self.assertEqual(cash['total']['quarters'], dict.fromkeys(('Q1', 'Q2', 'Q3', 'Q4'), 748.14))
+        self.assertEqual(cash['groups']['网络资源']['annual'], 2753.56)
+        self.assertEqual(cash['groups']['新媒体']['annual'], 239)
+        self.assertEqual(cash['groups']['网络资源']['quarters'], dict.fromkeys(('Q1', 'Q2', 'Q3', 'Q4'), 688.39))
+        self.assertEqual(cash['groups']['新媒体']['quarters'], dict.fromkeys(('Q1', 'Q2', 'Q3', 'Q4'), 59.75))
+
     def test_study_abroad_target_uses_6715_with_original_month_weights(self):
         config = build.read(build.HERE / 'config/study_abroad_targets.json')
         self.assertEqual(build.study_target(config, {'kind': 'year', 'id': 'FY27'}, 'orders'), 6715)

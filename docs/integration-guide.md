@@ -251,7 +251,7 @@ python3 -m interfaces.company_bridge validate \
   --pack workspace_modeling/business_pack/packs/education_training_operations_cn/pack.json
 ```
 
-当前 BI 工作区实读 Bridge 为 `bridge_bi_operations` v1.7.0。它引用当前 `landing.*` 关系，直接使用源表头名定位字段；在 v1.6.0 留学渠道映射基础上增加线上主动网络资源补充完成口径。具体运行时可额外传入同一 Snapshot 的 `--snapshot-description` 与 `--snapshot-quality` 做兼容性校验。旧清洗脚本和看板尚未完整消费所有渠道规则，例如根别名和市场活动细分仍存在实现差异；隔离留学渠道核对按第2.2节处理，不原地修改旧来源契约。
+当前 BI 工作区实读 Bridge 为 `bridge_bi_operations` v1.7.3。它引用当前 `landing.*` 关系，直接使用源表头名定位字段；保留 v1.6.0 留学渠道映射及其线上主动网络资源补充规则，仅供旧 BI 工单归因和明确标注的历史复算；当前留学经营使用独立留学仓，记分卡覆盖范围内以官方记分卡为准。具体运行时可额外传入同一 Snapshot 的 `--snapshot-description` 与 `--snapshot-quality` 做兼容性校验。旧清洗脚本和看板尚未完整消费所有渠道规则，例如根别名和市场活动细分仍存在实现差异；隔离留学渠道核对按第2.2节处理，不原地修改旧来源契约。
 
 历史扫描使用 `scan-history`，但输出角色是 `historical_scan`，不能直接构建正式 Bridge。只有人工复核后的 `confirmed_review` 可以传给 `build`；未确认项必须保留为 `unresolved` 或拒收，不能静默选择。完整合同见 [Company Bridge v1 合同](./company-bridge-contract.md)。
 

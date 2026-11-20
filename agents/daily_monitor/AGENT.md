@@ -4,7 +4,7 @@
 
 从固定正式BI release构建同批通知包，复用已确认的业务计算、人员参考与规则；不自行改变SQL、指标、来源、归属、接收者或DeliveryState。正式入口为 `monitoring_product.server_notify`，`release_notifications` 经受控查询读取发布业务表、构建并核验通知包，`shared_delivery` 渲染并按持久状态逐消息去重。详细命令和合同见 [监控模块](../../monitoring_product/README.md)、[通知部署回执](../../docs/bi-notification-adapter-20261025.md)。
 
-保持8条消息／原5通道。高中、大学和线上平台各自的两业务消息沿原通道规则；高中留学为个人简报，不把个人贡献改成部门完成。人员规则和花名册仍以 `workspace_modeling/operations/` 为唯一来源。
+保持8条消息／原5通道。高中、大学和线上平台各自的两业务消息沿原通道规则；高中留学为个人简报，不把个人贡献改成部门完成。个人业绩 SQL 合并共享人员表 `workspace_modeling/operations/people.json` 与留学线下名单 `dashboard_product/config/offline_market_people.json`。日报发布按同批 release 校验两份名单引用；共享人员规则见 `workspace_modeling/operations/personnel.py`。
 
 固定HTTP只接受现合同的operation、expected_release与as_of_date，不接受命令、路径或任意收件人。`preview` 不发送；`send-scheduled` 仅在上海10:00窗口且当天正式release、昨日截止、来源与原DeliveryState导入门禁通过后发送。模块不安装日程。服务器实际发送需要对应授权，本地代码或文档维护不构成发送指令。
 

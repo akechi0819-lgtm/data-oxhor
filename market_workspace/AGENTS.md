@@ -8,6 +8,7 @@
 - 开始业务分析先运行 `./oxhor status`。只有 `next_step=analyze` 才继续；读取返回的显式 Snapshot、Pack 与 Bridge 路径。状态异常转工作区初始化/对齐流程，不绕过。
 - 通过 `./oxhor describe|quality|query|saved-query|cases|verify-case` 调用现有受控接口，每次显式传入 status 返回的 `--snapshot-id` 和唯一 `--run-id`。禁止直接连接 DuckDB。
 - 查询结果、SQL 与回执统一写 `Evidence/<run_id>/`；同一 run 不覆盖。历史结果不替代当前 Snapshot；Casebook 只提供方法线索。
+- 当前留学经营的明细、拆解和对账使用 `customers/shadow_bi_daily/Work/StudyAbroad/current.json` 显式绑定的独立留学 Snapshot，从项目根目录通过 `python3 -m dashboard_product.management.study_abroad_query` 受控查询，输出位于客户工作区 `Output/StudyAbroad/`；命令见 `../docs/integration-guide.md` 第 2.2 节。原 BI 仓仅用于工单归因或明确标注的历史复算；正式看板对账须使用同批 SQL 发布口径。
 - 留学线上/线下完成值与 FY27 目标以 `/Users/akechi/Desktop/manager -CowH/customers/shadow_bi_daily/Input/Reference/留学板块-官方记分卡.md` 为准，置信度高于数仓；本目录 `Notes/留学板块-官方记分卡.md` 只是只读指针。数仓用于明细和对账，冲突时不得覆盖记分卡。
 - 详细参数按需读 `INTERFACES.md`；授权路径见 `ACCESS.md`。业务分析方法按需读 `../agents/ad_hoc_analysis/AGENT.md` 和对应 Skill，不展开其他模块。
 

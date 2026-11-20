@@ -21,6 +21,16 @@
 
 query/saved-query 支持 `--params-json`；quality/query/saved-query 支持 `--max-rows`、`--max-result-bytes`，默认 1000 行／1000000 字节。query 的 SQL 文件必须在市场工作区内，执行时先复制到本次 Evidence 目录，删除 Scratch 不会丢失查询 SQL。
 
+### 复算旧看板
+
+复现当前正式看板时，从同批 SQL release 读取指标，固定批次、期间、业务线及团队筛选，见[部署说明](../dashboard_product/DEPLOYMENT.md)。旧报表按原回执选 `dashboard_actuals` 版本；仅凭报表日期无法确定版本时，先核对原回执。
+
+| 旧版本 | 当时的工单及现金团队归属 |
+|---|---|
+| v9 | 关联池仅含可识别业务组的被动工单；现金未取得团队时按活动名或渠道推断，最终兜底线上平台。具体启用期缺少回执。 |
+| v10、v12 | 两份 SQL 完全相同。全量工单参与关联，被动工单计数；工单业务组缺失时团队留空，现金业务组缺失时现金团队也留空。旧版运行记录分别见 [v10](../docs/history/dashboard/CURRENT_STATUS.md) 和 [v12](../DEVELOPMENT.md)。 |
+| v14 | 即使业务组缺失，仍保留匹配到的工单团队，现金也使用匹配工单的团队。见[当时的查询合同](../docs/history/dashboard/DASHBOARD_DEVELOPMENT_PREREQUISITES.md)。 |
+
 ## 案例只读
 
 ```bash

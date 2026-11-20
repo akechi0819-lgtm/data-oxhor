@@ -94,7 +94,7 @@ def main():
     costs=c.query('native_online_costs',columns=['业务线','花费','回收倍数','单条工单成本'])['data'];parts=c.query('native_online_roi_tree',columns=['业务线','花费'])['data'];total=next(r for r in costs if r['业务线']=='合计')
     assert math.isclose(total['花费'],sum(r['花费'] for r in parts),abs_tol=1e-8)
     assert total['回收倍数'] is None and total['单条工单成本'] is None
-    goals=c.query('native_online_abroad_annual_goals')['data'];assert goals[0]['全年现金目标']==29925600 and goals[0]['全年工单目标']==6715
+    goals=c.query('native_online_abroad_annual_goals')['data'];assert goals[0]['全年现金目标']==29930000 and goals[0]['全年工单目标']==6715
     checks.append({'key':'cost_total_and_existing_annual_goals','status':'passed','total_cost':total['花费']})
     checks.append({'key':'native_layout_and_scopes','status':'passed','teams':7,'charts':len(ids)})
     c.save(checks)

@@ -1,12 +1,10 @@
-> **10月26日最新运行记录**：raw接收/计算/发布已暂停，保留Mac更新链路与既有成品/通知入口；服务器数仓和聚合代码能力仍保留。以[清理与暂停回执](../../docs/server-cleanup-20261026.md)区分能力部署与当前启停。本轮未实读或修改服务器/日程，以下raw说明为代码/已部署能力合同，不是恢复运行指令。
-
 # 原生 BI 共同业务计算
 
-本模块提供原生Superset BI与通知复用的教育运营规则。正式界面已上线，旧静态页面、HTML打包与旧发布/激活/兼容日更入口已删除，不保留恢复开关。服务器已持有历史数仓基线并具备raw worker历史合并、双Snapshot、quality及聚合能力；该自算路径当前暂停，按最新回执保留Mac更新；不再将服务器描述为只能装载成品表。运行合同见 [部署说明](../DEPLOYMENT.md)、[raw合同](../../docs/server-raw-pipeline-contract.md)。
+本模块保留经营计算、归属和人员规则。现行日更从 `data_acquisition.jobs.prepare_full_daily --publish` 进入 SQL 建仓与 P4 发布，Superset 和日报使用同批正式 release。核对本机批次、服务器版本及日程的方法见[部署说明](../DEPLOYMENT.md)。
 
-## 代码与数据流
+## 历史链路（2026-10-26）
 
-`calculation.calculate` 是业务编排入口，读取明确工作区、run_id、双Snapshot与日期，经Data Platform受控查询取得事实，复用同一组归属、聚合、期间、目标、人员与通知规则。`shadow_bi.library` 将模型封存为typed业务库/39表，服务器固定publisher经P4复验激活至Superset。通知从固定正式release经 `release_notifications` 构建同批包，`shared_delivery` 负责渲染和逐消息去重，不再从旧页面批次指针触发。
+当时的 `calculation.calculate` 经受控查询构建共同结果，再由 `shadow_bi.library` 封存 39 张表。raw 链路当日暂停，记录见[清理与暂停回执](../../docs/server-cleanup-20261026.md)。现行 SQL 日更流程见上方部署说明。
 
 `online_team/build.py` 当前只有共享期间、指标、归属与查询helpers，没有旧页面生成器；`refresh.py` 的归属及历史对照算法仍被共同计算直接调用，不是旧站恢复入口。`validation.py` 校验聚合模型身份及隐私字段边界，不生成HTML。删除展示代码不改变业务公式。
 
@@ -21,7 +19,7 @@
 
 ## 完整性与证据
 
-最大记录日不等于上游完整业务日。raw本地新门禁验证受保护来源证明，区分最大记录日与经验证昨日；完整零业务日不补造事实。证明贯穿计算、封口、候选复用与发布末次复核，缺失/变化就停止。该门禁上一轮只合入本地，未由此次清理部署服务器。见 [完整性合同](../../docs/server-source-completion-candidate.md)。
+历史 raw 链路中，最大记录日不等于上游完整业务日。其门禁验证受保护来源证明，区分最大记录日与经验证昨日；完整零业务日不补造事实。证明贯穿计算、封口、候选复用与发布末次复核，缺失/变化就停止。该门禁上一轮只合入本地，未由此次清理部署服务器。见 [完整性合同](../../docs/server-source-completion-candidate.md)。
 
 共同计算在工作区Output保存受控查询回执、费用/人员/来源诊断及绑定身份；封存业务库保留明确输入、规则与表hash。原始输入只读，不直连客户DuckDB、不从目录时间或latest猜当前状态。历史V14对账仅是方法核对，不覆盖当前事实。
 

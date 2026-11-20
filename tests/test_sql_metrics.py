@@ -33,6 +33,11 @@ class SqlMetricTests(unittest.TestCase):
         install_metrics(c,through='2026-11-05',abroad_start='2026-06-01',abroad_through='2026-11-05',config_root=ROOT)
         return c
 
+    def test_online_abroad_cash_targets_keep_annual_and_quarter_values(self):
+        c = self.connect([])
+        rows = c.execute("SELECT period_id, target FROM business.team_metrics WHERE unit_id='online' AND business_line='abroad' AND metric='cash' AND acquisition_scope='被动' AND period_id IN ('FY27','Q1','Q2','Q3','Q4')").fetchall()
+        self.assertEqual(dict(rows), {'FY27': 29930000, 'Q1': 7481400, 'Q2': 7481400, 'Q3': 7481400, 'Q4': 7481400})
+
     def test_heads_qualify_after_scope_filter_and_preserve_negative_cash(self):
         c=self.connect([fact('a',1400),fact('b',200,team_id='offline_market'),
                         fact('c',-1600,student_id='S2')])

@@ -1,6 +1,10 @@
 # 正式 BI 部署与运行
 
-## 最新业务组筛选状态（2026-11-07）
+## 当前入口与状态核验
+
+日更由 `data_acquisition.jobs.prepare_full_daily --publish` 进入 SQL 建仓及 P4 发布。本机已记录的发布批次、双 Snapshot 和业务截止日见 `customers/shadow_bi_daily/Output/ShadowDaily/sql-current.json`。核对线上版本时读取服务器正式 release 及其激活回执，比对批次和截止日。核对日程时读取宿主 bi-3 的启停状态及最近执行回执。以下具名批次均为当日记录。
+
+## 历史：业务组筛选发布记录（2026-11-07）
 
 正式 release `daily-sql-overview-group-20261107` 已激活。市场总览的业务组筛选为“市场总计／高中／大学／留学预备”；语培按所选业务组汇总线上、线下各渠道产出，留学及小语种固定显示总盘。11 张语培图联动该筛选，语培学校图已补入；其他页面的口径和样式保持不变。
 

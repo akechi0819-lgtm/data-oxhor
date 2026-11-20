@@ -418,6 +418,16 @@ def publish(*, workspace: str | Path, day: str, pair: dict, run_id: str,
         cash_coverage_start=source["coverage"]["cash_start"],
         capacity_start=capacity_start,
     )
+    coverage = source["coverage"]
+    through = candidate["through_date"]
+    activity_note = (
+        f"活动按当前Snapshot可用历史累计；工单覆盖{coverage['orders_start']}至"
+        f"{min(coverage['orders_end'], through)}，现金覆盖{coverage['cash_start']}至"
+        f"{min(coverage['cash_end'], through)}，不保证覆盖活动完整生命周期。"
+    )
+    coverage_template['notes'] = [note for note in coverage_template['notes']
+                                  if not note.startswith('活动按当前Snapshot可用历史累计；')]
+    coverage_template['notes'].append(activity_note)
     release = prepare_release(
         candidate=candidate_dir, workspace=workspace, release_id=release_id,
         output_dir=release_out, coverage_template=coverage_template,

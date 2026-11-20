@@ -114,7 +114,7 @@ def online_targets():
             'quarters': {'Q2': 1800},
             'months': {'2026-10': 484},
         }},
-        'cash': {'total': {'annual': 2992.56, 'quarters': {'Q2': 748.14}}},
+        'cash': {'total': {'annual': 2993, 'quarters': {'Q2': 748.14}}},
     }
 
 
@@ -611,7 +611,7 @@ class ManagementAggregateTest(unittest.TestCase):
             self.assertIsNone(online['time_gap'])
             online_cash = by_team(periods[period_id], 'online')['lines']['abroad']['cash']
             self.assertEqual(online_cash['actual'], 0)
-            expected_cash_target = 7481400 if period_id == 'Q2' else 29925600
+            expected_cash_target = 7481400 if period_id == 'Q2' else 29930000
             self.assertEqual(online_cash['target'], expected_cash_target)
             self.assertEqual(online_cash['completion'], 0)
             self.assertIsNone(online_cash['gap'])
@@ -651,8 +651,8 @@ class ManagementAggregateTest(unittest.TestCase):
         self.assertIsNone(offline['cash']['gap'])
         self.assertIsNone(offline['cash']['time_gap'])
         self.assertEqual(online['cash']['actual'], 1753064.4)
-        self.assertEqual(online['cash']['target'], 29925600)
-        self.assertAlmostEqual(online['cash']['completion'], 1753064.4 / 29925600)
+        self.assertEqual(online['cash']['target'], 29930000)
+        self.assertAlmostEqual(online['cash']['completion'], 1753064.4 / 29930000)
         self.assertEqual(online['cash']['status'], 'partial')
         self.assertIsNone(online['cash']['prior'])
         self.assertIsNone(online['cash']['yoy'])

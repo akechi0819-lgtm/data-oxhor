@@ -39,7 +39,7 @@ def _pointer_fixture(tmp_path):
         "release": "daily-sql-previous",
         "batch_id": batch_id,
         "candidate": str(candidate.resolve()),
-        "coverage": {"notes": ["preserve this note"], "capacity_start": "2026-06-01"},
+        "coverage": {"notes": ["preserve this note", "活动按当前Snapshot可用历史累计；旧日期"], "capacity_start": "2026-06-01"},
         "warehouse_sha256": _sha(database),
         "migration_acceptance": str(acceptance.resolve()),
     }
@@ -218,11 +218,13 @@ def test_publish_builds_runtime_contract_and_updates_pointer_only_after_activati
     release_id = "daily-sql-next"
     candidate_builds = []
     prepared_acceptance = {}
+    prepared_coverage = {}
     archives = []
 
     def source_receipts(**kwargs):
         return {"source_order_receipts": [str(tmp_path / "receipt.json")],
-                "coverage": {"orders_start": "2025-03-01", "cash_start": "2024-06-01"},
+                "coverage": {"orders_start": "2025-03-01", "orders_end": "2026-11-06",
+                             "cash_start": "2024-06-01", "cash_end": "2026-11-05"},
                 "through_date": "2026-11-06"}
 
     def build_local(**kwargs):
@@ -258,6 +260,7 @@ def test_publish_builds_runtime_contract_and_updates_pointer_only_after_activati
     def prepare_release(*, candidate, workspace, release_id, output_dir,
                         coverage_template, acceptance):
         prepared_acceptance.update(acceptance)
+        prepared_coverage.update(coverage_template)
         candidate_dir = Path(candidate)
         release_dir = Path(output_dir) / release_id / "library"
         release_dir.mkdir(parents=True)
@@ -332,6 +335,10 @@ def test_publish_builds_runtime_contract_and_updates_pointer_only_after_activati
         ssh=ssh, ssh_env={}, command=command, command_result=command_result,
         config_root=tmp_path, current_state=current_state)
 
+    assert prepared_coverage["notes"] == [
+        "preserve this note",
+        "活动按当前Snapshot可用历史累计；工单覆盖2025-03-01至2026-11-06，现金覆盖2024-06-01至2026-11-05，不保证覆盖活动完整生命周期。",
+    ]
     assert result["status"] == "published"
     assert result['server_retention']['status'] == 'retired'
     assert candidate_builds[0]["expense_baseline"] == baseline
