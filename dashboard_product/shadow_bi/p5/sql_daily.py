@@ -368,7 +368,7 @@ def publish(*, workspace: str | Path, day: str, pair: dict, run_id: str,
         current_state = verify_current_pointer(
             workspace=workspace, ssh=ssh, ssh_env=ssh_env,
             log=attempt / "preflight-current.log", command_result=command_result)
-    pointer, old_remote, _, baseline, _, migration_sha = current_state
+    pointer, old_remote, _, baseline, migration, migration_sha = current_state
     training_snapshot = pair["sources"]["bi"]["snapshot_id"]
     abroad_snapshot = pair["sources"]["study_abroad"]["snapshot_id"]
     if not training_snapshot or not abroad_snapshot:
@@ -393,7 +393,8 @@ def publish(*, workspace: str | Path, day: str, pair: dict, run_id: str,
     if before_publish is not None:
         before_publish()
 
-    current_catalogue_sha = old_remote["catalogue_sha256"]
+    # 日常数据更新沿用已验收目录；经重新验收的产品改动可显式更新该封口合同。
+    accepted_catalogue_sha = migration["catalogue_sha256"]
     release_out = attempt / "release-output"
     acceptance = {
         "mode": "runtime_contract",
@@ -403,7 +404,7 @@ def publish(*, workspace: str | Path, day: str, pair: dict, run_id: str,
         },
         "runtime_contract": {
             "status": "passed",
-            "catalogue_sha256": current_catalogue_sha,
+            "catalogue_sha256": accepted_catalogue_sha,
             "candidate_identity_passed": True,
             "source_gates_passed": True,
         },
@@ -443,7 +444,7 @@ def publish(*, workspace: str | Path, day: str, pair: dict, run_id: str,
     release_manifest = _read_json(library / "release.json", "SQL release manifest")
     catalogue_path = resolve_file(library, release_manifest["superset_catalogue"])
     catalogue_sha = sha256_file(catalogue_path)
-    if catalogue_sha != current_catalogue_sha:
+    if catalogue_sha != accepted_catalogue_sha:
         raise ValueError("static SQL dataset and option contract changed; repeat migration acceptance before publishing")
     archive = Path(release["archive"]).resolve(strict=True)
     _validate_archive(archive, release_id)

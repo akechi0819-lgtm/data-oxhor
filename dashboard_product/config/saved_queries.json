@@ -6,20 +6,26 @@
     {
       "query_id": "dashboard_actuals",
       "version": "v14",
-      "purpose": "看板当前与上一财年实际：市场总计并列提供业务组与团队汇总；现金无工单归属时按已确认的渠道规则和团队兜底映射处理，保留原始渠道与工单主被动字段供审计",
-      "parameters": ["start_date", "end_date"],
+      "purpose": "历史看板实际查询 v14；保留当时的新生正向现金口径，当前 SQL 日更不消费",
+      "parameters": [
+        "start_date",
+        "end_date"
+      ],
       "output": "event_date,team_id,business_group,first_channel,second_channel,campaign_name,entry_person,school_name,grade_name,metric,actual_value,student_id,cash_channel,work_order_active_type,cash_campaign_name",
       "sql_owner": "customer_workspace_saved_query_registry",
-      "consumed_by": "refresh.py"
+      "consumed_by": "历史 refresh.py；当前无运行代码引用"
     },
     {
       "query_id": "attributed_passive_reported_cash",
       "version": "v1",
-      "purpose": "可复用的逐笔被动新生正向报入现金底稿，保留工单关联状态和归属规则",
-      "parameters": ["start_date", "end_date"],
+      "purpose": "历史逐笔被动新生正向报入现金底稿，保留工单关联状态和归属规则；不代表当前看板现金口径",
+      "parameters": [
+        "start_date",
+        "end_date"
+      ],
       "output": "cash detail attribution rows",
       "sql_owner": "customer_workspace_saved_query_registry",
-      "consumed_by": "manual analysis; not used by refresh.py"
+      "consumed_by": "历史人工分析；当前无运行代码引用"
     }
   ]
 }

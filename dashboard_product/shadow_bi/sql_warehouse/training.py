@@ -32,6 +32,7 @@ _TRAINING_COLUMNS = {
     "metric": "VARCHAR",
     "actual_value": "VARCHAR",
     "student_id": "VARCHAR",
+    "student_type": "VARCHAR",
     "cash_channel": "VARCHAR",
     "work_order_active_type": "VARCHAR",
     "cash_campaign_name": "VARCHAR",
@@ -659,6 +660,7 @@ WITH training_scopes AS (
                 WHEN JSON_VALID(chosen_source_record) THEN TRY_CAST(chosen_source_record AS JSON)
                 ELSE TO_JSON(chosen_source_record) END AS source_record,
            NULLIF(TRIM(student_id), '') AS student_id,
+           CASE WHEN normalized_metric = 'cash' THEN NULLIF(TRIM(student_type), '') END AS student_type,
            CASE WHEN final_team_id IN ('offline_market', 'online_private', 'online_platform') THEN final_team_id END AS team_id,
            normalized_group AS business_group,
            NULLIF(TRIM(business_group), '') AS comparison_group,
@@ -688,7 +690,7 @@ SELECT * FROM final_facts;
 
 CREATE OR REPLACE VIEW business.training_facts AS
 SELECT fact_id, metric, business_line, event_date, value, work_order_id,
-       order_status, counts_toward_completion, exclusion_reason, source_record, student_id,
+       order_status, counts_toward_completion, exclusion_reason, source_record, student_id, student_type,
        team_id, business_group, comparison_group, school_name, school_attribute,
        school_attribute_status, channel_school_name, grade_name, campaign_name,
        first_channel, second_channel, country, line, owners, virtual_owners,
@@ -700,7 +702,7 @@ WHERE NOT personal_qualification;
 
 CREATE OR REPLACE VIEW business.training_personnel_facts AS
 SELECT fact_id, metric, business_line, event_date, value, work_order_id,
-       order_status, counts_toward_completion, exclusion_reason, source_record, student_id,
+       order_status, counts_toward_completion, exclusion_reason, source_record, student_id, student_type,
        team_id, business_group, comparison_group, school_name, school_attribute,
        school_attribute_status, channel_school_name, grade_name, campaign_name,
        first_channel, second_channel, country, line, owners, virtual_owners,

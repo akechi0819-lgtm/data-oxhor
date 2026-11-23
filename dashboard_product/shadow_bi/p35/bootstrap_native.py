@@ -64,6 +64,86 @@ def attach_overview_options(filters,database_id,user):
                 item['targets'][0]['datasetId']=dataset.id
 
 
+def configure_overview_student_filter(metadata,positions,dashboard,database):
+    """Add the student-type selector to existing overview cash and personal charts."""
+    from superset import db,security_manager
+    from superset.connectors.sqla.models import SqlaTable
+
+    table_name='p35_overview_student_options'
+    sql="SELECT unnest(['全部','新生','老生']) AS 新老生"
+    dataset=(db.session.query(SqlaTable).filter_by(
+        table_name=table_name,database_id=database.id).first()
+        or SqlaTable(table_name=table_name,database_id=database.id,schema='queries',
+                     owners=list(dashboard.owners)))
+    dataset.sql=sql;db.session.add(dataset);db.session.flush()
+    if not dataset.columns:dataset.fetch_metadata()
+
+    reader_role=security_manager.find_role('ShadowReaderData')
+    if reader_role is None:raise ValueError('市场总览新老生筛选缺少 ShadowReaderData 角色')
+    permission=(security_manager.find_permission_view_menu('datasource_access',dataset.perm)
+                or security_manager.add_permission_view_menu('datasource_access',dataset.perm))
+    security_manager.add_permission_role(reader_role,permission)
+
+    chart_keys={
+        'native_overview_training','native_overview_groups',
+        'native_overview_cash_lines','native_overview_cash_groups','native_overview_targets',
+        'native_overview_grades_training',
+        'native_overview_channel_tree_training','overview_people','native_overview_people',
+    }
+    school_chart_keys=('native_overview_schools_training',)
+    contracts={view.key:view for view in [*VIEWS,*native_views()]}
+    missing=chart_keys-contracts.keys()
+    if missing:raise ValueError('市场总览新老生筛选缺少数据集合同：'+','.join(sorted(missing)))
+    names={PAGES.get(contracts[key].page,'市场活动')+' · '+contracts[key].title
+           for key in chart_keys}
+    school_names={PAGES.get(contracts[key].page,'市场活动')+' · '+contracts[key].title
+                  for key in school_chart_keys if key in contracts}
+    tables=db.session.query(SqlaTable).filter_by(database_id=database.id).all()
+    by_name={table.table_name:table for table in tables}
+    missing_names=names-by_name.keys()
+    if missing_names:raise ValueError('市场总览新老生筛选缺少数据集：'+','.join(sorted(missing_names)))
+    target_ids={by_name[name].id for name in names}
+    school_ids={by_name[name].id for name in school_names if name in by_name}
+    chart_nodes=[node for node in positions.values()
+                 if isinstance(node,dict) and node.get('type')=='CHART']
+    active={node['meta']['chartId'] for node in chart_nodes}
+    scope={chart.id for chart in dashboard.slices
+           if chart.datasource_type=='table' and chart.datasource_id in target_ids|school_ids}&active
+    if not scope:raise ValueError('市场总览新老生筛选没有可见目标图表')
+    if not any(chart.datasource_type=='table' and chart.datasource_id in school_ids
+               and chart.id in active for chart in dashboard.slices):
+        raise ValueError('市场总览新老生筛选缺少训练学校图表')
+    existing=[item for item in metadata['native_filter_configuration']
+              if item.get('id')=='NATIVE_FILTER-p35-overview-student-type']
+    if len(existing)>1:raise ValueError('市场总览新老生筛选身份不唯一')
+    item={
+        'id':'NATIVE_FILTER-p35-overview-student-type','name':'新老生',
+        'filterType':'filter_select','type':'NATIVE_FILTER',
+        'targets':[{'datasetId':dataset.id,'column':{'name':'新老生'}}],
+        'defaultDataMask':{'extraFormData':{'filters':[{'col':'新老生','op':'IN','val':['全部']}]},
+                           'filterState':{'value':['全部']}},
+        'cascadeParentIds':[],
+        'controlValues':{'enableEmptyFilter':False,'multiSelect':False,
+                         'searchAllOptions':True,'inverseSelection':False,'defaultToFirstItem':False},
+        'chartsInScope':sorted(scope),
+        'scope':{'rootPath':['ROOT_ID'],'excluded':sorted(active-scope)},
+        'tabsInScope':sorted({tabs[-1] for node in chart_nodes
+                              if node['meta']['chartId'] in scope
+                              for tabs in [[parent for parent in node.get('parents',[])
+                                            if positions.get(parent,{}).get('type')=='TAB']]
+                              if tabs}),
+        'description':'仅影响市场总览语培现金及个人表现；工单、留学和费用目标保持原口径。',
+    }
+    filters=metadata['native_filter_configuration']
+    if existing:
+        filters[filters.index(existing[0])]=item
+    else:
+        insertion=next((i+1 for i,value in enumerate(filters)
+                        if value.get('name')=='语培统计范围'),len(filters))
+        filters.insert(insertion,item)
+    return dataset
+
+
 def prep_period_option_sql():
     # 期间选项独立于业务组；下拉框请求不携带经营图表的业务组筛选。
     return "SELECT DISTINCT period_id AS 期间 FROM queries.scoped_selection_team_periods WHERE acquisition_scope='被动'"
@@ -105,6 +185,7 @@ def main():
     app=original.create_app()
     with app.app_context():
         from superset import db,security_manager
+        from superset.models.core import Database
         from superset.models.dashboard import Dashboard
         from superset.models.slice import Slice
         from superset.connectors.sqla.models import SqlaTable
@@ -129,7 +210,7 @@ def main():
                     params.update(server_pagination=False,include_search=False,page_length=0)
                     params['column_config']={c:{'d3NumberFormat':'+.1%' if '同比' in c else '.1%' if '进度' in c or '占比' in c else ',.2f' if '现金' in c else ',.2~f','showCellBars':'进度' in c,'colorPositiveNegative':'同比' in c} for c in v.columns if c not in ['业务组名称','指标','本期完成','目标与完成率','上年同期','同比变化','人头']}
                     if v.key.endswith('_ssc'):params['column_config']['工单']={'d3NumberFormat':',.0f'}
-                    if '被动现金占新生收入' in v.columns:params['column_config']['被动现金占新生收入']={'d3NumberFormat':'.1%','showCellBars':True}
+                    if '被动现金占收入' in v.columns:params['column_config']['被动现金占收入']={'d3NumberFormat':'.1%','showCellBars':True}
                     if numeric_sort_bindings(v):params.update(server_pagination=True,server_page_length=50,page_length=50)
                     if v.key.endswith('_people') or v.key=='native_capacity_month':params.update(v.more)
                 else:
@@ -294,8 +375,11 @@ def main():
         for item in filters:
             item['tabsInScope']=sorted({chart_tabs[cid][-1] for cid in item['chartsInScope'] if chart_tabs.get(cid)})
         filters.sort(key=lambda item:priority.get(item['targets'][0]['column']['name'],99))
-        dashboard.slices=list({s.id:s for s in used}.values());dashboard.position_json=json.dumps(pos,ensure_ascii=False)
-        dashboard.json_metadata=json.dumps({'native_filter_configuration':filters,'cross_filters_enabled':False,'filter_bar_orientation':'HORIZONTAL','show_native_filters':True,'refresh_frequency':900},ensure_ascii=False)
+        dashboard.slices=list({s.id:s for s in used}.values())
+        metadata={'native_filter_configuration':filters,'cross_filters_enabled':False,'filter_bar_orientation':'HORIZONTAL','show_native_filters':True,'refresh_frequency':900}
+        configure_overview_student_filter(metadata,pos,dashboard,db.session.get(Database,platform_ds.database_id))
+        dashboard.position_json=json.dumps(pos,ensure_ascii=False)
+        dashboard.json_metadata=json.dumps(metadata,ensure_ascii=False)
         dashboard.css=percentage_bar_css(charts)+'\n'+Path(__file__).with_name('native_theme.css').read_text().replace('__COMPOSITE_CHART__',':is('+','.join('.dashboard-chart-id-'+str(charts[v.key].id) for v in extra if numeric_sort_bindings(v) and not (v.key.endswith('_people') or v.key=='native_capacity_month'))+')')+'\n'+Path(__file__).with_name('school_tree.css').read_text().replace('__SCHOOL_CHART__',':is('+','.join('.dashboard-chart-id-'+str(charts[v.key].id) for v in extra if '学校表现' in v.columns or '渠道表现' in v.columns or '费用与回收' in v.columns or '平台投入产出' in v.columns or '条线工单' in v.columns)+')')
         personnel_ids=[charts[v.key].id for v in extra if v.key.endswith('_people') or v.key=='native_capacity_month' or v.key.endswith('_window') or v.key in ['native_capacity_annual_summary','capacity_annual_products']]
         dashboard.css+='\n:is('+','.join('.dashboard-chart-id-'+str(i) for i in personnel_ids)+') .dt-select-page-size{display:none;}\n'

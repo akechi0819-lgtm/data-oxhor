@@ -178,16 +178,19 @@ def collector(batch,contracts,xhs_scope,sem_receipt=None,*,sem_auto=False,
         def xhs():
             folder=batch/'xhs'
             client=XHSExport(cookie_file=AuthSessionPaths(workspace,'xhs').cookies)
+            verification=json.loads(Path(xhs_scope).read_text())
+            verification['excluded_account_ids']=config['xhs'].get('excluded_account_ids', verification.get('excluded_account_ids', []))
             result=run_xhs_authenticated(client,workspace,
                 folder=folder,
                 contract=json.loads((contracts/'xhs-network-sample/network-contract.json').read_text()),
-                verification=json.loads(Path(xhs_scope).read_text()),
+                verification=verification,
                 start=config['xhs']['start_date'],through=through)
             built=xhs_candidate(
                 folder,workspace/'Input/AdvertisingCosts/sources.json',
                 native_file=folder/'native.xlsx',evidence_file=folder/'evidence.json',
                 captured_at=result['started_at'],start=config['xhs']['start_date'],
-                through=through,expected_accounts=result['expected_accounts'])
+                through=through,expected_accounts=result['expected_accounts'],
+                excluded_account_ids=result['native'].get('excluded_account_ids', []))
             return built['manifest'],built['capture']
         def ocean():
             folder=batch/'ocean';root=folder/'verification.json'

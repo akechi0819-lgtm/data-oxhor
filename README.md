@@ -16,6 +16,7 @@ data_platform/       landing、Snapshot、质量检查和受控只读查询
 workspace_modeling/  Business Pack、Company Bridge、工作区、Casebook 和首次部署
 dashboard_product/   正式原生 Superset BI、共享业务计算与服务器固定发布
 monitoring_product/  同批结果预览、钉钉投递和传输
+business_data_mcp/   面向业务客户端的受控看板结果和口径查询
 market_workspace/    市场日常启动入口：自由分析、导表、程序和临时脚本
 interfaces/          对外 CLI 边界
 project_intelligence/ 项目级只读上下文服务（Python API / CLI / stdio MCP）

@@ -64,14 +64,17 @@ def metadata_snapshot():
     return {'database_id': database.id, 'sqlalchemy_uri': database.sqlalchemy_uri,
             'extra': database.extra, 'dashboard_id': dashboard.id,
             'position_json': dashboard.position_json, 'json_metadata': dashboard.json_metadata,
-            'dataset_sql': {str(table.id): table.sql for table in tables}}
+            'dataset_sql': {str(table.id): table.sql for table in tables},
+            'column_names': {str(column.id): column.column_name for table in tables for column in table.columns},
+            'chart_params': {str(chart.id): chart.params for chart in dashboard.slices}}
 
 
 def restore_metadata(snapshot):
     from superset import db
     from superset.models.core import Database
     from superset.models.dashboard import Dashboard
-    from superset.connectors.sqla.models import SqlaTable
+    from superset.connectors.sqla.models import SqlaTable, TableColumn
+    from superset.models.slice import Slice
     database = db.session.get(Database, snapshot['database_id'])
     database.sqlalchemy_uri = snapshot['sqlalchemy_uri']
     database.extra = snapshot['extra']
@@ -80,6 +83,10 @@ def restore_metadata(snapshot):
     dashboard.json_metadata = snapshot['json_metadata']
     for key, sql in snapshot['dataset_sql'].items():
         db.session.get(SqlaTable, int(key)).sql = sql
+    for key, params in snapshot['chart_params'].items():
+        db.session.get(Slice, int(key)).params = params
+    for key, name in snapshot['column_names'].items():
+        db.session.get(TableColumn, int(key)).column_name = name
     db.session.commit()
 
 
@@ -140,9 +147,14 @@ def install_metadata(library, *, current_library=None):
     if catalogue.get('schema_version') != 'sql_superset_catalogue.v1':
         raise ValueError('单仓数据集合同无效')
     entries = catalogue['datasets']
-    if len(entries) != 167 or len({x['table_name'] for x in entries}) != 167:
-        raise ValueError('必须包含159个数据集和8个筛选来源')
+    if len(entries) != 168 or len({x['table_name'] for x in entries}) != 168:
+        raise ValueError('必须包含159个数据集和9个筛选来源')
     database = db.session.query(Database).filter_by(database_name=DATABASE_NAME).one()
+    dashboard = db.session.query(Dashboard).filter_by(slug='shadow-bi-native').one()
+    positions = json.loads(dashboard.position_json)
+    metadata = json.loads(dashboard.json_metadata)
+    from dashboard_product.shadow_bi.p35.bootstrap_native import configure_overview_student_filter
+    configure_overview_student_filter(metadata, positions, dashboard, database)
     tables = db.session.query(SqlaTable).filter_by(database_id=database.id).all()
     by_name = {table.table_name: table for table in tables}
     if len(by_name) != len(tables) or not {x['table_name'] for x in entries} <= by_name.keys():
@@ -155,13 +167,18 @@ def install_metadata(library, *, current_library=None):
     fees = [node for node in positions.values() if isinstance(node, dict)
             and node.get('type') == 'MARKDOWN'
             and LIMITATION in node.get('meta', {}).get('code', '')]
-    metadata = json.loads(dashboard.json_metadata)
     if len(headers) != 1 or len(fees) != 1 or len(dashboard.slices) != 93:
         raise ValueError('原看板组件身份不符')
-    if len(metadata['native_filter_configuration']) != 86:
+    if len(metadata['native_filter_configuration']) != 87:
         raise ValueError('原看板筛选身份不符')
     for entry in entries:
         by_name[entry['table_name']].sql = entry['sql']
+        for column in by_name[entry['table_name']].columns:
+            column.column_name = column.column_name.replace('被动现金占新生收入', '被动现金占收入').replace(
+                '新生现金固定分母', '现金固定分母')
+    for chart in dashboard.slices:
+        chart.params = chart.params.replace('被动现金占新生收入', '被动现金占收入').replace(
+            '新生现金固定分母', '现金固定分母')
     if catalogue.get('overview_filter_mode') == 'training_business_group':
         ignored = catalogue['overview_group_ignored_datasets']
         if not ignored or not set(ignored) <= by_name.keys():
@@ -191,7 +208,7 @@ def install_metadata(library, *, current_library=None):
                                            enable_external_access=False, lock_configuration=True)
     database.extra = json.dumps(extra)
     db.session.commit()
-    return {'datasets': len(entries), 'charts': 93, 'filters': 86}
+    return {'datasets': len(entries), 'charts': 93, 'filters': 87}
 
 
 def _wait_health():

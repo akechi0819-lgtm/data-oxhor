@@ -62,6 +62,9 @@ def _build_release(
     }
     with duckdb.connect(str(warehouse)) as connection:
         connection.execute("CREATE SCHEMA landing; CREATE SCHEMA meta")
+        connection.execute("CREATE SCHEMA business")
+        connection.execute("CREATE TABLE business.team_metrics AS SELECT 'FY27' AS period_id, 'heads' AS metric, 2 AS actual, 'training' AS business_line, 'total' AS unit_id, '被动' AS acquisition_scope")
+        connection.execute("INSERT INTO business.team_metrics VALUES ('FY27', 'heads', 3, 'training', 'total', '全部'), ('FY27', 'heads', 4, 'abroad', 'online', '被动')")
         connection.execute("CREATE TABLE meta.identity(batch_id VARCHAR)")
         connection.execute("INSERT INTO meta.identity VALUES (?)", [identity_batch])
         connection.execute("CREATE TABLE meta.imports(source VARCHAR, snapshot_id VARCHAR, relation VARCHAR, row_count BIGINT, seconds DOUBLE)")
@@ -84,7 +87,8 @@ def _build_release(
         "through_date": "2026-11-05",
         "snapshots": SNAPSHOTS,
         "database": database_ref,
-        "schemas": ["landing", "meta"],
+        "schemas": ["landing", "meta", "business"],
+        "query_relations": ["team_metrics"],
         "source_queries": [
             {
                 "schema_version": "controlled_query_result.v2",
@@ -339,3 +343,27 @@ def test_candidate_sql_does_not_expand_registered_raw_landing_scope(tmp_path: Pa
         )
     assert error.value.code == "QUERY_REJECTED"
     assert not (tmp_path / "query-output").exists()
+
+def test_dashboard_query_and_csv_use_the_same_published_rows(tmp_path: Path) -> None:
+    release_root, _ = _build_release(tmp_path)
+    current = tmp_path / "current"
+    current.symlink_to(release_root, target_is_directory=True)
+    worker = BusinessDataQuery(current, tmp_path / "results")
+    catalog = worker.describe()["dashboard_datasets"]
+    assert list(catalog) == ["team_metrics"]
+    assert "prior 上年同期" in catalog["team_metrics"]["description"]
+    page = worker.read_dashboard_data("team_metrics", RELEASE, {"metric": ["heads", "cash"]})
+    assert page["rows"] == [["FY27", "heads", 2, "training", "total", "被动"]]
+    assert page["source_tables"] == ["business.team_metrics"]
+    assert "上年同期" in page["column_descriptions"]["prior"]
+    assert worker.read_page(page["result_id"])["column_descriptions"] == page["column_descriptions"]
+    assert worker.read_dashboard_data("team_metrics", RELEASE, {"acquisition_scope": "全部"})["rows"][0][2] == 3
+    assert worker.read_dashboard_data("team_metrics", RELEASE, {"business_line": "abroad", "unit_id": "online"})["rows"][0][2] == 4
+    all_rows = worker.read_dashboard_data("team_metrics", RELEASE, {"business_line": "*", "unit_id": "*", "acquisition_scope": "*"})["rows"]
+    assert sorted(row[2] for row in all_rows) == [2, 3, 4]
+    csv = worker.export_csv(page["result_id"])
+    assert csv["snapshots"] == SNAPSHOTS
+    assert csv["column_descriptions"] == page["column_descriptions"]
+    assert csv["csv_text"].splitlines()[-1] == '"FY27","heads","2","training","total","被动"'
+    with pytest.raises(QueryError, match="Unsupported dashboard filter"):
+        worker.read_dashboard_data("team_metrics", RELEASE, {"unknown": "FY27"})

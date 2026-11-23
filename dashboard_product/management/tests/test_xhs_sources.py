@@ -42,6 +42,29 @@ class XhsMccSourcesTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, '账户日期重复'):
             self.load()
 
+    def test_excluded_zero_account_does_not_create_cost_rows(self):
+        self.entry['excluded_zero_account_ids'] = ['99']
+        self.rows.extend([('20261025', 99, '代理商子账户', 'unmapped', 0),
+                          ('20261026', 99, '代理商子账户', 'unmapped', 0)])
+        costs = self.load()
+        self.assertEqual({row['account_id'] for row in costs['rows']}, {'11', '21'})
+        self.assertEqual(len(costs['rows']), 3)
+        self.assertNotIn('xhs:99', {source['source_id'] for source in costs['sources']})
+
+    def test_excluded_zero_account_rejects_any_nonzero_daily_amount(self):
+        self.entry['excluded_zero_account_ids'] = ['99']
+        self.rows.append(('20261025', 99, '代理商子账户', 'unmapped', '1'))
+        with self.assertRaisesRegex(ValueError, '排除账户出现非零消费'):
+            self.load()
+
+    def test_explicit_exclusion_accepts_nonzero_without_brand_and_checks_amount(self):
+        self.entry['excluded_account_ids'] = ['99']
+        self.rows.append(('20261025', 99, '代理商子账户', 'unmapped', '109.17'))
+        self.assertEqual(len(self.load()['rows']), 3)
+        self.rows[-1] = ('20261025', 99, '代理商子账户', 'unmapped', 'invalid')
+        with self.assertRaises(ValueError):
+            self.load()
+
     def test_nonzero_principal_requires_scope_reconciliation(self):
         self.rows[0] = ('20261025', 10, '品牌主账户', 'prep', 12.34)
         with self.assertRaisesRegex(ValueError, '主账户有消费'):

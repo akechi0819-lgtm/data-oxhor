@@ -153,24 +153,17 @@ def normalize_sources(source, people, abroad):
     }
     for kind, rows in ((kind, source[kind]) for kind in SOURCE_SHEETS):
         seen = {}
+        seen_resource_ids = set()
         for key in diagnostics:
             diagnostics[key][kind] = 0
-        if kind == 'resources':
-            # 用户确认同资源ID跨日期重复保留最新分单日期；同日冲突仍拒绝。
-            latest = {}
-            for raw in rows:
-                resource_id, event_date = _identifier(raw.get('resource_id')), _day(raw.get('date'))
-                if resource_id and event_date:
-                    latest[resource_id] = max(event_date, latest.get(resource_id, event_date))
-            selected = []
-            for raw in rows:
-                resource_id, event_date = _identifier(raw.get('resource_id')), _day(raw.get('date'))
-                if resource_id and event_date and event_date < latest[resource_id]:
-                    diagnostics['superseded_resource_rows'][kind] += 1
-                else:
-                    selected.append(raw)
-            rows = selected
         for raw in rows:
+            if kind == 'resources':
+                resource_id = _identifier(raw.get('resource_id'))
+                if resource_id:
+                    if resource_id in seen_resource_ids:
+                        diagnostics['superseded_resource_rows'][kind] += 1
+                        continue
+                    seen_resource_ids.add(resource_id)
             owner = _text(raw['owner'])
             if owner.startswith('#'):
                 raise ValueError(f'{SOURCE_SHEETS[kind]}市场资源归属人含Excel错误：第{raw["source_row_number"]}行')
@@ -494,7 +487,7 @@ def build(*, workspace: Path, source_file: Path, run_id: str, snapshot_id: str,
             'rules': {
                 'blank_owner': 'excluded', 'department_deleted_resource': 'included',
                 'personal_deleted_resource': 'excluded', 'signature': 'positive_gross_only',
-                'resource_identity': 'resource_id_latest_assignment_date_same_day_conflict_rejected',
+                'resource_identity': 'resource_id_first_source_row',
                 'contract_customer_key': '客户ID优先；缺失按姓名暂定去重',
                 'language_customer_key': '学员编号优先；缺失按姓名暂定去重',
                 'cross_system_customer_identity': 'not_aligned',

@@ -37,6 +37,14 @@ SELECT *,NULL::INTEGER AS selection_mask FROM (VALUES
 ) t(unit_id,source_team,business_group,abroad_segment)
 UNION ALL SELECT 'selection_'||i::VARCHAR,'offline_market',NULL,NULL,i::INTEGER FROM range(1,8) t(i);
 
+CREATE OR REPLACE VIEW business.acquisition_scopes AS
+SELECT * FROM (VALUES
+ ('被动','被动','全部'),('主动','主动','全部'),('全部','全部','全部'),
+ ('被动|新生','被动','新生'),('被动|老生','被动','老生'),
+ ('主动|新生','主动','新生'),('主动|老生','主动','老生'),
+ ('全部|新生','全部','新生'),('全部|老生','全部','老生')
+) t(acquisition_scope,acquisition_mode,student_type_scope);
+
 -- Scope selection happens before class/student head qualification.
 CREATE OR REPLACE VIEW business.scoped_facts AS
 SELECT s.unit_id,a.acquisition_scope,f.*
@@ -51,8 +59,10 @@ FROM business.facts f JOIN business.scopes s ON
      f.comparison_group='初中' AND (s.selection_mask & 2)>0 OR
      f.comparison_group='高中' AND (s.selection_mask & 4)>0))
  ELSE s.abroad_segment IS NOT NULL AND f.segment_id=s.abroad_segment END)
-CROSS JOIN (VALUES ('被动'),('主动'),('全部')) a(acquisition_scope)
-WHERE f.business_line<>'training' OR a.acquisition_scope='全部' OR f.acquisition_mode=a.acquisition_scope;
+CROSS JOIN business.acquisition_scopes a
+WHERE (f.business_line<>'training' OR a.acquisition_mode='全部' OR f.acquisition_mode=a.acquisition_mode)
+ AND (f.business_line<>'training' OR f.metric<>'cash' OR a.student_type_scope='全部'
+      OR f.student_type=a.student_type_scope);
 
 CREATE OR REPLACE VIEW business.period_events AS
 SELECT p.period_id,p.kind,p.status,p.time_progress,f.*,w.comparison,
@@ -90,7 +100,7 @@ WITH sums AS (
 ), keys AS (
  SELECT p.period_id,s.unit_id,a.acquisition_scope,l.business_line,w.comparison
  FROM business.periods p CROSS JOIN business.scopes s
- CROSS JOIN (VALUES ('被动'),('主动'),('全部')) a(acquisition_scope)
+ CROSS JOIN business.acquisition_scopes a
  CROSS JOIN (VALUES ('training'),('abroad')) l(business_line)
  CROSS JOIN (VALUES ('actual'),('prior')) w(comparison)
 )
@@ -156,7 +166,7 @@ WITH measures AS (
 SELECT * EXCLUDE(actual,prior,target),
  CASE WHEN status IN ('future','not_configured','not_covered') THEN NULL ELSE actual END AS actual,
  CASE WHEN business_line='abroad' OR status='future' THEN NULL ELSE prior END AS prior,
- CASE WHEN business_line='training' AND (acquisition_scope<>'被动' OR unit_id='total' AND metric='orders')
+ CASE WHEN business_line='training' AND (split_part(acquisition_scope,'|',1)<>'被动' OR unit_id='total' AND metric='orders')
   OR status='not_configured' THEN NULL ELSE target END AS target,
  CASE WHEN business_line='abroad' AND unit_id IN ('prep','high') THEN '本部门暂不统计留学完成；贡献见人员产能。'
   WHEN business_line='abroad' AND starts_with(unit_id,'selection_') THEN '不纳部门留学考核；个人贡献单独展示。'

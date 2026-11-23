@@ -66,3 +66,5 @@ Mac 保持现有 bi-3 来源与日程。本 worktree 中 `prepare_full_daily --p
 正式通知入口为 `monitoring_product.server_notify`，由 `release_notifications` 从固定正式 release 构建通知包，再调用 `shared_delivery` 去重投递；通知不独立查询或重算数仓。10月26日历史通知批次有8条 `sent` 记录，关联HTTP job仍为 `unknown`，只读对账不等于该job自身发送成功；不得据此重发或清空 DeliveryState。详见[通知作业回执](../../docs/notification-job-receipt-repair-20261026.md)。
 
 数据查询遵循已确认工作区、Snapshot、Pack、Bridge、来源和参考资料边界。不得读取或复制凭据，不将客户输入、整个工作区或运行产物加入Git。未来MCP权限不由BI上线自动授予。
+
+本机 SQL 候选的保留与核销由既有清理任务按[维护者指南](../../docs/maintainer-guide.md)执行。发布任务按批次记录激活、退役及待恢复状态，便于清理任务识别仍在使用的仓库。

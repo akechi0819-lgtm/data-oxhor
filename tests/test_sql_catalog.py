@@ -218,8 +218,43 @@ def test_school_parent_grade_sql_keeps_hidden_measures_and_selected_scope():
     for name in ['父工单','子工单','父现金','子现金','父人头','子人头']:
         assert f'AS "{name}"' in base
     assert 'c.grade AS 年级' in base
-    assert "['被动']::VARCHAR[]" in base
+    assert "list_value('被动')::VARCHAR[]" in base
     assert 'AS 主被动' not in base
+
+
+def test_overview_student_filter_uses_suffix_without_changing_workorders_or_labels():
+    pytest.importorskip('jinja2', reason='Jinja2随Superset运行时提供')
+    catalogue = build_catalogue()
+
+    default = render_dataset_sql('native_overview_training', {'语培统计范围':'主动'}, catalogue)
+    assert "t.acquisition_scope='主动'" in default
+    assert "'主动' AS 语培统计范围" in default
+    assert '新老生' not in default
+
+    selected = render_dataset_sql(
+        'native_overview_training', {'语培统计范围':'主动','新老生':'老生'}, catalogue)
+    assert "t.acquisition_scope='主动|老生'" in selected
+    assert "'主动' AS 语培统计范围" in selected
+    assert "'主动|老生' AS 语培统计范围" not in selected
+
+    target = render_dataset_sql(
+        'native_overview_targets', {'语培统计范围':'主动','新老生':'新生'}, catalogue)
+    assert "d.acquisition_scope='被动|新生'" in target
+    assert "d.target" in target
+
+    people = render_dataset_sql(
+        'overview_people', {'含删除回收':'不含','含死单':'不含','新老生':'老生'}, catalogue)
+    assert "m.state='00|老生'" in people
+
+    school = render_dataset_sql(
+        'overview_schools', {'管理单元':'市场总计','语培统计范围':'主动','新老生':'老生'}, catalogue)
+    assert "d.acquisition_scope='主动|老生'" in school
+    assert "split_part(d.acquisition_scope,'|',1)" in school
+
+    workorders = render_dataset_sql(
+        'overview_market', {'语培统计范围':'主动','新老生':'老生'}, catalogue)
+    assert "acquisition_scope='主动'" in workorders
+    assert '新老生' not in workorders
 
 
 def test_native_university_school_sort_keeps_basis_and_direction():

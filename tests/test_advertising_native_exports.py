@@ -86,6 +86,14 @@ class ExportTests(unittest.TestCase):
         self.tasks = Page(self.raw, self.context, rows or [[self.old], [self.old, self.waiting], [self.old, self.done]])
         return e.download_xhs(self.report, self.tasks, start_date=self.start.isoformat(), through_date=self.end.isoformat(),
             expected_accounts=accounts, organization='组织', destination=self.root/'download.xlsx', **kwargs)
+    def write_native(self, rows, name):
+        book = Workbook()
+        book.active.append(['周期', '投放ID', '账户类型', '广告主账户ID', '总消耗'])
+        for row in rows:
+            book.active.append(row)
+        path = self.root / name
+        book.save(path)
+        return path
     def test_xhs_new_task_bound_not_old_success(self):
         result = self.run_xhs()
         self.assertEqual(result['task_id'], 'T20261028000001')
@@ -96,6 +104,22 @@ class ExportTests(unittest.TestCase):
         self.assertTrue(Path(result['files'][0]['path']).exists())
     def test_xhs_missing_native_account_rejected(self):
         with self.assertRaisesRegex(e.ExportError, 'account_scope_mismatch'): self.run_xhs(accounts=('123', '456'))
+    def test_xhs_extra_zero_account_is_diagnostic_only(self):
+        rows = []
+        for day in (self.start, self.end):
+            stamp = day.strftime('%Y%m%d')
+            rows.extend([[stamp, '123', '代理商子账户', 'brand', 2],
+                         [stamp, '456', '代理商子账户', 'brand', 0]])
+        result = e.inspect_xhs(self.write_native(rows, 'extra-zero.xlsx'), self.start, self.end, ['123'])
+        self.assertEqual(result['account_ids'], ['123'])
+        self.assertEqual(result['extra_zero_account_ids'], ['456'])
+    def test_xhs_extra_positive_negative_days_are_not_net_zero_scope(self):
+        rows = [[self.start.strftime('%Y%m%d'), '123', '代理商子账户', 'brand', 2],
+                [self.end.strftime('%Y%m%d'), '123', '代理商子账户', 'brand', 2],
+                [self.start.strftime('%Y%m%d'), '456', '代理商子账户', 'brand', 1],
+                [self.end.strftime('%Y%m%d'), '456', '代理商子账户', 'brand', -1]]
+        with self.assertRaisesRegex(e.ExportError, 'account_scope_mismatch'):
+            e.inspect_xhs(self.write_native(rows, 'offsetting-extra.xlsx'), self.start, self.end, ['123'])
     def test_xhs_two_new_tasks_rejected(self):
         other = self.done.replace('T20261028000001', 'T20261028000002')
         with self.assertRaisesRegex(e.ExportError, 'new_task_ambiguous'): self.run_xhs([[self.old], [self.old,self.done,other]])

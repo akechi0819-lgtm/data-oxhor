@@ -40,7 +40,7 @@ def main():
  targets=[]
  for scope in ['全部','线上']:
   d=c.query('overview_targets',filters=[f('期间','FY27'),f('管理单元','市场总计'),f('目标团队',scope),f('业务组名称','大学'),f('指标','工单')],name='fixed-denominator-'+scope);targets.append(d['data'][0])
- assert targets[0]['新生现金固定分母']==targets[1]['新生现金固定分母']==12777455.1 and targets[0]['被动现金分子']!=targets[1]['被动现金分子'];passed('市场团队分子变化，特殊现金分母固定')
+ assert targets[0]['现金固定分母']==targets[1]['现金固定分母']==12777455.1 and targets[0]['被动现金分子']!=targets[1]['被动现金分子'];passed('市场团队分子变化，特殊现金分母固定')
  for unit in ['线上虚拟人','线上团队']:
   d=c.query('overview_targets',columns=['目标团队'],filters=[f('期间','FY27'),f('管理单元',unit)],name='unit-only-all-'+unit);assert d['data']==[{'目标团队':'全部'}]
  passed('非市场总计管理单元只提供全部目标团队，不提供无效的线上/线下选择')

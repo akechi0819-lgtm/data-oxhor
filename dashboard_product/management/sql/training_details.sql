@@ -82,6 +82,7 @@ orders_raw AS (
  r.entry_person AS entry_person,
  1.0::DOUBLE actual_value, 'work_orders' metric, NULL AS student_id,
  NULL AS cash_channel, r.active_type AS work_order_active_type, NULL AS cash_campaign_name,
+ NULL::VARCHAR AS student_type,
  r.order_status, r.source_record, NULL AS cash_source_record, r.active_type AS acquisition_mode, NULL AS class_code, NULL::DOUBLE AS registration_count
  FROM mapped_orders r
  JOIN orders_dim o ON r.work_order_id = o.work_order_id
@@ -97,6 +98,7 @@ orders_raw AS (
       WHEN TRIM(src.团队)='大学' THEN '大学' END AS cash_business_group,
  NULLIF(TRIM(src.班级编码),'') AS class_code, TRY_CAST(src.报名人次 AS DOUBLE) AS registration_count,
  TRIM(src.渠道) AS channel, TRIM(src.渠道属性) AS acquisition_mode,
+ NULLIF(TRIM(src.新老生类型),'') AS student_type,
  src.市场活动名称 AS cash_campaign_name,
  NULLIF(TRIM(src.生源校),'') AS school_name,
  NULLIF(TRIM(src.学员年级),'') AS grade_name,
@@ -106,7 +108,6 @@ orders_raw AS (
    >= params.attachment_start THEN to_json(src) END AS cash_source_record
  FROM landing.br_cash__sheet_39b8dee2e4b3 AS src CROSS JOIN params
  WHERE list_contains((SELECT acquisition_modes FROM params), TRIM(src.渠道属性))
- AND TRIM(src.新老生类型)='新生'
  AND DATE '1899-12-30'+CAST(TRY_CAST(src.业务日期 AS DOUBLE) AS INTEGER)>=params.start_date
  AND DATE '1899-12-30'+CAST(TRY_CAST(src.业务日期 AS DOUBLE) AS INTEGER)<params.end_date
 
@@ -133,12 +134,13 @@ orders_raw AS (
  c.channel AS cash_channel,
  o.active_type AS work_order_active_type,
  c.cash_campaign_name AS cash_campaign_name,
+ c.student_type AS student_type,
  o.order_status, NULL AS source_record, c.cash_source_record, c.acquisition_mode, c.class_code, c.registration_count
  FROM cash_raw c
  LEFT JOIN orders_dim o
  ON c.work_order_id = o.work_order_id
 )
-SELECT source_row_number, work_order_id, event_date, team_id, business_group, first_channel, second_channel, campaign_name, work_order_campaign_name, entry_person, school_name, grade_name, metric, actual_value, student_id, cash_channel, work_order_active_type, cash_campaign_name, order_status, source_record, cash_source_record, acquisition_mode, class_code, registration_count FROM orders
+SELECT source_row_number, work_order_id, event_date, team_id, business_group, first_channel, second_channel, campaign_name, work_order_campaign_name, entry_person, school_name, grade_name, metric, actual_value, student_id, cash_channel, work_order_active_type, cash_campaign_name, student_type, order_status, source_record, cash_source_record, acquisition_mode, class_code, registration_count FROM orders
 UNION ALL
-SELECT source_row_number, work_order_id, event_date, team_id, business_group, first_channel, second_channel, campaign_name, work_order_campaign_name, entry_person, school_name, grade_name, metric, actual_value, student_id, cash_channel, work_order_active_type, cash_campaign_name, order_status, source_record, cash_source_record, acquisition_mode, class_code, registration_count FROM cash_matched
+SELECT source_row_number, work_order_id, event_date, team_id, business_group, first_channel, second_channel, campaign_name, work_order_campaign_name, entry_person, school_name, grade_name, metric, actual_value, student_id, cash_channel, work_order_active_type, cash_campaign_name, student_type, order_status, source_record, cash_source_record, acquisition_mode, class_code, registration_count FROM cash_matched
 ORDER BY event_date, team_id, business_group, metric, campaign_name;

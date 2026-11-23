@@ -24,3 +24,9 @@
 - `business-data-mcp-results-clean.timer` / `.service`：每 5 分钟运行一次、只清理 MCP 结果目录。
 
 Key token 不写入服务器 registry 或审计文件；一次性本机接入文件应保存在 `.local/` 下并限制为当前用户可读。
+
+## 业务口径与日更绑定
+
+SQL 日更封装时，`prepare_release` 从传入工作区读取已确认 Bridge 和留学官方记分卡，读取代码仓库维护的 `business_data_mcp/dashboard_business_rules.md` 看板口径摘要，将筛选结果与来源哈希嵌入 `release.json` 的 `business_context`。无需增加归档文件或 ACL；仅发布确认规则和记分卡内容，不打包原始客户文件。下次成功发布后，MCP 随 current 切换读取同批口径；看板规则变更时须同时更新该摘要，以保证下次发布同步。
+
+旧 SQL release 没有内嵌口径时，可显式设置 `BUSINESS_DATA_MCP_CONTEXT` 指向部署的只读资料目录。运行 `python3 -m business_data_mcp.build_context <目录>` 从当前代码和对应客户工作区生成该目录；服务只在资料清单内 Bridge 来源 SHA-256 与当前 release `semantics` 中的 Bridge 哈希一致时读取。缺少资料、身份不一致或 current 不可读时，语义工具报错，不使用其他批次或猜测口径。该目录仅是旧批次过渡，不能证明记分卡或看板规则与旧批次完全一致，使用时须核实资料的适用时间。

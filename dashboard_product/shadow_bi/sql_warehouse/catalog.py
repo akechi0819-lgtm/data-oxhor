@@ -76,6 +76,23 @@ _OVERVIEW_SELECTION = """{% set overview_units = filter_values('管理单元', r
 {% set overview_label = overview_units[0] if overview_units|length == 1 and overview_units[0] in ['市场总计','高中','大学','留学预备'] else '市场总计' %}
 {% set overview_unit_id = {'市场总计':'total','高中':'overview_high','大学':'overview_university','留学预备':'overview_prep'}.get(overview_label,'total') %}
 """
+_OVERVIEW_STUDENT_SELECTION = """{% set student_types = filter_values('新老生', remove_filter=True) %}
+{% set student_label = student_types[0] if student_types|length == 1 and student_types[0] in ['全部','新生','老生'] else '全部' %}
+{% set student_suffix = '|' ~ student_label if student_label in ['新生','老生'] else '' %}
+"""
+
+
+def _overview_scopes(base="'{{ acquisition_scope }}'"):
+    """Return selected and unsuffixed scopes for overview's mixed training/abroad rows."""
+    return ("list_value(" + base +
+            "{% if student_suffix %}," + base + "||'{{ student_suffix }}'{% endif %})::VARCHAR[]")
+
+
+def _overview_training_scope_match(alias, *, business_line='business_line'):
+    """Use the selected student grain for training while leaving abroad unchanged."""
+    return (f"(({business_line}='training' AND {alias}.acquisition_scope="
+            "'{{ acquisition_scope }}{{ student_suffix }}') OR "
+            f"({business_line}<>'training' AND {alias}.acquisition_scope='{{{{ acquisition_scope }}}}'))")
 
 
 def _metadata():
@@ -192,7 +209,8 @@ def _metric_row_sql(source, *, where='TRUE', dimensions=(), metric='metric', act
 
 
 def _team_source(page, line_filter=None):
-    prefix = _PREP_SELECTION if page == 'prep' else _OVERVIEW_SELECTION if page == 'overview' else ''
+    prefix = (_PREP_SELECTION if page == 'prep' else
+              _OVERVIEW_SELECTION + _OVERVIEW_STUDENT_SELECTION if page == 'overview' else '')
     scoped_line = line_filter or ('training' if page == 'prep' else None)
     line_clause = f" AND t.business_line='{scoped_line}'" if scoped_line else ''
     unit_expr = (_overview_line_unit('t.unit_id', 't.business_line') if page == 'overview'
@@ -213,8 +231,10 @@ def _team_source(page, line_filter=None):
                   f'{_line("t.business_line")} AS 业务线']
     extra = (["NULL::VARCHAR AS 业务组"] if page == 'prep' else [])
     extra.append("'{{ acquisition_scope }}' AS 语培统计范围")
+    scope_clause = (_overview_training_scope_match('t', business_line='t.business_line')
+                    if page == 'overview' else "t.acquisition_scope='{{ acquisition_scope }}'")
     sql = (prefix + acquisition + _metric_row_sql(
-        source, where=f"{unit_expr}{line_clause} AND t.acquisition_scope='{{{{ acquisition_scope }}}}'",
+        source, where=f"{unit_expr}{line_clause} AND {scope_clause}",
         dimensions=dimensions, metric='t.metric', actual='t.actual', prior='t.prior',
         target='t.target', status='t.status', progress='t.time_progress', display=actual_display,
         note='t.note', extra=extra) +
@@ -223,7 +243,8 @@ def _team_source(page, line_filter=None):
 
 
 def _dimension_sql(page, dimension_type, *, detail=False, country=False, business_line=None, push_period_filter=True):
-    prefix = _PREP_SELECTION if page == 'prep' else _OVERVIEW_SELECTION if page == 'overview' else ''
+    prefix = (_PREP_SELECTION if page == 'prep' else
+              _OVERVIEW_SELECTION if page == 'overview' else '')
     if country:
         table = 'business.dimension_countries' if detail else 'business.dimension_country_groups'
         extra_keys = ['country'] if detail else []
@@ -244,9 +265,10 @@ def _dimension_sql(page, dimension_type, *, detail=False, country=False, busines
     unit_label = (_overview_line_label('d.unit_id', 'd.business_line') if page == 'overview'
                   else _unit_label('d.unit_id', page))
     where = [f"d.dimension_type='{dimension_type}'", unit_clause]
-    scope_source = "['{{ acquisition_scope }}']::VARCHAR[]"
-    if dimension_type in ('school','school_grade'):
-        where.append("d.acquisition_scope='{{ acquisition_scope }}'")
+    scope_source = (_overview_scopes() if page == 'overview'
+                    else "['{{ acquisition_scope }}']::VARCHAR[]")
+    if page == 'overview':
+        where.append(_overview_training_scope_match('d', business_line='d.business_line'))
     else:
         where.append("d.acquisition_scope='{{ acquisition_scope }}'")
     if business_line:
@@ -295,7 +317,8 @@ def _dimension_sql(page, dimension_type, *, detail=False, country=False, busines
         extra.append("NULL::VARCHAR AS 业务组")
     extra.append("'{{ acquisition_scope }}' AS 语培统计范围")
     group_by = ', '.join(str(i+1) for i in range(len(dims)))
-    sql = (prefix + _ACQUISITION + 'SELECT ' + dimensions + ', ' + ', '.join(extra) +
+    student_selection = _OVERVIEW_STUDENT_SELECTION if page == 'overview' else ''
+    sql = (prefix + _ACQUISITION + student_selection + 'SELECT ' + dimensions + ', ' + ', '.join(extra) +
            ' FROM ' + source + ' d WHERE ' + ' AND '.join(where) +
            " AND d.metric IN ('orders','cash','heads') GROUP BY " + group_by)
     return sql
@@ -307,7 +330,8 @@ def _school_pairs_sql(page):
     prefix += _ACQUISITION
     unit = (_overview_line_unit('d.unit_id', 'd.business_line') if page == 'overview'
             else _unit(page, 'd.unit_id'))
-    scope_source = "['{{ acquisition_scope }}']::VARCHAR[]"
+    scope_source = (_overview_scopes() if page == 'overview'
+                    else "['{{ acquisition_scope }}']::VARCHAR[]")
     selection_filter = (" AND d.business_line='training'" if page == 'prep' else '')
 
     def pivot(alias, prefix_name):
@@ -345,12 +369,17 @@ def _school_pairs_sql(page):
         fields.append('NULL::VARCHAR AS 业务组')
     fields.append("'{{ acquisition_scope }}' AS 语培统计范围")
     source = _dimension_query_source(page,['school','school_grade'],scope=scope_source)
-    cte = ("WITH scoped AS (SELECT d.* FROM "+source+" d WHERE "+unit+
-           selection_filter+" AND d.acquisition_scope='{{ acquisition_scope }}'), "+
+    scope_filter = (_overview_training_scope_match('d', business_line='d.business_line')
+                    if page == 'overview' else "d.acquisition_scope='{{ acquisition_scope }}'")
+    scoped_projection = ("d.* REPLACE (split_part(d.acquisition_scope,'|',1) AS acquisition_scope)"
+                         if page == 'overview' else 'd.*')
+    cte = ("WITH scoped AS (SELECT "+scoped_projection+" FROM "+source+" d WHERE "+unit+
+           selection_filter+" AND "+scope_filter+"), "+
            parent_cte+","+child_cte+" SELECT "+','.join(fields)+" FROM parents p JOIN children c ON "+
            "p.period_id=c.period_id AND p.unit_id=c.unit_id AND p.acquisition_scope=c.acquisition_scope "
            "AND p.business_line=c.business_line AND p.school=c.school")
-    return prefix+cte
+    student_selection = _OVERVIEW_STUDENT_SELECTION if page == 'overview' else ''
+    return prefix+student_selection+cte
 
 
 def _school_tree_raw_sql(page):
@@ -368,11 +397,23 @@ def _school_tree_raw_sql(page):
               "{% set chosen_period=periods[0] if periods|length==1 else 'FY27' %}"
               "{% set selected=filter_values("+repr(scope_filter)+",remove_filter=True) %}"
               "{% set acquisition_scope=selected[0] if selected|length==1 and selected[0] in ['全部','主动','被动'] else "+repr(default_scope)+" %}")
+    if page == 'overview':
+        prefix += _OVERVIEW_STUDENT_SELECTION
     if page == 'prep':
         prefix += ("{% set groups=filter_values('业务组',remove_filter=True) %}"
                    "{% set mask=(1 if '青少' in groups else 0)+(2 if '初中' in groups else 0)+(4 if '高中' in groups else 0) %}")
-    source = ("business.dimension_query(['{{ chosen_period }}']::VARCHAR[],"+units[page]+
-              ",[ '全部','主动','被动']::VARCHAR[],['school','school_grade']::VARCHAR[])")
+    if page == 'overview':
+        scope_source = ("{% if student_suffix %}"
+                        "['全部','主动','被动','全部{{ student_suffix }}','主动{{ student_suffix }}','被动{{ student_suffix }}']::VARCHAR[]"
+                        "{% else %}['全部','主动','被动']::VARCHAR[]{% endif %}")
+        source = ("(SELECT d.* REPLACE (split_part(d.acquisition_scope,'|',1) AS acquisition_scope) "
+                  "FROM business.dimension_query(['{{ chosen_period }}']::VARCHAR[],"+units[page]+
+                  ","+scope_source+",['school','school_grade']::VARCHAR[]) d WHERE "
+                  "((d.business_line='training' AND d.acquisition_scope IN ('全部{{ student_suffix }}','主动{{ student_suffix }}','被动{{ student_suffix }}')) "
+                  "OR (d.business_line='abroad' AND d.acquisition_scope IN ('全部','主动','被动'))))")
+    else:
+        source = ("business.dimension_query(['{{ chosen_period }}']::VARCHAR[],"+units[page]+
+                  ",[ '全部','主动','被动']::VARCHAR[],['school','school_grade']::VARCHAR[])")
     prep_filter = " AND business_line='training'" if page == 'prep' else ''
     overview_filter = (" WHERE ((unit_id='{{ overview_unit_id }}' AND business_line='training') "
                        "OR (unit_id='total' AND business_line='abroad'))" if page == 'overview' else '')
@@ -426,7 +467,12 @@ def _groups_sql(page, dimension_type):
     # The comparison-group table is the legacy same-period comparison view;
     # business-group rows remain separate for target presentation.
     prefix += _ACQUISITION
-    source = _dimension_query_source(page,[dimension_type])+" d"
+    student_selection = _OVERVIEW_STUDENT_SELECTION if page == 'overview' else ''
+    prefix += student_selection
+    source = _dimension_query_source(
+        page, [dimension_type],
+        scope=("['{{ acquisition_scope }}{{ student_suffix }}']::VARCHAR[]"
+               if page == 'overview' else "['{{ acquisition_scope }}']::VARCHAR[]")) + " d"
     dimensions = ["d.period_id AS 期间", f"{_unit_label('d.unit_id', page)} AS 管理单元",
                   'd.dim1 AS 业务组名称']
     extra = ["'{{ acquisition_scope }}' AS 语培统计范围"]
@@ -434,7 +480,9 @@ def _groups_sql(page, dimension_type):
         extra = ["NULL::VARCHAR AS 业务组", *extra]
     return (prefix + _metric_row_sql(
         source, where=f"{unit_clause} AND d.dimension_type={_lit(dimension_type)}{line_clause} "
-                     "AND d.acquisition_scope='{{ acquisition_scope }}' AND d.metric IN ('orders','cash','heads')",
+                     + ("AND d.acquisition_scope='{{ acquisition_scope }}{{ student_suffix }}' "
+                        if page == 'overview' else "AND d.acquisition_scope='{{ acquisition_scope }}' ")
+                     + "AND d.metric IN ('orders','cash','heads')",
         dimensions=dimensions, metric='d.metric', actual='d.actual', prior='d.prior', target='d.target',
         status='d.status', progress='d.time_progress', display='d.display', note='d.note',extra=extra))
 
@@ -452,18 +500,18 @@ def _target_sql(abroad=False):
                 "AND tv.acquisition_scope=tm.acquisition_scope AND tv.business_line=tm.business_line AND tv.comparison='actual' "
                 "WHERE tm.unit_id IN ('online','university') AND tm.business_line='abroad' "
                 "AND tm.acquisition_scope='全部' AND tm.metric IN ('orders','cash','heads')")
-    target_source = _dimension_query_source('overview',['business_group'],scope="['被动']::VARCHAR[]",
+    target_source = _dimension_query_source('overview',['business_group'],scope="['被动{{ student_suffix }}']::VARCHAR[]",
                                             units="list_value('{{ overview_unit_id }}')::VARCHAR[]")
     partition='d.period_id,d.unit_id,d.business_line,d.dim1'
     shares = [
         f"MAX(d.cash_share_numerator) FILTER(WHERE d.metric='cash') OVER(PARTITION BY {partition}) AS 被动现金分子",
-        f"MAX(d.cash_share_denominator) FILTER(WHERE d.metric='cash') OVER(PARTITION BY {partition}) AS 新生现金固定分母",
+        f"MAX(d.cash_share_denominator) FILTER(WHERE d.metric='cash') OVER(PARTITION BY {partition}) AS 现金固定分母",
         f"MAX(d.passive_cash_share) FILTER(WHERE d.metric='cash') OVER(PARTITION BY {partition}) AS 被动现金占比",
         _status(f"MAX(d.passive_cash_share_status) FILTER(WHERE d.metric='cash') OVER(PARTITION BY {partition})")+" AS 占比状态",
     ]
     metrics = ', '.join(_metric_projection(metric='d.metric', actual='d.actual', prior='d.prior',
         target='d.target', status='d.status', progress='d.time_progress', display='d.display', note='d.note'))
-    return (_OVERVIEW_SELECTION + _ACQUISITION + "SELECT d.period_id AS 期间,CASE d.unit_id WHEN 'total' THEN '市场总计' "
+    return (_OVERVIEW_SELECTION + _ACQUISITION + _OVERVIEW_STUDENT_SELECTION + "SELECT d.period_id AS 期间,CASE d.unit_id WHEN 'total' THEN '市场总计' "
             "WHEN 'overview_prep' THEN '留学预备' WHEN 'overview_high' THEN '高中' "
             "WHEN 'overview_university' THEN '大学' WHEN 'online_scope' THEN '线上团队' ELSE '线下团队' END AS 管理单元,"
             "CASE d.unit_id WHEN 'total' THEN '全部' WHEN 'overview_prep' THEN '全部' "
@@ -471,7 +519,7 @@ def _target_sql(abroad=False):
             "WHEN 'online_scope' THEN '线上' ELSE '线下' END AS 目标团队,d.dim1 AS 业务组名称,"
             + ', '.join(shares+[metrics])+" "
             "FROM "+target_source+" d WHERE d.dimension_type='business_group' AND d.business_line='training' "
-            "AND d.unit_id='{{ overview_unit_id }}' AND d.acquisition_scope='被动' "
+            "AND d.unit_id='{{ overview_unit_id }}' AND d.acquisition_scope='被动{{ student_suffix }}' "
             "AND d.metric IN ('orders','cash','heads')")
 
 
@@ -573,10 +621,15 @@ def _metric_page_sql(key, page):
 
 
 def _people_sql(page):
-    prefix = _PREP_SELECTION if page == 'prep' else _OVERVIEW_SELECTION if page == 'overview' else ''
+    prefix = (_PREP_SELECTION if page == 'prep' else
+              _OVERVIEW_SELECTION + _OVERVIEW_STUDENT_SELECTION if page == 'overview' else '')
     period = "{% set months = filter_values('个人月份', remove_filter=True) %}{% if months %} AND m.period_id IN {{ months|where_in }} {% endif %}"
     mode = "{% set modes = filter_values('月模式', remove_filter=True) %}{% set month_mode = 'calendar' if modes and modes[0]=='自然月' else 'performance' %}"
-    state = "{% set deleted = filter_values('含删除回收', remove_filter=True) %}{% set dead = filter_values('含死单', remove_filter=True) %}{% set state = ('1' if deleted and deleted[0]=='包含' else '0')~('1' if dead and dead[0]=='包含' else '0') %}"
+    state = ("{% set deleted = filter_values('含删除回收', remove_filter=True) %}"
+             "{% set dead = filter_values('含死单', remove_filter=True) %}"
+             "{% set state = ('1' if deleted and deleted[0]=='包含' else '0')~('1' if dead and dead[0]=='包含' else '0') %}")
+    if page == 'overview':
+        state += "{% set state = state ~ student_suffix %}"
     if page == 'overview':
         people_scope = ("{% if overview_label == '市场总计' %}"
                         "SELECT p.*,'total' AS selected_unit FROM config.people p"
@@ -885,6 +938,18 @@ def _overview_native_grade_sql(sql, *, training=True):
     return sql
 
 
+def _overview_student_variant_sql(sql):
+    """Select the overview training tree at the chosen student grain."""
+    if _ACQUISITION not in sql:
+        raise ValueError('overview training dimension SQL is missing its acquisition selection')
+    sql = sql.replace(_ACQUISITION, _ACQUISITION + _OVERVIEW_STUDENT_SELECTION, 1)
+    sql = sql.replace("acquisition_scope='{{ acquisition_scope }}'",
+                      "acquisition_scope='{{ acquisition_scope }}{{ student_suffix }}'")
+    sql = sql.replace("['{{ acquisition_scope }}']",
+                      "['{{ acquisition_scope }}{{ student_suffix }}']")
+    return sql
+
+
 def _overview_native_channel_sql(sql, *, training=True):
     """Use the selected training tree and total abroad tree in overview channels."""
     selection = _OVERVIEW_SELECTION
@@ -991,6 +1056,8 @@ def _flat_native_views(metadata, flat_base):
         if view.page in ('overview', 'virtual', 'prep', 'university') and view.key.startswith('native_') and '_grades' in view.key:
             view.sql = native_grade_json_sql(view.page, original[view.key].sql)
             if view.page == 'overview':
+                if not view.key.endswith('_abroad'):
+                    view.sql = _overview_student_variant_sql(view.sql)
                 view.sql = _overview_native_grade_sql(
                     view.sql, training=not view.key.endswith('_abroad'))
         if view.page in ('overview', 'virtual', 'prep', 'university') and view.key.startswith('native_') and '_channel_tree' in view.key:
@@ -1002,6 +1069,8 @@ def _flat_native_views(metadata, flat_base):
                 ),
             )
             if view.page == 'overview':
+                if not view.key.endswith('_abroad'):
+                    view.sql = _overview_student_variant_sql(view.sql)
                 view.sql = _overview_native_channel_sql(
                     view.sql, training=not view.key.endswith('_abroad'))
     return {view.key: view for view in views}

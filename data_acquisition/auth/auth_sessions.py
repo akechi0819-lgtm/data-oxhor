@@ -9,7 +9,7 @@ import time
 import os
 import tempfile
 
-AUTH_SERVICES = frozenset({"bi", "xhs", "ocean", "tencent_ads", "dingtalk_sem"})
+AUTH_SERVICES = frozenset({"bi", "xhs", "ocean", "tencent_ads", "tencent_ads_94274565", "tencent_ads_73047077", "dingtalk_sem"})
 
 
 class AuthSessionError(RuntimeError):

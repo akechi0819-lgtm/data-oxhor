@@ -11,7 +11,7 @@ from dashboard_product.shadow_bi.sql_warehouse.relations import load_rows
 ROOT=Path(__file__).resolve().parents[1]
 TYPES={'fact_id':'VARCHAR','metric':'VARCHAR','business_line':'VARCHAR','event_date':'DATE','value':'DECIMAL(24,2)',
  'team_id':'VARCHAR','business_group':'VARCHAR','comparison_group':'VARCHAR','acquisition_mode':'VARCHAR',
- 'student_id':'VARCHAR','class_code':'VARCHAR','registration_count':'DOUBLE','segment_id':'VARCHAR',
+ 'student_type':'VARCHAR','student_id':'VARCHAR','class_code':'VARCHAR','registration_count':'DOUBLE','segment_id':'VARCHAR',
  'customer_domain':'VARCHAR','first_channel':'VARCHAR','school_attribute':'VARCHAR','school_name':'VARCHAR',
  'channel_school_name':'VARCHAR','owners':'VARCHAR[]','virtual_owners':'VARCHAR[]','campaign_name':'VARCHAR',
  'order_status':'VARCHAR','counts_toward_completion':'BOOLEAN','team_inferred':'BOOLEAN'}
@@ -20,7 +20,7 @@ TYPES={'fact_id':'VARCHAR','metric':'VARCHAR','business_line':'VARCHAR','event_d
 def fact(key,value,**kw):
     return {'fact_id':key,'metric':'cash','business_line':'training','event_date':'2026-06-10',
      'value':value,'team_id':'online_platform','business_group':'大学','comparison_group':'大学',
-     'acquisition_mode':'被动','student_id':'S1','class_code':'C1','registration_count':1,
+     'acquisition_mode':'被动','student_type':None,'student_id':'S1','class_code':'C1','registration_count':1,
      'owners':[],'virtual_owners':[],'counts_toward_completion':True,'team_inferred':False,**kw}
 
 
@@ -53,6 +53,54 @@ class SqlMetricTests(unittest.TestCase):
         values={r[0]:r[1:] for r in rows}
         self.assertEqual(values['主动'],(1,None));self.assertEqual(values['全部'],(1,None))
         self.assertEqual(values['被动'][0],0)
+
+    def test_student_type_scopes_filter_cash_not_orders_and_preserve_passive_targets(self):
+        c=self.connect([
+            fact('passive-new-c1a',1000,student_id='N1',class_code='C1',student_type='新生'),
+            fact('passive-new-c1b',500,student_id='N1',class_code='C1',student_type='新生'),
+            fact('passive-new-c2',1500,student_id='N1',class_code='C2',student_type='新生'),
+            fact('passive-old',1600,student_id='O1',class_code='O1',student_type='老生'),
+            fact('passive-unmarked',1800,student_id='U1',class_code='U1'),
+            fact('active-new',1600,student_id='N2',class_code='N2',student_type='新生',acquisition_mode='主动'),
+            fact('active-old',1700,student_id='O2',class_code='O2',student_type='老生',acquisition_mode='主动'),
+            fact('active-unmarked',1800,student_id='U2',class_code='U2',acquisition_mode='主动'),
+            fact('work-order',7,metric='orders',student_id=None,class_code=None),
+        ])
+
+        actuals=c.execute(
+            "SELECT acquisition_scope, actual FROM business.team_metrics "
+            "WHERE period_id='2026-06' AND unit_id='total' AND business_line='training' "
+            "AND metric='cash' AND acquisition_scope IN "
+            "('被动','被动|新生','被动|老生','主动','主动|新生','主动|老生','全部','全部|新生','全部|老生')"
+        ).fetchall()
+        cash_by_scope=dict(actuals)
+        self.assertEqual(cash_by_scope, {
+            '被动':6400.0,'被动|新生':3000.0,'被动|老生':1600.0,
+            '主动':5100.0,'主动|新生':1600.0,'主动|老生':1700.0,
+            '全部':11500.0,'全部|新生':4600.0,'全部|老生':3300.0,
+        })
+
+        heads=c.execute(
+            "SELECT acquisition_scope, actual FROM business.team_metrics "
+            "WHERE period_id='2026-06' AND unit_id='total' AND business_line='training' "
+            "AND metric='heads' AND acquisition_scope IN ('被动','被动|新生','被动|老生','全部')"
+        ).fetchall()
+        self.assertEqual(dict(heads), {'被动':3.0,'被动|新生':1.0,'被动|老生':1.0,'全部':6.0})
+
+        orders=c.execute(
+            "SELECT acquisition_scope,actual FROM business.team_metrics "
+            "WHERE period_id='2026-06' AND unit_id='total' AND business_line='training' "
+            "AND metric='orders' AND acquisition_scope IN ('被动','被动|新生','被动|老生')"
+        ).fetchall()
+        self.assertEqual(dict(orders), {'被动':7.0,'被动|新生':7.0,'被动|老生':7.0})
+
+        targets=c.execute(
+            "SELECT acquisition_scope,target FROM business.team_metrics "
+            "WHERE period_id='2026-06' AND unit_id='online' AND business_line='training' "
+            "AND metric='cash' AND acquisition_scope IN ('被动','被动|新生','被动|老生')"
+        ).fetchall()
+        self.assertEqual(len({target for _,target in targets}),1)
+        self.assertIsNotNone(targets[0][1])
 
     def test_abroad_domains_stay_separate_and_future_is_not_zero(self):
         c=self.connect([], [fact('a',100,business_line='abroad',segment_id='study_abroad_online',customer_domain='study_abroad'),

@@ -55,17 +55,26 @@ SELECT p.period_id,p.kind,m.month_mode,
  CASE WHEN m.month_mode='performance' THEN p.personal_end ELSE p.end_date END AS end_date
 FROM business.periods p CROSS JOIN config.clock c CROSS JOIN (VALUES ('calendar'),('performance')) m(month_mode);
 
+-- 原状态值保留为“全部”；类型后缀仅供市场总览的新老生筛选使用。
+CREATE OR REPLACE VIEW business.personal_states AS
+SELECT s.order_state, t.student_type_scope,
+ s.order_state || CASE WHEN t.student_type_scope='全部' THEN '' ELSE '|'||t.student_type_scope END AS state
+FROM (VALUES ('00'),('01'),('10'),('11')) s(order_state)
+CROSS JOIN (VALUES ('全部'),('新生'),('老生')) t(student_type_scope);
+
 CREATE OR REPLACE VIEW business.personal_events AS
 SELECT w.period_id,w.month_mode,w.start_date,w.through_date,s.state,x.comparison,a.*
-FROM business.personal_windows w CROSS JOIN (VALUES ('00'),('01'),('10'),('11')) s(state)
+FROM business.personal_windows w CROSS JOIN business.personal_states s
 CROSS JOIN (VALUES ('actual'),('prior')) x(comparison)
 JOIN business.personal_allocations a ON CASE WHEN x.comparison='actual'
  THEN CAST(a.event_date AS DATE) BETWEEN w.start_date AND w.through_date
  ELSE CAST(a.event_date AS DATE) BETWEEN (w.start_date-INTERVAL '1 year')::DATE AND (w.through_date-INTERVAL '1 year')::DATE END
-WHERE a.metric<>'orders' OR
- ((coalesce(a.order_status,'') NOT IN ('删除','回收') OR left(s.state,1)='1')
- AND (coalesce(a.order_status,'')<>'死单' OR right(s.state,1)='1')
- AND (a.order_status IN ('删除','回收','死单') OR coalesce(a.counts_toward_completion,true)));
+WHERE (a.business_line<>'training' OR a.metric<>'cash' OR s.student_type_scope='全部'
+ OR a.student_type=s.student_type_scope)
+ AND (a.metric<>'orders' OR
+ ((coalesce(a.order_status,'') NOT IN ('删除','回收') OR left(s.order_state,1)='1')
+ AND (coalesce(a.order_status,'')<>'死单' OR right(s.order_state,1)='1')
+ AND (a.order_status IN ('删除','回收','死单') OR coalesce(a.counts_toward_completion,true))));
 
 CREATE OR REPLACE VIEW business.personal_values AS
 SELECT period_id,month_mode,state,comparison,name,business_line,metric,
@@ -119,7 +128,7 @@ keys AS (
  SELECT w.period_id,w.month_mode,w.start_date,w.through_date,w.end_date,w.status,p.name,l.business_line,s.state,m.metric
  FROM business.personal_windows w CROSS JOIN config.people p
  CROSS JOIN (VALUES ('training'),('abroad')) l(business_line)
- CROSS JOIN (VALUES ('00'),('01'),('10'),('11')) s(state)
+ CROSS JOIN business.personal_states s
  CROSS JOIN (VALUES ('orders'),('cash'),('heads')) m(metric)
 ), grouped AS (
  SELECT k.*,max(v.value) FILTER(WHERE comparison='actual') AS actual,

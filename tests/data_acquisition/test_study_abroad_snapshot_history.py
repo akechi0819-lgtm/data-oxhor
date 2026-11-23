@@ -122,10 +122,11 @@ def test_reads_explicit_snapshot_through_controlled_queries_without_changing_bi_
 
     assert warehouse_fixtures._bi_state(workspace) == bi_before
     assert {kind: len(rows) for kind, rows in result["tables"].items()} == {
-        "resources": 9,
+        "resources": 8,
         "contracts": 16,
         "languages": 5,
     }
+    assert sum(row["resource_id"] == "1001" for row in result["tables"]["resources"]) == 1
     resource = next(row for row in result["tables"]["resources"] if row["resource_id"] == "1001")
     assert resource["owner"] == "线下甲"
     assert resource["segment_id"] == "study_abroad_offline"

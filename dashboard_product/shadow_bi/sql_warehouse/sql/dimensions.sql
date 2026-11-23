@@ -27,7 +27,7 @@ training_scopes AS (
         'selection_1', 'selection_2', 'selection_3', 'selection_4',
         'selection_5', 'selection_6', 'selection_7', 'offline_scope', 'online_scope'
     )
-    CROSS JOIN (VALUES ('主动'), ('被动'), ('全部')) a(acquisition_scope)
+    CROSS JOIN business.acquisition_scopes a
     CROSS JOIN query_filters q
     WHERE (len(q.period_ids) = 0 OR list_contains(q.period_ids, p.period_id))
       AND (len(q.unit_ids) = 0 OR list_contains(q.unit_ids, s.unit_id))
@@ -418,14 +418,17 @@ market_order_groups AS (
     GROUP BY p.period_id, m.unit_id, m.business_group
 ),
 new_student_cash_groups AS (
-    SELECT p.period_id,
+    SELECT p.period_id, a.acquisition_scope,
         CASE WHEN NULLIF(TRIM(CAST(c.business_group AS VARCHAR)), '') IN ('留学预备', '高中', '大学')
              THEN TRIM(CAST(c.business_group AS VARCHAR)) ELSE '业务组暂无法拆分' END AS business_group,
         ROUND(SUM(TRY_CAST(c.cash_amount AS DECIMAL(38, 2))), 2)::DOUBLE AS denominator
     FROM business.periods p
+    CROSS JOIN business.acquisition_scopes a
     JOIN source.new_student_cash c
       ON TRY_CAST(c.cash_date AS DATE) BETWEEN p.start_date AND p.through_date
-    GROUP BY p.period_id, 2
+     AND (a.student_type_scope = '全部' OR c.student_type = a.student_type_scope)
+    WHERE TRY_CAST(c.cash_amount AS DECIMAL(38, 2)) > 0
+    GROUP BY p.period_id, a.acquisition_scope, 3
 ),
 metric_keys AS (
     SELECT k.*, m.metric
@@ -441,7 +444,7 @@ metric_values AS (
         CASE
             WHEN k.metric = 'heads' THEN hs.actual
             WHEN k.dimension_type = 'business_group' AND k.unit_id IN ('total', 'online_scope', 'offline_scope')
-                 AND k.acquisition_scope = '被动' AND k.metric = 'orders'
+                 AND split_part(k.acquisition_scope, '|', 1) = '被动' AND k.metric = 'orders'
                 THEN COALESCE(mog.actual, 0)
             ELSE es.actual
         END AS raw_actual,
@@ -449,14 +452,14 @@ metric_values AS (
             WHEN k.business_line = 'abroad' THEN NULL
             WHEN k.metric = 'heads' THEN hs.prior
             WHEN k.dimension_type = 'business_group' AND k.unit_id IN ('total', 'online_scope', 'offline_scope')
-                 AND k.acquisition_scope = '被动' AND k.metric = 'orders'
+                 AND split_part(k.acquisition_scope, '|', 1) = '被动' AND k.metric = 'orders'
                 THEN COALESCE(mog.prior, 0)
             ELSE es.prior
         END AS raw_prior,
         CASE WHEN k.metric = 'heads' THEN hs.study_heads END AS study_heads,
         CASE WHEN k.metric = 'heads' THEN hs.language_heads END AS small_language_heads,
         CASE WHEN k.dimension_type = 'business_group' AND k.metric IN ('orders', 'cash')
-                  AND k.acquisition_scope = '被动'
+                  AND split_part(k.acquisition_scope, '|', 1) = '被动'
             THEN tv.target END AS target,
         CASE WHEN k.business_line = 'abroad' AND k.unit_id IN ('prep', 'high')
              THEN 'not_configured' ELSE COALESCE(p.status, 'available') END AS base_status,
@@ -478,7 +481,8 @@ metric_values AS (
       AND tv.business_group = k.dim1 AND tv.metric = k.metric
     LEFT JOIN market_order_groups mog ON mog.period_id = k.period_id AND mog.unit_id = k.unit_id
       AND mog.business_group = k.dim1
-    LEFT JOIN new_student_cash_groups nsc ON nsc.period_id = k.period_id AND nsc.business_group = k.dim1
+    LEFT JOIN new_student_cash_groups nsc ON nsc.period_id = k.period_id
+      AND nsc.acquisition_scope = k.acquisition_scope AND nsc.business_group = k.dim1
 ),
 marked AS (
     SELECT *,

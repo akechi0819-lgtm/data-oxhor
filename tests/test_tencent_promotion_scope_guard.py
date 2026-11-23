@@ -54,6 +54,7 @@ def _stub_non_tencent_sources(monkeypatch, batch):
     monkeypatch.setattr(prepare_full_daily, 'XHSExport', lambda **_kwargs: object())
     monkeypatch.setattr(prepare_full_daily, 'run_xhs_authenticated', lambda *_args, **_kwargs: {
         'started_at': f'{DAY}T09:00:00+08:00', 'expected_accounts': [],
+        'native': {'excluded_account_ids': []},
     })
     monkeypatch.setattr(prepare_full_daily, 'xhs_candidate',
                         lambda folder, *_args, **_kwargs: _bundle(folder, 'xhs'))

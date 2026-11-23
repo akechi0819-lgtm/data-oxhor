@@ -38,7 +38,7 @@ def compact(source):
         columns.append(name)
     metrics.append("MAX(CASE WHEN 指标='人头' THEN 当期 END) AS 人头数值")
     if '被动现金占比' in v.columns:
-        metrics.extend(['MAX(被动现金占比) AS 被动现金占比','MAX(被动现金分子) AS 被动现金分子','MAX(新生现金固定分母) AS 新生现金固定分母'])
+        metrics.extend(['MAX(被动现金占比) AS 被动现金占比','MAX(被动现金分子) AS 被动现金分子','MAX(现金固定分母) AS 现金固定分母'])
     sql='SELECT '+', '.join([q(d) for d in dims]+metrics)+' FROM ('+v.sql+') src GROUP BY '+', '.join(q(d) for d in dims)
     result=view('native_'+source,source,('固定被动目标 · ' if source=='overview_targets' else '')+v.title+' · 紧凑比较',sql,columns)
     result.sql="SELECT *, CASE 业务组名称 WHEN '留学预备' THEN 1 WHEN '高中' THEN 2 WHEN '大学' THEN 3 ELSE 4 END AS 业务组顺序 FROM ("+result.sql+') ordered'
@@ -58,8 +58,8 @@ def compact(source):
     result.sql='SELECT n.*, d.工单表现, d.现金表现, d.人头表现 FROM ('+result.sql+') n JOIN ('+display+') d ON '+ ' AND '.join('n.'+q(d)+' IS NOT DISTINCT FROM d.'+q(d) for d in dims)
     result.columns=(['业务线'] if '业务线' in v.filters else [])+['业务组名称','现金表现','工单表现','人头表现']
     if '被动现金占比' in v.columns:
-        result.sql='SELECT *,被动现金占比 AS 被动现金占新生收入 FROM ('+result.sql+') share_visible'
-        result.columns.append('被动现金占新生收入')
+        result.sql='SELECT *,被动现金占比 AS 被动现金占收入 FROM ('+result.sql+') share_visible'
+        result.columns.append('被动现金占收入')
     result.more={'server_pagination':False,'page_length':0,'order_by_cols':['["业务组顺序", true]']}
     return result
 

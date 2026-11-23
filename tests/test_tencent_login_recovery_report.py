@@ -328,6 +328,97 @@ def test_save_login_can_start_fresh_without_injecting_saved_cookies(
     assert json.loads(paths.cookies.read_text())[0]["value"] == "fresh"
 
 
+def test_high_school_login_uses_independent_saved_state(tmp_path, monkeypatch):
+    from data_acquisition.auth.auth_sessions import write_auth_session
+    from data_acquisition.connectors.advertising import tencent_high_school_login
+
+    abroad = AuthSessionPaths(tmp_path, "tencent_ads")
+    high_school = AuthSessionPaths(tmp_path, "tencent_ads_94274565")
+    write_auth_session("tencent_ads", cookies=[{"name": "abroad", "value": "old"}],
+                       local_storage={"abroad": "old"}, paths=abroad)
+    write_auth_session("tencent_ads_94274565", cookies=[{"name": "school", "value": "old"}],
+                       local_storage={"school": "old"}, paths=high_school)
+    original_abroad = (abroad.cookies.read_bytes(), abroad.local_storage.read_bytes())
+    page = _LoginPage()
+    page.goto = Mock()
+    page.wait_for_function = Mock()
+    context = _LoginContext(page)
+    browser = _LoginBrowser(context)
+    _install_fake_playwright(monkeypatch, browser)
+
+    tencent_high_school_login.save_login(tmp_path)
+
+    assert context.injected_cookies == [[{"name": "school", "value": "old"}]]
+    assert '"school": "old"' in context.init_scripts[0]
+    assert '94274565' in page.goto.call_args.args[0]
+    assert 'ID:94274565' in page.wait_for_function.call_args.args[0]
+    assert json.loads(high_school.cookies.read_text())[0]["value"] == "fresh"
+    assert (abroad.cookies.read_bytes(), abroad.local_storage.read_bytes()) == original_abroad
+    assert browser.closed is True
+
+
+def test_high_school_login_does_not_save_unverified_account(tmp_path, monkeypatch):
+    from data_acquisition.connectors.advertising import tencent_high_school_login
+
+    page = _LoginPage()
+    page.wait_for_function = Mock(side_effect=TimeoutError("account not verified"))
+    browser = _LoginBrowser(_LoginContext(page))
+    _install_fake_playwright(monkeypatch, browser)
+
+    with pytest.raises(TimeoutError, match="account not verified"):
+        tencent_high_school_login.save_login(tmp_path)
+
+    paths = AuthSessionPaths(tmp_path, "tencent_ads_94274565")
+    assert not paths.cookies.exists()
+    assert browser.closed is True
+
+
+def test_training_login_uses_independent_saved_state(tmp_path, monkeypatch):
+    from data_acquisition.auth.auth_sessions import write_auth_session
+    from data_acquisition.connectors.advertising import tencent_training_login
+
+    others = [AuthSessionPaths(tmp_path, service) for service in
+              ("tencent_ads", "tencent_ads_94274565")]
+    for paths in others:
+        write_auth_session(paths.service, cookies=[{"name": paths.service, "value": "old"}],
+                           local_storage={paths.service: "old"}, paths=paths)
+    original = [(paths.cookies.read_bytes(), paths.local_storage.read_bytes()) for paths in others]
+    training = AuthSessionPaths(tmp_path, "tencent_ads_73047077")
+    write_auth_session(training.service, cookies=[{"name": "training", "value": "old"}],
+                       local_storage={"training": "old"}, paths=training)
+    page = _LoginPage()
+    page.goto = Mock()
+    page.wait_for_function = Mock()
+    context = _LoginContext(page)
+    browser = _LoginBrowser(context)
+    _install_fake_playwright(monkeypatch, browser)
+
+    tencent_training_login.save_login(tmp_path)
+
+    assert context.injected_cookies == [[{"name": "training", "value": "old"}]]
+    assert '"training": "old"' in context.init_scripts[0]
+    assert '73047077' in page.goto.call_args.args[0]
+    assert 'ID:73047077' in page.wait_for_function.call_args.args[0]
+    assert json.loads(training.cookies.read_text())[0]["value"] == "fresh"
+    assert [(paths.cookies.read_bytes(), paths.local_storage.read_bytes()) for paths in others] == original
+    assert browser.closed is True
+
+
+def test_training_login_does_not_save_unverified_account(tmp_path, monkeypatch):
+    from data_acquisition.connectors.advertising import tencent_training_login
+
+    page = _LoginPage()
+    page.wait_for_function = Mock(side_effect=TimeoutError("account not verified"))
+    browser = _LoginBrowser(_LoginContext(page))
+    _install_fake_playwright(monkeypatch, browser)
+
+    with pytest.raises(TimeoutError, match="account not verified"):
+        tencent_training_login.save_login(tmp_path)
+
+    assert not AuthSessionPaths(tmp_path, "tencent_ads_73047077").cookies.exists()
+    assert browser.closed is True
+
+
 def test_login_opens_the_observed_legacy_search_navigation():
     page = _NavigationPage()
 

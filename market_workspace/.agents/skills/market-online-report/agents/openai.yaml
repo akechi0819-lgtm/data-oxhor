@@ -1,0 +1,4 @@
+interface:
+  display_name: "线上产出周报素材"
+  short_description: "按项目核算线上产出、投流成本与素材反馈，交付周报双周报图片及配文"
+  default_prompt: "使用 $market-online-report，按本次周报或双周报的统计周期核算各项目线上产出，生成逐项目图片和正式配文，作为报告素材。"

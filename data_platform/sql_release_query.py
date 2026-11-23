@@ -421,6 +421,7 @@ def execute_query_bundle(
     output_dir: Path,
     allowed_relations: set[str] | frozenset[str],
     max_result_bytes: int = 128 * 1024 * 1024,
+    dashboard_dataset: str | None = None,
 ) -> dict[str, Any]:
     """Execute one SQL release query and stream the full bounded result to JSONL."""
     if max_result_bytes < 1:
@@ -437,8 +438,18 @@ def execute_query_bundle(
         for relation, source_domain in PUBLIC_RELATIONS.items()
         if source_domain == domain
     }
-    if domain not in DOMAIN_SNAPSHOT_KEY or set(allowed_relations) != expected_allowed:
-        raise QueryError("QUERY_REJECTED", "query may read only the registered landing tables")
+    schema = "landing"
+    if dashboard_dataset is not None:
+        from .dashboard_results import DATASETS
+        if (domain != "dashboard" or dashboard_dataset not in DATASETS
+                or dashboard_dataset not in release.candidate.get("query_relations", [])):
+            raise QueryError("TABLE_NOT_FOUND", "Dashboard dataset is unavailable in this release")
+        schema = "business"
+        expected_allowed = {dashboard_dataset}
+    elif domain not in DOMAIN_SNAPSHOT_KEY:
+        raise QueryError("QUERY_REJECTED", "Unknown query domain")
+    if set(allowed_relations) != expected_allowed:
+        raise QueryError("QUERY_REJECTED", "Query relation is outside the requested scope")
 
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=False)
@@ -455,12 +466,16 @@ def execute_query_bundle(
                 connection,
                 sql,
                 allowed_relations=expected_allowed,
-                allowed_schema="landing",
+                allowed_schema=schema,
             )
-            validate_query(connection, sql, parameters, allowed_schemas={"landing"})
-            referenced_relations, referenced_source_ids = _query_source_provenance(
-                connection, sql, release, expected_allowed
-            )
+            validate_query(connection, sql, parameters, allowed_schemas={schema} if dashboard_dataset is None else set(release.candidate["schemas"]))
+            if dashboard_dataset is None:
+                referenced_relations, referenced_source_ids = _query_source_provenance(
+                    connection, sql, release, expected_allowed
+                )
+            else:
+                referenced_relations = ["business." + dashboard_dataset]
+                referenced_source_ids = []
             cursor = connection.execute(sql, parameters)
             columns = [item[0] for item in cursor.description]
             row_count = 0

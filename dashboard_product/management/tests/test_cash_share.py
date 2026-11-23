@@ -26,7 +26,7 @@ def _serial(day):
 
 
 class NewStudentCashQueryTests(unittest.TestCase):
-    def test_query_keeps_positive_new_students_across_channels_and_maps_groups(self):
+    def test_query_keeps_positive_cash_by_student_type_across_channels_and_maps_groups(self):
         rows = [
             (1, _serial(date(2026, 6, 1)), '高中', '1.00', '被动', '新生'),
             (2, _serial(date(2026, 6, 10)), '青少', '10.10', '被动', '新生'),
@@ -37,6 +37,7 @@ class NewStudentCashQueryTests(unittest.TestCase):
             (7, _serial(date(2026, 6, 20)), '高中', '100.00', '被动', '老生'),
             (8, _serial(date(2026, 6, 20)), '高中', '-4.00', '被动', '新生'),
             (9, _serial(date(2026, 6, 20)), '高中', '0.00', '被动', '新生'),
+            (10, _serial(date(2026, 6, 21)), '高中', '7.25', '主动', '   '),
         ]
         connection = duckdb.connect(':memory:')
         self.addCleanup(connection.close)
@@ -51,14 +52,16 @@ class NewStudentCashQueryTests(unittest.TestCase):
         result = connection.execute(
             SQL.read_text(encoding='utf-8'), ['2026-06-01', '2026-07-02'],
         ).fetchall()
-        values = {(cash_date.isoformat(), group): amount
-                  for cash_date, group, amount in result}
+        values = {(student_type, cash_date.isoformat(), group): amount
+                  for cash_date, student_type, group, amount in result}
         self.assertEqual(values, {
-            ('2026-06-01', '高中'): Decimal('1.00'),
-            ('2026-06-10', '留学预备'): Decimal('30.30'),
-            ('2026-06-15', '高中'): Decimal('5.50'),
-            ('2026-06-30', '大学'): Decimal('2.00'),
-            ('2026-07-01', '业务组暂无法拆分'): Decimal('3.00'),
+            ('新生', '2026-06-01', '高中'): Decimal('1.00'),
+            ('新生', '2026-06-10', '留学预备'): Decimal('30.30'),
+            ('新生', '2026-06-15', '高中'): Decimal('5.50'),
+            ('新生', '2026-06-30', '大学'): Decimal('2.00'),
+            ('新生', '2026-07-01', '业务组暂无法拆分'): Decimal('3.00'),
+            ('老生', '2026-06-20', '高中'): Decimal('100.00'),
+            (None, '2026-06-21', '高中'): Decimal('7.25'),
         })
 
 

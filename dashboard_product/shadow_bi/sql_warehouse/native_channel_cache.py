@@ -6,7 +6,8 @@ from .native_dimension_json import channel_json_source, university_channel_json_
 
 TABLE = "business.scoped_team_periods_channel_cache"
 UNIVERSITY_NODES_TABLE = "business.university_channel_nodes_cache"
-SCOPES = ("被动", "主动", "全部")
+SCOPES = tuple(mode + suffix for suffix in ("", "|新生", "|老生")
+               for mode in ("被动", "主动", "全部"))
 UNITS = ("total", "prep", "high", "university", "virtual", "online",
          "overview_prep", "overview_high", "overview_university")
 ORDINARY_UNITS = "['total','prep','high','virtual','online','overview_prep','overview_high','overview_university']"

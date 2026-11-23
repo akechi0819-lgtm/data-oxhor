@@ -51,3 +51,4 @@ include = ["workspace_modeling*", "data_platform*", "data_acquisition*", "dashbo
 "workspace_modeling.operations" = ["people.json"]
 "monitoring_product" = ["deploy/*.sh"]
 "data_acquisition" = ["deploy/*.sh"]
+"business_data_mcp" = ["dashboard_business_rules.md"]

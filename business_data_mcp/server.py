@@ -19,10 +19,12 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 from starlette.routing import Route
 
+from .context import describe_business_context, read_release_business_context
 from .keys import KEYS_FILE_ENV, KeyStoreError, key_id_for_token, list_keys
 from .query import BusinessDataQuery
 
 
+CONTEXT_ENV = "BUSINESS_DATA_MCP_CONTEXT"
 CURRENT_ENV = "BUSINESS_DATA_MCP_CURRENT"
 RESULTS_ENV = "BUSINESS_DATA_MCP_RESULTS"
 HOST_ENV = "BUSINESS_DATA_MCP_HOST"
@@ -34,10 +36,13 @@ DEFAULT_ALLOWED_HOSTS = "127.0.0.1:*,localhost:*,[::1]:*"
 CURRENT_KEY_ID: ContextVar[str | None] = ContextVar("business_data_mcp_key_id", default=None)
 
 TOOL_DESCRIPTIONS = {
+    "describe_business_context": "List approved Bridge, dashboard and official scorecard sources, their scope and query limitations. Call before answering business metric questions.",
+    "read_business_context": "Read one approved business context source by source_id; apply its stated scope and limitations.",
     "describe_data": (
         "Show the available training and study data releases and tables. Supply a domain and table ID "
         "from this result to inspect one table's fields."
     ),
+    "read_dashboard_data": "Export published dashboard results. Use describe_data without arguments for datasets and filter names. For team_metrics, omitted business_line, unit_id and acquisition_scope default to training, total and 被动 (all new and returning students). Set any of these filters to '*' for all its values, or provide explicit values. For team_metrics, prior is the prior-year comparison over the selected period start through actual cutoff, each shifted back one year; it applies to training and is null for abroad and future periods. Select period_id and metric (heads, cash, orders). Pass result_id to export_query_csv.",
     "query_data": (
         "Run one read-only SQL query against a selected domain and explicit data release. Include the "
         "release returned by describe_data so later publication changes cannot silently alter this query. "
@@ -52,6 +57,8 @@ TOOL_DESCRIPTIONS = {
 }
 
 QUERY_ERROR_HINTS = {
+    "CONTEXT_UNAVAILABLE": "The approved business context is not available; contact the data service owner. Do not invent definitions.",
+    "CONTEXT_NOT_FOUND": "Call describe_business_context to select an available source ID.",
     "QUERY_INVALID": "Check the SQL syntax and verify table and column names with describe_data, then retry.",
     "QUERY_PARAMETERS_INVALID": "Pass query parameters as JSON values such as strings, numbers, arrays, or objects.",
     "QUERY_INPUT_TOO_LARGE": "Keep SQL and parameters focused; remove unused columns or conditions and retry.",
@@ -77,8 +84,18 @@ QUERY_ERROR_HINTS = {
     "INVALID_ARGUMENT": "Use the listed tool arguments; page sizes and CSV chunk limits must be from 1 to 500.",
 }
 
+DEFAULT_SCOPE_GUIDANCE = (
+    "未指明范围的经营指标默认且仅查询语培市场总计、被动、全部新老生。"
+    "例如用户说“帮我导出本月的人头和签约现金”，只调用一次 team_metrics，"
+    "filters 只传本月 period_id 和 metric=[heads,cash]，直接导出该 result_id 的两行。"
+    "只有用户明确提到其他业务线、主动、各团队或所有范围时才覆盖相应维度。"
+)
+
+TOOL_DESCRIPTIONS["read_dashboard_data"] += " " + DEFAULT_SCOPE_GUIDANCE
+
 INSTRUCTIONS = (
-    "Read-only business data service. Call describe_data to select the current published domain and table "
+    DEFAULT_SCOPE_GUIDANCE + " " +
+    "Read-only business data service. Call describe_business_context and read_business_context for relevant confirmed definitions and official scorecard scope before interpreting metrics. Call describe_data to select the current published domain and table "
     "and inspect actual fields. Run SQL only with a release ID returned by the service. Results are isolated "
     "to the calling key and kept briefly for paging and CSV chunks. CSV is returned inside MCP; there is no "
     "separate download URL."
@@ -162,10 +179,18 @@ def _worker_code(exc: Exception) -> str:
 def _models() -> dict[str, Any]:
     config = ConfigDict(strict=True, extra="forbid", hide_input_in_errors=True)
     return {
+        "describe_business_context": create_model("describe_business_context_arguments", __config__=config),
+        "read_business_context": create_model("read_business_context_arguments", __config__=config, source_id=(str, ...)),
         "describe_data": create_model(
             "describe_data_arguments", __config__=config,
             domain=(Literal["training", "study"] | None, None),
             table=(str | None, None),
+        ),
+        "read_dashboard_data": create_model(
+            "read_dashboard_arguments", __config__=config,
+            dataset=(str, ...), expected_release=(str, ...),
+            filters=(dict[str, str | list[str]] | None, None),
+            page_size=(int, Field(default=100, ge=1, le=500)),
         ),
         "query_data": create_model(
             "query_data_arguments", __config__=config,
@@ -195,6 +220,7 @@ def create_server(
     results_root: Path,
     *,
     worker_factory: Any = BusinessDataQuery,
+    context_root: Path | None = None,
 ) -> Server:
     """Build the official MCP SDK server, with per-key worker result storage."""
     models = _models()
@@ -215,7 +241,7 @@ def create_server(
     async def list_tools(context: Any, params: Any) -> types.ListToolsResult:
         annotations_by_tool = {
             name: types.ToolAnnotations(readOnlyHint=True, destructiveHint=False,
-                                        idempotentHint=name != "query_data", openWorldHint=False)
+                                        idempotentHint=name not in {"query_data", "read_dashboard_data"}, openWorldHint=False)
             for name in TOOL_DESCRIPTIONS
         }
         tools = [
@@ -234,9 +260,16 @@ def create_server(
         except (ValidationError, TypeError, ValueError):
             return _tool_error("INVALID_ARGUMENT")
         try:
+            if params.name == "describe_business_context":
+                return _result(describe_business_context())
+            if params.name == "read_business_context":
+                return _result(await anyio.to_thread.run_sync(lambda: read_release_business_context(current_path, context_root, **validated)))
             worker = worker_for_request()
             if params.name == "describe_data":
                 payload = await anyio.to_thread.run_sync(lambda: worker.describe(**validated))
+            elif params.name == "read_dashboard_data":
+                async with query_slots:
+                    payload = await anyio.to_thread.run_sync(lambda: worker.read_dashboard_data(**validated))
             elif params.name == "query_data":
                 async with query_slots:
                     payload = await anyio.to_thread.run_sync(lambda: worker.query(**validated))
@@ -279,6 +312,7 @@ def create_app(
     allowed_hosts: list[str] | None = None,
     allowed_origins: list[str] | None = None,
     worker_factory: Any = BusinessDataQuery,
+    context_root: Path | None = None,
 ) -> Any:
     """Build the MCP Starlette app with bearer auth and public health endpoint."""
     # Fail startup on a missing or malformed registry, while still re-reading it
@@ -291,7 +325,7 @@ def create_app(
     )
     if not security.allowed_hosts:
         raise ServiceConfigError("ALLOWED_HOSTS_REQUIRED")
-    server = create_server(current_path, results_root, worker_factory=worker_factory)
+    server = create_server(current_path, results_root, worker_factory=worker_factory, context_root=context_root)
     app = server.streamable_http_app(
         streamable_http_path="/mcp",
         json_response=True,
@@ -334,7 +368,8 @@ def main(argv: list[str] | None = None) -> int:
         allowed_hosts = _csv_setting(ALLOWED_HOSTS_ENV, DEFAULT_ALLOWED_HOSTS)
         allowed_origins = _csv_setting(ALLOWED_ORIGINS_ENV, "")
         app = create_app(current_path, results_root, keys_file,
-                         allowed_hosts=allowed_hosts, allowed_origins=allowed_origins)
+                         allowed_hosts=allowed_hosts, allowed_origins=allowed_origins,
+                         context_root=Path(os.environ[CONTEXT_ENV]).expanduser() if os.environ.get(CONTEXT_ENV) else None)
         import uvicorn
 
         uvicorn.run(app, host=args.host, port=args.port, proxy_headers=False, log_level="info")

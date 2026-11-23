@@ -14,6 +14,7 @@ from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any, Literal
 
+from data_platform.dashboard_results import TEAM_METRICS_PRIOR, dataset_catalog, result_query
 from data_platform.query.service import QueryError, describe_warehouse, execute_query_bundle
 from data_platform.sql_release_query import (
     SqlWarehouseRelease,
@@ -214,6 +215,7 @@ def _execute_in_child(
     expected_release: str | None = None,
     expected_batch_id: str | None = None,
     domain: str | None = None,
+    dashboard_dataset: str | None = None,
 ) -> None:
     status_file = Path(status_path)
     try:
@@ -232,6 +234,7 @@ def _execute_in_child(
                 release_root=Path(sql_release_root),
                 expected_release=expected_release or "",
                 expected_batch_id=expected_batch_id or "",
+                dashboard_dataset=dashboard_dataset,
                 domain=domain or "",
                 sql=sql,
                 parameters=parameters,
@@ -444,6 +447,7 @@ class BusinessDataQuery:
             return {
                 **common,
                 "snapshots": snapshots,
+                "dashboard_datasets": dataset_catalog(current.candidate.get("query_relations", [])) if isinstance(current, SqlWarehouseRelease) else {},
                 "domains": {
                     key: [{"id": item["id"], "name": item["name"], "description": item["description"]}
                           for item in items]
@@ -495,6 +499,15 @@ class BusinessDataQuery:
         parameters: Any = None,
         page_size: int = 100,
     ) -> dict[str, Any]:
+        if domain not in TABLES:
+            raise BusinessDataMCPError("DOMAIN_NOT_FOUND", "Unknown data domain.")
+        return self._query(domain, sql, expected_release, parameters, page_size)
+
+    def read_dashboard_data(self, dataset, expected_release, filters=None, page_size=100):
+        sql, parameters = result_query(dataset, filters or {})
+        return self._query("dashboard", sql, expected_release, parameters, page_size, dataset)
+
+    def _query(self, domain, sql, expected_release, parameters, page_size, dashboard_dataset=None):
         if not isinstance(sql, str) or not sql.strip():
             raise BusinessDataMCPError("QUERY_INVALID", "SQL is required.")
         try:
@@ -507,12 +520,12 @@ class BusinessDataQuery:
             raise BusinessDataMCPError("QUERY_INPUT_TOO_LARGE", "SQL and parameters exceed the configured input limit.")
         if type(page_size) is not int or not 1 <= page_size <= MAX_PAGE_SIZE:
             raise BusinessDataMCPError("PAGE_SIZE_INVALID", f"page_size must be between 1 and {MAX_PAGE_SIZE}.")
-        if domain not in TABLES:
-            raise BusinessDataMCPError("DOMAIN_NOT_FOUND", "Unknown data domain.")
         current = self._check_expected_release(expected_release)
+        if dashboard_dataset and not isinstance(current, SqlWarehouseRelease):
+            raise BusinessDataMCPError("TABLE_NOT_FOUND", "Dashboard results require a SQL release.")
         if isinstance(current, SqlWarehouseRelease):
             warehouse = current.warehouse
-            snapshot_id = current.snapshot_for(domain)
+            snapshot_id = None if dashboard_dataset else current.snapshot_for(domain)
             sql_release_root = str(current.root)
             expected_batch_id = current.batch_id
         else:
@@ -521,7 +534,8 @@ class BusinessDataQuery:
             snapshot_id = reference.snapshot_id
             sql_release_root = None
             expected_batch_id = None
-        allowed_relations = [item["relation"].split(".", 1)[1] for item in TABLES[domain]]
+        allowed_relations = ([dashboard_dataset] if dashboard_dataset else
+                             [item["relation"].split(".", 1)[1] for item in TABLES[domain]])
         result_id = "result_" + uuid.uuid4().hex
         root = self._results_directory()
         capacity = self.capacity_root.resolve(strict=True)
@@ -537,9 +551,12 @@ class BusinessDataQuery:
             "snapshot_id": snapshot_id,
             "sql": sql,
             "parameters": parameters,
+            **({"snapshots": current.snapshots} if dashboard_dataset else {}),
+            **({"column_descriptions": {"prior": TEAM_METRICS_PRIOR}} if dashboard_dataset == "team_metrics" else {}),
         }
         context = multiprocessing.get_context("spawn")
         process = context.Process(target=_execute_in_child, kwargs={
+            "dashboard_dataset": dashboard_dataset,
             "warehouse": str(warehouse),
             "snapshot_id": snapshot_id,
             "sql": sql,
@@ -706,6 +723,8 @@ class BusinessDataQuery:
             "status": "passed",
             **{key: metadata[key] for key in ("result_id", "domain", "release", "snapshot_id", "data_through")},
             "columns": metadata["columns"],
+            **({"snapshots": metadata["snapshots"]} if "snapshots" in metadata else {}),
+            **({"column_descriptions": metadata["column_descriptions"]} if "column_descriptions" in metadata else {}),
             "sql": metadata["sql"],
             "parameters": metadata["parameters"],
             "source_tables": metadata["referenced_relations"],
@@ -737,6 +756,8 @@ class BusinessDataQuery:
             "schema_version": "business_data_csv_chunk.v1",
             "status": "passed",
             **{key: metadata[key] for key in ("result_id", "domain", "release", "snapshot_id", "data_through")},
+            **({"snapshots": metadata["snapshots"]} if "snapshots" in metadata else {}),
+            **({"column_descriptions": metadata["column_descriptions"]} if "column_descriptions" in metadata else {}),
             "sql": metadata["sql"],
             "parameters": metadata["parameters"],
             "source_tables": metadata["referenced_relations"],

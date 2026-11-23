@@ -142,7 +142,8 @@ def build_local(*,workspace,output_dir,batch_id,training_snapshot,abroad_snapsho
     timings={};start=time.perf_counter()
     database=output_dir/'warehouse.duckdb'
     with duckdb.connect(str(database)) as con:
-        con.execute('SET threads=2');con.execute("SET memory_limit='512MB'")
+        # 全量新老生现金扩大了归属规范化的中间结果；按用户确认使用 4GB 构建配额。
+        con.execute('SET threads=2');con.execute("SET memory_limit='4GB'")
         t=time.perf_counter()
         source_queries=import_foundation(con,workspace=workspace,training_snapshot=training_snapshot,
             abroad_snapshot=abroad_snapshot,run_id=batch_id,output_root=output_dir/'source-evidence')

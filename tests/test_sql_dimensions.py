@@ -12,6 +12,15 @@ class DimensionSqlTests(unittest.TestCase):
         self.con.execute("SET threads=2; SET memory_limit='512MB'")
         self.con.execute("CREATE SCHEMA business; CREATE SCHEMA config; CREATE SCHEMA source")
         self.con.execute("""
+            CREATE VIEW business.acquisition_scopes AS
+            SELECT * FROM (VALUES
+                ('被动','被动','全部'),('主动','主动','全部'),('全部','全部','全部'),
+                ('被动|新生','被动','新生'),('被动|老生','被动','老生'),
+                ('主动|新生','主动','新生'),('主动|老生','主动','老生'),
+                ('全部|新生','全部','新生'),('全部|老生','全部','老生')
+            ) t(acquisition_scope, acquisition_mode, student_type_scope)
+        """)
+        self.con.execute("""
             CREATE TABLE business.periods (
                 period_id VARCHAR, start_date DATE, through_date DATE,
                 status VARCHAR, time_progress DOUBLE
@@ -55,7 +64,8 @@ class DimensionSqlTests(unittest.TestCase):
         """)
         self.con.execute("""
             CREATE TABLE source.new_student_cash (
-                cash_date DATE, business_group VARCHAR, cash_amount DECIMAL(38, 2)
+                cash_date DATE, student_type VARCHAR, business_group VARCHAR,
+                cash_amount DECIMAL(38, 2)
             )
         """)
         self.con.execute("""
@@ -195,7 +205,10 @@ class DimensionSqlTests(unittest.TestCase):
         )
         self.con.execute("""
             INSERT INTO source.new_student_cash VALUES
-                (DATE '2026-06-10', '留学预备', 10000.00)
+                (DATE '2026-06-10', '新生', '留学预备', 10000.00),
+                (DATE '2026-06-10', '老生', '留学预备', 5000.00),
+                (DATE '2026-06-10', NULL, '留学预备', 2500.00),
+                (DATE '2026-06-10', '新生', '留学预备', -100.00)
         """)
 
     def _dimension_row(self, dimension_type, dim1, *, unit='total', scope='被动',
@@ -291,8 +304,8 @@ class DimensionSqlTests(unittest.TestCase):
 
         cash = self._dimension_row('business_group', '留学预备', metric='cash')
         self.assertEqual(cash[2:4], (600.0, 'available'))
-        self.assertAlmostEqual(cash[7], 0.9099)
-        self.assertEqual(cash[8:], (9099.0, 10000.0))
+        self.assertAlmostEqual(cash[7], 9099 / 17500)
+        self.assertEqual(cash[8:], (9099.0, 17500.0))
 
         unknown = self._dimension_row('business_group', '业务组暂无法拆分')
         self.assertEqual(unknown[0], 2.0)
@@ -352,6 +365,18 @@ class DimensionSqlTests(unittest.TestCase):
               AND dimension_type='comparison_group' AND dim1='青少' AND metric='heads'
         """).fetchone()
         self.assertEqual(prior, (2.0, 1.0))
+
+    def test_positive_cash_share_denominator_follows_student_type_scope(self):
+        values = self.con.execute("""
+            SELECT acquisition_scope, cash_share_denominator
+            FROM business.dimension_metrics
+            WHERE period_id='2026-06' AND unit_id='total' AND business_line='training'
+              AND dimension_type='business_group' AND dim1='留学预备' AND metric='cash'
+              AND acquisition_scope IN ('被动','被动|新生','被动|老生')
+        """).fetchall()
+        self.assertEqual(dict(values), {
+            '被动': 17500.0, '被动|新生': 10000.0, '被动|老生': 5000.0,
+        })
 
     def test_channel_school_grade_alias_and_grade_metrics(self):
         group = self._dimension_row(

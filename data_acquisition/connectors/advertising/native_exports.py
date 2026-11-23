@@ -147,7 +147,7 @@ def _select_xhs_window(page, start, through):
     page.get_by_role('heading', name='推广数据', exact=True).wait_for(state='visible')
 
 
-def inspect_xhs(path, start, through, expected_accounts):
+def inspect_xhs(path, start, through, expected_accounts, excluded_account_ids=()):
     from openpyxl import load_workbook
     book = load_workbook(path, read_only=True, data_only=True)
     try:
@@ -157,7 +157,11 @@ def inspect_xhs(path, start, through, expected_accounts):
         headers = {str(v).strip(): i for i, v in enumerate(next(values, ()))}
         if not {'周期', '投放ID', '账户类型', '广告主账户ID', '总消耗'} <= headers.keys():
             raise ExportError('xhs_native_columns_missing')
-        accounts, seen, total = set(), set(), Decimal(0)
+        expected = set(map(str, expected_accounts))
+        excluded = set(map(str, excluded_account_ids))
+        if expected & excluded:
+            raise ExportError('xhs_excluded_account_in_expected_scope')
+        accounts, seen, extra_amounts, total = set(), set(), {}, Decimal(0)
         days = {(start + timedelta(days=i)).strftime('%Y%m%d') for i in range((through-start).days+1)}
         for row in values:
             if not any(v is not None for v in row):
@@ -173,6 +177,8 @@ def inspect_xhs(path, start, through, expected_accounts):
                 raise ExportError('xhs_native_duplicate_account_day')
             seen.add((aid, day))
             amount = Decimal(str(get('总消耗')).replace(',', ''))
+            if not amount.is_finite():
+                raise ExportError('xhs_native_amount_invalid')
             if get('账户类型') == '品牌主账户':
                 if amount:
                     raise ExportError('xhs_master_account_nonzero')
@@ -180,12 +186,17 @@ def inspect_xhs(path, start, through, expected_accounts):
             if get('账户类型') != '代理商子账户':
                 raise ExportError('xhs_account_type_unknown')
             accounts.add(aid)
+            if aid not in expected and aid not in excluded:
+                extra_amounts.setdefault(aid, []).append(amount)
             total += amount
-        if accounts != set(map(str, expected_accounts)):
+        if not expected.issubset(accounts) or any(
+                amount != 0 for amounts in extra_amounts.values() for amount in amounts):
             raise ExportError('xhs_account_scope_mismatch')
         if any((aid, day) not in seen for aid in accounts for day in days):
             raise ExportError('xhs_native_day_missing')
-        return {'account_ids': sorted(accounts), 'amount': str(total), 'days': len(days)}
+        return {'account_ids': sorted(expected), 'excluded_account_ids': sorted(excluded),
+                'extra_zero_account_ids': sorted(extra_amounts),
+                'amount': str(total), 'days': len(days)}
     finally:
         book.close()
 

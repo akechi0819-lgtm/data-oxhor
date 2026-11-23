@@ -33,6 +33,7 @@ def _pointer_fixture(tmp_path):
     acceptance = tmp_path / "migration-acceptance.json"
     acceptance.write_text(json.dumps({
         "numbers_match": True, "functions_match": True, "interface_match": True,
+        "catalogue_sha256": hashlib.sha256(b"static SQL catalogue").hexdigest(),
     }))
     pointer = {
         "schema_version": "sql_daily_current.v1",
@@ -194,8 +195,9 @@ def test_full_daily_preview_package_still_transfers_only_sealed_table_files(tmp_
     assert files == {"tables/known.jsonl", "library_manifest.json"}
 
 
+@pytest.mark.parametrize('contract_change,accepted', [(False, True), (True, True), (True, False)])
 def test_publish_builds_runtime_contract_and_updates_pointer_only_after_activation(
-        tmp_path, monkeypatch):
+        tmp_path, monkeypatch, contract_change, accepted):
     import duckdb
     from dashboard_product.shadow_bi.p5 import sql_bundle
     from dashboard_product.shadow_bi.sql_warehouse import build as sql_build
@@ -206,8 +208,11 @@ def test_publish_builds_runtime_contract_and_updates_pointer_only_after_activati
     folder.mkdir()
     current_catalogue = b"static SQL catalogue"
     current_catalogue_sha = hashlib.sha256(current_catalogue).hexdigest()
-    remote_before = {"catalogue_sha256": current_catalogue_sha}
+    remote_before = {"catalogue_sha256": hashlib.sha256(b'previous catalogue').hexdigest()
+                     if contract_change else current_catalogue_sha}
     migration = json.loads(acceptance_file.read_text())
+    migration['catalogue_sha256'] = current_catalogue_sha if accepted else remote_before['catalogue_sha256']
+    acceptance_file.write_text(json.dumps(migration))
     migration_sha = _sha(acceptance_file)
     current_state = (pointer, remote_before, {}, baseline, migration, migration_sha)
     pair = {"sources": {
@@ -329,15 +334,22 @@ def test_publish_builds_runtime_contract_and_updates_pointer_only_after_activati
                 "warehouse_sha256": candidate_doc()["database"]["sha256"]}
 
     ssh = ["ssh", "-o", "BatchMode=yes", "example"]
-    result = sql_daily.publish(
+    kwargs = dict(
         workspace=workspace, day="2026-11-07", pair=pair, run_id=batch_id,
         release_id=release_id, folder=folder, advertising_manifest=None,
         ssh=ssh, ssh_env={}, command=command, command_result=command_result,
         config_root=tmp_path, current_state=current_state)
+    if not accepted:
+        with pytest.raises(ValueError, match='repeat migration acceptance'):
+            sql_daily.publish(**kwargs)
+        assert commands == []
+        assert json.loads((workspace/'Output/ShadowDaily/sql-current.json').read_text())['release'] == pointer['release']
+        return
+    result = sql_daily.publish(**kwargs)
 
-    assert prepared_coverage["notes"] == [
-        "preserve this note",
-        "活动按当前Snapshot可用历史累计；工单覆盖2025-03-01至2026-11-06，现金覆盖2024-06-01至2026-11-05，不保证覆盖活动完整生命周期。",
+    assert prepared_coverage['notes'] == [
+        'preserve this note',
+        '活动按当前Snapshot可用历史累计；工单覆盖2025-03-01至2026-11-06，现金覆盖2024-06-01至2026-11-05，不保证覆盖活动完整生命周期。',
     ]
     assert result["status"] == "published"
     assert result['server_retention']['status'] == 'retired'

@@ -90,7 +90,8 @@ class MCPToolTests(unittest.IsolatedAsyncioTestCase):
             async with Client(server) as client:
                 tools = await client.list_tools()
                 self.assertEqual({item.name for item in tools.tools}, {
-                    "describe_data", "query_data", "read_query_result", "export_query_csv"})
+                    "describe_data", "query_data", "read_query_result", "export_query_csv",
+                    "describe_business_context", "read_business_context", "read_dashboard_data"})
 
                 actor = CURRENT_KEY_ID.set("key_" + "a" * 32)
                 try:

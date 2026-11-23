@@ -400,7 +400,8 @@ class StudyAbroadWarehouseTests(unittest.TestCase):
                 built["snapshot_id"], "checks", "run_study_abroad_check_counts",
             ))
         }
-        self.assertEqual(9, checks["resources"]["source_rows"])
+        self.assertEqual(8, checks["resources"]["source_rows"])
+        self.assertEqual(1, built["diagnostics"]["superseded_resource_rows"]["resources"])
         self.assertEqual(16, checks["contracts"]["source_rows"])
         self.assertEqual(5, checks["languages"]["source_rows"])
         self.assertEqual(1, checks["resources"]["blank_owner_rows"])
@@ -427,50 +428,42 @@ class StudyAbroadWarehouseTests(unittest.TestCase):
         self.assertEqual(pointer_before, pointer.read_bytes())
         self.assertEqual(bi_before, _bi_state(self.workspace))
 
-    def test_conflicting_resource_or_contract_key_blocks_publication(self) -> None:
-        cases = (
-            ("resource", "同一资源|冲突"),
-            ("contract", "同一合同|冲突"),
-        )
-        for index, (kind, message) in enumerate(cases, 1):
-            with self.subTest(kind=kind), tempfile.TemporaryDirectory() as directory:
-                workspace = Path(directory) / "workspace"
-                _write_bi_workspace(workspace)
-                people_path, abroad_people_path = _write_rosters(Path(directory))
-                source = Path(directory) / "sample.xlsx"
-                _write_workbook(source, _base_records())
+    def test_conflicting_contract_key_blocks_publication(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            workspace = Path(directory) / "workspace"
+            _write_bi_workspace(workspace)
+            people_path, abroad_people_path = _write_rosters(Path(directory))
+            source = Path(directory) / "sample.xlsx"
+            _write_workbook(source, _base_records())
+            build_study_abroad_warehouse.build(
+                workspace=workspace,
+                source_file=source,
+                run_id="run_study_abroad_prior_contract",
+                snapshot_id="snapshot_study_abroad_prior_contract",
+                through_date="2026-09-30",
+                people_path=people_path,
+                abroad_people_path=abroad_people_path,
+            )
+            records = _base_records()
+            records["留学签约"].append(
+                _contract("C-SHARED-1", "CUSTOMER-OTHER", "线下甲", 999)
+            )
+            _write_workbook(source, records)
+            pointer = workspace / "Work" / "StudyAbroad" / "current.json"
+            pointer_before = pointer.read_bytes()
+
+            with self.assertRaisesRegex(ValueError, "同一合同|冲突"):
                 build_study_abroad_warehouse.build(
                     workspace=workspace,
                     source_file=source,
-                    run_id=f"run_study_abroad_prior_{index}",
-                    snapshot_id=f"snapshot_study_abroad_prior_{index}",
+                    run_id="run_study_abroad_contract_conflict",
+                    snapshot_id="snapshot_study_abroad_contract_conflict",
                     through_date="2026-09-30",
                     people_path=people_path,
                     abroad_people_path=abroad_people_path,
                 )
-                records = _base_records()
-                if kind == "resource":
-                    records["资源"].append(_resource("1001", "线下甲", "正常"))
-                else:
-                    records["留学签约"].append(
-                        _contract("C-SHARED-1", "CUSTOMER-OTHER", "线下甲", 999)
-                    )
-                _write_workbook(source, records)
-                pointer = workspace / "Work" / "StudyAbroad" / "current.json"
-                pointer_before = pointer.read_bytes()
 
-                with self.assertRaisesRegex(ValueError, message):
-                    build_study_abroad_warehouse.build(
-                        workspace=workspace,
-                        source_file=source,
-                        run_id=f"run_study_abroad_conflict_{index}",
-                        snapshot_id=f"snapshot_study_abroad_conflict_{index}",
-                        through_date="2026-09-30",
-                        people_path=people_path,
-                        abroad_people_path=abroad_people_path,
-                    )
-
-                self.assertEqual(pointer_before, pointer.read_bytes())
+            self.assertEqual(pointer_before, pointer.read_bytes())
 
 
 if __name__ == "__main__":

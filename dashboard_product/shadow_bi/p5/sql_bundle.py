@@ -22,6 +22,7 @@ OPTION_SQL = {
  'p35_platform_options': "SELECT DISTINCT platform AS 平台 FROM business.scoped_advertising_rollup WHERE record_type='platform' AND platform IS NOT NULL",
  'p35_overview_options_0': "SELECT DISTINCT period_id AS 期间 FROM business.team_metrics WHERE unit_id IN ('total','virtual','online') AND acquisition_scope='被动'",
  'p35_overview_options_1': "SELECT group_label AS 管理单元 FROM (VALUES ('市场总计'),('高中'),('大学'),('留学预备')) AS options(group_label)",
+ 'p35_overview_student_options': "SELECT unnest(['全部','新生','老生']) AS 新老生",
 }
 
 
@@ -126,6 +127,10 @@ def prepare_release(*, candidate, workspace, release_id, output_dir, coverage_te
                  for rel in ('Work/Pack/pack.json', 'Work/Bridge/reference.json')}
     acceptance = {**acceptance, 'candidate_sha256': hashlib.sha256((library/'candidate.json').read_bytes()).hexdigest()}
     _write(library/'acceptance.json', acceptance)
+    from business_data_mcp.build_context import build_bundle
+    business_context = build_bundle(workspace=workspace)
+    if business_context["manifest"]["source_sha256"]["bridge"] != semantics["Work/Bridge/reference.json"]:
+        raise ValueError("发布口径与 Bridge 不一致")
     release = {
         'schema_version': 'sql_warehouse_release.v1', 'release_id': release_id,
         'candidate': file_ref(library/'candidate.json', library, 'application/json'),
@@ -133,6 +138,7 @@ def prepare_release(*, candidate, workspace, release_id, output_dir, coverage_te
         'database_sha256': manifest['database']['sha256'],
         'batch_id': manifest['batch_id'], 'snapshots': manifest['snapshots'],
         'as_of_date': manifest['as_of_date'], 'coverage': coverage,
+        'business_context': business_context,
         'semantics': semantics, 'binding': {'inputs': semantics, 'candidate_inputs': manifest['input_binding'], 'rules': manifest['rules']},
         'landing_description': file_ref(library/'landing-description.json', library, 'application/json'),
         'landing_provenance': provenance,

@@ -118,6 +118,28 @@ def test_candidate_uses_confirmed_mapping_and_preserves_formal_manifest(setup):
     with pytest.raises(x.ExportBlocked,match='mapping_missing'):x.build_candidate(job,formal,native_file=native,evidence_file=evidence,captured_at=stamp.isoformat(),start='2026-10-26',through='2026-10-27',expected_accounts=['123'])
     assert formal.read_bytes()==before
 
+def test_candidate_excludes_verified_extra_zero_account_from_rows(setup):
+    root,stamp,contract,proof,old,new,raw=setup
+    formal=root/'formal.json'
+    formal.write_text(json.dumps({'sources':[{'source_id':'confirmed','kind':'xhs_mcc_daily','path':'old.xlsx',
+        'start_date':'2026-10-01','end_date':'2026-10-25',
+        'brand_accounts':{'brand':{'business_line':'training','business_group':'大学'}}}]}))
+    job=root/'candidate';job.mkdir()
+    book=Workbook();book.active.append(['周期','投放ID','账户类型','广告主账户ID','总消耗'])
+    for day in ('20261026','20261027'):
+        book.active.append([day,'123','代理商子账户','brand',2])
+        book.active.append([day,'456','代理商子账户','brand',0])
+    native=job/'native.xlsx';book.save(native)
+    evidence=job/'evidence.json';evidence.write_text('{}')
+    candidate=x.build_candidate(job,formal,native_file=native,evidence_file=evidence,
+        captured_at=stamp.isoformat(),start='2026-10-26',through='2026-10-27',expected_accounts=['123'])
+    manifest=json.loads(Path(candidate['manifest']).read_text())
+    assert manifest['sources'][0]['excluded_zero_account_ids']==['456']
+    validation=json.loads((job/'candidate-validation.json').read_text())
+    assert validation['native']['account_ids']==['123']
+    assert validation['native']['extra_zero_account_ids']==['456']
+    assert validation['rows']==2
+
 def test_auth_interrupt_after_create_preserves_unknown_task_without_recreate(setup):
     root,stamp,contract,proof,old,new,raw=setup;calls=[];login=[]
     def post(path,body):
@@ -150,3 +172,42 @@ def test_closed_window_advances_without_hardcoded_capture_date(setup):
     assert result['native']['days']==3 and result['native']['amount']=='6'
     body=next(body for path,body in requests if path==x.CREATE)
     assert body['timeEnd']=='2026-10-28' and body['timeStart']=='2026-10-26'
+
+
+def test_confirmed_nonzero_exclusion_resumes_partial_and_builds_candidate(setup):
+    root, stamp, contract, proof, old, new, raw = setup
+    proof['excluded_account_ids'] = ['456']
+    book = Workbook(); book.active.append(['周期', '投放ID', '账户类型', '广告主账户ID', '总消耗'])
+    for day in ('20261026', '20261027'):
+        book.active.append([day, '123', '代理商子账户', 'brand', 2])
+        book.active.append([day, '456', '代理商子账户', 'unmapped', 109.17])
+    fixture = root/'excluded.xlsx'; book.save(fixture)
+    calls = []
+    def post(path, body):
+        calls.append(path)
+        return {} if path == x.CREATE else api([old] if len(calls) == 1 else [old, new])
+    def interrupted(url, path):
+        path.write_bytes(fixture.read_bytes())
+        raise x.ExportPending('transfer interrupted')
+    with pytest.raises(x.ExportPending):
+        run(setup, post, interrupted)
+    result = run(setup, lambda path, body: api([old, new]), lambda *a: pytest.fail('must reuse partial'))
+    assert calls.count(x.CREATE) == 1
+    assert result['native']['excluded_account_ids'] == ['456']
+    assert result['native']['extra_zero_account_ids'] == []
+    formal = root/'formal.json'
+    formal.write_text(json.dumps({'sources':[{'source_id':'confirmed','kind':'xhs_mcc_daily','path':'old.xlsx',
+        'start_date':'2026-10-01','end_date':'2026-10-25',
+        'brand_accounts':{'brand':{'business_line':'training','business_group':'大学'}}}]}))
+    job = root/'job'
+    candidate = x.build_candidate(job, formal, native_file=job/'native.xlsx', evidence_file=job/'evidence.json',
+        captured_at=stamp.isoformat(), start='2026-10-26', through='2026-10-27',
+        expected_accounts=result['expected_accounts'], excluded_account_ids=result['native']['excluded_account_ids'])
+    entry = json.loads(Path(candidate['manifest']).read_text())['sources'][0]
+    assert entry['excluded_account_ids'] == ['456']
+    assert 'excluded_zero_account_ids' not in entry
+    assert json.loads((job/'candidate-validation.json').read_text())['rows'] == 2
+    with pytest.raises(Exception, match='scope_mismatch'):
+        x.XHSExport()._inspect(job/'native.xlsx', '2026-10-26', '2026-10-27', ['123'])
+    with pytest.raises(Exception, match='scope_mismatch'):
+        x.XHSExport()._inspect(job/'native.xlsx', '2026-10-26', '2026-10-27', ['123', '789'], ['456'])

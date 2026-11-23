@@ -5,7 +5,8 @@ import re
 
 def validate_xhs_mcc_entry(entry):
     required = {'source_id', 'path', 'kind', 'start_date', 'end_date', 'brand_accounts'}
-    if not required.issubset(entry) or set(entry) - required - {'sha256'}:
+    optional = {'sha256', 'excluded_zero_account_ids', 'excluded_account_ids'}
+    if not required.issubset(entry) or set(entry) - required - optional:
         raise ValueError('星火来源必须声明文件、日期和品牌业务归属')
     if any(not isinstance(entry[k], str) or not entry[k].strip() for k in ('source_id', 'path')):
         raise ValueError('星火来源ID和路径不能为空')
@@ -14,6 +15,12 @@ def validate_xhs_mcc_entry(entry):
         raise ValueError('星火来源日期倒置')
     if entry.get('sha256') is not None and not re.fullmatch(r'[0-9a-fA-F]{64}', str(entry['sha256'])):
         raise ValueError('星火文件sha256无效')
+    for key in ('excluded_zero_account_ids', 'excluded_account_ids'):
+        excluded = entry.get(key, [])
+        if (not isinstance(excluded, list)
+                or any(not isinstance(account, str) or not account.isdigit() for account in excluded)
+                or len(set(excluded)) != len(excluded)):
+            raise ValueError('星火排除账户清单无效')
     brands = entry['brand_accounts']
     if not isinstance(brands, dict) or not brands:
         raise ValueError('星火品牌业务归属不能为空')
@@ -32,6 +39,8 @@ def parse_xhs_mcc(item):
     table, _ = _read_rows(item['raw'], path)
     headers = _header_map(table[0] if table else (), path, 1)
     _require_columns(headers, ('周期', '投放ID', '账户类型', '广告主账户ID', '总消耗'), path)
+    excluded_zero = set(item.get('excluded_zero_account_ids', []))
+    excluded = set(item.get('excluded_account_ids', []))
     rows, accounts, seen = [], {}, set()
     for number, row in enumerate(table[1:], 2):
         cells = _row_values(headers, row)
@@ -56,6 +65,14 @@ def parse_xhs_mcc(item):
             continue
         if kind != '代理商子账户':
             raise ValueError(f'星火账户类型未对齐: {kind}')
+        if account in excluded:
+            if amount is None:
+                raise ValueError('星火排除账户消费金额无效')
+            continue
+        if account in excluded_zero:
+            if amount != 0:
+                raise ValueError('星火零消费排除账户出现非零消费')
+            continue
         brand = str(cells['广告主账户ID']).strip()
         if brand not in item['brand_accounts']:
             raise ValueError(f'星火品牌业务归属未对齐: {brand}')

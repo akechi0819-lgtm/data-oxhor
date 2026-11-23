@@ -82,8 +82,6 @@ orders_raw AS (
  SUM(TRY_CAST(REPLACE(REPLACE(TRIM(报入现金收入),',',''),'￥','') AS DECIMAL(38,2))) AS cash_amount
  FROM landing.br_cash__sheet_39b8dee2e4b3, params
  WHERE TRIM(渠道属性)='被动'
- AND TRIM(新老生类型)='新生'
- AND TRY_CAST(REPLACE(REPLACE(TRIM(报入现金收入),',',''),'￥','') AS DECIMAL(38,2))>0
  AND DATE '1899-12-30'+CAST(TRY_CAST(业务日期 AS DOUBLE) AS INTEGER)>=start_date
  AND DATE '1899-12-30'+CAST(TRY_CAST(业务日期 AS DOUBLE) AS INTEGER)<end_date
  GROUP BY ALL

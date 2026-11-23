@@ -135,9 +135,9 @@ class XHSExport:
         except Exception:
             raise ExportPending('xhs_transfer_result_unconfirmed') from None
 
-    def _inspect(self, path, start, through, expected):
+    def _inspect(self, path, start, through, expected, excluded=()):
         with path.open('rb') as handle:
-            return inspect_xhs(handle, date.fromisoformat(start), date.fromisoformat(through), expected)
+            return inspect_xhs(handle, date.fromisoformat(start), date.fromisoformat(through), expected, excluded)
 
     def _tasks(self, body):
         data = self.post(TASKS, body).get('data', {})
@@ -167,6 +167,10 @@ class XHSExport:
             raise ExportBlocked('xhs_window_not_closed')
         key = hashlib.sha256(json.dumps(body, sort_keys=True).encode()).hexdigest()
         expected = verification['account_ids']
+        excluded = verification.get('excluded_account_ids', [])
+        if (not isinstance(excluded, list) or any(not isinstance(a, str) or not a.isdigit() for a in excluded)
+                or len(set(excluded)) != len(excluded) or set(excluded) & set(expected)):
+            raise ExportBlocked('xhs_excluded_account_ids_invalid')
         identity = verification.get('organization_identity')
         if (not isinstance(identity, dict) or set(identity) != set(IDENTITY)
                 or any(not isinstance(v, str) or not v for v in identity.values())
@@ -179,6 +183,8 @@ class XHSExport:
             if state['input_key'] != key or state['expected_accounts'] != expected or state['match'] != identity:
                 raise ExportBlocked('xhs_job_input_changed')
             if state['phase'] == 'verified':
+                if sorted(excluded) != state.get('native', {}).get('excluded_account_ids', []):
+                    raise ExportBlocked('xhs_verified_exclusion_scope_changed')
                 if sha(final) != state['file_sha256']:
                     raise ExportBlocked('xhs_verified_file_changed')
                 return state
@@ -238,15 +244,15 @@ class XHSExport:
         if not final.exists():
             if partial.exists():
                 try:
-                    self._inspect(partial, start, through, expected)
+                    self._inspect(partial, start, through, expected, excluded)
                     partial.replace(final)
                 except Exception:
                     partial.rename(folder / ('incomplete-' + str(time.time_ns()) + '.part'))
             if not final.exists():
                 self.transfer(task['downloadFile'], partial)
-                self._inspect(partial, start, through, expected)
+                self._inspect(partial, start, through, expected, excluded)
                 partial.replace(final)
-        native = self._inspect(final, start, through, expected)
+        native = self._inspect(final, start, through, expected, excluded)
         state['timings']['transfer_and_validation_seconds'] = round(time.monotonic() - t, 3)
         try:
             state['timings']['server_generation_seconds'] = (datetime.strptime(task['endTime'], '%Y-%m-%d %H:%M:%S') - datetime.strptime(task['createTime'], '%Y-%m-%d %H:%M:%S')).total_seconds()
@@ -266,7 +272,7 @@ class XHSExport:
         return state
 
 def build_candidate(folder, mapping_manifest, *, native_file, evidence_file,
-                    captured_at, start, through, expected_accounts):
+                    captured_at, start, through, expected_accounts, excluded_account_ids=()):
     """Create a source fragment for full_daily, keeping formal registration read-only."""
     from dashboard_product.management.candidate_sources import load_candidate_sources
     folder = Path(folder).resolve(strict=True)
@@ -281,9 +287,15 @@ def build_candidate(folder, mapping_manifest, *, native_file, evidence_file,
                if item.get('kind') == 'xhs_mcc_daily']
     if len(entries) != 1:
         raise ExportBlocked('xhs_confirmed_mapping_missing_or_ambiguous')
-    native = XHSExport()._inspect(native_file, start, through, expected_accounts)
+    native = XHSExport()._inspect(native_file, start, through, expected_accounts, excluded_account_ids)
     entry = {**entries[0], 'path':str(native_file), 'sha256':sha(native_file),
              'start_date':start, 'end_date':through}
+    entry.pop('excluded_account_ids', None)
+    entry.pop('excluded_zero_account_ids', None)
+    if native['excluded_account_ids']:
+        entry['excluded_account_ids'] = native['excluded_account_ids']
+    if native['extra_zero_account_ids']:
+        entry['excluded_zero_account_ids'] = native['extra_zero_account_ids']
     manifest = folder/'candidate-sources.json'
     write(manifest, {'sources':[entry]})
     parsed = load_candidate_sources(manifest)
@@ -377,7 +389,7 @@ def main():
     try:
         client = XHSExport(cookie_file=AuthSessionPaths(a.workspace, 'xhs').cookies)
         r = run_authenticated(client, a.workspace, folder=a.output_dir, contract=json.loads(a.contract.read_text()), verification=json.loads(a.verification.read_text()), start=a.start, through=a.through)
-        candidate = build_candidate(a.output_dir, a.mapping_manifest or a.workspace/'Input/AdvertisingCosts/sources.json', native_file=a.output_dir/'native.xlsx', evidence_file=a.output_dir/'evidence.json', captured_at=r['started_at'], start=a.start, through=a.through, expected_accounts=r['expected_accounts'])
+        candidate = build_candidate(a.output_dir, a.mapping_manifest or a.workspace/'Input/AdvertisingCosts/sources.json', native_file=a.output_dir/'native.xlsx', evidence_file=a.output_dir/'evidence.json', captured_at=r['started_at'], start=a.start, through=a.through, expected_accounts=r['expected_accounts'], excluded_account_ids=r['native'].get('excluded_account_ids', []))
         print(json.dumps({**{k: r[k] for k in ['phase', 'task_id', 'native', 'timings', 'intake_receipt']}, 'candidate':candidate}, ensure_ascii=False))
         return 0
     except (AuthSessionMissingError, AuthSessionExpiredError):

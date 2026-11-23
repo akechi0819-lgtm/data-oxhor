@@ -7,6 +7,7 @@ import duckdb
 from dashboard_product.management.breakdowns import UNIVERSITY_SCHOOL_ATTRIBUTES
 from dashboard_product.shadow_bi.sql_warehouse.native_channel_cache import (
     TABLE,
+    SCOPES,
     UNIVERSITY_NODES_TABLE,
     install_native_channel_source,
     university_channel_node_sources,
@@ -14,7 +15,7 @@ from dashboard_product.shadow_bi.sql_warehouse.native_channel_cache import (
 
 
 class NativeChannelCacheTests(unittest.TestCase):
-    scopes = ("被动", "主动", "全部")
+    scopes = SCOPES
     units = ("total", "prep", "high", "university", "virtual", "online",
              "overview_prep", "overview_high", "overview_university")
     periods = (
@@ -130,15 +131,15 @@ class NativeChannelCacheTests(unittest.TestCase):
                 ("row_json", "JSON"),
             ],
         )
-        self.assertEqual(self.con.execute(f"SELECT count(*) FROM {TABLE}").fetchone()[0], 459)
+        self.assertEqual(self.con.execute(f"SELECT count(*) FROM {TABLE}").fetchone()[0], 1377)
         self.assertEqual(
             self.con.execute(
                 f"""SELECT acquisition_scope, count(*), count(DISTINCT period_id),
                            count(DISTINCT team_id)
                     FROM {TABLE} GROUP BY acquisition_scope
-                    ORDER BY CASE acquisition_scope WHEN '被动' THEN 0 WHEN '主动' THEN 1 ELSE 2 END"""
+                    ORDER BY acquisition_scope"""
             ).fetchall(),
-            [(scope, 153, 17, 9) for scope in self.scopes],
+            [(scope, 153, 17, 9) for scope in sorted(self.scopes)],
         )
         expected = [
             (scope, period_id, unit)
@@ -150,6 +151,21 @@ class NativeChannelCacheTests(unittest.TestCase):
             f"SELECT acquisition_scope,period_id,team_id FROM {TABLE}"
         ).fetchall()
         self.assertEqual(actual, expected)
+
+    def test_student_selection_keeps_separate_channel_cash(self):
+        self.con.execute("""UPDATE business.dimension_seed SET actual=7
+            WHERE unit_id='total' AND acquisition_scope='被动|老生'
+            AND business_line='training' AND metric='cash'""")
+        install_native_channel_source(self.con)
+        amounts = {}
+        for scope in ('被动', '被动|老生'):
+            raw = self.con.execute(
+                f"SELECT view FROM {TABLE} WHERE period_id='FY27' AND team_id='total' AND acquisition_scope=?",
+                [scope],
+            ).fetchone()[0]
+            node = next(x for x in json.loads(raw)['channels'] if x['business_line']=='training')
+            amounts[scope] = node['cash']['actual']
+        self.assertEqual(amounts, {'被动': 22, '被动|老生': 7})
 
     def test_overview_groups_keep_nonempty_training_channel_trees(self):
         for unit, group in [('overview_prep', '留学预备'), ('overview_high', '高中'),
@@ -207,13 +223,13 @@ class NativeChannelCacheTests(unittest.TestCase):
                            工单,现金,渠道内现金占比,工单状态
                     FROM {UNIVERSITY_NODES_TABLE}
                     WHERE period_id='FY27'
-                    ORDER BY CASE acquisition_scope WHEN '被动' THEN 0 WHEN '主动' THEN 1 ELSE 2 END,
+                    ORDER BY acquisition_scope,
                              node_kind,business_line"""
             ).fetchall(),
             [
                 (scope, kind, line, channel, UNIVERSITY_SCHOOL_ATTRIBUTES[0], school,
                  11.0, 22.0, 0.75, "已提供")
-                for scope in self.scopes
+                for scope in sorted(self.scopes)
                 for kind, line, channel, school in (
                     ("group", "abroad", "大学留学渠道", None),
                     ("group", "training", "大学渠道", None),
@@ -250,7 +266,7 @@ class NativeChannelCacheTests(unittest.TestCase):
         view, count = self.con.execute(
             f"SELECT view,(SELECT count(*) FROM {TABLE}) FROM {TABLE} WHERE acquisition_scope='被动' AND period_id='FY27' AND team_id='total'"
         ).fetchone()
-        self.assertEqual(count, 459)
+        self.assertEqual(count, 1377)
         names = [node["name"] for node in json.loads(view)["channels"]]
         self.assertIn("刷新后渠道", names)
         self.assertNotIn("普通渠道", names)
@@ -264,7 +280,7 @@ class NativeChannelCacheTests(unittest.TestCase):
             self.con.execute(
                 f"SELECT count(*) FROM {UNIVERSITY_NODES_TABLE} WHERE period_id='FY27'"
             ).fetchone()[0],
-            12,
+            36,
         )
 
 

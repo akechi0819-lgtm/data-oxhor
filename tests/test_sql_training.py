@@ -45,6 +45,7 @@ def training_row(work_order_id, row_number, *, metric="work_orders", group="高�
         "metric": metric,
         "actual_value": 1 if metric == "work_orders" else "125.50",
         "student_id": None,
+        "student_type": None,
         "cash_channel": "市场资源" if metric == "passive_reported_cash" else None,
         "work_order_active_type": "被动",
         "cash_campaign_name": None,
@@ -100,10 +101,27 @@ def _comparable(row):
     return copied
 
 
+def _copy_student_types(expected, source_rows):
+    source_types = {}
+    for source in source_rows:
+        if source.get("metric") == "work_orders":
+            fact_id = f"training:order:{source.get('work_order_id')}"
+            student_type = None
+        elif source.get("source_row_number") not in (None, ""):
+            fact_id = f"training:cash:{source['source_row_number']}"
+            student_type = str(source.get("student_type") or "").strip() or None
+        else:
+            continue
+        source_types[fact_id] = student_type
+    for fact in expected:
+        fact["student_type"] = source_types.get(fact["fact_id"])
+
+
 class SqlTrainingTests(unittest.TestCase):
     def setUp(self):
         self.training_rows = [
             training_row("O1", 10, group="青少", campaign="普通活动", order_status="删除",
+                         student_type="新生",
                          source_record='{"ID":"O1","工单状态":"删除"}'),
             training_row("O2", 11, group="大学"),
             training_row("O3", 12, group="初中"),
@@ -112,16 +130,18 @@ class SqlTrainingTests(unittest.TestCase):
             training_row("unknown-line", 15, group="其他"),
             training_row(None, 16, metric="passive_reported_cash", group="大学",
                          actual_value="25.555", cash_campaign_name="市场活动", campaign_name="否",
+                         student_type=" 老生 ",
                          cash_source_record='{"渠道":"市场资源"}'),
             training_row("O1", 20, metric="passive_reported_cash", group="高中",
                          actual_value="125.50", cash_campaign_name="SCRM", campaign_name="O1 cash",
+                         student_type="新生",
                          source_record=None, cash_source_record='{"工单ID":"O1"}'),
             training_row("O5", 21, metric="work_orders", group="高中", mode="主动"),
             training_row("O6", 22, metric="passive_reported_cash", group="高中",
                          team_id="offline_market", first_channel="TMK激活-平台", second_channel="小红书",
                          cash_channel="TMK", cash_campaign_name="SCRM", actual_value="200.00"),
             training_row(None, 18, metric="passive_reported_cash", group="大学",
-                         actual_value="-50.00"),
+                         actual_value="-50.00", student_type=""),
             training_row("O7", None, metric="passive_reported_cash", group="大学",
                          actual_value="300.00"),
         ]
@@ -155,6 +175,7 @@ class SqlTrainingTests(unittest.TestCase):
             expected_rows, self.order_rows, PEOPLE, ABROAD_PEOPLE,
             MAPPING, cash_team_overrides=self.cash_overrides,
         )
+        _copy_student_types(expected, expected_rows)
         actual = rows_as_dicts(self.con, "training_facts")
         self.assertEqual([_comparable(row) for row in actual], [_comparable(row) for row in sorted(expected, key=lambda row: row["fact_id"])])
         facts = {row["fact_id"]: row for row in actual}
@@ -162,6 +183,10 @@ class SqlTrainingTests(unittest.TestCase):
         self.assertEqual(facts["training:cash:20"]["team_before_override"], "online_private")
         self.assertEqual(facts["training:cash:20"]["team_override_reason"], "经核实直接线上投放（市场活动→大学媒体投放，原渠道：腾讯广告）")
         self.assertEqual(float(facts["training:cash:16"]["value"]), 25.56)
+        self.assertEqual(facts["training:cash:16"]["student_type"], "老生")
+        self.assertEqual(facts["training:cash:20"]["student_type"], "新生")
+        self.assertIsNone(facts["training:cash:18"]["student_type"])
+        self.assertIsNone(facts["training:order:O1"]["student_type"])
         self.assertEqual(facts["training:cash:20"]["virtual_owners"], ["虚拟甲"])
         self.assertNotIn("training:order:O2", facts)
         self.assertNotIn("training:order:unknown-line", facts)
@@ -176,6 +201,7 @@ class SqlTrainingTests(unittest.TestCase):
             expected_rows, self.order_rows, PEOPLE, ABROAD_PEOPLE,
             MAPPING, cash_team_overrides=self.cash_overrides, personal_qualification=True,
         )
+        _copy_student_types(expected, expected_rows)
         actual = rows_as_dicts(self.con, "training_personnel_facts")
         self.assertEqual([_comparable(row) for row in actual], [_comparable(row) for row in sorted(expected, key=lambda row: row["fact_id"])])
         facts = {row["fact_id"]: row for row in actual}
@@ -184,6 +210,8 @@ class SqlTrainingTests(unittest.TestCase):
         self.assertNotIn("training:order:O5", facts)
         self.assertIn("training:cash:16", facts)
         self.assertIn("training:cash:18", facts)
+        self.assertEqual(facts["training:cash:16"]["student_type"], "老生")
+        self.assertIsNone(facts["training:cash:18"]["student_type"])
 
     def test_school_attribute_mapping_is_available_as_sql(self):
         con = duckdb.connect(":memory:")

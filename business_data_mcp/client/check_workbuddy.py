@@ -46,7 +46,7 @@ def main():
     if connection["url"] != URL:
         raise RuntimeError("连接地址与交接包不符")
     names = {item["name"] for item in call(connection, "tools/list", {})["tools"]}
-    if not {"describe_data", "query_data", "read_query_result", "export_query_csv"} <= names:
+    if not {"describe_business_context", "read_business_context", "read_dashboard_data", "describe_data", "query_data", "read_query_result", "export_query_csv"} <= names:
         raise RuntimeError("业务工具不完整")
     overview = tool(connection, "describe_data", {})
     info = tool(connection, "describe_data", {"domain": "training", "table": "work_orders"})

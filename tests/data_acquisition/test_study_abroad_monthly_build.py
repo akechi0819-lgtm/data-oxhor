@@ -217,7 +217,7 @@ def test_monthly_build_retains_september_adds_october_and_freezes_each_source(tm
     assert warehouse_fixtures._bi_state(workspace) == bi_before
 
 
-def test_cross_month_resource_id_keeps_latest_assignment_and_same_day_conflict_fails(tmp_path: Path) -> None:
+def test_duplicate_resource_id_keeps_first_source_row_across_dates_and_same_day(tmp_path: Path) -> None:
     workspace, people_path, abroad_people_path = _workspace(tmp_path / "latest")
     old = tmp_path / "assignment-august.xlsx"
     current = tmp_path / "assignment-september.xlsx"
@@ -239,6 +239,8 @@ def test_cross_month_resource_id_keeps_latest_assignment_and_same_day_conflict_f
         through_date="2026-09-30",
     )
     assert built["diagnostics"]["superseded_resource_rows"]["resources"] == 1
+    lineage = json.loads((workspace / built["source_lineage"]).read_text(encoding="utf-8"))
+    assert lineage["rules"]["resource_identity"] == "resource_id_first_source_row"
     facts = _query_rows(
         workspace,
         snapshot_id=built["snapshot_id"],
@@ -249,8 +251,8 @@ def test_cross_month_resource_id_keeps_latest_assignment_and_same_day_conflict_f
     )
     shared = [row for row in facts if row["fact_type"] == "resource" and row["resource_id"] == "SHARED-1"]
     assert len(shared) == 1
-    assert shared[0]["event_date"] == "2026-09-11"
-    assert shared[0]["owner"] == "线上甲"
+    assert shared[0]["event_date"] == "2026-08-25"
+    assert shared[0]["owner"] == "线下甲"
 
     conflict_root = tmp_path / "same-day"
     conflict_workspace, conflict_people, conflict_abroad_people = _workspace(conflict_root)
@@ -267,18 +269,32 @@ def test_cross_month_resource_id_keeps_latest_assignment_and_same_day_conflict_f
             "小语种签约": [],
         },
     )
-    with pytest.raises(ValueError, match="同一资源.*冲突"):
-        _build(
-            workspace=conflict_workspace,
-            people_path=conflict_people,
-            abroad_people_path=conflict_abroad_people,
-            current=same_day_current,
-            history=[],
-            run_id="run_study_abroad_same_day_conflict",
-            snapshot_id="snapshot_study_abroad_same_day_conflict",
-            through_date="2026-09-30",
-        )
-    assert not (conflict_workspace / "Work" / "StudyAbroad" / "current.json").exists()
+    same_day_built = _build(
+        workspace=conflict_workspace,
+        people_path=conflict_people,
+        abroad_people_path=conflict_abroad_people,
+        current=same_day_current,
+        history=[],
+        run_id="run_study_abroad_same_day_duplicate",
+        snapshot_id="snapshot_study_abroad_same_day_duplicate",
+        through_date="2026-09-30",
+    )
+    assert same_day_built["diagnostics"]["superseded_resource_rows"]["resources"] == 1
+    same_day_facts = _query_rows(
+        conflict_workspace,
+        snapshot_id=same_day_built["snapshot_id"],
+        run_id="run_study_abroad_same_day_duplicate_query",
+        query_name="facts",
+        start_date="2026-09-01",
+        end_date="2026-10-01",
+    )
+    same_day_shared = [
+        row for row in same_day_facts
+        if row["fact_type"] == "resource" and row["resource_id"] == "SHARED-2"
+    ]
+    assert len(same_day_shared) == 1
+    assert same_day_shared[0]["event_date"] == "2026-09-11"
+    assert same_day_shared[0]["owner"] == "线下甲"
 
 
 @pytest.mark.parametrize(

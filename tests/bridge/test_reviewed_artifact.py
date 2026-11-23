@@ -50,6 +50,13 @@ class ReviewedCompanyBridgeArtifactTests(unittest.TestCase):
         self.assertNotIn("TRY_CAST(TRIM(ID)", query)
         self.assertNotIn("TRY_CAST(TRIM(工单ID)", query)
         self.assertIn("AS DECIMAL(38,2)", query)
+        self.assertNotIn("TRIM(新老生类型)", query)
+        self.assertNotIn("AS DECIMAL(38,2))>0", query)
+
+    def test_passive_reported_cash_scope_matches_dashboard(self) -> None:
+        bridge = load_bridge(self.root / "tests/fixtures/company_bridge/company_bridge.bi_operations.v1_2_0.json")
+        scope = next(item for item in bridge["overrides"] if item["key"] == "passive_reported_cash_scope")
+        self.assertEqual("渠道属性 = 被动; 报入现金收入按原值汇总（含正数、零和负数）; 新老生类型不限", scope["value"])
 
 
 if __name__ == "__main__":

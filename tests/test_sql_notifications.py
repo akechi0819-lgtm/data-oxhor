@@ -15,7 +15,7 @@ FACT_COLUMNS = {
     'fact_id': 'VARCHAR', 'metric': 'VARCHAR', 'business_line': 'VARCHAR',
     'event_date': 'DATE', 'value': 'DECIMAL(24,2)', 'work_order_id': 'VARCHAR',
     'order_status': 'VARCHAR', 'counts_toward_completion': 'BOOLEAN',
-    'exclusion_reason': 'VARCHAR', 'source_record': 'JSON', 'student_id': 'VARCHAR',
+    'exclusion_reason': 'VARCHAR', 'source_record': 'JSON', 'student_id': 'VARCHAR', 'student_type': 'VARCHAR',
     'team_id': 'VARCHAR', 'business_group': 'VARCHAR', 'comparison_group': 'VARCHAR',
     'school_name': 'VARCHAR', 'school_attribute': 'VARCHAR', 'school_attribute_status': 'VARCHAR',
     'channel_school_name': 'VARCHAR', 'grade_name': 'VARCHAR', 'campaign_name': 'VARCHAR',
