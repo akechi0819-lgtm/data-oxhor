@@ -1,0 +1,125 @@
+{
+  "schema_version": 1,
+  "heading": "看板现行业务口径",
+  "intro": "本资料是 Business Data MCP 的业务口径摘要，随 SQL 日更 release 封存。汇总规则由看板 SQL 与同批指标注册表共同核验。Company Bridge 记录确认后的来源字段、归因和映射。实际数值及可用维度以同批正式看板结果为准。\n",
+  "sections": [
+    {
+      "title": "未指定范围的经营导出",
+      "paragraphs": [
+        "用户只问某期间的人头、工单或签约现金时，默认取语培市场总计、被动、全部新老生。例如导出本月人头与签约现金，直接取 team_metrics 的本月期间和 heads、cash 两个指标，导出同一结果的两行。留学、主动或跨业务线等范围仅在用户明确要求时加入。"
+      ]
+    },
+    {
+      "title": "语培经营",
+      "paragraphs": [
+        "工单使用已验收团队和业务组范围，按被动、主动或全部筛选；全部为主动加被动，不包含未分类。语培现金按业务日期汇总报入现金收入，保留正数、零及负数；负向现金的原因需业务确认。默认包含全部新老生，未标注类型仅计入全部。总览新老生筛选作用于语培现金，工单不联动，费用与目标金额保持原值。",
+        "按项目看经营现金或项目毛签时，取现金行的团队归属。青少、初中、初中国际学科归留学预备，高中、ICC、国际学科归高中，大学归大学。经营现金沿用所选范围内的报入现金原值。项目毛签另限报入现金大于零且“新签&续费”为新签或续费，单看新签毛签时只取新签。",
+        "经营人头在筛选范围内按学员编号和班级编码汇总报入现金，金额绝对值达到 1500 元且报名人次为正，再按学员编号去重。不同期间和部门各自重算，不直接相加子组或月份的去重人数。个人业绩与人员产能使用各自的独立资格。"
+      ]
+    },
+    {
+      "title": "留学及小语种",
+      "paragraphs": [
+        "留学使用独立数据。资源按分单日期和资源 ID 去重，留学签约按归档日期和正向签约金额，小语种按业务日期和正向实缴金额。签约或实缴无法匹配个人时，同一来源行的明确线上或线下团队可计入团队，个人业绩仍按已有个人归属核算。",
+        "看板的工单、现金及签约人头采用同一团队范围。线上包含虚拟人，线下按线下归属，总计排除 SSC 并包含国际市场；虚拟人、SSC 和国际市场仍可单独查询。每个范围分别按留学客户和小语种学员去重，两组人头相加会重复计入跨组客户。留学独立来源没有同期可比结果，缺失覆盖按实际状态展示。官方记分卡仅在列明的财年和指标范围内优先，其他指标用同批发布结果。"
+      ]
+    },
+    {
+      "title": "团队、人员与学校",
+      "paragraphs": [
+        "个人工单可分别选择删除／回收和死单状态；现金、人头、目标及人员在职资格不随工单状态开关改变。个人工单是分摊贡献，原值不取整。个人业绩及产能按确认的人员归属、绩效月、共创与跨业务规则计算，个人月份和产能筛选独立于经营期间。目标团队与管理单元独立，主动或全部范围没有被动目标。",
+        "“TMK激活-平台”的工单、现金及对应人头归线上平台，其他 TMK 按既有规则；明确平台投放归线上平台，明确虚拟人来源归虚拟人，受保护的外呼、死单返打及未确认冲突不据此改归属。留学来源分段中，网络资源及线上运营归线上平台，虚拟人归虚拟人，欧亚总部在线归 SSC。经营报表在这些明细分段上按前述团队范围汇总。",
+        "市场总览学校默认使用学校全盘的全部范围，学校页主被动筛选独立于经营页；大学页学校为固定被动范围。大学渠道按渠道、学校分类、学校展开，同校校区合并，附属中小学和独立学院不自动并入。学校及分类人头各自去重，不相加叶节点人头替代父值。渠道、学校和年级按语培、留学与小语种分别展示；年级来源未计算人头时不补人数。"
+      ]
+    },
+    {
+      "title": "费用和回收",
+      "paragraphs": [
+        "ROI = 费用共同覆盖窗口的毛签 ÷ 同期费用；单条工单成本 = 同期费用 ÷ 同期工单。平台分别计算，业务组与业务线使用参与来源共同连续覆盖的窗口和各自汇总金额，不平均下级比率。无费用为缺失，不补零；确认的零费用保留零，零分母不计算比率。期间总费用仅在覆盖区间完整落入所选期间时计入，不分摊到每天或其他期间。留学仅有整体费用时，不推算国家或语种费用及 ROI；语培业务组不借用全盘费用。"
+      ]
+    },
+    {
+      "title": "看板导出时怎样选范围",
+      "paragraphs": [
+        "team_metrics 未指定业务线、组织单元或获取范围时，分别默认 training、total、被动（全部新老生）；可显式传入其他值，或对任一默认维度传入 * 查询该维度全部值；获取范围“全部”只代表“全部”汇总行，不等同于 *。留学的被动值对应看板存储行，不表示留学业务按被动归类。市场总览默认选市场总计、语培被动、全部新老生。先从 periods 确认所选期间的实际截止日。团队经营结果选 team_metrics，市场总计用 total，语培用 training，当期取 actual。被动且全部新老生用“被动”，只看被动新生用“被动|新生”。同一数据集含多个相互重叠的期间、组织和人群，请逐行保留这些筛选值。市场总览选择高中、大学或留学预备时，语培选对应 overview 单元，留学仍取 total。",
+        "查询留学经营结果可用 business_line=abroad、acquisition_scope=全部，线上取 online、线下取 university、总计取 total。单独核对 SSC、虚拟人和国际市场时，分别取 ssc、virtual、international_market。使用总计和线上已汇总的值时，避免再加单列分段。",
+        "经营工单按观远八类原始团队及主被动字段筛选，保留删除和回收状态，再按工单 ID 去重。现金主被动取现金原行的渠道属性。经营人头须保留零金额报名行，同一学员同一班级内至少有一行报名人次大于零。team_metrics 的 prior 是上年同期：将所选期间开始日和实际截止日分别向前推一年形成的区间；语培的当期和上年同期各自计算，留学及未来期间的 prior 为 null。同比为当期除以上年同期减一，上年同期为零时留空。个人绩效月从上月 26 日至本月 25 日，自然月按日历月，均以实际数据截止日为限。",
+        "留学和小语种同时有人头时，按各自系统分列人数。团队经营人数状态 separate_counts 对应 team_values 的 study_heads 和 language_heads；不得跨客户系统相加去重。经营目标、费用覆盖和同比等状态随结果导出，缺失和部分覆盖须在回答中保留。"
+      ]
+    }
+  ],
+  "metrics": [
+    {
+      "id": "training_orders",
+      "title": "语培工单",
+      "authority_view": "mart.team_metrics",
+      "evidence_view": "core.training_orders_attributed",
+      "scope": "training / total / 被动，全部新老生",
+      "date_field": "分配时间",
+      "limitation": "按范围内工单 ID 去重；异业渠道可查 core.training_channel_orders_attributed。"
+    },
+    {
+      "id": "training_cash",
+      "title": "语培现金",
+      "authority_view": "mart.team_metrics",
+      "evidence_view": "core.training_cash_attributed",
+      "scope": "training / total / 被动，全部新老生",
+      "date_field": "业务日期",
+      "limitation": "保留正、零和负向现金，按筛选范围汇总。"
+    },
+    {
+      "id": "training_heads",
+      "title": "语培经营人头",
+      "authority_view": "mart.team_metrics",
+      "evidence_view": "core.training_heads_attributed",
+      "scope": "training / total / 被动，全部新老生",
+      "date_field": "业务日期",
+      "limitation": "按期间、范围、班级资格计算，按学员去重；渠道维度证据另见 core.dimension_heads_attributed。"
+    },
+    {
+      "id": "abroad_orders",
+      "title": "留学及小语种资源",
+      "authority_view": "mart.team_metrics",
+      "evidence_view": "core.abroad_facts_attributed",
+      "scope": "abroad / total / 全部",
+      "date_field": "分单日期",
+      "limitation": "总计排除 SSC；线上含虚拟人，独立来源缺覆盖不补零。"
+    },
+    {
+      "id": "abroad_cash",
+      "title": "留学及小语种现金",
+      "authority_view": "mart.team_metrics",
+      "evidence_view": "core.abroad_facts_attributed",
+      "scope": "abroad / total / 全部",
+      "date_field": "留学归档日期 / 小语种业务日期",
+      "limitation": "仅纳入正向签约或实缴；保留按来源表的业务组口径。"
+    },
+    {
+      "id": "abroad_heads",
+      "title": "留学及小语种签约人头",
+      "authority_view": "mart.team_metrics",
+      "evidence_view": "core.abroad_heads_attributed",
+      "scope": "abroad / total / 全部",
+      "date_field": "留学归档日期 / 小语种业务日期",
+      "limitation": "线上、线下和总计独立去重；留学客户和小语种学员分列。"
+    },
+    {
+      "id": "official_scorecard",
+      "title": "官方留学记分卡",
+      "authority_view": "mart.study_abroad_summary",
+      "evidence_view": "ref.official_scorecard",
+      "scope": "仅原文件明确的期间、范围、维度和指标",
+      "date_field": "记分卡期间起止日",
+      "limitation": "仅对齐范围、覆盖和统计口径后可比，无对齐证据时不计算差值。"
+    },
+    {
+      "id": "channel_dimension",
+      "title": "渠道、学校及业务组",
+      "authority_view": "mart.dimension_metrics",
+      "evidence_view": "core.training_channel_orders_attributed",
+      "scope": "显式选择期间、管理单元、获取范围、维度",
+      "date_field": "对应经营工单日期或现金业务日期",
+      "limitation": "子组人头不能相加替代父值。"
+    }
+  ]
+}

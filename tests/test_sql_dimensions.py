@@ -83,7 +83,11 @@ class DimensionSqlTests(unittest.TestCase):
                 ('selection_1', None, None, None, 1),
             ],
         )
-        self.con.execute("CREATE TABLE source.training_rows (_input_order BIGINT, metric VARCHAR, work_order_id VARCHAR, source_row_number VARCHAR)")
+        self.con.execute("""CREATE TABLE source.training_rows (
+            _input_order BIGINT, metric VARCHAR, work_order_id VARCHAR, source_row_number VARCHAR,
+            event_date VARCHAR, business_group VARCHAR, first_channel VARCHAR,
+            second_channel VARCHAR, acquisition_mode VARCHAR)""")
+        self.con.execute("CREATE TABLE business.training_facts (fact_id VARCHAR, metric VARCHAR)")
         self._team_metrics()
         self._targets()
         self._events()
@@ -135,7 +139,7 @@ class DimensionSqlTests(unittest.TestCase):
         segment=None, country=None, country_line=None, day='2026-06-10', scope='被动',
     ):
         ordinal = self.con.execute("SELECT COUNT(*) + 1 FROM source.training_rows").fetchone()[0]
-        self.con.execute("INSERT INTO source.training_rows VALUES (?, 'passive_reported_cash', NULL, ?)", [ordinal, str(ordinal)])
+        self.con.execute("INSERT INTO source.training_rows (_input_order, metric, work_order_id, source_row_number) VALUES (?, 'passive_reported_cash', NULL, ?)", [ordinal, str(ordinal)])
         self.con.execute(
             """INSERT INTO business.period_events VALUES (
                 '2026-06', ?, ?, ?, ?, CAST(? AS DATE), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
@@ -399,6 +403,65 @@ class DimensionSqlTests(unittest.TestCase):
             SELECT DISTINCT metric FROM business.dimension_metrics WHERE dimension_type='grade'
         """).fetchall()
         self.assertEqual({row[0] for row in grade_metrics}, {'orders', 'cash'})
+
+    def test_university_channel_order_evidence_reconciles_scopes_and_periods(self):
+        for first, second, amount, scope, comparison, day in (
+            ('市场活动', '异业渠道', 1, '被动', 'actual', '2026-06-15'),
+            ('市场活动', '异业渠道', 2, '主动', 'actual', '2026-06-16'),
+            ('市场活动', '异业渠道', 3, '被动', 'prior', '2025-06-15'),
+            ('市场活动', '校代', 4, '被动', 'actual', '2026-06-17'),
+        ):
+            self._event(unit='university', metric='orders', value=amount,
+                        business_group='大学', comparison_group='大学', first=first, second=second,
+                        scope=scope, comparison=comparison, day=day)
+        evidence = self.con.execute("""
+            SELECT fact_id, value, included, reason FROM core.training_channel_orders_attributed
+            WHERE period_id='2026-06' AND acquisition_scope='被动' AND comparison='actual'
+              AND first_channel='市场活动' AND second_channel='异业渠道'
+        """).fetchall()
+        self.assertEqual(len(evidence), 1)
+        self.assertTrue(evidence[0][0])
+        self.assertEqual(evidence[0][1:], (1.0, True, 'included_in_channel_orders'))
+        actual, prior = self.con.execute("""
+            SELECT actual,prior FROM business.dimension_query(['2026-06'],['university'],['被动'],['channel'])
+            WHERE business_line='training' AND metric='orders'
+              AND first_channel='市场活动' AND dim1='异业渠道'
+        """).fetchone()
+        sums = self.con.execute("""
+            SELECT sum(value) FILTER (WHERE comparison='actual'),sum(value) FILTER (WHERE comparison='prior')
+            FROM core.training_channel_orders_attributed
+            WHERE period_id='2026-06' AND acquisition_scope='被动'
+              AND first_channel='市场活动' AND second_channel='异业渠道'
+        """).fetchone()
+        self.assertEqual((actual, prior), sums)
+
+    def test_channel_head_evidence_preserves_dimension_qualification(self):
+        rows = self.con.execute("""
+            SELECT student_id, class_code, class_amount, included, reason
+            FROM core.dimension_heads_attributed
+            WHERE period_id='2026-06' AND unit_id='total' AND acquisition_scope='被动'
+              AND comparison='actual' AND first_channel='市场活动' AND second_channel='校代'
+        """).fetchall()
+        self.assertIn(('S3', 'C1', 1499.0, False, 'below_1500_threshold'), rows)
+        self.assertIn(('S4', 'C1', 2500.0, False, 'no_positive_registration'), rows)
+        evidence_count = len({row[0] for row in rows if row[3]})
+        actual = self.con.execute("""
+            SELECT actual FROM business.dimension_query(['2026-06'],['total'],['被动'],['channel'])
+            WHERE business_line='training' AND metric='heads' AND first_channel='市场活动' AND dim1='校代'
+        """).fetchone()[0]
+        self.assertEqual(actual, evidence_count)
+        self.assertEqual(actual, 2)
+
+    def test_university_source_exclusions_report_only_proven_absence(self):
+        self.con.execute("""INSERT INTO source.training_rows VALUES
+          (101,'work_orders','kept','201','2026-06-15','大学','市场活动','异业渠道','被动'),
+          (102,'work_orders','not-kept','202','2026-06-15','大学','市场活动','异业渠道','被动'),
+          (103,'work_orders','outside','203','2026-06-15','高中','市场活动','异业渠道','被动')""")
+        self.con.execute("INSERT INTO business.training_facts VALUES ('training:order:kept','orders')")
+        result = self.con.execute("""SELECT source_row_number, fact_id, included, reason
+          FROM core.training_channel_source_exclusions""").fetchall()
+        self.assertEqual(result, [('202', 'training:order:not-kept', False,
+                                   'not_retained_in_normalized_business_facts')])
 
     def test_parameterized_dimension_query_filters_before_returning_rows(self):
         rows = self.con.execute("""

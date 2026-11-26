@@ -68,6 +68,9 @@ def _build_release(
         connection.execute("CREATE TABLE meta.identity(batch_id VARCHAR)")
         connection.execute("INSERT INTO meta.identity VALUES (?)", [identity_batch])
         connection.execute("CREATE TABLE meta.imports(source VARCHAR, snapshot_id VARCHAR, relation VARCHAR, row_count BIGINT, seconds DOUBLE)")
+        connection.execute("CREATE SCHEMA core; CREATE SCHEMA mart")
+        connection.execute("CREATE VIEW core.training_orders_attributed AS SELECT 1 AS fixture_id")
+        connection.execute("CREATE VIEW mart.team_metrics AS SELECT 1 AS fixture_id")
         for source, snapshot_id, relation in imports:
             definition, rows = definitions[relation]
             connection.execute(f'CREATE TABLE landing."{relation}" ({definition})')
@@ -87,7 +90,8 @@ def _build_release(
         "through_date": "2026-11-05",
         "snapshots": SNAPSHOTS,
         "database": database_ref,
-        "schemas": ["landing", "meta", "business"],
+        "schemas": ["landing", "meta", "business", "core", "mart"],
+        "semantic_relations": ["core.training_orders_attributed", "mart.team_metrics"],
         "query_relations": ["team_metrics"],
         "source_queries": [
             {
@@ -367,3 +371,53 @@ def test_dashboard_query_and_csv_use_the_same_published_rows(tmp_path: Path) -> 
     assert csv["csv_text"].splitlines()[-1] == '"FY27","heads","2","training","total","被动"'
     with pytest.raises(QueryError, match="Unsupported dashboard filter"):
         worker.read_dashboard_data("team_metrics", RELEASE, {"unknown": "FY27"})
+
+
+def test_semantic_release_reads_only_registered_qualified_relations(tmp_path):
+    release_root, _ = _build_release(tmp_path)
+    allowed = {"core.training_orders_attributed", "mart.team_metrics"}
+    def query(sql, output):
+        return execute_query_bundle(
+            release_root=release_root, expected_release=RELEASE, expected_batch_id=BATCH,
+            domain="semantic", sql=sql, output_dir=tmp_path / output,
+            allowed_relations=allowed, max_rows=3,
+        )
+    result = query("SELECT a.fixture_id FROM core.training_orders_attributed a "
+                   "JOIN mart.team_metrics m USING(fixture_id)", "semantic")
+    assert result["referenced_relations"] == sorted(allowed)
+    assert result["snapshot_ref"]["release"] == RELEASE
+    assert Path(result["rows_path"]).read_text() == "[1]\n"
+    with pytest.raises(QueryError, match="registered semantic"):
+        query(f"SELECT * FROM landing.{TRAINING_WORK_ORDERS}", "raw_not_allowed")
+    with pytest.raises(QueryError, match="catalog-qualified"):
+        query("SELECT * FROM warehouse.mart.team_metrics", "catalog_not_allowed")
+
+
+def test_oxhor_semantic_binds_current_sealed_release_and_writes_evidence(tmp_path, monkeypatch):
+    from market_workspace.tools import data
+
+    source, market = tmp_path / 'source', tmp_path / 'market'
+    state = source / 'Output/ShadowDaily'
+    release_root, _ = _build_release(state)
+    release = resolve_sql_release(release_root)
+    (state / 'sql-current.json').write_text(json.dumps({
+        'schema_version': 'sql_daily_current.v1', 'release': RELEASE, 'batch_id': BATCH,
+        'local_release_root': str(release_root), 'release_manifest_sha256': release.release_manifest_sha256,
+        'warehouse_sha256': release.database_sha256,
+    }))
+    market.mkdir()
+    sql = market / 'query.sql'
+    sql.write_text('SELECT fixture_id FROM core.training_orders_attributed')
+    monkeypatch.setattr(data, 'SOURCE', source)
+    monkeypatch.setattr(data, 'MARKET', market)
+    args = data.parser().parse_args(['query', '--release-id', RELEASE, '--run-id', 'run_semantic_test',
+                                    '--sql-file', str(sql)])
+    code, receipt = data.execute(args)
+    assert code == 0 and receipt['release_id'] == RELEASE
+    assert receipt['result']['referenced_relations'] == ['core.training_orders_attributed']
+    run = market / 'Evidence/run_semantic_test'
+    assert json.loads((run / 'receipt.json').read_text()) == receipt
+    assert (run / receipt['files']['rows']['path']).read_text() == '[1]\n'
+    args.release_id = 'not-current'
+    with pytest.raises(ValueError, match='版本已变化'):
+        data.execute(args)

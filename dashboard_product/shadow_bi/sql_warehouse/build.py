@@ -102,7 +102,9 @@ def build_local(*,workspace,output_dir,batch_id,training_snapshot,abroad_snapsho
     """Create a new isolated candidate. This function cannot publish or deliver."""
     import duckdb
     from data_platform.query.evidence import file_ref,resolve_file
-    from .foundation import import_foundation
+    from data_platform.sql_release_query import SEMANTIC_RELATIONS
+    from .foundation import TABLES, import_foundation
+    from .scorecard import install_scorecard
     from .cache import refresh_fact_cache,reorder_fact_cache
     from .source_order import install_training_source_order
     from .metrics import install_metrics
@@ -124,7 +126,8 @@ def build_local(*,workspace,output_dir,batch_id,training_snapshot,abroad_snapsho
     if output_dir.is_relative_to(workspace):raise ValueError('候选输出必须与输入工作区隔离')
     output_dir.mkdir(parents=True,exist_ok=False)
     fee_manifest=Path(advertising_manifest).resolve() if advertising_manifest is not None else workspace/'Input/AdvertisingCosts/sources.json'
-    inputs=[workspace/'Work/workspace.json',workspace/'Work/StudyAbroad/current.json',
+    scorecard_path=workspace/'Input/Reference/留学板块-官方记分卡.json'
+    inputs=[scorecard_path,workspace/'Work/workspace.json',workspace/'Work/StudyAbroad/current.json',
         workspace/'Work/Bridge/reference.json',
         workspace/'Input/Reference/留学-FY26-资源表.xlsx']
     history_path=workspace/'Input/Reference/人员产能'/HISTORY_FILENAME
@@ -147,6 +150,9 @@ def build_local(*,workspace,output_dir,batch_id,training_snapshot,abroad_snapsho
         t=time.perf_counter()
         source_queries=import_foundation(con,workspace=workspace,training_snapshot=training_snapshot,
             abroad_snapshot=abroad_snapshot,run_id=batch_id,output_root=output_dir/'source-evidence')
+        con.execute('CREATE SCHEMA raw')
+        for table in (*TABLES['training'], *TABLES['abroad']):
+            con.execute(f'CREATE VIEW raw.{quote(table)} AS SELECT * FROM landing.{quote(table)}')
         timings['base_import_seconds']=time.perf_counter()-t
         t=time.perf_counter()
         meta=install_source_views(con,config_root=root,as_of_date=as_of_date)
@@ -163,6 +169,8 @@ def build_local(*,workspace,output_dir,batch_id,training_snapshot,abroad_snapsho
         abroad_pointer=json.loads((workspace/'Work/StudyAbroad/current.json').read_text())
         abroad_through=min(abroad_pointer['through_date'],(date.fromisoformat(as_of_date)-timedelta(days=1)).isoformat())
         install_metrics(con,through=meta['through'],abroad_start='2026-06-01',abroad_through=abroad_through,config_root=root)
+        scorecard=install_scorecard(con, scorecard_path, warehouse_coverage_start='2026-06-01',
+                                    warehouse_coverage_end=abroad_through)
         install_personal(con,config_root=root)
         history=load_history(workspace/'Input/Reference/人员产能'/HISTORY_FILENAME)
         install_contribution(con,history=history)
@@ -200,6 +208,9 @@ def build_local(*,workspace,output_dir,batch_id,training_snapshot,abroad_snapsho
         con.execute('CREATE TABLE meta.identity (batch_id VARCHAR)');con.execute('INSERT INTO meta.identity VALUES (?)',[batch_id])
         relations=records(con,"SELECT table_schema,table_name,table_type FROM information_schema.tables WHERE table_catalog <> 'temp' AND table_schema NOT IN ('information_schema','pg_catalog') ORDER BY 1,2")
         query_relations=[r['table_name'] for r in relations if r['table_schema']=='business' and not r['table_name'].startswith('_')]
+        semantic_relations=sorted({r['table_schema']+'.'+r['table_name'] for r in relations} & SEMANTIC_RELATIONS)
+        if set(semantic_relations) != SEMANTIC_RELATIONS:
+            raise ValueError('封存仓语义关系缺失：'+','.join(sorted(SEMANTIC_RELATIONS-set(semantic_relations))))
         counts=records(con,'SELECT business_line,is_business_fact,is_personal_fact,count(*) AS rows FROM business.fact_cache GROUP BY ALL')
         con.execute('CHECKPOINT')
     if any(hashlib.sha256(Path(p).read_bytes()).hexdigest()!=h for p,h in fingerprints.items()):
@@ -216,7 +227,7 @@ def build_local(*,workspace,output_dir,batch_id,training_snapshot,abroad_snapsho
         'input_binding':fingerprints,'source_queries':source_queries,'relations':relations,
         'source_order_receipts':marker_source_order['source_order_receipts'],'marker_source_order':marker_source_order,
         'query_relations':query_relations,'schemas':sorted({r['table_schema'] for r in relations}),
-        'query_macros':['dimension_query'],
+        'query_macros':['dimension_query'], 'semantic_relations':semantic_relations, 'official_scorecard':scorecard,
         'fact_counts':counts,'expenses':expenses,'timings':timings,
         'expense_baseline':{'candidate':file_ref(baseline_dir/'candidate.json',baseline_dir,'application/json'),
             'database':baseline_manifest['database']} if baseline_manifest else None,

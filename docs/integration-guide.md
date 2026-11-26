@@ -1,8 +1,14 @@
-> **当前日更代码入口（2026-11-03）**：Mac `data_acquisition.jobs.prepare_full_daily --publish` 执行业务基础发布→立即通知→广告费用采集与发布；默认模式（含 `--prepare`）仅生成隔离候选。腾讯文档导出唯一使用官方 MCP，旧 Cookie 下载器已退役。11/3回执记录云端代码同步与次日 bi-3本机09:30执行计划，不是实时调度核验。服务器raw路径仍inactive；10/26暂停与失败批次为历史事实。
+> **现行日更入口** `ops run business` 与原调度兼容命令 `prepare_full_daily --publish` 使用同一业务链。费用另行录入，见[本地运维手册](operator-runbook.md)。
 
 # 核心 CLI 接入指南
 
 > 正式 BI 为 Superset 原生界面。11/3回执确认云端 P4／通知代码已同步；服务器 raw 接收/计算/发布 path 仍 inactive。10/26 raw worker运行至39张表后因截止不符以 `failed/published=false` 结束，Mac `p5.daily` 更新记录也属于当日历史。现行 Mac 日更见下方 `prepare_full_daily --publish`，不是旧 `p5.daily` 命令。详见[部署说明](../dashboard_product/DEPLOYMENT.md)。
+
+## 封存经营语义查询
+
+市场工作区先运行 `./oxhor status` 读取 `semantic_release.release_id`，再用 `./oxhor query --release-id <发布版本> --run-id <唯一ID> --sql-file <市场工作区内SQL>` 显式绑定封存发布。可查询的 `mart.*`、`core.*` 和记分卡引用见[经营指标索引](metrics-reference.md)。结果包含源 Snapshot 身份、封存库指纹及可回读的行级结果。任意 SQL 只允许访问已登记的语义关系。
+
+原始对账走 `./oxhor query --layer raw --snapshot-id <当前Snapshot>` 加相同运行参数。已有显式传入 `--snapshot-id` 的调度继续按原受控原始查询执行。官方记分卡以原件哈希随 SQL release 封存，来源 Snapshot 不变。可比性未确认时保留官方和数仓各自覆盖，差额为空。
 
 ## 1. 当前公开入口
 

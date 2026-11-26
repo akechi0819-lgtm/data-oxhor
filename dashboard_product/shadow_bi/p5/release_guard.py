@@ -6,6 +6,7 @@ from pathlib import Path
 import duckdb
 
 from dashboard_product.shadow_bi.sql_warehouse.foundation import TABLES
+from dashboard_product.shadow_bi.sql_warehouse.metrics import TRAINING_HEAD_CASH_MINIMUM
 from dashboard_product.shadow_bi.sql_warehouse.relations import quote
 from data_acquisition.jobs.bi_window_merge import rolling_start_date
 
@@ -28,7 +29,7 @@ WITH facts AS (
 ), qualified_training AS (
     SELECT student_id FROM facts
     WHERE business_line='training' AND metric='cash' AND nullif(trim(student_id),'') IS NOT NULL
-    GROUP BY student_id,class_code HAVING abs(sum(value))>=1500 AND bool_or(registration_count>0)
+    GROUP BY student_id,class_code HAVING abs(sum(value))>=? AND bool_or(registration_count>0)
 ), heads AS (
     SELECT 'training' AS name, count(DISTINCT student_id) AS heads FROM qualified_training
     UNION ALL SELECT customer_domain, count(DISTINCT student_id)
@@ -55,7 +56,7 @@ def _warehouse_values(database: Path, start: date, through: date) -> tuple[dict,
                 f"SELECT count(*), count(*) FILTER (WHERE {day} BETWEEN ? AND ?) "
                 f"FROM landing.{quote(table)}", [start, through]
             ).fetchone()
-        metrics = {row[0]: row[1:] for row in connection.execute(_METRICS, [through]).fetchall()}
+        metrics = {row[0]: row[1:] for row in connection.execute(_METRICS, [through, TRAINING_HEAD_CASH_MINIMUM]).fetchall()}
     return rows, metrics
 
 

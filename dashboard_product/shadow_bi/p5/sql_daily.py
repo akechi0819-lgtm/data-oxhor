@@ -419,7 +419,7 @@ def publish(*, workspace: str | Path, day: str, pair: dict, run_id: str,
 
     # 日常数据更新沿用已验收目录；经重新验收的产品改动可显式更新该封口合同。
     accepted_catalogue_sha = migration["catalogue_sha256"]
-    release_out = attempt / "release-output"
+    release_out = attempt / "releases"
     acceptance = {
         "mode": "runtime_contract",
         "migration_acceptance": {
@@ -553,6 +553,8 @@ cd /srv/shadow-bi/code
         "release": release_id,
         "batch_id": run_id,
         "candidate": str(candidate_dir.resolve()),
+        "local_release_root": str(library.parent),
+        "release_manifest_sha256": sha256_file(library / "release.json"),
         "coverage": release_manifest["coverage"],
         "warehouse_sha256": candidate["database"]["sha256"],
         "migration_acceptance": str(Path(pointer["migration_acceptance"]).resolve()),

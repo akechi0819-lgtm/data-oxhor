@@ -79,26 +79,91 @@ JOIN business.scoped_facts f ON
 WHERE (f.business_line='training' OR w.comparison='actual')
  AND (f.business_line<>'abroad' OR CAST(f.event_date AS DATE) BETWEEN c.abroad_start AND c.abroad_through);
 
+-- Evidence is qualified at the same period and scope as the resulting measure.
+CREATE OR REPLACE VIEW core.training_orders_attributed AS
+SELECT *, TRUE AS included, NULL::VARCHAR AS exclude_reason,
+ acquisition_mode='被动' AS is_passive
+FROM business.period_events WHERE business_line='training' AND metric='orders';
+
+CREATE OR REPLACE VIEW core.training_cash_attributed AS
+SELECT *, TRUE AS included, NULL::VARCHAR AS exclude_reason,
+ acquisition_mode='被动' AS is_passive
+FROM business.period_events WHERE business_line='training' AND metric='cash';
+
+CREATE OR REPLACE VIEW core.training_heads_attributed AS
+WITH class_evidence AS (
+ SELECT period_id,unit_id,acquisition_scope,comparison,student_id,class_code,
+  sum(value) AS class_cash, bool_or(registration_count>0) AS registered
+ FROM core.training_cash_attributed
+ WHERE nullif(trim(student_id),'') IS NOT NULL
+ GROUP BY ALL
+), candidates AS (
+ SELECT f.*, c.class_cash,c.registered,
+  CASE WHEN nullif(trim(f.student_id),'') IS NULL THEN 'missing_student'
+       WHEN NOT core.head_cash_meets_threshold(c.class_cash) THEN 'below_threshold'
+       WHEN c.registered IS DISTINCT FROM TRUE THEN 'no_registration' END AS qualification_reason
+ FROM core.training_cash_attributed f LEFT JOIN class_evidence c
+ ON f.period_id=c.period_id AND f.unit_id=c.unit_id AND f.acquisition_scope=c.acquisition_scope
+ AND f.comparison=c.comparison AND f.student_id=c.student_id AND f.class_code IS NOT DISTINCT FROM c.class_code
+), ranked AS (
+ SELECT *,row_number() OVER (PARTITION BY period_id,unit_id,acquisition_scope,comparison,student_id,
+   (qualification_reason IS NULL) ORDER BY fact_id,class_code NULLS LAST) AS head_rank
+ FROM candidates
+)
+SELECT * EXCLUDE(included,exclude_reason),
+ qualification_reason IS NULL AND head_rank=1 AS included,
+ CASE WHEN qualification_reason IS NOT NULL THEN qualification_reason
+      WHEN head_rank>1 THEN 'duplicate_student' END AS exclude_reason
+FROM ranked;
+
+-- Keep excluded SSC records visible for total, without changing existing scopes.
+CREATE OR REPLACE VIEW core.abroad_facts_attributed AS
+WITH ssc_excluded AS (
+ SELECT p.period_id,p.kind,p.status,p.time_progress,'total' AS unit_id,a.acquisition_scope,f.*,
+  'actual' AS comparison,greatest(p.start_date,c.abroad_start) AS covered_start,
+  least(p.through_date,c.abroad_through) AS covered_through
+ FROM business.periods p CROSS JOIN config.clock c CROSS JOIN business.acquisition_scopes a
+ JOIN business.facts f ON f.business_line='abroad' AND f.segment_id='ssc'
+ AND CAST(f.event_date AS DATE) BETWEEN p.start_date AND p.through_date
+ AND CAST(f.event_date AS DATE) BETWEEN c.abroad_start AND c.abroad_through
+), scoped AS (
+ SELECT *,TRUE AS included,NULL::VARCHAR AS exclude_reason FROM business.period_events WHERE business_line='abroad'
+ UNION ALL BY NAME SELECT *,FALSE AS included,'ssc_excluded_from_total' AS exclude_reason FROM ssc_excluded
+)
+SELECT * FROM scoped;
+
+CREATE OR REPLACE VIEW core.abroad_heads_attributed AS
+WITH ranked AS (
+ SELECT *, row_number() OVER (PARTITION BY period_id,unit_id,acquisition_scope,comparison,customer_domain,student_id,
+    (included AND value>0 AND nullif(trim(student_id),'') IS NOT NULL) ORDER BY fact_id) AS head_rank
+ FROM core.abroad_facts_attributed WHERE metric='cash'
+)
+SELECT * EXCLUDE(included,exclude_reason),
+ included AND value>0 AND nullif(trim(student_id),'') IS NOT NULL AND head_rank=1 AS included,
+ CASE WHEN NOT included THEN exclude_reason WHEN value IS NULL OR value<=0 THEN 'nonpositive_cash'
+      WHEN nullif(trim(student_id),'') IS NULL THEN 'missing_student'
+      WHEN head_rank>1 THEN 'duplicate_student' END AS exclude_reason
+FROM ranked;
+
 CREATE OR REPLACE VIEW business.team_values AS
 WITH sums AS (
  SELECT period_id,unit_id,acquisition_scope,business_line,comparison,
   sum(value) FILTER(WHERE metric='orders') AS orders,
   round(sum(value) FILTER(WHERE metric='cash'),2) AS cash
- FROM business.period_events GROUP BY ALL
-), training_classes AS (
- SELECT period_id,unit_id,acquisition_scope,business_line,comparison,student_id,class_code
- FROM business.period_events WHERE business_line='training' AND metric='cash' AND nullif(trim(student_id),'') IS NOT NULL
- GROUP BY ALL HAVING abs(sum(value))>=1500 AND bool_or(registration_count>0)
+ FROM (SELECT * EXCLUDE(included,exclude_reason,is_passive) FROM core.training_orders_attributed WHERE included
+       UNION ALL BY NAME SELECT * EXCLUDE(included,exclude_reason,is_passive) FROM core.training_cash_attributed WHERE included
+       UNION ALL BY NAME SELECT * EXCLUDE(included,exclude_reason) FROM core.abroad_facts_attributed WHERE included)
+ GROUP BY ALL
 ), training_heads AS (
- SELECT period_id,unit_id,acquisition_scope,business_line,comparison,count(DISTINCT student_id) AS heads
- FROM training_classes GROUP BY ALL
+ SELECT period_id,unit_id,acquisition_scope,business_line,comparison,count(*) AS heads
+ FROM core.training_heads_attributed WHERE included GROUP BY ALL
 ), abroad_heads AS (
  SELECT period_id,unit_id,acquisition_scope,business_line,comparison,
   CASE WHEN count(DISTINCT CASE WHEN customer_domain IN ('study_abroad','small_language') THEN customer_domain END)>1
    THEN NULL ELSE count(DISTINCT student_id) END AS heads,
   count(DISTINCT CASE WHEN customer_domain='study_abroad' THEN student_id END) AS study_heads,
   count(DISTINCT CASE WHEN customer_domain='small_language' THEN student_id END) AS language_heads
- FROM business.period_events WHERE business_line='abroad' AND metric='cash' AND value>0 AND nullif(trim(student_id),'') IS NOT NULL
+ FROM core.abroad_heads_attributed WHERE included
  GROUP BY ALL
 ), keys AS (
  SELECT p.period_id,s.unit_id,a.acquisition_scope,l.business_line,w.comparison
@@ -185,3 +250,5 @@ SELECT period_id,unit_id,acquisition_scope,business_line,comparison,
  sum(value) FILTER(WHERE metric='orders') AS orders,
  round(sum(value) FILTER(WHERE metric='cash'),2) AS cash
 FROM business.period_events GROUP BY ALL;
+
+CREATE OR REPLACE VIEW mart.team_metrics AS SELECT * FROM business.team_metrics;

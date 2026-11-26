@@ -1,3 +1,6 @@
+CREATE SCHEMA IF NOT EXISTS core;
+CREATE SCHEMA IF NOT EXISTS mart;
+
 -- SQL-native replacement for management.breakdowns. Facts stay in the
 -- period_events relation; this file only creates result views.
 -- Preserve the existing source traversal when reproducing Python sum's
@@ -281,7 +284,7 @@ training_head_classes AS (
     WHERE business_line = 'training' AND metric = 'cash' AND student_id IS NOT NULL
     GROUP BY period_id, unit_id, acquisition_scope, business_line,
         dimension_type, dim1, dim2, dim3, first_channel, comparison, student_id, class_code
-    HAVING ABS(SUM(COALESCE(value, 0))) >= 1500
+    HAVING core.head_cash_meets_threshold(SUM(COALESCE(value, 0)))
        AND BOOL_OR(COALESCE(registration_count, 0) > 0)
 ),
 training_head_values AS (
@@ -708,3 +711,76 @@ SELECT period_id, unit_id, acquisition_scope, line,
     SUM(total)::DOUBLE AS total
 FROM business.dimension_countries
 GROUP BY period_id, unit_id, acquisition_scope, line;
+
+-- One row per order fact already selected by the same period, unit and
+-- acquisition scope as dimension_query.  The channel labels deliberately
+-- match its channel branch so summing value reproduces that result.
+CREATE OR REPLACE VIEW core.training_channel_orders_attributed AS
+SELECT e.fact_id, e.period_id, e.unit_id, e.acquisition_scope,
+    e.comparison, CAST(e.event_date AS DATE) AS event_date,
+    'orders' AS metric, 'channel' AS dimension_type,
+    COALESCE(NULLIF(TRIM(CAST(e.first_channel AS VARCHAR)), ''), '一级渠道待确认') AS first_channel,
+    COALESCE(NULLIF(TRIM(CAST(e.second_channel AS VARCHAR)), ''), '二级渠道待确认') AS second_channel,
+    TRY_CAST(e.value AS DOUBLE) AS value,
+    TRUE AS included, 'included_in_channel_orders' AS reason
+FROM business.period_events e
+WHERE e.unit_id = 'university' AND e.business_line = 'training' AND e.metric = 'orders';
+
+-- Channel head qualification intentionally uses the dimension query's DOUBLE
+-- conversion and channel-specific class grouping, not team-wide qualification.
+CREATE OR REPLACE VIEW core.dimension_heads_attributed AS
+WITH channel_cash AS (
+    SELECT e.fact_id, e.period_id, e.unit_id, e.acquisition_scope, e.business_line, e.comparison,
+        CAST(e.event_date AS DATE) AS event_date,
+        COALESCE(NULLIF(TRIM(CAST(e.first_channel AS VARCHAR)), ''), '一级渠道待确认') AS first_channel,
+        COALESCE(NULLIF(TRIM(CAST(e.second_channel AS VARCHAR)), ''), '二级渠道待确认') AS second_channel,
+        NULLIF(TRIM(CAST(e.student_id AS VARCHAR)), '') AS student_id,
+        NULLIF(TRIM(CAST(e.class_code AS VARCHAR)), '') AS class_code,
+        TRY_CAST(e.value AS DOUBLE) AS value,
+        TRY_CAST(e.registration_count AS DOUBLE) AS registration_count
+    FROM business.period_events e WHERE e.business_line = 'training' AND e.metric = 'cash'
+), class_evidence AS (
+    SELECT period_id, unit_id, acquisition_scope, business_line, comparison,
+        first_channel, second_channel, student_id, class_code,
+        SUM(COALESCE(value, 0)) AS class_amount,
+        BOOL_OR(COALESCE(registration_count, 0) > 0) AS has_registration
+    FROM channel_cash WHERE student_id IS NOT NULL
+    GROUP BY ALL
+)
+SELECT e.*, 'heads' AS metric, 'channel' AS dimension_type, c.class_amount, c.has_registration,
+    COALESCE(core.head_cash_meets_threshold(c.class_amount) AND c.has_registration, FALSE) AS included,
+    CASE WHEN e.student_id IS NULL THEN 'missing_student_id'
+         WHEN NOT core.head_cash_meets_threshold(c.class_amount) THEN 'below_1500_threshold'
+         WHEN NOT c.has_registration THEN 'no_positive_registration'
+         ELSE 'qualified_class' END AS reason
+FROM channel_cash e LEFT JOIN class_evidence c
+    ON e.period_id=c.period_id AND e.unit_id=c.unit_id
+    AND e.acquisition_scope=c.acquisition_scope AND e.business_line=c.business_line
+    AND e.comparison=c.comparison AND e.first_channel=c.first_channel
+    AND e.second_channel=c.second_channel AND e.student_id=c.student_id
+    AND e.class_code IS NOT DISTINCT FROM c.class_code;
+
+-- The controlled training input has already applied its own date, acquisition,
+-- identity and duplicate filters. These are only input orders that do not
+-- survive the subsequent normalization into any business fact; the precise
+-- normalization predicate and final university attribution are not inferred.
+CREATE OR REPLACE VIEW core.training_channel_source_exclusions AS
+SELECT r._input_order AS source_input_order,
+    r.source_row_number, NULLIF(TRIM(CAST(r.work_order_id AS VARCHAR)), '') AS work_order_id,
+    CASE WHEN NULLIF(TRIM(CAST(r.work_order_id AS VARCHAR)), '') IS NOT NULL
+         THEN 'training:order:' || TRIM(CAST(r.work_order_id AS VARCHAR)) END AS fact_id,
+    TRY_CAST(r.event_date AS DATE) AS event_date,
+    r.business_group AS source_business_group,
+    r.first_channel AS source_first_channel, r.second_channel AS source_second_channel,
+    r.acquisition_mode AS source_acquisition_mode,
+    FALSE AS included, 'not_retained_in_normalized_business_facts' AS reason
+FROM source.training_rows r
+WHERE TRIM(CAST(r.metric AS VARCHAR)) = 'work_orders'
+  AND TRIM(CAST(r.business_group AS VARCHAR)) = '大学'
+  AND NOT EXISTS (
+      SELECT 1 FROM business.training_facts f
+      WHERE f.metric = 'orders'
+        AND f.fact_id = 'training:order:' || NULLIF(TRIM(CAST(r.work_order_id AS VARCHAR)), '')
+  );
+
+CREATE OR REPLACE VIEW mart.dimension_metrics AS SELECT * FROM business.dimension_metrics;

@@ -37,6 +37,15 @@ PUBLIC_RELATIONS: dict[str, str] = {
     "landing.study_abroad_market__contracts": "study",
     "landing.study_abroad_market__languages": "study",
 }
+SEMANTIC_RELATIONS = frozenset({
+    "core.training_orders_attributed", "core.training_cash_attributed",
+    "core.training_heads_attributed", "core.abroad_facts_attributed",
+    "core.abroad_heads_attributed", "core.abroad_excluded_source",
+    "core.training_channel_orders_attributed", "core.dimension_heads_attributed",
+    "core.training_channel_source_exclusions",
+    "mart.team_metrics", "mart.dimension_metrics", "mart.study_abroad_summary",
+    "ref.official_scorecard",
+})
 DOMAIN_IMPORT_SOURCE = {"training": "training", "study": "abroad"}
 DOMAIN_SNAPSHOT_KEY = {"training": "training", "study": "abroad"}
 
@@ -422,8 +431,11 @@ def execute_query_bundle(
     allowed_relations: set[str] | frozenset[str],
     max_result_bytes: int = 128 * 1024 * 1024,
     dashboard_dataset: str | None = None,
+    max_rows: int | None = None,
 ) -> dict[str, Any]:
     """Execute one SQL release query and stream the full bounded result to JSONL."""
+    if max_rows is not None and (type(max_rows) is not int or max_rows < 1):
+        raise QueryError("QUERY_LIMIT_INVALID", "max_rows must be positive")
     if max_result_bytes < 1:
         raise QueryError("QUERY_LIMIT_INVALID", "max_result_bytes must be positive")
     release = resolve_sql_release(release_root)
@@ -439,6 +451,13 @@ def execute_query_bundle(
         if source_domain == domain
     }
     schema = "landing"
+    semantic = domain == "semantic"
+    if semantic:
+        advertised = release.candidate.get("semantic_relations")
+        if not isinstance(advertised, list) or not advertised or any(
+                not isinstance(relation, str) or relation not in SEMANTIC_RELATIONS for relation in advertised):
+            raise QueryError("TABLE_NOT_FOUND", "Semantic relations are unavailable in this sealed release")
+        expected_allowed = set(advertised)
     if dashboard_dataset is not None:
         from .dashboard_results import DATASETS
         if (domain != "dashboard" or dashboard_dataset not in DATASETS
@@ -446,7 +465,7 @@ def execute_query_bundle(
             raise QueryError("TABLE_NOT_FOUND", "Dashboard dataset is unavailable in this release")
         schema = "business"
         expected_allowed = {dashboard_dataset}
-    elif domain not in DOMAIN_SNAPSHOT_KEY:
+    elif not semantic and domain not in DOMAIN_SNAPSHOT_KEY:
         raise QueryError("QUERY_REJECTED", "Unknown query domain")
     if set(allowed_relations) != expected_allowed:
         raise QueryError("QUERY_REJECTED", "Query relation is outside the requested scope")
@@ -462,14 +481,21 @@ def execute_query_bundle(
             "temp_directory": str(temporary),
             "max_temp_directory_size": "256MB",
         }) as connection:
-            _validate_business_query_ast(
+            referenced = _validate_business_query_ast(
                 connection,
                 sql,
                 allowed_relations=expected_allowed,
                 allowed_schema=schema,
+                allowed_qualified=frozenset(expected_allowed) if semantic else None,
             )
-            validate_query(connection, sql, parameters, allowed_schemas={schema} if dashboard_dataset is None else set(release.candidate["schemas"]))
-            if dashboard_dataset is None:
+            validate_query(connection, sql, parameters, allowed_schemas=(
+                set(release.candidate["schemas"]) if semantic or dashboard_dataset is not None else {schema}))
+            if semantic:
+                if not referenced:
+                    raise QueryError("QUERY_REJECTED", "A semantic query must reference a registered relation")
+                referenced_relations = sorted(referenced)
+                referenced_source_ids = []
+            elif dashboard_dataset is None:
                 referenced_relations, referenced_source_ids = _query_source_provenance(
                     connection, sql, release, expected_allowed
                 )
@@ -495,6 +521,8 @@ def execute_query_bundle(
                             raise QueryError("QUERY_RESULT_TOO_LARGE", "query result exceeds the configured byte limit")
                         rows_file.write(line)
                         row_count += 1
+                        if max_rows is not None and row_count > max_rows:
+                            raise QueryError("QUERY_RESULT_TOO_LARGE", "query result exceeds the configured row limit")
         shutil.rmtree(temporary, ignore_errors=True)
         return {
             "columns": columns,

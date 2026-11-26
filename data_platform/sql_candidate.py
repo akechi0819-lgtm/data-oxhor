@@ -8,7 +8,7 @@ from data_platform.query.service import (_connect,validate_query,_validate_busin
 
 
 def query_candidate(*, candidate, batch_id, sql, run_id, output_root, parameters=None,
-                    max_rows=10000,max_result_bytes=20_000_000):
+                    max_rows=10000,max_result_bytes=20_000_000,semantic=False):
     candidate,output_root=Path(candidate).resolve(),Path(output_root).resolve()
     manifest_path=candidate/'candidate.json'
     manifest=json.loads(manifest_path.read_bytes())
@@ -21,8 +21,15 @@ def query_candidate(*, candidate, batch_id, sql, run_id, output_root, parameters
     with _connect(database) as con:
         if con.execute('SELECT batch_id FROM meta.identity').fetchall()!=[(batch_id,)]:
             raise QueryError('CANDIDATE_IDENTITY_INVALID','库内批次不匹配')
+        semantic_allowed=None
+        if semantic:
+            from data_platform.sql_release_query import SEMANTIC_RELATIONS
+            semantic_allowed=frozenset(manifest.get('semantic_relations', []))
+            if not semantic_allowed or not semantic_allowed <= SEMANTIC_RELATIONS:
+                raise QueryError('QUERY_REJECTED','候选语义关系不在只读范围')
         _validate_business_query_ast(con,sql,allowed_relations=set(manifest['query_relations']),
-            allowed_schema='business',allowed_table_macros=set(manifest.get('query_macros', [])))
+            allowed_schema='business',allowed_table_macros=() if semantic else set(manifest.get('query_macros', [])),
+            allowed_qualified=semantic_allowed)
         validate_query(con,sql,parameters,allowed_schemas=set(manifest['schemas']))
         cur=con.execute(sql,parameters)
         columns=[c[0] for c in cur.description];rows=cur.fetchmany(max_rows+1)

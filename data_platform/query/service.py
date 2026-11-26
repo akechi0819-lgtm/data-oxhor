@@ -197,8 +197,9 @@ def _validate_business_query_ast(
     allowed_relations: set[str] | frozenset[str],
     allowed_schema: str = "landing",
     allowed_table_macros: set[str] | frozenset[str] = frozenset(),
-) -> None:
-    """Allow SQL over registered landing tables without DuckDB's dynamic sources."""
+    allowed_qualified: frozenset[str] | None = None,
+) -> set[str]:
+    """Validate registered relations and identify the explicitly referenced tables."""
     try:
         statement = json.loads(connection.execute("SELECT json_serialize_sql(?)", [sql]).fetchone()[0])
     except (duckdb.Error, TypeError, ValueError) as exc:
@@ -222,7 +223,9 @@ def _validate_business_query_ast(
                 collect_ctes(child)
 
     collect_ctes(statement)
-    allowed = {name.casefold() for name in allowed_relations}
+    allowed = (allowed_qualified if allowed_qualified is not None
+               else {f'{allowed_schema.casefold()}.{name.casefold()}' for name in allowed_relations})
+    referenced = set()
 
     def inspect(value: Any) -> None:
         if isinstance(value, dict):
@@ -242,8 +245,11 @@ def _validate_business_query_ast(
                     raise QueryError("QUERY_REJECTED", "catalog-qualified tables are not available")
                 if not schema and str(table).casefold() in cte_names:
                     pass
-                elif schema.casefold() != allowed_schema.casefold() or table.casefold() not in allowed:
-                    raise QueryError("QUERY_REJECTED", "query may read only registered " + allowed_schema + " tables")
+                elif (qualified := f'{schema.casefold()}.{table.casefold()}') in allowed:
+                    referenced.add(qualified)
+                else:
+                    label = 'semantic' if allowed_qualified is not None else allowed_schema
+                    raise QueryError("QUERY_REJECTED", "query may read only registered " + label + " tables")
             if node_class == "FUNCTION":
                 name = str(value.get("function_name", "")).casefold()
                 if (name in _BUSINESS_DENIED_FUNCTIONS or name.startswith(("duckdb_", "pg_", "pragma_", "read_"))):
@@ -259,6 +265,7 @@ def _validate_business_query_ast(
                 inspect(child)
 
     inspect(statement)
+    return referenced
 
 
 def _business_csv_cell(value: Any) -> str:

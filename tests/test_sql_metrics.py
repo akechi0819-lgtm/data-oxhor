@@ -143,6 +143,47 @@ class SqlMetricTests(unittest.TestCase):
               AND acquisition_scope='全部' AND comparison='actual'
         """).fetchone()[0], 200)
 
+    def test_attribution_preserves_scoped_heads_and_abroad_exclusions(self):
+        training = [fact('a', 1400), fact('b', 200, team_id='offline_market'),
+                    fact('c', 500, student_id='S2')]
+        abroad = [fact('a-negative', -10, business_line='abroad', segment_id='study_abroad_online',
+                       student_id='A', customer_domain='study_abroad'),
+                  fact('z-positive', 100, business_line='abroad', segment_id='study_abroad_virtual',
+                       student_id='A', customer_domain='study_abroad'),
+                  fact('ssc', 25, business_line='abroad', segment_id='ssc',
+                       student_id='B', customer_domain='study_abroad')]
+        c = self.connect(training, abroad)
+        heads = c.execute("""SELECT fact_id,included,exclude_reason FROM core.training_heads_attributed
+          WHERE period_id='2026-06' AND unit_id='total' AND acquisition_scope='全部' AND comparison='actual'
+          ORDER BY fact_id""").fetchall()
+        self.assertEqual(heads, [('a', True, None), ('b', False, 'duplicate_student'),
+                                 ('c', False, 'below_threshold')])
+        reasons = dict(c.execute("""SELECT fact_id,exclude_reason FROM core.abroad_heads_attributed
+          WHERE period_id='2026-06' AND unit_id='total' AND acquisition_scope='全部' AND comparison='actual'""").fetchall())
+        self.assertEqual(reasons, {'a-negative': 'nonpositive_cash', 'z-positive': None,
+                                   'ssc': 'ssc_excluded_from_total'})
+        actual = c.execute("""SELECT study_heads FROM business.team_values WHERE period_id='2026-06'
+          AND unit_id='total' AND acquisition_scope='全部' AND business_line='abroad' AND comparison='actual'""").fetchone()[0]
+        self.assertEqual(actual, 1)
+        self.assertEqual(c.execute("SELECT * FROM mart.team_metrics EXCEPT ALL SELECT * FROM business.team_metrics").fetchall(), [])
+
+    def test_abroad_source_exclusions_are_available_when_enrichment_exists(self):
+        c = duckdb.connect(); self.addCleanup(c.close)
+        load_rows(c, 'business', 'training_facts', [], columns=TYPES)
+        load_rows(c, 'business', 'training_personnel_facts', [], columns=TYPES)
+        load_rows(c, 'business', 'abroad_facts', [], columns=TYPES)
+        c.execute("""CREATE VIEW business._abroad_enriched AS
+          SELECT 'id-1' AS fact_id, DATE '2026-06-01' AS event_date,
+          'ssc' AS final_segment, 'study_abroad' AS business_line,
+          -50::DECIMAL(38,2) AS gross_signing_amount, TRUE AS positive_signature,
+          2::BIGINT AS origin_row_number, 'sha' AS origin_sha256,
+          'sheet' AS origin_sheet, 'file' AS origin_filename,
+          FALSE AS is_resource, NULL::DECIMAL(38,2) AS fact_value""")
+        install_metrics(c, through='2026-11-05', abroad_start='2026-06-01',
+                        abroad_through='2026-11-05', config_root=ROOT)
+        self.assertEqual(c.execute("SELECT fact_id,source_amount,included,exclude_reason FROM core.abroad_excluded_source").fetchall(),
+                         [('abroad-source:id-1', -50, False, 'nonpositive_signing_amount')])
+
     def test_personal_performance_month_and_calendar_month_are_different(self):
         c=self.connect([fact('a',1,metric='orders',event_date='2026-05-26',team_id='offline_market',business_group='高中',owners=['刘彬'])])
         install_personal(c,config_root=ROOT)

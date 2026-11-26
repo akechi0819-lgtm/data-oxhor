@@ -1,6 +1,9 @@
+<!-- 由 config/metrics.yaml 生成，使用 ops render-rules 更新。 -->
+
 # 看板现行业务口径
 
-本资料是 Business Data MCP 的业务口径摘要，随 SQL 日更 release 封存。汇总规则由看板计算代码和本摘要共同维护。Company Bridge 记录确认后的来源字段、归因和映射。实际数值及可用维度以同批正式看板结果为准。
+本资料是 Business Data MCP 的业务口径摘要，随 SQL 日更 release 封存。汇总规则由看板 SQL 与同批指标注册表共同核验。Company Bridge 记录确认后的来源字段、归因和映射。实际数值及可用维度以同批正式看板结果为准。
+
 
 ## 未指定范围的经营导出
 
@@ -41,3 +44,18 @@ team_metrics 未指定业务线、组织单元或获取范围时，分别默认 
 经营工单按观远八类原始团队及主被动字段筛选，保留删除和回收状态，再按工单 ID 去重。现金主被动取现金原行的渠道属性。经营人头须保留零金额报名行，同一学员同一班级内至少有一行报名人次大于零。team_metrics 的 prior 是上年同期：将所选期间开始日和实际截止日分别向前推一年形成的区间；语培的当期和上年同期各自计算，留学及未来期间的 prior 为 null。同比为当期除以上年同期减一，上年同期为零时留空。个人绩效月从上月 26 日至本月 25 日，自然月按日历月，均以实际数据截止日为限。
 
 留学和小语种同时有人头时，按各自系统分列人数。团队经营人数状态 separate_counts 对应 team_values 的 study_heads 和 language_heads；不得跨客户系统相加去重。经营目标、费用覆盖和同比等状态随结果导出，缺失和部分覆盖须在回答中保留。
+
+## 指标与证据关系
+
+下列明细证据关系通过本地封存仓入口查询。远程 Business Data MCP 继续使用现有数据集与受控工具。
+
+| 指标 | 经营汇总关系 | 明细证据关系 | 默认范围 | 日期 | 限制 |
+| --- | --- | --- | --- | --- | --- |
+| 语培工单 | mart.team_metrics | core.training_orders_attributed | training / total / 被动，全部新老生 | 分配时间 | 按范围内工单 ID 去重；异业渠道可查 core.training_channel_orders_attributed。 |
+| 语培现金 | mart.team_metrics | core.training_cash_attributed | training / total / 被动，全部新老生 | 业务日期 | 保留正、零和负向现金，按筛选范围汇总。 |
+| 语培经营人头 | mart.team_metrics | core.training_heads_attributed | training / total / 被动，全部新老生 | 业务日期 | 按期间、范围、班级资格计算，按学员去重；渠道维度证据另见 core.dimension_heads_attributed。 |
+| 留学及小语种资源 | mart.team_metrics | core.abroad_facts_attributed | abroad / total / 全部 | 分单日期 | 总计排除 SSC；线上含虚拟人，独立来源缺覆盖不补零。 |
+| 留学及小语种现金 | mart.team_metrics | core.abroad_facts_attributed | abroad / total / 全部 | 留学归档日期 / 小语种业务日期 | 仅纳入正向签约或实缴；保留按来源表的业务组口径。 |
+| 留学及小语种签约人头 | mart.team_metrics | core.abroad_heads_attributed | abroad / total / 全部 | 留学归档日期 / 小语种业务日期 | 线上、线下和总计独立去重；留学客户和小语种学员分列。 |
+| 官方留学记分卡 | mart.study_abroad_summary | ref.official_scorecard | 仅原文件明确的期间、范围、维度和指标 | 记分卡期间起止日 | 仅对齐范围、覆盖和统计口径后可比，无对齐证据时不计算差值。 |
+| 渠道、学校及业务组 | mart.dimension_metrics | core.training_channel_orders_attributed | 显式选择期间、管理单元、获取范围、维度 | 对应经营工单日期或现金业务日期 | 子组人头不能相加替代父值。 |

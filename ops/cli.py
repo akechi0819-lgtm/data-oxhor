@@ -31,6 +31,8 @@ def _parser():
     parser.add_argument('--workspace', type=Path, default=ROOT / 'customers/shadow_bi_daily')
     parser.add_argument('--runtime', type=Path, default=Path(os.environ.get('COWH_OPS_RUNTIME', ROOT / 'runtime')))
     commands = parser.add_subparsers(dest='command', required=True)
+    rules = commands.add_parser('render-rules')
+    rules.add_argument('--check', action='store_true')
     status = commands.add_parser('status')
     status.add_argument('--day', type=_day, default=_today())
     run = commands.add_parser('run')
@@ -86,6 +88,10 @@ def main(argv=None):
     args = _parser().parse_args(argv)
     workspace, runtime = args.workspace.resolve(), args.runtime.resolve()
     try:
+        if args.command == 'render-rules':
+            from .render_rules import render
+            render(ROOT, check=args.check)
+            return 0
         if args.command == 'status':
             _selected_status(runtime, args.day)
             return 0

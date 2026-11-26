@@ -166,7 +166,8 @@ def publish_costs(workspace, runtime, *, costs, on_stage, config_root=None):
     state = workspace / 'Output/ShadowDaily'
     with daily.production_lock(state):
         ssh, ssh_env = daily.ssh_config(workspace / '.private')
-        verification = runtime / 'costs' / ('preflight-' + uuid4().hex)
+        run_id = 'run_shadow_fee_' + uuid4().hex
+        verification = state / run_id
         verification.mkdir(parents=True)
         current = sql_daily.verify_current_pointer(
             workspace=workspace, ssh=ssh, ssh_env=ssh_env,
@@ -183,7 +184,6 @@ def publish_costs(workspace, runtime, *, costs, on_stage, config_root=None):
         if (pair['sources']['bi']['snapshot_id'] != baseline['snapshots']['training']
                 or pair['sources']['study_abroad']['snapshot_id'] != baseline['snapshots']['abroad']):
             raise ValueError('fee publication business snapshot mismatch')
-        run_id = 'run_shadow_fee_' + uuid4().hex
         release_id = daily._release_id(business_day, run_id, datetime.now(business_first_daily.SHANGHAI).strftime('%H%M%S%f'))
         result = sql_daily.publish(
             workspace=workspace, day=business_day, pair=pair, run_id=run_id,
