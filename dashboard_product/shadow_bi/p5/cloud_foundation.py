@@ -58,6 +58,7 @@ def prepare_remote_business(*, workspace, day, pair, run_id, release_id, attempt
                             current_state, advertising_manifest, code_dir=_CODE,
                             migration_override=None, comparison_contract=None):
     """Send SQL build rules and changes to landing, never a database or Snapshot."""
+    from business_data_mcp.build_context import build_bundle
     from dashboard_product.shadow_bi.sql_warehouse.build import prepare_sealed_build_inputs
 
     if advertising_manifest is not None and json.loads(Path(advertising_manifest).read_text()) != {'sources':[]}:
@@ -76,7 +77,7 @@ def prepare_remote_business(*, workspace, day, pair, run_id, release_id, attempt
     rules = {name:base64.b64encode((inputs/name).read_bytes()).decode('ascii')
              for name in ('build-inputs.json','scorecard.json','empty-fees.json')}
     request = {'release':release_id,'batch':run_id,'as_of':day,'old':pointer['release'],
-               'snapshots':snapshots,'build_inputs':rules,
+               'snapshots':snapshots,'build_inputs':rules,'business_context':build_bundle(workspace=Path(workspace)),
                'coverage':pointer['coverage'],'previous_warehouse_sha256':pointer['warehouse_sha256'],
                'catalogue_sha256':migration['catalogue_sha256'],'contract_sha256':contract_sha}
     if snapshots != baseline['snapshots']:
@@ -188,6 +189,9 @@ def build_on_server(release_id):
                 row['amount'] = Decimal(row['amount'])
         candidate = build_cost_candidate(baseline_dir=old_library,output_dir=candidate_dir,costs=costs,batch_id=batch)
     else:
+        landing['business_context'] = request['business_context']
+        if 'delta' not in request and landing['business_context']['manifest']['source_sha256']['bridge']!=landing['semantics']['Work/Bridge/reference.json']:
+            raise ValueError('直接重算的已批准 Bridge 与云端封存版本不符')
         inputs = job/'build-inputs'
         inputs.mkdir()
         rules = request['build_inputs']
