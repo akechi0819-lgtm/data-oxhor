@@ -1,4 +1,4 @@
-> 历史存档：原路径 `dashboard_product/docs/AUTH_BOOKLETS_HANDOFF.md`，于 2026-09-18 目录整理时归档。以下状态、命令、版本与凭据配置描述仅代表记录当时，不是当前操作入口。当前项目状态见 [DEVELOPMENT.md](../../../DEVELOPMENT.md)；看板现行操作见 [DEPLOYMENT.md](../../../dashboard_product/DEPLOYMENT.md)。
+> 历史存档：原路径 `dashboard_product/docs/AUTH_BOOKLETS_HANDOFF.md`，于 2026-09-18 目录整理时归档。以下状态、命令、版本与凭据配置描述仅代表记录当时，不是当前操作入口。当前项目状态见 [DEVELOPMENT.md](../../archive/DEVELOPMENT-history-202611.md)；看板现行操作见 [DEPLOYMENT.md](../../../dashboard_product/DEPLOYMENT.md)。
 
 > **已过时（2026-09-07 后）**：业务组分册 `liuxue/gaozhong/daxue` 已下线。当前按团队板块裁剪，合同见 [`AUTH_TEAM_BOOKLETS_HANDOFF.md`](AUTH_TEAM_BOOKLETS_HANDOFF.md)，运行见 [`AUTH_TEAM_BOOKLETS_RUN.md`](AUTH_TEAM_BOOKLETS_RUN.md)。下文只保留当时拍板记录，不再作为日更口径。
 

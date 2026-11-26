@@ -1,0 +1,4 @@
+interface:
+  display_name: "新媒体双周报"
+  short_description: "整合经营看板和素材反馈，按业务条线分析投产、素材表现与下周计划"
+  default_prompt: "使用 $biweekly-report 制作本期新媒体双周报，按条线分析投放与素材效果。"

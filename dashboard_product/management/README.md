@@ -4,7 +4,7 @@
 
 ## 历史链路（2026-10-26）
 
-当时的 `calculation.calculate` 经受控查询构建共同结果，再由 `shadow_bi.library` 封存 39 张表。raw 链路当日暂停，记录见[清理与暂停回执](../../docs/server-cleanup-20261026.md)。现行 SQL 日更流程见上方部署说明。
+当时的 `calculation.calculate` 经受控查询构建共同结果，再由 `shadow_bi.library` 封存 39 张表。raw 链路当日暂停，记录见[清理与暂停回执](../../docs/archive/server-cleanup-20261026.md)。现行 SQL 日更流程见上方部署说明。
 
 `online_team/build.py` 当前只有共享期间、指标、归属与查询helpers，没有旧页面生成器；`refresh.py` 的归属及历史对照算法仍被共同计算直接调用，不是旧站恢复入口。`validation.py` 校验聚合模型身份及隐私字段边界，不生成HTML。删除展示代码不改变业务公式。
 
@@ -25,4 +25,4 @@
 
 ## 验证与维护
 
-规则回归位于 `tests/` 和本目录 `tests/`；全量入口为 `sh tools/run_tests.sh`。原生BI类型库、权限、通知与失败恢复使用各自现有测试；旧静态渲染/打包/发布测试随删除代码一并移除，不保留只检查文件不存在的占位测试。清理清单及结果见 [旧静态退出记录](../../docs/retire-static-dashboard-20261026.md)。
+规则回归位于 `tests/` 和本目录 `tests/`；全量入口为 `sh tools/run_tests.sh`。原生BI类型库、权限、通知与失败恢复使用各自现有测试；旧静态渲染/打包/发布测试随删除代码一并移除，不保留只检查文件不存在的占位测试。清理清单及结果见 [旧静态退出记录](../../docs/archive/retire-static-dashboard-20261026.md)。

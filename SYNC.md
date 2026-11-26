@@ -29,15 +29,15 @@ Mac 仍按原 bi-3 来源和日程运行；worktree 中的 `p5.daily` 新路径�
 
 ## 历史：云端基础仓与看板 SQL（日更切换于 2026-11-05）
 
-以下为此前的双仓／Python 39 表日更历史，不是当前 SQL 候选状态。11 月 4 日双仓批次曾在 BI 服务器重算并发布；语培与留学工单、签约／现金使用云端基础 Snapshot，费用作为单批表格快照。原 09:30 入口继续采集和校验来源。完整历史见[原日更说明](docs/shadow-bi-full-daily-20261028.md)，该说明本轮未修改。
+以下为此前的双仓／Python 39 表日更历史，不是当前 SQL 候选状态。11 月 4 日双仓批次曾在 BI 服务器重算并发布；语培与留学工单、签约／现金使用云端基础 Snapshot，费用作为单批表格快照。原 09:30 入口继续采集和校验来源。完整历史见[原日更说明](docs/archive/shadow-bi-full-daily-20261028.md)，该说明本轮未修改。
 
 > **2026-11-03云端日更代码已对齐**：按明确A层清单同步正式`/srv/shadow-bi/code`，127源文件逐项SHA一致（更新47）；固定通知入口的`/srv/shadow-bi-notify/current`也已切至`bi3-20261103-3fea1baf8401393a`，同127文件一致。新工单源、腾讯竞价＋品牌v2非空自动采集入仓、MCP及总入口均已安装；两个现行目录的旧Cookie downloader已删除。云端正式目录及实际通知身份各通过17品牌＋21原生费用入仓检查。bi-3仍由Mac上海09:30启动，来源私有合同与登录态留在Mac，服务器用新进程执行P4与通知。未重采/发版/发消息/改日程/恢复raw；业务current、DeliveryState、crontab不变。真实回执见`.local/audits/tencent-brand-cloud-code-20261103/completion.md`；下方早期未同步状态均为历史。
 
 > **2026-10-28本地收口**：main唯一正式BI数据工作区为 `customers/shadow_bi_daily`。旧仓、c373客户数据镜像、废弃计算成品及已验收10月12日B层传输副本已核销；原始输入保留。旧outbox残留的hash/manifest只作历史记录，不能把残缺批次重新当作可发送封存包。未同步Grok/服务器、未刷新、未改外部日程；以下同步回执保留各日期事实。
 
-> **10月26日后续记录**：[清理回执](docs/server-cleanup-20261026.md)记载raw路径已暂停，保留Mac命令更新及原成品/通知接口；已部署的服务器数仓和聚合能力仍保留。下方更早摘要记录施工时点，本轮未实读服务器或修改调度。
+> **10月26日后续记录**：[清理回执](docs/archive/server-cleanup-20261026.md)记载raw路径已暂停，保留Mac命令更新及原成品/通知接口；已部署的服务器数仓和聚合能力仍保留。下方更早摘要记录施工时点，本轮未实读服务器或修改调度。
 
-> **2026-10-26 日期回执摘要（非实时调度核验）**：正式 BI 产品为 Superset 原生界面。服务器 raw receiver、root 只读历史基线、受限双 Snapshot / quality / 共享计算 worker 和固定 publisher 已部署；真实 Dot 批次完成双 Snapshot、两份 quality 查询并实际运行到39张业务表，最终因业务截止不匹配以 `failed/published=false` 结束，没有发布 raw release。Mac `p5.daily` 是仍存在的手动入口，日期回执记录它更新了 `daily-20261026_094052`（数据截至10-25）；这项生产记录不代表长期默认路径。有效新 raw 包正式发布、持续日更和唯一生产者收口仍待分别验收，本轮未实读服务器或调度平台。服务器通知适配已部署，10-26 人工触发8条消息为 sent；相应HTTP job仍为 `unknown`，只读对账关联到此前发送。Dot每日上海10:00的建立记录是通知日程，与BI采集／刷新分开；Grok例行按用户要求停止。详见[部署说明](dashboard_product/DEPLOYMENT.md)、[通知回执](docs/notification-job-receipt-repair-20261026.md)、[接收回执](docs/server-raw-receiver-deployment-20261026.md)和[固定发布回执](docs/server-raw-fixed-publisher-20261026.md)。
+> **2026-10-26 日期回执摘要（非实时调度核验）**：正式 BI 产品为 Superset 原生界面。服务器 raw receiver、root 只读历史基线、受限双 Snapshot / quality / 共享计算 worker 和固定 publisher 已部署；真实 Dot 批次完成双 Snapshot、两份 quality 查询并实际运行到39张业务表，最终因业务截止不匹配以 `failed/published=false` 结束，没有发布 raw release。Mac `p5.daily` 是仍存在的手动入口，日期回执记录它更新了 `daily-20261026_094052`（数据截至10-25）；这项生产记录不代表长期默认路径。有效新 raw 包正式发布、持续日更和唯一生产者收口仍待分别验收，本轮未实读服务器或调度平台。服务器通知适配已部署，10-26 人工触发8条消息为 sent；相应HTTP job仍为 `unknown`，只读对账关联到此前发送。Dot每日上海10:00的建立记录是通知日程，与BI采集／刷新分开；Grok例行按用户要求停止。详见[部署说明](dashboard_product/DEPLOYMENT.md)、[通知回执](docs/archive/notification-job-receipt-repair-20261026.md)、[接收回执](docs/archive/server-raw-receiver-deployment-20261026.md)和[固定发布回执](docs/archive/server-raw-fixed-publisher-20261026.md)。
 
 # Data OXHor 同步边界
 
@@ -51,7 +51,7 @@ Mac 仍按原 bi-3 来源和日程运行；worktree 中的 `p5.daily` 新路径�
 
 用户已明确授权：三个看板改造统一清理、Git提交，并将本机完整当前BI／留学Snapshot及配套输入同步到既有Grok工作区。当前BI为 `snapshot_bi_operations_20261012_full_orders_1640`，留学为 `snapshot_study_abroad_20261012_local_1138`；本次传完整当前仓的历史数据，不仅增量工单。A源码、B客户数据分包，不传C凭据、不提交客户数据到Git。旧日期段落描述各轮当时状态，不限制本轮明确授权。
 
-ROI仅由用户手工提供费用表后更新；本机与Grok同模式。费用清单使用客户目录内相对路径与SHA。美国云端的BI Cookie注入是当地适配，本机仍沿用弹窗登录下载；五份云端专用源码回传备查，A包明确不覆盖。今天本机已发8条消息，本次仅安装与构建验收，不补发或自动激活公网，也不变原例行时刻／启停、软链或凭据。同步过程与当前回执状态见[统一清理与同步](docs/dashboard-unified-cleanup-20261012.md)。
+ROI仅由用户手工提供费用表后更新；本机与Grok同模式。费用清单使用客户目录内相对路径与SHA。美国云端的BI Cookie注入是当地适配，本机仍沿用弹窗登录下载；五份云端专用源码回传备查，A包明确不覆盖。今天本机已发8条消息，本次仅安装与构建验收，不补发或自动激活公网，也不变原例行时刻／启停、软链或凭据。同步过程与当前回执状态见[统一清理与同步](docs/archive/dashboard-unified-cleanup-20261012.md)。
 
 本轮v2同步已于2026-10-12 23:41验收：Git源码`aabe6fcb`，A包53份文件／73目标逐项摘要一致；B包81文件，79文件逐字节一致，两个指针仅并集保留两端`used_snapshot_ids`，回传原文已在本机独立核验。完整当前BI／留学仓指针及已有仓核验配对均通过门禁；云端`run_management_unified_portable_20261012`数据截至10月11日，17期间、人员、活动及线上期间四项业务摘要与本机全同。208项／77子测试、8条空跑及18文件组包通过。五份云端Cookie适配摘要未变；生产batch、DeliveryState、凭据与例行未动，本轮未重抓、未补发、未公网激活。B包超过CopyToBox 100MiB限制，按既有通道拆为四个40MB块、合并后核验原包SHA，通过同一目的地完成传输。回执在`.local/sync/inbox/dashboard-unified-20261012/`，根独立核验在`.local/audits/dashboard-unified-20261012/cloud_sync_verification.json`。
 
@@ -71,15 +71,15 @@ ROI仅由用户手工提供费用表后更新；本机与Grok同模式。费用�
 
 固定A包`market-order-boundary-20261012-A.tar.gz`仅五份源码/合成测试，用户另明确同意传输及安装。包SHA-256 `b8eace69e437dacda12bff05642115e46347f70494c64afe731131e266d4586e`。首轮预检两份基线摘要不符停止，回传文件与本机修复前HEAD逐字节相同；本机审查后仅修订云端解包manifest两处预检基线，原压缩包、五份源码和安装脚本字节不变，不放宽检查。随后云端`INSTALLED_OK`，5目标摘要与本机当前源码一致、9项测试通过，原共用软链保留。实际import及日更脚本加载新版build，SQL留学顾问第三参数来自既有确认配置。
 
-包与清单在`.local/sync/outbox/market-order-boundary-20261012-A/`；真实回执、原件差异、基线审查及测试日志在`.local/sync/inbox/market-order-boundary-20261012/`，独立核对在`.local/audits/market-training-boundary-20261012/cloud-sync-verification.json`。本次源码同步未抓数、改客户Snapshot/联合回执、修改Cookie/例行、云端发版或发通知。业务差异与本机激活证据见[工单边界与同期对账](docs/dashboard-order-boundary-audit-20261012.md)。
+包与清单在`.local/sync/outbox/market-order-boundary-20261012-A/`；真实回执、原件差异、基线审查及测试日志在`.local/sync/inbox/market-order-boundary-20261012/`，独立核对在`.local/audits/market-training-boundary-20261012/cloud-sync-verification.json`。本次源码同步未抓数、改客户Snapshot/联合回执、修改Cookie/例行、云端发版或发通知。业务差异与本机激活证据见[工单边界与同期对账](docs/archive/dashboard-order-boundary-audit-20261012.md)。
 
 ## 2026-10-12线下分配与团队筛选源码安装
 
-随后用户授权一次本机完整运行：本机 `run_daily_sources_local_20261012_1138` 两仓与当天门禁passed，`run_management_local_20261012_1138` 18文件已正式激活（截至10月11日），8条／5通道通知全部sent。此为本机来源和实际现网发布，不代表下述Grok失败配对已恢复；没有上传整个数仓、写入云端指针或修改例行。恢复Grok后如处理本日批次，先对照本机已经发送的8条回执，不重复补发。真实运行见[本机正式运行](docs/local-production-run-20261012.md)。
+随后用户授权一次本机完整运行：本机 `run_daily_sources_local_20261012_1138` 两仓与当天门禁passed，`run_management_local_20261012_1138` 18文件已正式激活（截至10月11日），8条／5通道通知全部sent。此为本机来源和实际现网发布，不代表下述Grok失败配对已恢复；没有上传整个数仓、写入云端指针或修改例行。恢复Grok后如处理本日批次，先对照本机已经发送的8条回执，不重复补发。真实运行见[本机正式运行](docs/archive/local-production-run-20261012.md)。
 
 用户明确授权后，固定A层包 `market-allocation-20261012-A.tar.gz` 已通过既有本机执行／CopyToBox安装到Grok。包摘要 `1d1c9d21ce14eed89369de6576acb63d435e6ac543afb95234b924af28b1a28c`，17份唯一文件／21安装目标与清单逐项匹配，基线无未知差异，现有共享软链保留；云端管理／监控145项及8子测试通过。回执在 `.local/sync/inbox/market-allocation-20261012/receipt.json`，本机独立摘要核对在 `.local/audits/market-allocation-20261012/cloud_sync_verification.json`。
 
-安装完成不代表新版已上线：当天 `run_daily_sources_20261012_094030` 整体failed，BI扫码登录待本人处理，留学单源成功不准入。生产batch仍为 `run_management_20261011_095118`（截至10月10日）；本次未重建、预览新批次、组包、激活或发送，未改原例行、群、凭据与去重状态。新个人分配、未分配签约附件及全部／线上／线下筛选须在当天双仓passed后重建同批结果才能生效，不以本机10月8日封存数据覆盖现网。业务与回归见[修正证据](docs/dashboard-allocation-regression-20261012.md)。
+安装完成不代表新版已上线：当天 `run_daily_sources_20261012_094030` 整体failed，BI扫码登录待本人处理，留学单源成功不准入。生产batch仍为 `run_management_20261011_095118`（截至10月10日）；本次未重建、预览新批次、组包、激活或发送，未改原例行、群、凭据与去重状态。新个人分配、未分配签约附件及全部／线上／线下筛选须在当天双仓passed后重建同批结果才能生效，不以本机10月8日封存数据覆盖现网。业务与回归见[修正证据](docs/archive/dashboard-allocation-regression-20261012.md)。
 
 ## 2026-10-09早期留学与人员同步阶段（已被下方腾讯版本取代）
 

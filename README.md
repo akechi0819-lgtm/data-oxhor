@@ -43,10 +43,10 @@ grok_workspace/      Grok Bot 隔离工作面，角色与自主积累材料不�
 
 其他场景根据任务选择一个独立 Agent：
 
-- [工作区初始化 Agent](./agents/workspace_setup/AGENT.md)：首次部署、导入数据、发布 Snapshot、对齐 Bridge。
-- [自由分析 Agent](./agents/ad_hoc_analysis/AGENT.md)：当前 Snapshot 上的业务查询、诊断、下钻和按需交付。
-- [看板发布 Agent](./agents/dashboard_publisher/AGENT.md)：运行已确认的固定 SQL、构建同批管理结果并更新原生 BI；当前入口与切换状态见 [部署说明](./dashboard_product/DEPLOYMENT.md)。
-- [日常监控 Agent](./agents/daily_monitor/AGENT.md)：管理批次消息预览与钉钉投递；运行模块为 `monitoring_product/`，消费看板生成的共同结果。
+- [工作区初始化 Agent](.agents/skills/daily-ops/SKILL.md)：首次部署、导入数据、发布 Snapshot、对齐 Bridge。
+- [自由分析 Agent](.agents/skills/biz-analysis/SKILL.md)：当前 Snapshot 上的业务查询、诊断、下钻和按需交付。
+- [看板发布 Agent](.agents/skills/daily-ops/SKILL.md)：运行已确认的固定 SQL、构建同批管理结果并更新原生 BI；当前入口与切换状态见 [部署说明](./dashboard_product/DEPLOYMENT.md)。
+- [日常监控 Agent](.agents/skills/daily-ops/SKILL.md)：管理批次消息预览与钉钉投递；运行模块为 `monitoring_product/`，消费看板生成的共同结果。
 
 这些文件是模块使用说明和启动提示，不是项目内的 Agent Loop。宿主仍负责会话、模型、权限和文件交付。
 
@@ -61,7 +61,7 @@ grok_workspace/      Grok Bot 隔离工作面，角色与自主积累材料不�
 
 ## 阶段状态
 
-2026-09-18 架构阶段的查询证据、自由分析交付和 Casebook 验证已完成，历史记录见[施工计划与验收](./docs/history/agent-architecture-plan-20260918.md)。正式 BI 产品为 Superset 原生界面。2026-11-07 的验收记录了 SQL 单仓切换、旧 raw 计算/传输通道清理及业务→通知→费用的发布顺序；bi-3 调度状态没有在此处实时核验。10/26 Dot raw 批次因业务截止不符而 `failed/published=false`、未产生正式 release，是历史批次事实。运行顺序与已知来源缺口见[日更记录](./docs/shadow-bi-full-daily-20261028.md)、[SQL 迁移记录](./docs/shadow-bi-sql-local-migration.md)，部署和通知边界见[看板部署说明](./dashboard_product/DEPLOYMENT.md)与[日常监控](./monitoring_product/README.md)。
+2026-09-18 架构阶段的查询证据、自由分析交付和 Casebook 验证已完成，历史记录见[施工计划与验收](./docs/history/agent-architecture-plan-20260918.md)。正式 BI 产品为 Superset 原生界面。2026-11-07 的验收记录了 SQL 单仓切换、旧 raw 计算/传输通道清理及业务→通知→费用的发布顺序；bi-3 调度状态没有在此处实时核验。10/26 Dot raw 批次因业务截止不符而 `failed/published=false`、未产生正式 release，是历史批次事实。运行顺序与已知来源缺口见[日更记录](docs/archive/shadow-bi-full-daily-20261028.md)、[SQL 迁移记录](./docs/shadow-bi-sql-local-migration.md)，部署和通知边界见[看板部署说明](./dashboard_product/DEPLOYMENT.md)与[日常监控](./monitoring_product/README.md)。
 
 ## 常用入口
 

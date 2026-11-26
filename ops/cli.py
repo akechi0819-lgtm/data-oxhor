@@ -31,6 +31,10 @@ def _parser():
     parser.add_argument('--workspace', type=Path, default=ROOT / 'customers/shadow_bi_daily')
     parser.add_argument('--runtime', type=Path, default=Path(os.environ.get('COWH_OPS_RUNTIME', ROOT / 'runtime')))
     commands = parser.add_subparsers(dest='command', required=True)
+    sheets = commands.add_parser('sync-sheets')
+    sheets.add_argument('--job', choices=('all', 'content', 'dianping', 'grade9'), default='all')
+    sheets.add_argument('--day', type=_day, default=_today())
+    sheets.add_argument('--snapshot-id')
     rules = commands.add_parser('render-rules')
     rules.add_argument('--check', action='store_true')
     status = commands.add_parser('status')
@@ -77,8 +81,18 @@ def _selected_status(runtime: Path, day: str):
     print(f'钉钉 {outcome.get("message_status_counts", outcome.get("status", "尚无核验记录"))} '
           f'{outcome.get("reason", "")}'.rstrip())
     print(f'费用 {pointer("ad_costs")}')
-    print(f'腾讯表 投流 {content.get("status") or pointer("sync_content")} '
-          f'{content.get("error", "")}　点评 {pointer("sync_dianping")}　初三 {pointer("sync_grade9")}')
+    def sheet_status(name, fallback=None):
+        recent = next((row for row in reversed(snapshot['runs']) if row['pipeline'] == 'sync_' + name), None)
+        if recent:
+            result = json.loads(recent['summary_json']) if recent['summary_json'] else {}
+            status = result.get('status', recent['status'])
+            details = [result.get('reason', ''), *result.get('missing_headers', [])]
+            return ' '.join([status, *(detail for detail in details if detail)])
+        if fallback and fallback.get('status'):
+            return ' '.join(filter(None, (fallback['status'], fallback.get('error', ''))))
+        return pointer('sync_' + name)
+
+    print(f'腾讯表 投流 {sheet_status("content", content)}　点评 {sheet_status("dianping")}　初三 {sheet_status("grade9")}')
     active = [row for row in snapshot['runs'] if row['status'] in ('running', 'interrupted')]
     for row in active:
         print(f'{row["pipeline"]} {row["status"]} {row["run_id"]}')
@@ -98,6 +112,9 @@ def main(argv=None):
         if args.command == 'run':
             result = run_business(workspace, runtime, day=args.day,
                                   from_manual=args.from_manual, no_notify=args.no_notify)
+        elif args.command == 'sync-sheets':
+            from .sheets import run_sheets
+            result = run_sheets(workspace, runtime, job=args.job, day=args.day, snapshot_id=args.snapshot_id)
         elif args.command == 'ingest-cost':
             result = ingest_costs(workspace, runtime, day=_today(), input_path=args.input,
                                   platform=args.platform, confirmed_zero=args.confirm_zero)

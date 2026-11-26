@@ -131,7 +131,7 @@ Work/Evaluation/
 
 `guide` 顺序：工作区缺失/无效（`initialize_workspace`）→ 无当前 Snapshot（`sync_data`）→ 当前 Snapshot 无可验证 Bridge（`align_bridge`）→ 可分析（`analyze`）。Bridge 仅从明确 `current_bridge_path` 或 `bridge_reference_path` 读取，并用当前 Snapshot 的 describe/quality 走现有 Bridge 校验；不按目录排序或修改时间选择。`repeat-candidates` 统计同客户、同角色、同类别、90 天内至少 3 个 confirmed 案例，且每例关联已完成并以 `reviewed_by`/ `reviewed_at` 明确记录人工评价的 evaluation ID。达到门槛只返回 `skill_or_template_candidate` 和内联 `skill_candidate_draft.v1` 审阅草案，绝不创建、修改或发布 Skill/模板资产。
 
-命令：`guide`、`repeat-candidates`。分析建议必须写明 Casebook 命中只是线索，当前数字仍需在当前 Snapshot 执行受控查询。宿主 Agent 的日常分析调用顺序和保存边界见项目级 [业务分析路由 Skill](../.agents/skills/business-analysis-routing/SKILL.md)：`guide` →（可选）`case-search`/`case-verify` → 当前 Snapshot 的 Data Platform 受控查询 →（可选）交付；用户明确验收后才创建 candidate，`repeat-candidates` 不自动发布 Skill。
+命令：`guide`、`repeat-candidates`。分析建议必须写明 Casebook 命中只是线索，当前数字仍需在当前 Snapshot 执行受控查询。宿主 Agent 的日常分析调用顺序和保存边界见项目级 [业务分析路由 Skill](../.agents/skills/biz-analysis/SKILL.md)：`guide` →（可选）`case-search`/`case-verify` → 当前 Snapshot 的 Data Platform 受控查询 →（可选）交付；用户明确验收后才创建 candidate，`repeat-candidates` 不自动发布 Skill。
 
 ### 7.5 依赖顺序与测试矩阵
 

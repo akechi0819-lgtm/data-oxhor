@@ -297,7 +297,7 @@ python3 -m interfaces.casebook guide --workspace customers/company_customer
 
 本地部署的内测用户用 `test-pack-import`、`evaluation-start`、`evaluation-record-card` 和 `evaluation-complete` 执行版本化测试包，主动用 `feedback-export --export-type metrics-only` 导出默认脱敏反馈；用户可用 `evaluation-attach-evidence` 显式选择附加证据，再导出 `evidence-approved`。`feedback-verify` 只校验 ZIP 清单和哈希，不联网。项目不自动上传客户工作簿、DuckDB、Parquet 或 `runs/`。引导路由只提示工作区初始化、数据同步、Bridge 对齐、分析或 `repeat-candidates` 候选沉淀，既不取代宿主 Session，也不自动发布 Skill。实现接口与目录合同以 [S5 合同](./casebook-pilot-contract.md) 为准。
 
-已完成 Bridge 对齐后，宿主 Agent 可使用项目级 [业务分析路由 Skill](../.agents/skills/business-analysis-routing/SKILL.md) 处理日常问题。它只规定最小调用顺序：先用 `guide` 检查当前工作区状态，再按角色/问题类别用 `case-search` 找同公司确认案例；案例只提供方法线索，当前数字必须通过 Data Platform 以显式 `snapshot_id`、`run_id` 的只读 `describe`/`quality`/`query`（或确认后的 `run-saved-query`）重新取得。用户明确验收后才用 `case-create` 保存 candidate，交付物需回查本次查询；保存时逐项核对交付清单与当前工作区 Snapshot/Pack/Bridge 身份，`casebook_capture.v2` manifest 不重复传入这些字段；`repeat-candidates` 只提出人工审核候选，不自动生成或发布 Skill。该 Skill 不实现 Agent Loop、Session、SQL 编译器或额外存储。
+已完成 Bridge 对齐后，宿主 Agent 可使用项目级 [业务分析路由 Skill](../.agents/skills/biz-analysis/SKILL.md) 处理日常问题。它只规定最小调用顺序：先用 `guide` 检查当前工作区状态，再按角色/问题类别用 `case-search` 找同公司确认案例；案例只提供方法线索，当前数字必须通过 Data Platform 以显式 `snapshot_id`、`run_id` 的只读 `describe`/`quality`/`query`（或确认后的 `run-saved-query`）重新取得。用户明确验收后才用 `case-create` 保存 candidate，交付物需回查本次查询；保存时逐项核对交付清单与当前工作区 Snapshot/Pack/Bridge 身份，`casebook_capture.v2` manifest 不重复传入这些字段；`repeat-candidates` 只提出人工审核候选，不自动生成或发布 Skill。该 Skill 不实现 Agent Loop、Session、SQL 编译器或额外存储。
 
 ## 8. 宿主交付能力
 
@@ -309,7 +309,7 @@ python3 -m interfaces.casebook guide --workspace customers/company_customer
 
 服务器正式看板链路由固定服务执行：三Excel输入进入raw receiver，受限worker读取root只读历史基线，在隔离副本更新双Snapshot并运行quality和共享计算，生成39张业务表；达到 `prepared` 后，固定root publisher按P4合同重建、验收并切换 Superset release。通知包再由 `release_notifications` 从正式release构建，`shared_delivery` 按DeliveryState逐消息去重投递。接收、计算完成、准备发布和正式发布分别读取同批状态回执。
 
-当前服务器正式通知使用 `server_notify` 固定入口与 `release_notifications` 同批包；HTTP只接受operation、expected_release和as_of_date，不接受任意路径或接收者。八条消息投递至原五通道，高中留学简报保持个人完成与个人流水。10月26日已有8条sent；后续HTTP job仍保留unknown，只读对账不等于该job自身成功发送。见[通知修复回执](notification-job-receipt-repair-20261026.md)。
+当前服务器正式通知使用 `server_notify` 固定入口与 `release_notifications` 同批包；HTTP只接受operation、expected_release和as_of_date，不接受任意路径或接收者。八条消息投递至原五通道，高中留学简报保持个人完成与个人流水。10月26日已有8条sent；后续HTTP job仍保留unknown，只读对账不等于该job自身成功发送。见[通知修复回执](archive/notification-job-receipt-repair-20261026.md)。
 
 10月26日人工触发有8条 `sent`；相应HTTP job仍为 `unknown`，只读对账不等于该job自身成功。Dot 10:00建立记录针对通知，不代表BI采集发布已持续运行。Grok例行已按用户要求停止。10/26 raw发布门禁、失败批次和暂停状态是历史回执；11/3完成回执仍记载服务器raw路径未启用。任何调度平台的实时状态须由宿主实读，不从本地Git或日期回执推断。部署与publisher边界见[部署说明](../dashboard_product/DEPLOYMENT.md)，通知合同见[监控模块](../monitoring_product/README.md)。Webhook属于C层，不在本指南展开。
 

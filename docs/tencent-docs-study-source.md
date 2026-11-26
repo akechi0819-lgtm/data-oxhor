@@ -117,6 +117,6 @@ bash data_acquisition/deploy/run_daily_warehouses.sh
 
 脚本默认按上海日期与时分秒生成新run和两仓Snapshot身份；也可显式传入AS_OF_DATE、RUN_ID、BI_SNAPSHOT_ID、STUDY_SNAPSHOT_ID。来源任务通过官方MCP直接导出，失败阻断原有消费者门禁，不刷新或读取腾讯文档Cookie。
 
-以下为2026-10-09云端历史回执，不代表当前本地日程；现行本地bi-3每日09:30业务优先流程见[完整日更说明](shadow-bi-full-daily-20261028.md)。当时数仓09:30、看板09:45、日推10:24为三条原例行；本次只更新执行正文，不另建任务、不改时刻／启停／通道。代码和失败门禁已安装云端并通过261项／67subtests回归；三条原Routine均已获得UpdateRoutine回执，原ID／时刻／开关保持，最终提交正文和摘要留在 `.local/sync/inbox/grok-daily-dual-20261009/prompts/`。平台无法完整回读正文，不把提交副本当全文回读。真实联合运行 `run_daily_sources_20261009_210221` 已结束：BI因本人登录超时失败，腾讯在同轮成功更新 `snapshot_study_abroad_20261009_daily_210221`，6—9历史不变。联合failed已阻断下游，未新建生产batch／发布／发送；BI本人扫码后才可验收双源成功及新批预览。失败来源终态状态已修复，不改旧运行收据。
+以下为2026-10-09云端历史回执，不代表当前本地日程；现行本地bi-3每日09:30业务优先流程见[完整日更说明](archive/shadow-bi-full-daily-20261028.md)。当时数仓09:30、看板09:45、日推10:24为三条原例行；本次只更新执行正文，不另建任务、不改时刻／启停／通道。代码和失败门禁已安装云端并通过261项／67subtests回归；三条原Routine均已获得UpdateRoutine回执，原ID／时刻／开关保持，最终提交正文和摘要留在 `.local/sync/inbox/grok-daily-dual-20261009/prompts/`。平台无法完整回读正文，不把提交副本当全文回读。真实联合运行 `run_daily_sources_20261009_210221` 已结束：BI因本人登录超时失败，腾讯在同轮成功更新 `snapshot_study_abroad_20261009_daily_210221`，6—9历史不变。联合failed已阻断下游，未新建生产batch／发布／发送；BI本人扫码后才可验收双源成功及新批预览。失败来源终态状态已修复，不改旧运行收据。
 
 腾讯当前导出不提供删除／回收状态列。个人状态开关保留，只影响源中有明确状态的行；缺状态行不被推断为删除或回收。

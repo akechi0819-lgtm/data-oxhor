@@ -4,9 +4,9 @@
 
 > 本文记录 P2 的历史施工与验收路径；下面的审计目录、批次 ID 和快照 ID 都属于当时的证据样例，不是当前生产操作指令。当前原生 BI 部署、raw 计算和发布入口见[正式 BI 部署说明](../DEPLOYMENT.md)。
 
-P2 阶段实现的 `library.py` 仍作为共享业务库实现供当前服务器 raw worker 调用；阶段验收构建30张实际消费者表，`verify_library.py`通过 Data Platform 受控入口逐表读库对账，只有它读取P0旧输出。`audit_command.py`记录实际子进程命令、工作目录、开始/结束和退出码，不生成成功观察。P1历史证据见[P1验证记录](../../docs/shadow-bi-p1-validation-20261022.md)，不再表示P1实验源代码仍在当前 `main`。
+P2 阶段实现的 `library.py` 仍作为共享业务库实现供当前服务器 raw worker 调用；阶段验收构建30张实际消费者表，`verify_library.py`通过 Data Platform 受控入口逐表读库对账，只有它读取P0旧输出。`audit_command.py`记录实际子进程命令、工作目录、开始/结束和退出码，不生成成功观察。P1历史证据见[P1验证记录](../../docs/archive/shadow-bi-p1-validation-20261022.md)，不再表示P1实验源代码仍在当前 `main`。
 
-规则、查询合同及同批回执分别见[P2规则清单](../../docs/shadow-bi-p2-rules-20261022.md)、[业务库合同](../../docs/shadow-bi-p2-query-contract.md)、[P2施工记录](../../docs/shadow-bi-p2-validation-20261022.md)。从空目录复建：
+规则、查询合同及同批回执分别见[P2规则清单](../../docs/archive/shadow-bi-p2-rules-20261022.md)、[业务库合同](../../docs/shadow-bi-p2-query-contract.md)、[P2施工记录](../../docs/archive/shadow-bi-p2-validation-20261022.md)。从空目录复建：
 
 ```bash
 python3 -B -m dashboard_product.shadow_bi.library copy-inputs \

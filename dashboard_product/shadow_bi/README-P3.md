@@ -1,6 +1,6 @@
 # 影子 BI：P3.5 原生 Superset 工作台（历史施工记录）
 
-> 本文记录 P3.5 的本地工作台施工与阶段验收，不是当前生产入口。原本机临时启动步骤与回环地址只属于阶段记录；现行原生 BI 入口、服务器 raw 计算、固定 publisher 和通知边界见[正式 BI 部署说明](../DEPLOYMENT.md)。P3.5 阶段回执见 [原生 Superset 验收记录](../../docs/shadow-bi-p35-native-validation-20261023.md)。
+> 本文记录 P3.5 的本地工作台施工与阶段验收，不是当前生产入口。原本机临时启动步骤与回环地址只属于阶段记录；现行原生 BI 入口、服务器 raw 计算、固定 publisher 和通知边界见[正式 BI 部署说明](../DEPLOYMENT.md)。P3.5 阶段回执见 [原生 Superset 验收记录](../../docs/archive/shadow-bi-p35-native-validation-20261023.md)。
 
 > 2026-10-28：旧 P0 固定数字对账 `p3.reconcile` 和旧覆盖映射 `p3.map_coverage` 已退役删除，不为它们保留旧数仓或计算模型；原生覆盖映射仍用 `p35.map_coverage`。当前默认数据由主目录唯一正式数仓的 current 指针确定。
 

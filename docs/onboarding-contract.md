@@ -29,7 +29,7 @@ python3 -m interfaces.workspace_modeling handoff --workspace PATH [--session-id 
 
 ## 门禁与边界
 
-Codex 用户不需要直接输入这些命令。项目提供 `.agents/skills/first-deployment-onboarding`，将“首次使用/帮我装好/导入数据/建立 Bridge”等自然语言请求路由到上述入口，并在缺少业务端口、来源槽位或替换确认时向用户提问。工作区初始化时由路径自动生成内部 `company_id`，用户不需要提供公司名称。
+Codex 用户可让宿主调用上述入口。首次使用、导入数据和建立 Bridge 时，宿主按本契约执行，并在缺少业务端口、来源槽位或替换确认时向用户提问。工作区初始化时由路径自动生成内部 `company_id`，用户无需提供公司名称。
 
 - `doctor` 检查 DuckDB、Pack 和所选运行时 profile；不安装依赖。安装由 `tools/install_runtime.sh` 或发布包 extras 完成。全量回归使用 `tools/install_runtime.sh test`，不再组合PPT依赖；PPT由宿主全局Skill管理。`tools/run_tests.sh`覆盖主测试、看板（含管理融合）和监控测试。
 - `init` 只创建新工作区；复制 Pack 和可选的同公司 Bridge，不接受跨公司 Bridge。

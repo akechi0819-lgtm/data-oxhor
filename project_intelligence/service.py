@@ -224,13 +224,13 @@ class ProjectContextService:
                          'evidence_kind': 'policy_declared',
                          'approved_files_present': sum(p.startswith(directory + '/') for p in present)}
                         for directory, purpose in policy.MODULES.items()],
-            'agents': [{'id': name, 'source': _content_id(f'agents/{name}/AGENT.md'),
-                        'present': f'agents/{name}/AGENT.md' in present} for name in policy.AGENTS],
+            'agents': [{'id': name, 'source': _content_id(f'.agents/skills/{name}/SKILL.md'),
+                        'present': f'.agents/skills/{name}/SKILL.md' in present} for name in policy.SKILLS],
             'documents': documents, 'unavailable': unavailable, 'git': self._git(),
             'workspace_ids': list(policy.WORKSPACES),
             'dashboard_query_versions': self._dashboard_versions(),
             'workflow_sources': [_content_id(path) for path in (
-                'docs/architecture.md', 'agents/README.md', 'SYNC.md',
+                'docs/architecture.md', 'AGENTS.md', 'SYNC.md',
                 'docs/monitoring-cloud-deployment.md')],
             'coverage': 'explicit_allowlist_not_full_filesystem',
             'execution': 'local_library_and_cli_no_network_no_mcp_transport',

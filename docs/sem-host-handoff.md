@@ -31,7 +31,7 @@
 
 成功输出包括 `native.xlsx`、SHA校验、`export-state.json`、独立attempt日志及 `sem-candidate/capture.json`；已有回执仍可用 `prepare_full_daily --sem-receipt` 显式接入，与 `--sem-auto` 互斥。同目录完整验收结果在认证及浏览器启动前直接复用；已知任务仅续查原ID；无ID的未知提交必须核查现场。权限、业务、Schema及未知任务错误不触发新登录或重提。
 
-`native_exports.download_sem` 只委托 `sem_requests.download_sem_requests`，再沿用原整本验证和 `sem_candidate.stage_sem` 封包。运行不依赖前端源码dump、历史抓包文件或观察器。旧菜单实现及仅观察请求的 `dingtalk_contract` 已删除；原始下载和历史请求回执仍是证据，不是可执行接口合同。历史菜单验收详情可查Git历史及 `docs/shadow-bi-full-daily-20261028.md` 对应历史小节。
+`native_exports.download_sem` 只委托 `sem_requests.download_sem_requests`，再沿用原整本验证和 `sem_candidate.stage_sem` 封包。运行不依赖前端源码dump、历史抓包文件或观察器。旧菜单实现及仅观察请求的 `dingtalk_contract` 已删除；原始下载和历史请求回执仍是证据，不是可执行接口合同。历史菜单验收详情可查Git历史及 `docs/archive/shadow-bi-full-daily-20261028.md` 对应历史小节。
 
 ## 当前费用口径
 

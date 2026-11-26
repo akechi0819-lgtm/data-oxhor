@@ -1,4 +1,4 @@
-> 历史存档：原路径 `dashboard_product/docs/WANG_YUE_TARGETS_202609_HANDOFF.md`，于 2026-09-18 目录整理时归档。以下状态、命令、版本与凭据配置描述仅代表记录当时，不是当前操作入口。当前项目状态见 [DEVELOPMENT.md](../../../DEVELOPMENT.md)；看板现行操作见 [DEPLOYMENT.md](../../../dashboard_product/DEPLOYMENT.md)。
+> 历史存档：原路径 `dashboard_product/docs/WANG_YUE_TARGETS_202609_HANDOFF.md`，于 2026-09-18 目录整理时归档。以下状态、命令、版本与凭据配置描述仅代表记录当时，不是当前操作入口。当前项目状态见 [DEVELOPMENT.md](../../archive/DEVELOPMENT-history-202611.md)；看板现行操作见 [DEPLOYMENT.md](../../../dashboard_product/DEPLOYMENT.md)。
 
 # 派工：王玥 2026-09 个人目标
 

@@ -63,9 +63,9 @@
 
 ## 当前状态与历史记录
 
-旧静态退出后的进一步死代码/入口复查见[第二轮记录](dashboard-second-pass-20261026.md)。历史阶段文档不作为启动指令，P1环境/依赖锁保留不代表P1实验入口仍在main。
+旧静态退出后的进一步死代码/入口复查见[第二轮记录](archive/dashboard-second-pass-20261026.md)。历史阶段文档不作为启动指令，P1环境/依赖锁保留不代表P1实验入口仍在main。
 
-以下为10月26日历史收口状态，10月28日整合见文首。10月26日本地代码、文档与工作树收口见[整合记录](local-project-alignment-20261026.md)。`main`为整合基线；c373保留数据、证据和稳定运行路径，其源码对齐main后以detached HEAD保留，不作为另一条开发分支。服务器raw receiver、只读历史基线、受限双Snapshot/quality/共享聚合计算和固定publisher当时已有实际部署及运行回执；raw候选因截止门禁失败而未发布。此段仅记录历史状态；旧 raw 通道后于 2026-11-07 SQL 切换时退役，当前发布入口与状态见本页顶部及[看板部署说明](../dashboard_product/DEPLOYMENT.md)。
+以下为10月26日历史收口状态，10月28日整合见文首。10月26日本地代码、文档与工作树收口见[整合记录](archive/local-project-alignment-20261026.md)。`main`为整合基线；c373保留数据、证据和稳定运行路径，其源码对齐main后以detached HEAD保留，不作为另一条开发分支。服务器raw receiver、只读历史基线、受限双Snapshot/quality/共享聚合计算和固定publisher当时已有实际部署及运行回执；raw候选因截止门禁失败而未发布。此段仅记录历史状态；旧 raw 通道后于 2026-11-07 SQL 切换时退役，当前发布入口与状态见本页顶部及[看板部署说明](../dashboard_product/DEPLOYMENT.md)。
 
 当前状态、已知限制与本次施工记录统一维护在 [DEVELOPMENT.md](../DEVELOPMENT.md)。[历史交接](history/project-handoff-through-20260918.md) 仅保留过去决策与验收事实，不作为日常操作入口；看板运行以模块 README 和 DEPLOYMENT 为准。
 

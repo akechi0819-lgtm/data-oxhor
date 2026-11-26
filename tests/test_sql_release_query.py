@@ -38,6 +38,7 @@ def _build_release(
     identity_batch: str = BATCH,
     bad_import_snapshot: bool = False,
     bad_provenance_domain: bool = False,
+    enhanced: bool = False,
 ) -> tuple[Path, Path]:
     releases = root / "releases"
     release_root = releases / RELEASE
@@ -63,8 +64,13 @@ def _build_release(
     with duckdb.connect(str(warehouse)) as connection:
         connection.execute("CREATE SCHEMA landing; CREATE SCHEMA meta")
         connection.execute("CREATE SCHEMA business")
-        connection.execute("CREATE TABLE business.team_metrics AS SELECT 'FY27' AS period_id, 'heads' AS metric, 2 AS actual, 'training' AS business_line, 'total' AS unit_id, '被动' AS acquisition_scope")
-        connection.execute("INSERT INTO business.team_metrics VALUES ('FY27', 'heads', 3, 'training', 'total', '全部'), ('FY27', 'heads', 4, 'abroad', 'online', '被动')")
+        if enhanced:
+            connection.execute("CREATE TABLE business.periods AS SELECT '2026-11' AS period_id, 'November' AS label, DATE '2026-11-01' AS start_date, DATE '2026-11-30' AS end_date, DATE '2026-11-05' AS through_date")
+            connection.execute("CREATE TABLE business.team_metrics AS SELECT '2026-11' AS period_id, 'heads' AS metric, 40 AS actual, 'training' AS business_line, 'total' AS unit_id, '被动' AS acquisition_scope, 20 AS prior, 100 AS target, 'available' AS status")
+            connection.execute("INSERT INTO business.team_metrics VALUES ('2026-11', 'cash', 70, 'training', 'total', '被动', 35, 100, 'available')")
+        else:
+            connection.execute("CREATE TABLE business.team_metrics AS SELECT 'FY27' AS period_id, 'heads' AS metric, 2 AS actual, 'training' AS business_line, 'total' AS unit_id, '被动' AS acquisition_scope")
+            connection.execute("INSERT INTO business.team_metrics VALUES ('FY27', 'heads', 3, 'training', 'total', '全部'), ('FY27', 'heads', 4, 'abroad', 'online', '被动')")
         connection.execute("CREATE TABLE meta.identity(batch_id VARCHAR)")
         connection.execute("INSERT INTO meta.identity VALUES (?)", [identity_batch])
         connection.execute("CREATE TABLE meta.imports(source VARCHAR, snapshot_id VARCHAR, relation VARCHAR, row_count BIGINT, seconds DOUBLE)")
@@ -92,7 +98,7 @@ def _build_release(
         "database": database_ref,
         "schemas": ["landing", "meta", "business", "core", "mart"],
         "semantic_relations": ["core.training_orders_attributed", "mart.team_metrics"],
-        "query_relations": ["team_metrics"],
+        "query_relations": ["team_metrics", "periods"] if enhanced else ["team_metrics"],
         "source_queries": [
             {
                 "schema_version": "controlled_query_result.v2",
@@ -421,3 +427,42 @@ def test_oxhor_semantic_binds_current_sealed_release_and_writes_evidence(tmp_pat
     args.release_id = 'not-current'
     with pytest.raises(ValueError, match='版本已变化'):
         data.execute(args)
+
+
+def test_dashboard_pair_semantics_frozen_and_csv_unchanged(tmp_path):
+    current, _ = _build_release(tmp_path, enhanced=True)
+    worker = BusinessDataQuery(current, tmp_path / "results")
+    result = worker.read_dashboard_data("team_metrics", RELEASE, {"period_id": "2026-11", "metric": ["heads", "cash"]})
+    assert result["row_count"] == 2
+    assert result["applied_scope"]["acquisition_scope"] == "被动"
+    assert result["period_labels"][0]["prior"] == {"label": "上年同期", "start_date": "2025-11-01", "through_date": "2025-11-05"}
+    comparison = result["precomputed_comparisons"][0]
+    assert comparison["metrics"]["heads"]["yoy"] == 1
+    assert comparison["cash_progress_vs_heads_progress"] == "cash_ahead"
+    assert comparison["cash_minus_heads_progress"] == pytest.approx(0.3)
+    page = worker.read_page(result["result_id"])
+    csv = worker.export_csv(result["result_id"])
+    assert page["period_labels"] == csv["period_labels"] == result["period_labels"]
+    assert csv["csv_text"].splitlines()[0] == ','.join('"' + c + '"' for c in result["columns"])
+
+
+def test_dashboard_comparisons_never_cross_scope(tmp_path):
+    from business_data_mcp.query import _dashboard_semantics
+    columns = ["period_id", "business_line", "unit_id", "acquisition_scope", "metric", "actual", "prior", "target", "status"]
+    rows = [["2026-11", "training", "total", "被动", "heads", 40, 0, 100, "available"],
+            ["2026-11", "training", "online", "被动", "cash", 70, 35, 100, "available"]]
+    (tmp_path / "rows.jsonl").write_text(''.join(json.dumps(row) + '\n' for row in rows))
+    data = _dashboard_semantics(tmp_path, {"columns": columns}, [{"period_id": "2026-11", "start_date": "2026-11-01", "through_date": "2026-11-05"}], {})
+    assert len(data["precomputed_comparisons"]) == 2
+    assert all("cash_progress_vs_heads_progress" not in c for c in data["precomputed_comparisons"])
+    assert data["precomputed_comparisons"][0]["metrics"]["heads"]["yoy"] is None
+
+
+def test_verify_current_checks_dashboard_pair(tmp_path):
+    from business_data_mcp.deploy.verify_current import verify
+    release_root, _ = _build_release(tmp_path, enhanced=True)
+    results = tmp_path / 'results'
+    results.mkdir()
+    receipt = verify(release_root, results, RELEASE)
+    assert receipt['dashboard_pair']['period_id'] == '2026-11'
+    assert receipt['dashboard_pair']['rows'] == 2

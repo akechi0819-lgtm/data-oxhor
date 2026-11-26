@@ -82,7 +82,7 @@ Mac 保持 bi-3 来源和日程不变；当前 worktree 的 `p5.daily` 使用 SQ
 
 > **2026-10-28本地收口**：main唯一正式数据工作区为 `customers/shadow_bi_daily`；旧正式仓、重导基线仓、c373客户镜像和旧派生成品已退役。当时本地发布回执为 `daily-20261028_104710`，该轮没有重新发布或核验服务器current，也未修改外部日程。P3默认从该工作区current指针定位库；服务器显式环境配置不变。状态与清理验收见[开发文档](../DEVELOPMENT.md)。
 
-> **10月26日运行记录**：raw接收/计算/发布已暂停，保留Mac更新链路与既有成品/通知入口；服务器数仓和聚合代码能力仍保留。以[清理与暂停回执](../docs/server-cleanup-20261026.md)区分能力部署与当前启停。本轮未实读或修改服务器/日程，以下raw说明为代码/已部署能力合同，不是恢复运行指令。
+> **10月26日运行记录**：raw接收/计算/发布已暂停，保留Mac更新链路与既有成品/通知入口；服务器数仓和聚合代码能力仍保留。以[清理与暂停回执](../docs/archive/server-cleanup-20261026.md)区分能力部署与当前启停。本轮未实读或修改服务器/日程，以下raw说明为代码/已部署能力合同，不是恢复运行指令。
 
 > **以下为暂停前的部署/验收回顾；最新运行安排以上方清理回执为准。** 正式产品为 Superset 原生 BI。已部署服务器 raw receiver、root 只读历史基线、受限双 Snapshot / quality / 共享计算 worker 和固定 publisher。10月26日真实 Dot 批次已在服务器实际完成双 Snapshot、两份 quality 查询并运行到39张表，最终因业务截止不匹配以 `failed/published=false` 结束，没有发布 raw release。Mac `p5.daily` 是仍存在的手动入口；日期回执记录它更新了 `daily-20261026_094052`（数据截至10-25），不代表长期默认路径。有效新 raw 包正式发布、持续日更和唯一生产者收口仍待分别验收。
 
@@ -95,7 +95,7 @@ Mac 保持 bi-3 来源和日程不变；当前 worktree 的 `p5.daily` 使用 SQ
 - 该日期的 BI current 记录为 `daily-20261026_094052`（数据截止10-25）；回执记录由 Mac `dashboard_product.shadow_bi.p5.daily` 手动更新。最新清理回执明确保留该Mac命令更新链路；本轮不改其日程。当前实时 current 应在需要操作时按服务器 manifest 核验；本轮未实读。
 - 服务器计算与发布能力已落地；尚待验收的是有效新 raw 包正式发布、持续日更安排及唯一生产者收口。来源完整性证明门禁已进入本地 `main`，10月26日部署的服务器版本不含该新门禁，不能据此声称服务器已启用。
 
-详细服务权限、基线和批次证据见[raw接收部署回执](../docs/server-raw-receiver-deployment-20261026.md)、[固定publisher回执](../docs/server-raw-fixed-publisher-20261026.md)及[raw链路合同](../docs/server-raw-pipeline-contract.md)。
+详细服务权限、基线和批次证据见[raw接收部署回执](../docs/archive/server-raw-receiver-deployment-20261026.md)、[固定publisher回执](../docs/archive/server-raw-fixed-publisher-20261026.md)及[raw链路合同](../docs/server-raw-pipeline-contract.md)。
 
 ### 历史 raw 代码合同（路径当前暂停）
 
@@ -109,6 +109,6 @@ Mac 保持 bi-3 来源和日程不变；当前 worktree 的 `p5.daily` 使用 SQ
 
 ### 历史通知与自动化记录
 
-服务器通知适配已部署：`monitoring_product.release_notifications` 从正式 BI release 构建同批通知包，`shared_delivery` 执行状态去重与传输；通知不独立查询或重算数仓。2026-10-26 人工触发有8条 `sent` 记录。HTTP job `9cbbb2…` 仍保留 `unknown/retryable=false`；独立只读对账回执将它关联到此前已发送的8条消息，`no_send_performed=true`，不表示该job自身成功发送。不得重发这些消息或清空 DeliveryState。详见[通知作业修复回执](../docs/notification-job-receipt-repair-20261026.md)。
+服务器通知适配已部署：`monitoring_product.release_notifications` 从正式 BI release 构建同批通知包，`shared_delivery` 执行状态去重与传输；通知不独立查询或重算数仓。2026-10-26 人工触发有8条 `sent` 记录。HTTP job `9cbbb2…` 仍保留 `unknown/retryable=false`；独立只读对账回执将它关联到此前已发送的8条消息，`no_send_performed=true`，不表示该job自身成功发送。不得重发这些消息或清空 DeliveryState。详见[通知作业修复回执](../docs/archive/notification-job-receipt-repair-20261026.md)。
 
 记录中自2026-10-26起的 Dot 上海10:00日程用于通知触发，和 BI 采集/刷新分开管理；Grok 例行按用户要求停止。日期回执曾记录 Mac `bi-2` 为 ACTIVE/09:40，但本轮未读取调度平台实时状态，不据此推断当前任务启停。持续日更和唯一生产者切换须分别留下验收回执，不从代码合并、通知日程或单次计算推断完成。

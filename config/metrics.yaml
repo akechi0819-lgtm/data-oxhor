@@ -44,7 +44,8 @@
         "team_metrics 未指定业务线、组织单元或获取范围时，分别默认 training、total、被动（全部新老生）；可显式传入其他值，或对任一默认维度传入 * 查询该维度全部值；获取范围“全部”只代表“全部”汇总行，不等同于 *。留学的被动值对应看板存储行，不表示留学业务按被动归类。市场总览默认选市场总计、语培被动、全部新老生。先从 periods 确认所选期间的实际截止日。团队经营结果选 team_metrics，市场总计用 total，语培用 training，当期取 actual。被动且全部新老生用“被动”，只看被动新生用“被动|新生”。同一数据集含多个相互重叠的期间、组织和人群，请逐行保留这些筛选值。市场总览选择高中、大学或留学预备时，语培选对应 overview 单元，留学仍取 total。",
         "查询留学经营结果可用 business_line=abroad、acquisition_scope=全部，线上取 online、线下取 university、总计取 total。单独核对 SSC、虚拟人和国际市场时，分别取 ssc、virtual、international_market。使用总计和线上已汇总的值时，避免再加单列分段。",
         "经营工单按观远八类原始团队及主被动字段筛选，保留删除和回收状态，再按工单 ID 去重。现金主被动取现金原行的渠道属性。经营人头须保留零金额报名行，同一学员同一班级内至少有一行报名人次大于零。team_metrics 的 prior 是上年同期：将所选期间开始日和实际截止日分别向前推一年形成的区间；语培的当期和上年同期各自计算，留学及未来期间的 prior 为 null。同比为当期除以上年同期减一，上年同期为零时留空。个人绩效月从上月 26 日至本月 25 日，自然月按日历月，均以实际数据截止日为限。",
-        "留学和小语种同时有人头时，按各自系统分列人数。团队经营人数状态 separate_counts 对应 team_values 的 study_heads 和 language_heads；不得跨客户系统相加去重。经营目标、费用覆盖和同比等状态随结果导出，缺失和部分覆盖须在回答中保留。"
+        "留学和小语种同时有人头时，按各自系统分列人数。团队经营人数状态 separate_counts 对应 team_values 的 study_heads 和 language_heads；不得跨客户系统相加去重。经营目标、费用覆盖和同比等状态随结果导出，缺失和部分覆盖须在回答中保留。",
+        "team_metrics 结果中的 applied_scope、period_labels、precomputed_comparisons 和 interpretation_guardrails 随 result_id 固定。日期来自同批 periods。完成率配对使用同一期间、业务线、组织和获取范围。期间缺失、指标不可用或分母为零时省略相应比较。"
       ]
     }
   ],

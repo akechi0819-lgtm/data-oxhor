@@ -25,4 +25,4 @@ python3 -m data_acquisition.connectors.advertising.ocean_requests \
 
 实际登录列表还有1880190728515692（天津国际_有道智为_天津校区01）。本轮已正常请求封存返回，9/1—10/28的TotalCount=0、stat_cost=0；业务组未确认，单列并排除费用候选，不伪造业务归属。1813785787039897亦保持原未映射空账户，不给它虚构语培组。
 
-证据：`.local/audits/ocean-http-20261029-seven-accounts-native-export/component-validation.json`；`.local/audits/full-daily-20261029-simulation/ocean/verification.json`、candidate-validation.json、capture.json。当前整批流程见[完整日更说明](shadow-bi-full-daily-20261028.md)。
+证据：`.local/audits/ocean-http-20261029-seven-accounts-native-export/component-validation.json`；`.local/audits/full-daily-20261029-simulation/ocean/verification.json`、candidate-validation.json、capture.json。当前整批流程见[完整日更说明](archive/shadow-bi-full-daily-20261028.md)。

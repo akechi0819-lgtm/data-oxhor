@@ -61,6 +61,7 @@ def parser():
             command.add_argument('--sql-file', type=Path, required=True)
             command.add_argument('--layer', choices=('raw', 'semantic'))
             command.add_argument('--release-id', help='显式绑定 status 显示的封存 SQL 版本')
+            command.add_argument('--task', help='workspace/tasks 下的 YYYYMM-任务名')
         if name == 'saved-query':
             command.add_argument('--query-id', required=True)
             command.add_argument('--version', required=True)
@@ -80,6 +81,25 @@ def _release_pointer():
     if not isinstance(pointer, dict) or pointer.get('schema_version') != 'sql_daily_current.v1':
         raise ValueError('SQL 指针格式不受支持')
     return pointer
+
+
+def _query_paths(args):
+    task = getattr(args, 'task', None)
+    if task is None:
+        evidence, sql_root = MARKET / 'Evidence', MARKET
+    else:
+        if not re.fullmatch(r"[0-9]{4}(0[1-9]|1[0-2])-[^/\\]{1,80}", task):
+            raise ValueError('任务目录须为 YYYYMM-任务名')
+        task_root = REPO / 'workspace' / 'tasks' / task
+        evidence, sql_root = task_root / 'evidence', task_root / 'scratch'
+        if task_root.resolve() != task_root or sql_root.resolve() != sql_root:
+            raise ValueError('任务目录须位于项目工作区内')
+    if evidence.resolve() != evidence:
+        raise ValueError('Evidence must be a real directory inside the selected workspace')
+    sql = args.sql_file.resolve()
+    if not sql.is_relative_to(sql_root) or not sql.is_file():
+        raise ValueError('SQL must be a local file within the selected workspace')
+    return evidence, sql
 
 
 def _semantic_query(args):
@@ -104,12 +124,7 @@ def _semantic_query(args):
             or release.release_manifest_sha256 != pointer.get('release_manifest_sha256')
             or release.database_sha256 != pointer.get('warehouse_sha256')):
         raise ValueError('封存发布与当前指针身份不匹配')
-    evidence = MARKET / 'Evidence'
-    if evidence.is_symlink() or evidence.resolve() != evidence:
-        raise ValueError('Evidence must be a real directory inside market_workspace')
-    sql_path = args.sql_file.resolve()
-    if not sql_path.is_relative_to(MARKET) or not sql_path.is_file():
-        raise ValueError('SQL must be a local file within market_workspace')
+    evidence, sql_path = _query_paths(args)
     run = evidence / args.run_id
     run.mkdir(parents=True, exist_ok=False)
     sql = sql_path.read_text(encoding='utf-8')
@@ -162,21 +177,19 @@ def execute(args):
             },
         }
     if code or route.get('next_step') != 'analyze':
-        raise ValueError(f"analysis blocked: {route.get('next_step')}; use workspace_setup")
+        raise ValueError(f"analysis blocked: {route.get('next_step')}; see daily-ops")
     if args.snapshot_id != route.get('snapshot_id') or args.snapshot_id != config.get('current_snapshot_id'):
         raise ValueError('Snapshot changed or mismatched; check status and explicitly bind a new run')
     if not RUN_ID.fullmatch(args.run_id):
         raise ValueError('invalid run_id')
     warehouse = source_file(config['current_warehouse_path'])
-    evidence = MARKET / 'Evidence'
-    if evidence.is_symlink() or evidence.resolve() != MARKET / 'Evidence':
-        raise ValueError('Evidence must be a real directory inside market_workspace')
-    run = evidence / args.run_id
-    sql_path = None
     if args.command == 'query':
-        sql_path = args.sql_file.resolve()
-        if not sql_path.is_relative_to(MARKET) or not sql_path.is_file():
-            raise ValueError('SQL must be a local file within market_workspace')
+        evidence, sql_path = _query_paths(args)
+    else:
+        evidence, sql_path = MARKET / 'Evidence', None
+        if evidence.resolve() != evidence:
+            raise ValueError('Evidence must be a real directory inside market_workspace')
+    run = evidence / args.run_id
     # One invocation per evidence directory: do not overwrite a previous result.
     run.mkdir(parents=True, exist_ok=False)
     if args.command in ('cases', 'verify-case'):

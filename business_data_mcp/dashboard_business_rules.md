@@ -45,6 +45,8 @@ team_metrics 未指定业务线、组织单元或获取范围时，分别默认 
 
 留学和小语种同时有人头时，按各自系统分列人数。团队经营人数状态 separate_counts 对应 team_values 的 study_heads 和 language_heads；不得跨客户系统相加去重。经营目标、费用覆盖和同比等状态随结果导出，缺失和部分覆盖须在回答中保留。
 
+team_metrics 结果中的 applied_scope、period_labels、precomputed_comparisons 和 interpretation_guardrails 随 result_id 固定。日期来自同批 periods。完成率配对使用同一期间、业务线、组织和获取范围。期间缺失、指标不可用或分母为零时省略相应比较。
+
 ## 指标与证据关系
 
 下列明细证据关系通过本地封存仓入口查询。远程 Business Data MCP 继续使用现有数据集与受控工具。

@@ -12,12 +12,8 @@ DOCUMENTS = (
     'docs/bridge-alignment-wizard-contract.md', 'docs/onboarding-contract.md',
     'docs/casebook-pilot-contract.md', 'docs/monitoring-cloud-deployment.md',
     'docs/project-intelligence.md',
-    'agents/README.md', 'agents/workspace_setup/AGENT.md',
-    'agents/ad_hoc_analysis/AGENT.md', 'agents/dashboard_publisher/AGENT.md',
-    'agents/daily_monitor/AGENT.md',
-    '.agents/skills/first-deployment-onboarding/SKILL.md',
-    '.agents/skills/business-analysis-routing/SKILL.md',
-    '.agents/skills/diagnose-source-overlap/SKILL.md',
+    '.agents/skills/daily-ops/SKILL.md', '.agents/skills/biz-analysis/SKILL.md',
+    '.agents/skills/biweekly-report/SKILL.md',
     'market_workspace/AGENTS.md', 'market_workspace/ACCESS.md',
     'market_workspace/INTERFACES.md',
     'dashboard_product/README.md', 'dashboard_product/DEPLOYMENT.md',
@@ -48,7 +44,7 @@ WORKSPACES = {
     'teaching_class_management': 'customers/teaching_class_management',
 }
 MODULES = {
-    'agents': '可独立选择的 Agent 运行合同',
+    'ops': '日更、独立费用、腾讯表同步与状态台账',
     'interfaces': '确定性 CLI 边界',
     'data_acquisition': 'BI 导出、窗口合并和来源接入',
     'data_platform': 'Snapshot、表结构、受控只读查询',
@@ -58,7 +54,7 @@ MODULES = {
     'market_workspace': '绑定运营工作区的市场工作面',
     'project_intelligence': '本地项目上下文只读服务',
 }
-AGENTS = ('workspace_setup', 'ad_hoc_analysis', 'dashboard_publisher', 'daily_monitor')
+SKILLS = ('daily-ops', 'biz-analysis', 'biweekly-report')
 # These are documented integrations, not health probes or live task configuration.
 INTEGRATIONS = (
     ('bi', 'BI 浏览器导出 / Chrome CDP', 'data_acquisition/connectors/bi/bi_downloads.py', 'code_declared'),

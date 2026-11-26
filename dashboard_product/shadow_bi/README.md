@@ -1,6 +1,6 @@
 # 正式原生 BI 模块
 
-正式产品为 Superset 原生 BI；`shadow_bi` 与 P3/P3.5/P4/P5 路径沿用既有服务及稳定导入。运行与发布以[部署说明](../DEPLOYMENT.md)、[完整日更说明](../../docs/shadow-bi-full-daily-20261028.md)和[SQL 切换记录](../../docs/shadow-bi-sql-local-migration.md)为准，历史回执不用于推断实时版本或调度状态。
+正式产品为 Superset 原生 BI；`shadow_bi` 与 P3/P3.5/P4/P5 路径沿用既有服务及稳定导入。运行与发布以[部署说明](../DEPLOYMENT.md)、[完整日更说明](../../docs/archive/shadow-bi-full-daily-20261028.md)和[SQL 切换记录](../../docs/shadow-bi-sql-local-migration.md)为准，历史回执不用于推断实时版本或调度状态。
 
 ## 当前代码链路
 

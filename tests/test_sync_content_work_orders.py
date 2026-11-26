@@ -91,7 +91,7 @@ class FakeMCPClient:
     def __init__(self, *, headers=None, rows=1):
         header_values = list(headers if headers is not None else COLUMNS)
         self.grid = [header_values + [None] * (len(COLUMNS) - len(header_values))]
-        self.grid.extend([[None] * len(COLUMNS) for _ in range(max(0, rows - 1))])
+        self.grid.extend([[None] * len(self.grid[0]) for _ in range(max(0, rows - 1))])
         self.calls = []
         self.fail_id_batch_after_prefix = False
         self.fail_after_partial_source_write = False
@@ -99,7 +99,7 @@ class FakeMCPClient:
 
     def _cell(self, row, col, value):
         while len(self.grid) <= row:
-            self.grid.append([None] * len(COLUMNS))
+            self.grid.append([None] * len(self.grid[0]))
         if value in (None, ""):
             self.grid[row][col] = None
         else:
@@ -133,12 +133,12 @@ class FakeMCPClient:
             assert arguments["dimension_type"] == "row"
             index = arguments["index"] + 1
             self.grid[index:index] = [
-                [None] * len(COLUMNS) for _ in range(arguments["count"])
+                [None] * len(self.grid[0]) for _ in range(arguments["count"])
             ]
             return {"ok": True}
         if name == "sheet.set_range_value":
             values = arguments["values"]
-            is_id_commit = bool(values) and all(value["col"] == ID_COLUMN for value in values)
+            is_id_commit = bool(values) and all(value["col"] == self.grid[0].index("ID") for value in values)
             if is_id_commit:
                 if self.fail_id_batch_after_prefix:
                     value = values[0]
@@ -658,3 +658,31 @@ def test_noncontiguous_remote_ids_fail_before_writes(tmp_path: Path) -> None:
         _run(tmp_path, client, source)
 
     assert not any(name in {"sheet.set_range_value", "sheet.insert_dimension"} for name, _ in client.calls)
+
+
+@pytest.mark.parametrize("position", [2, len(COLUMNS)])
+def test_unconfigured_manual_column_is_preserved_and_known_columns_map_by_name(tmp_path: Path, position: int) -> None:
+    source = _write_source(tmp_path / "source.xlsx", [
+        _row("wo-new", date(2026, 11, 1), team="正确团队"),
+    ])
+    headers = list(COLUMNS)
+    headers.insert(position, "新增人工备注")
+    client = FakeMCPClient(headers=headers, rows=2)
+    client.grid[1][position] = "人工内容"
+
+    result = _run(tmp_path, client, source)
+
+    assert result["added"] == 1
+    assert client.grid[1][position] == "人工内容"
+    assert client.grid[1][headers.index("团队")] == "正确团队"
+    assert client.grid[1][headers.index("ID")] == "wo-new"
+    assert all(cell["col"] != position for name, args in client.calls
+               if name == "sheet.set_range_value" for cell in args["values"])
+
+
+def test_duplicate_required_remote_header_fails_before_writes(tmp_path: Path) -> None:
+    source = _write_source(tmp_path / "source.xlsx", [_row("wo-new", date(2026, 11, 1))])
+    client = FakeMCPClient(headers=COLUMNS + ["团队"])
+    with pytest.raises(RuntimeError, match="remote_header_mismatch"):
+        _run(tmp_path, client, source)
+    assert not any(name == "sheet.set_range_value" for name, _ in client.calls)

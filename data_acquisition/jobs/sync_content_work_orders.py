@@ -19,6 +19,7 @@ from openpyxl.utils.datetime import from_excel
 
 from data_acquisition.connectors.tencent_docs.mcp import TencentDocsMCPClient, TencentDocsMCPError
 from dashboard_product.management.platforms import canonical_platform
+from data_acquisition.jobs.sheet_sync_common import batch_values, commit_with_readback, map_columns
 
 DATE_FIELD = "分配时间"
 ID_FIELD = "ID"
@@ -284,7 +285,7 @@ def _range_cells(client: Any, file_id: str, sheet_id: str, *,
     return result
 
 def _remote_state(client: Any, *, file_id: str, sheet_id: str,
-                  columns: list[str]) -> tuple[int, dict[str, int]]:
+                  columns: list[str]) -> tuple[int, dict[str, int], dict[str, int], int]:
     info = _call_tool(client, "sheet.get_sheet_info", {"file_id": file_id})
     sheets = info.get("sheets")
     if not isinstance(sheets, list):
@@ -305,11 +306,12 @@ def _remote_state(client: Any, *, file_id: str, sheet_id: str,
     header_cells = _range_cells(client, file_id, sheet_id, start_row=0, end_row=0,
                                 start_col=0, end_col=column_count - 1)
     remote_headers = [header_cells.get((0, index)) for index in range(column_count)]
-    if remote_headers[:len(columns)] != columns or any(
-            value not in (None, "") for value in remote_headers[len(columns):]):
-        raise SyncError("remote_header_mismatch")
+    try:
+        column_map = map_columns(columns, remote_headers)
+    except ValueError:
+        raise SyncError("remote_header_mismatch") from None
 
-    id_column = columns.index(ID_FIELD)
+    id_column = column_map[ID_FIELD]
     id_cells = _range_cells(client, file_id, sheet_id, start_row=1,
                             end_row=row_count - 1, start_col=id_column, end_col=id_column)
     remote_ids: dict[str, int] = {}
@@ -325,7 +327,7 @@ def _remote_state(client: Any, *, file_id: str, sheet_id: str,
     # Never fill an internal hole: it may sit before a row already committed remotely.
     if any(row not in occupied_rows for row in range(1, last_id_row + 1)):
         raise SyncError("remote_id_gap")
-    return row_count, remote_ids
+    return row_count, remote_ids, column_map, column_count
 
 def _encode_cell(row: int, column: int, value: object) -> dict[str, Any]:
     cell: dict[str, Any] = {"row": row, "col": column}
@@ -341,66 +343,29 @@ def _encode_cell(row: int, column: int, value: object) -> dict[str, Any]:
         cell.update(value_type="STRING", string_value=str(value))
     return cell
 
-def _check_batch_readback(cells: dict[tuple[int, int], object], *,
-                          columns: list[str], records: list[list[object]],
-                          row_numbers: list[int], id_committed: bool,
-                          manual_before: dict[tuple[int, int], object]) -> None:
-    for row_number, record in zip(row_numbers, records):
-        for column, header in enumerate(columns):
-            actual = cells.get((row_number, column))
-            if header in MANUAL_FIELDS:
-                expected = manual_before.get((row_number, column))
-            elif header == ID_FIELD and not id_committed:
-                expected = None
-            else:
-                expected = record[column]
-            if actual != expected and not (actual in (None, "") and expected in (None, "")):
-                raise SyncError("readback_mismatch")
-
 def _write_batch(client: Any, *, file_id: str, sheet_id: str,
-                 columns: list[str], records: list[list[object]], row_numbers: list[int]) -> None:
+                 columns: list[str], column_map: dict[str, int], remote_width: int,
+                 records: list[list[object]], row_numbers: list[int]) -> None:
     start_row, end_row = min(row_numbers), max(row_numbers)
-    before = _range_cells(client, file_id, sheet_id, start_row=start_row, end_row=end_row,
-                          start_col=0, end_col=len(columns) - 1)
-    manual_before = {
-        (row, column): before.get((row, column))
-        for row in row_numbers
-        for column, header in enumerate(columns)
-        if header in MANUAL_FIELDS
-    }
-    id_column = columns.index(ID_FIELD)
-    if any(_identifier(before.get((row, id_column))) is not None for row in row_numbers):
+    def read() -> dict[tuple[int, int], object]:
+        return _range_cells(client, file_id, sheet_id, start_row=start_row, end_row=end_row,
+                            start_col=0, end_col=remote_width - 1)
+    before = read()
+    if any(_identifier(before.get((row, column_map[ID_FIELD]))) is not None for row in row_numbers):
         raise SyncError("append_target_row_already_has_id")
-
-    source_values = [
-        _encode_cell(row_number, column, value)
-        for row_number, record in zip(row_numbers, records)
-        for column, (header, value) in enumerate(zip(columns, record))
-        if header not in MANUAL_FIELDS and header != ID_FIELD
-    ]
-    _call_tool(client, "sheet.set_range_value", {
-        "file_id": file_id, "sheet_id": sheet_id, "values": source_values,
-    })
-
-    source_readback = _range_cells(client, file_id, sheet_id, start_row=start_row,
-                                   end_row=end_row, start_col=0, end_col=len(columns) - 1)
-    _check_batch_readback(source_readback, columns=columns, records=records,
-                          row_numbers=row_numbers, id_committed=False,
-                          manual_before=manual_before)
-
-    id_values = [
-        _encode_cell(row_number, id_column, record[id_column])
-        for row_number, record in zip(row_numbers, records)
-    ]
-    _call_tool(client, "sheet.set_range_value", {
-        "file_id": file_id, "sheet_id": sheet_id, "values": id_values,
-    })
-
-    final_readback = _range_cells(client, file_id, sheet_id, start_row=start_row,
-                                  end_row=end_row, start_col=0, end_col=len(columns) - 1)
-    _check_batch_readback(final_readback, columns=columns, records=records,
-                          row_numbers=row_numbers, id_committed=True,
-                          manual_before=manual_before)
+    source, keys, protected = batch_values(
+        columns=columns, column_map=column_map, records=records, row_numbers=row_numbers,
+        id_field=ID_FIELD, manual_fields=MANUAL_FIELDS, before=before, remote_width=remote_width,
+    )
+    def write(values: dict[tuple[int, int], object]) -> None:
+        _call_tool(client, "sheet.set_range_value", {
+            "file_id": file_id, "sheet_id": sheet_id,
+            "values": [_encode_cell(row, col, value) for (row, col), value in values.items()],
+        })
+    try:
+        commit_with_readback(write, read, source, keys, {**protected, **{key: None for key in keys}})
+    except ValueError as error:
+        raise SyncError("readback_mismatch") from error
 
 @contextmanager
 def _sync_lock(root: Path) -> Iterator[None]:
@@ -501,7 +466,7 @@ def sync(workspace, source_file, as_of_date, run_id, config_path=None, client=No
             token_file = _resolve_path(config["token_file"], base=selected_config_path.parent)
             active_client = client if client is not None else TencentDocsMCPClient(token_file)
             file_id, sheet_id = config["file_id"], config["sheet_id"]
-            row_count, remote_ids = _remote_state(
+            row_count, remote_ids, column_map, remote_width = _remote_state(
                 active_client, file_id=file_id, sheet_id=sheet_id, columns=columns,
             )
             additions = [record for record in candidates if record[columns.index(ID_FIELD)] not in remote_ids]
@@ -529,6 +494,8 @@ def sync(workspace, source_file, as_of_date, run_id, config_path=None, client=No
                         file_id=file_id,
                         sheet_id=sheet_id,
                         columns=columns,
+                        column_map=column_map,
+                        remote_width=remote_width,
                         records=batch,
                         row_numbers=row_numbers,
                     )

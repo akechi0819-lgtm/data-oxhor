@@ -15,7 +15,7 @@
 | `/Users/akechi/Desktop/manager -CowH/customers/shadow_bi_daily/Output/Dashboard/` | 按明确 run_id 只读 | 只用于核对，不按修改时间选产物 |
 | `../workspace_modeling/operations/` | 按需只读 | 共享人员规则与花名册，不直接编辑 |
 | `../interfaces/`、`../data_platform/`、`../workspace_modeling/`、`../.venv/` | 读取和调用现有工具 | 不在市场自由编辑中改核心实现或安装依赖到共享 venv |
-| `../agents/ad_hoc_analysis/AGENT.md`、`../.agents/skills/business-analysis-routing/SKILL.md` | 按需读取 | 自由分析流程；不加载整个 agents/skills |
+| `../.agents/skills/biz-analysis/SKILL.md` | 按需读取 | 自由分析流程 |
 | `../dashboard_product/`、`../monitoring_product/` | 必要时只读定位 | 无刷新、发布、推送授权 |
 | 各 `.env`、登录态、云端密钥、其他工作区 | 默认不访问 | 不因“能读到”视为已授权 |
 

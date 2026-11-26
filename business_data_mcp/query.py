@@ -11,6 +11,7 @@ import uuid
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
+from calendar import monthrange
 from pathlib import Path
 from typing import Any, Literal
 
@@ -201,6 +202,52 @@ def _write_job_status(path: Path, value: dict[str, Any]) -> None:
     os.replace(temporary, path)
 
 
+def _previous_year(value):
+    day = date.fromisoformat(value)
+    return day.replace(year=day.year - 1, day=min(day.day, monthrange(day.year - 1, day.month)[1])).isoformat()
+
+
+def _dashboard_semantics(output_dir, result, periods, filters):
+    defaults = {"business_line": "training", "unit_id": "total", "acquisition_scope": "被动"}
+    scope = {**defaults, **filters}
+    guardrails = ["同比为所选期间截至实际截止日的上年同期，不是上月。", "仅比较同期间、业务线、组织和获取范围的指标；人头不可跨范围相加。", "缺失或零分母的比例不作比较；部分覆盖须结合状态解释。"]
+    rows = []
+    with Path(output_dir, "rows.jsonl").open(encoding="utf-8") as stream:
+        for line in stream:
+            rows.append(dict(zip(result["columns"], json.loads(line))))
+    used = {row.get("period_id") for row in rows}
+    labels = []
+    for p in periods:
+        if p.get("period_id") not in used:
+            continue
+        start, through = p.get("start_date"), p.get("through_date")
+        labels.append({"period_id": p["period_id"], "label": p.get("label"), "start_date": start,
+                       "end_date": p.get("end_date"), "through_date": through,
+                       "prior": {"label": "上年同期", "start_date": _previous_year(start), "through_date": _previous_year(through)} if start and through else None})
+    comparisons = []
+    groups = {}
+    for row in rows:
+        if row.get("status") != "available":
+            continue
+        key = tuple(row.get(k) for k in ("period_id", "business_line", "unit_id", "acquisition_scope"))
+        if None in key or key[0] not in {p["period_id"] for p in labels}:
+            continue
+        actual, prior, target = row.get("actual"), row.get("prior"), row.get("target")
+        yoy = actual / prior - 1 if isinstance(actual, (int, float)) and isinstance(prior, (int, float)) and prior != 0 else None
+        progress = actual / target if isinstance(actual, (int, float)) and isinstance(target, (int, float)) and target != 0 else None
+        groups.setdefault(key, {})[row.get("metric")] = {"yoy": yoy, "target_progress": progress}
+    for key, metrics in groups.items():
+        item = dict(zip(("period_id", "business_line", "unit_id", "acquisition_scope"), key))
+        item["metrics"] = metrics
+        cash = metrics.get("cash", {}).get("target_progress")
+        heads = metrics.get("heads", {}).get("target_progress")
+        if cash is not None and heads is not None:
+            item["cash_minus_heads_progress"] = cash - heads
+            item["cash_progress_vs_heads_progress"] = "cash_ahead" if cash > heads else "heads_ahead" if cash < heads else "equal"
+        comparisons.append(item)
+    return {"applied_scope": scope, "period_labels": labels, "precomputed_comparisons": comparisons, "interpretation_guardrails": guardrails}
+
+
 def _execute_in_child(
     *,
     warehouse: str,
@@ -242,7 +289,26 @@ def _execute_in_child(
                 allowed_relations=set(allowed_relations),
                 max_result_bytes=MAX_QUERY_OUTPUT_BYTES,
             )
+        semantics = {}
+        if dashboard_dataset == "team_metrics":
+            filters = metadata.pop("dashboard_filters")
+            periods_available = metadata.pop("periods_available")
+            periods = []
+            period_dir = Path(output_dir).with_name(Path(output_dir).name + "-periods")
+            try:
+                if periods_available:
+                    period_result = execute_sql_release_query_bundle(
+                        release_root=Path(sql_release_root), expected_release=expected_release or "",
+                        expected_batch_id=expected_batch_id or "", dashboard_dataset="periods", domain="dashboard",
+                        sql='SELECT * FROM business."periods"', parameters=[], output_dir=period_dir,
+                        allowed_relations={"periods"}, max_result_bytes=MAX_QUERY_OUTPUT_BYTES)
+                    with (period_dir / "rows.jsonl").open(encoding="utf-8") as stream:
+                        periods = [dict(zip(period_result["columns"], json.loads(line))) for line in stream]
+                semantics = _dashboard_semantics(output_dir, result, periods, filters)
+            finally:
+                shutil.rmtree(period_dir, ignore_errors=True)
         saved = {
+            **semantics,
             "schema_version": "business_data_query_result.v1",
             **metadata,
             "columns": result["columns"],
@@ -505,9 +571,9 @@ class BusinessDataQuery:
 
     def read_dashboard_data(self, dataset, expected_release, filters=None, page_size=100):
         sql, parameters = result_query(dataset, filters or {})
-        return self._query("dashboard", sql, expected_release, parameters, page_size, dataset)
+        return self._query("dashboard", sql, expected_release, parameters, page_size, dataset, filters or {})
 
-    def _query(self, domain, sql, expected_release, parameters, page_size, dashboard_dataset=None):
+    def _query(self, domain, sql, expected_release, parameters, page_size, dashboard_dataset=None, dashboard_filters=None):
         if not isinstance(sql, str) or not sql.strip():
             raise BusinessDataMCPError("QUERY_INVALID", "SQL is required.")
         try:
@@ -544,6 +610,7 @@ class BusinessDataQuery:
         status_path = root / f".job-{result_id}.json"
         metadata = {
             "result_id": result_id,
+            **({"dashboard_filters": dashboard_filters, "periods_available": "periods" in current.candidate.get("query_relations", [])} if dashboard_dataset == "team_metrics" else {}),
             "domain": domain,
             "release": current.release,
             "batch_id": current.batch_id,
@@ -722,6 +789,7 @@ class BusinessDataQuery:
             "schema_version": "business_data_page.v1",
             "status": "passed",
             **{key: metadata[key] for key in ("result_id", "domain", "release", "snapshot_id", "data_through")},
+            **{key: metadata[key] for key in ("applied_scope", "period_labels", "precomputed_comparisons", "interpretation_guardrails") if key in metadata},
             "columns": metadata["columns"],
             **({"snapshots": metadata["snapshots"]} if "snapshots" in metadata else {}),
             **({"column_descriptions": metadata["column_descriptions"]} if "column_descriptions" in metadata else {}),
@@ -761,6 +829,7 @@ class BusinessDataQuery:
             "sql": metadata["sql"],
             "parameters": metadata["parameters"],
             "source_tables": metadata["referenced_relations"],
+            **{key: metadata[key] for key in ("applied_scope", "period_labels", "precomputed_comparisons", "interpretation_guardrails") if key in metadata},
             "filename": f"business-data-{result_id}.csv",
             "offset": offset,
             "next_offset": next_offset,

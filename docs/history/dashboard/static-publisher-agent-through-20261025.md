@@ -36,7 +36,7 @@ python -m monitoring_product.shared_delivery \
 
 发布只组包 manifest 内 18 个静态资源；不上传 `shared_result.json`、通知、明细、查询回执或工作区数据。激活使用显式 `REMOTE_NGINX_CONF=/etc/nginx/sites-available/dashboard`，沿用当前 vhost、认证、healthz 和 `/notify/` 访问边界。旧线上文件未在此步骤删除。
 
-人员进度和钉钉投递由[日常监控 Agent](../../../agents/daily_monitor/AGENT.md)负责，不属于页面计算。
+人员进度和钉钉投递由[日常监控 Agent](../../archive/agents/daily_monitor/AGENT.md)负责，不属于页面计算。
 
 ## 必须遵守
 

@@ -1,10 +1,10 @@
 > **2026-10-28正式主线**：只维护主目录 `customers/shadow_bi_daily` 新版BI数仓；旧仓与旧看板派生产物已清理。当前批次、保留边界和验证见[开发文档](../DEVELOPMENT.md)，运行合同见[部署说明](DEPLOYMENT.md)。下方旧日期内容保留当时事实。
 
-> **10月26日最新运行记录**：raw接收/计算/发布已暂停，保留Mac更新链路与既有成品/通知入口；服务器数仓和聚合代码能力仍保留。以[清理与暂停回执](../docs/server-cleanup-20261026.md)区分能力部署与当前启停。本轮未实读或修改服务器/日程，以下raw说明为代码/已部署能力合同，不是恢复运行指令。
+> **10月26日最新运行记录**：raw接收/计算/发布已暂停，保留Mac更新链路与既有成品/通知入口；服务器数仓和聚合代码能力仍保留。以[清理与暂停回执](../docs/archive/server-cleanup-20261026.md)区分能力部署与当前启停。本轮未实读或修改服务器/日程，以下raw说明为代码/已部署能力合同，不是恢复运行指令。
 
 # 正式原生 BI 看板
 
-正式用户界面为 Superset 原生看板，见[正式入口](https://dashboard.apinova.cn/superset/dashboard/shadow-bi-native/?standalone=1)。沿用原18个账号和已授权只读范围；用户身份及权限边界见[正式基线](../docs/bi-production-baseline-20261025.md)。
+正式用户界面为 Superset 原生看板，见[正式入口](https://dashboard.apinova.cn/superset/dashboard/shadow-bi-native/?standalone=1)。沿用原18个账号和已授权只读范围；用户身份及权限边界见[正式基线](../docs/archive/bi-production-baseline-20261025.md)。
 
 ## 服务器能力与当前运行安排
 
@@ -22,4 +22,4 @@
 - `online_team/build.py` 保留为共享计算、查询 helper；`dashboard_product/refresh.py` 保留来源映射、归属及历史对账 helpers。它们是实现模块，不是静态页面运行入口。
 - 通知使用正式 release 和 `monitoring_product.release_notifications`，由 `shared_delivery` 去重投递；通知本身不独立查询或计算数仓。
 
-10月26日服务器部署、39表计算结果、截止门禁及当前待验收项见[部署与运行说明](DEPLOYMENT.md)、[raw接收回执](../docs/server-raw-receiver-deployment-20261026.md)和[固定publisher回执](../docs/server-raw-fixed-publisher-20261026.md)。本地新增来源完整性门禁尚未部署到服务器，见[来源完整性合同](../docs/server-source-completion-candidate.md)。
+10月26日服务器部署、39表计算结果、截止门禁及当前待验收项见[部署与运行说明](DEPLOYMENT.md)、[raw接收回执](../docs/archive/server-raw-receiver-deployment-20261026.md)和[固定publisher回执](../docs/archive/server-raw-fixed-publisher-20261026.md)。本地新增来源完整性门禁尚未部署到服务器，见[来源完整性合同](../docs/server-source-completion-candidate.md)。

@@ -1,4 +1,4 @@
-> 历史存档：原路径 `dashboard_product/docs/AUTH_TEAM_BOOKLETS_HANDOFF.md`，于 2026-09-18 目录整理时归档。以下状态、命令、版本与凭据配置描述仅代表记录当时，不是当前操作入口。当前项目状态见 [DEVELOPMENT.md](../../../DEVELOPMENT.md)；看板现行操作见 [DEPLOYMENT.md](../../../dashboard_product/DEPLOYMENT.md)。
+> 历史存档：原路径 `dashboard_product/docs/AUTH_TEAM_BOOKLETS_HANDOFF.md`，于 2026-09-18 目录整理时归档。以下状态、命令、版本与凭据配置描述仅代表记录当时，不是当前操作入口。当前项目状态见 [DEVELOPMENT.md](../../archive/DEVELOPMENT-history-202611.md)；看板现行操作见 [DEPLOYMENT.md](../../../dashboard_product/DEPLOYMENT.md)。
 
 # 看板账号与板块分册 · 验收合同（派牛马力工）
 状态：用户交密码本并点名施工（2026-09-07）
