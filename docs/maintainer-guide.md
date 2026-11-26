@@ -45,9 +45,7 @@
 - 同步outbox、staging及backup在目标安装/接收验收前保留；包哈希代表固定批次，清理本机后不原地改写已有包。后续传输须明确使用原封存包或重新制作瘦身后的新批次。登录profile、auth session、密钥及投递去重状态不纳入缓存扫描。
 - 清理只按具体路径清单执行，不跟随软链；删除前记录路径、用途、体积和哈希，删除后验证保留文件、证据及最终产物可用。审计和回执放 `.local/audits/<任务>/`，不新增常驻清理服务。
 
-已退役的 SQL release 可按退役回执的 `removed` 精确匹配旧 release。在 `Output/ShadowDaily/<批次>/sql-attempts/<release>/release-output/` 核对传输包和封装仓，确认 `.local/sql-daily/candidates/<release>/warehouse.duckdb` 实物摘要与发布清单一致后，核销已完成传输的包与重复仓。保护当前指针、验收合同、处于恢复中的批次及具体仍在使用的历史文件。
-
-每次清理还要逐份核对 `.local/sql-daily/candidates/`。本机日更通过 `load_sql_current` 读取 `sql-current.json` 指定的费用基线和迁移验收 JSON。验收文件登记旧仓摘要，仅在有现行代码或明确复算任务实际读取旧仓时才保留相应实物。发布激活失败时，回滚代码在服务器上恢复切换前的正式 release；成功切换并完成核验后，退役回执的 `removed` 标识已退役版本。核验发布锁和恢复任务，有并发更新时延期。
+本机发布根为 `runtime/releases/`。日更和 `market_workspace/oxhor` 共用 `sql-current.json` 指向的 `<release>/library`；通过 `load_sql_current` 核对仓摘要和迁移验收 JSON。清理时保护当前指针、配对 Snapshot、日更来源回执和明确的恢复依赖。确认发布锁空闲且没有恢复任务后，按 Ops 保留清单核销旧发布。云端构建中转由发布链路按批次清理；生产失败时从服务器回退到切换前的正式 release，完成验证的退役对象以服务器回执为准。
 
 保留当前指针所指候选，以及正在执行的构建、回滚、恢复或明确复算任务实际读取的候选及必要附件。旧候选曾用于上一步传输包比对，完成比对后即可按同一规则核销。已替代或已结束的失败候选按具体任务回执清理，并留下批次、SHA、替代依据和原路径不可完整回放说明。清后再跑 `load_sql_current`、双 Snapshot 受控读取和 SQL 候选只读查询。发布逻辑见[本机日更](../dashboard_product/shadow_bi/p5/sql_daily.py)及[服务端切换与退役](../dashboard_product/shadow_bi/p4/sql_release.py)。
 
