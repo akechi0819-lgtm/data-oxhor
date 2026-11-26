@@ -114,7 +114,12 @@ def prepare_remote_costs(*, workspace, day, pair, run_id, release_id, attempt,
 
 
 def _upload_request(job,request,attempt,ssh,ssh_env,command):
-    setup = f'umask 077; mkdir -p {shlex.quote(str(job.parent))}; mkdir {shlex.quote(str(job))}; cat > {shlex.quote(str(job/"request.json"))}'
+    incoming = shlex.quote(str(job.parent))
+    target = shlex.quote(str(job))
+    setup = (f'set -eu; umask 077; mkdir -p {incoming}; '
+             f'temporary=$(mktemp -d {incoming}/.sql-request.XXXXXXXX); '
+             'trap \'rm -rf -- "$temporary"\' EXIT; cat > "$temporary/request.json"; '
+             f'mkdir {target}; mv -- "$temporary/request.json" {target}/request.json')
     command(ssh[:1]+['-C']+ssh[1:]+[setup],attempt/'cloud-request.log',input=json.dumps(request,default=str),text=True,env=ssh_env)
 
 
@@ -126,29 +131,46 @@ def _cloud_command(code_dir,*args):
 def _run_and_fetch(job,request,attempt,candidate_dir,ssh,ssh_env,command_result,code_dir):
     release_id,run_id = request['release'],request['batch']
     call = _cloud_command(code_dir,release_id)
-    staged = command_result(ssh+[call],attempt/'cloud-sql-build.log',text=True,env=ssh_env)
-    if staged.get('status')!='prepared' or staged.get('release')!=release_id or staged.get('batch_id')!=run_id:
-        raise ValueError('invalid cloud foundation build receipt')
-    sql_daily._atomic_json(attempt/'cloud-sql-build.json',staged)
-    result_archive = _fetch_result(job,staged,attempt,ssh,ssh_env)
-    if _file_hash(result_archive)!=staged['archive_sha256']:
-        raise ValueError('cloud SQL result archive hash mismatch')
-    sql_daily._validate_archive(result_archive,release_id)
-    destination = attempt/'releases'
-    destination.mkdir()
-    with tarfile.open(result_archive) as packaged:
-        packaged.extractall(destination,filter='data')
-    release_root = destination/release_id
+    try:
+        staged = command_result(ssh+[call],attempt/'cloud-sql-build.log',text=True,env=ssh_env)
+        if (staged.get('status') not in {'prepared','blocked'} or staged.get('release')!=release_id
+                or staged.get('batch_id')!=run_id):
+            raise ValueError('invalid cloud foundation build receipt')
+        sql_daily._atomic_json(attempt/'cloud-sql-build.json',staged)
+        comparison = staged['comparison']
+        sql_daily._atomic_json(attempt/'release-comparison.json',comparison)
+        if staged['status']=='blocked' and comparison['blocks']:
+            raise ValueError('SQL release comparison blocked: '+', '.join(comparison['blocks']))
+        if staged['status']!='prepared' or comparison['status'] not in {'passed','warning'} or comparison['blocks']:
+            raise ValueError('invalid cloud SQL comparison receipt')
+        result_archive = _fetch_result(job,staged,attempt,ssh,ssh_env)
+    finally:
+        cleanup = f"rm -rf -- {shlex.quote(str(job))} && test ! -e {shlex.quote(str(job))} && printf '%s\\n' '{{\"status\":\"cleaned\"}}'"
+        receipt = command_result(ssh+[cleanup],attempt/'cloud-sql-cleanup.log',text=True,env=ssh_env)
+        if receipt.get('status')!='cleaned':
+            raise ValueError('cloud SQL build cleanup was not confirmed')
+
     from dashboard_product.shadow_bi.p4.sql_release import load_release
-    release_manifest,candidate,database = load_release(release_root/'library')
-    if (candidate['batch_id']!=run_id or _file_hash(database)!=staged['warehouse_sha256']
-            or release_manifest['superset_catalogue']['sha256']!=request['catalogue_sha256']):
-        raise ValueError('retrieved cloud SQL candidate did not match server receipt')
-    candidate_dir = Path(candidate_dir)
-    candidate_dir.mkdir(parents=True)
-    for item in ('candidate.json','warehouse.duckdb','notification-preview.json'):
-        shutil.copyfile(release_root/'library'/item,candidate_dir/item)
-    result_archive.unlink()
+    release_root = Path(candidate_dir).parent
+    release_root.parent.mkdir(parents=True,exist_ok=True)
+    try:
+        if _file_hash(result_archive)!=staged['archive_sha256']:
+            raise ValueError('cloud SQL result archive hash mismatch')
+        sql_daily._validate_archive(result_archive,release_id)
+        with tempfile.TemporaryDirectory(prefix='.cloud-sql-',dir=release_root.parent) as temporary:
+            destination = Path(temporary)
+            with tarfile.open(result_archive) as packaged:
+                packaged.extractall(destination,filter='data')
+            unpacked = destination/release_id
+            release_manifest,candidate,database = load_release(unpacked/'library')
+            if (candidate['batch_id']!=run_id or _file_hash(database)!=staged['warehouse_sha256']
+                    or release_manifest['superset_catalogue']['sha256']!=request['catalogue_sha256']):
+                raise ValueError('retrieved cloud SQL candidate did not match server receipt')
+            if release_root.exists():
+                raise FileExistsError(release_root)
+            unpacked.rename(release_root)
+    finally:
+        result_archive.unlink()
     return {'prepared':staged,'local_release_root':release_root,'candidate':candidate,
             'release_manifest':release_manifest,'source':staged['source']}
 
@@ -186,6 +208,7 @@ def _fetch_result(job,receipt,attempt,ssh,ssh_env):
 
 
 def build_on_server(release_id):
+    from dashboard_product.shadow_bi.p5.release_guard import compare_releases
     from dashboard_product.shadow_bi.p5.sql_bundle import prepare_release
     from dashboard_product.shadow_bi.sql_warehouse.build import build_from_sealed
     from data_platform.sql_release_query import resolve_sql_release
@@ -247,6 +270,11 @@ def build_on_server(release_id):
         candidate = build_from_sealed(sealed_library=old_library,output_dir=candidate_dir,batch_id=batch,
                                      as_of_date=day,config_root=Path.cwd(),build_inputs=inputs,
                                      **({'landing_updates':updates,'landing_metadata':metadata} if updates is not None else {}))
+    comparison = compare_releases(
+        baseline=sealed.warehouse, candidate=candidate_dir/'warehouse.duckdb',
+        baseline_through=sealed.data_through, candidate_through=candidate['through_date'])
+    if comparison['blocks']:
+        return {'status':'blocked','release':release_id,'batch_id':batch,'comparison':comparison}
     source = {'source_order_receipts':candidate['source_order_receipts']}
     coverage = (_release_coverage(request['coverage'],{'coverage':request['source_coverage']},candidate)
                 if 'source_coverage' in request else request['coverage'])
@@ -282,7 +310,7 @@ def build_on_server(release_id):
     return {'status':'prepared','release':release_id,'batch_id':batch,'warehouse_sha256':candidate['database']['sha256'],
             'archive_sha256':result['archive_sha256'],'source':source,'foundation_snapshots':request['snapshots'],
             'compressed_sha256':_file_hash(compressed),'compressed_size':compressed.stat().st_size,
-            'uploaded_database_files':0,
+            'uploaded_database_files':0,'comparison':comparison,
             'computed_on':'cloud_fixed_sql','mode':'costs' if 'costs' in request else 'business'}
 
 

@@ -404,18 +404,22 @@ def test_oxhor_semantic_binds_current_sealed_release_and_writes_evidence(tmp_pat
 
     source, market = tmp_path / 'source', tmp_path / 'market'
     state = source / 'Output/ShadowDaily'
-    release_root, _ = _build_release(state)
+    state.mkdir(parents=True)
+    release_root, _ = _build_release(tmp_path / 'runtime')
     release = resolve_sql_release(release_root)
-    (state / 'sql-current.json').write_text(json.dumps({
+    pointer = {
         'schema_version': 'sql_daily_current.v1', 'release': RELEASE, 'batch_id': BATCH,
+        'candidate': str(release_root / 'library'),
         'local_release_root': str(release_root), 'release_manifest_sha256': release.release_manifest_sha256,
         'warehouse_sha256': release.database_sha256,
-    }))
+    }
+    (state / 'sql-current.json').write_text(json.dumps(pointer))
     market.mkdir()
     sql = market / 'query.sql'
     sql.write_text('SELECT fixture_id FROM core.training_orders_attributed')
     monkeypatch.setattr(data, 'SOURCE', source)
     monkeypatch.setattr(data, 'MARKET', market)
+    monkeypatch.setattr(data, 'REPO', tmp_path)
     args = data.parser().parse_args(['query', '--release-id', RELEASE, '--run-id', 'run_semantic_test',
                                     '--sql-file', str(sql)])
     code, receipt = data.execute(args)
@@ -424,6 +428,10 @@ def test_oxhor_semantic_binds_current_sealed_release_and_writes_evidence(tmp_pat
     run = market / 'Evidence/run_semantic_test'
     assert json.loads((run / 'receipt.json').read_text()) == receipt
     assert (run / receipt['files']['rows']['path']).read_text() == '[1]\n'
+    pointer['candidate'] = str(state / 'different')
+    (state / 'sql-current.json').write_text(json.dumps(pointer))
+    with pytest.raises(ValueError, match='同一发布目录'):
+        data.execute(args)
     args.release_id = 'not-current'
     with pytest.raises(ValueError, match='版本已变化'):
         data.execute(args)

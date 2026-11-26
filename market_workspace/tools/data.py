@@ -106,9 +106,9 @@ def _semantic_query(args):
     if not isinstance(local_root, str) or not Path(local_root).is_absolute():
         raise ValueError('当前版本尚未登记本地封存 SQL 库')
     root = Path(local_root).resolve(strict=True)
-    state = (SOURCE / 'Output/ShadowDaily').resolve(strict=True)
-    if not root.is_relative_to(state):
-        raise ValueError('封存发布路径越出绑定数据工作区')
+    if (root.parent != REPO / 'runtime/releases' or root != Path(local_root)
+            or pointer.get('candidate') != str(root / 'library')):
+        raise ValueError('封存发布与日更候选必须绑定主工作树的同一发布目录')
     release = resolve_sql_release(root)
     if (release is None or release.release != args.release_id or release.batch_id != pointer.get('batch_id')
             or release.release_manifest_sha256 != pointer.get('release_manifest_sha256')

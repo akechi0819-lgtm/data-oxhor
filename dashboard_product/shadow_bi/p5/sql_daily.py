@@ -334,7 +334,7 @@ def publish(*, workspace: str | Path, day: str, pair: dict, run_id: str,
         current_state = verify_current_pointer(
             workspace=workspace, ssh=ssh, ssh_env=ssh_env,
             log=attempt / "preflight-current.log", command_result=command_result)
-    pointer, old_remote, baseline_manifest, baseline, migration, migration_sha = current_state
+    pointer, _, _, baseline, migration, migration_sha = current_state
     training_snapshot = pair["sources"]["bi"]["snapshot_id"]
     abroad_snapshot = pair["sources"]["study_abroad"]["snapshot_id"]
     if not training_snapshot or not abroad_snapshot:
@@ -343,8 +343,9 @@ def publish(*, workspace: str | Path, day: str, pair: dict, run_id: str,
         before_publish()
     if on_stage is not None:
         on_stage("build", "running")
-    candidates = Path(candidate_root) if candidate_root is not None else Path(config_root) / ".local/sql-daily/candidates"
-    candidate_dir = candidates.resolve() / release_id
+    candidates = Path(candidate_root) if candidate_root is not None else Path(config_root) / "runtime/releases"
+    release_root = candidates.resolve() / release_id
+    candidate_dir = release_root / "library"
     if cloud_costs is not None:
         from dashboard_product.shadow_bi.p5.cloud_foundation import prepare_remote_costs
         remote = prepare_remote_costs(
@@ -368,17 +369,6 @@ def publish(*, workspace: str | Path, day: str, pair: dict, run_id: str,
         abroad_snapshot=abroad_snapshot, as_of_date=day)
     if remote["candidate"] != candidate:
         raise ValueError("retrieved cloud candidate differs from the staging receipt")
-    from dashboard_product.shadow_bi.p5.release_guard import compare_releases
-
-    comparison = compare_releases(
-        baseline=resolve_file(baseline, baseline_manifest["database"]),
-        candidate=database,
-        baseline_through=old_remote["through_date"],
-        candidate_through=candidate["through_date"],
-    )
-    _atomic_json(attempt / "release-comparison.json", comparison)
-    if comparison["blocks"]:
-        raise ValueError("SQL release comparison blocked: " + ", ".join(comparison["blocks"]))
     if on_stage is not None:
         on_stage("build", "passed", {"data_through": candidate["through_date"],
                                     "artifact_sha256": candidate["database"]["sha256"]})
@@ -388,7 +378,7 @@ def publish(*, workspace: str | Path, day: str, pair: dict, run_id: str,
 
     # 日常数据更新沿用已验收目录；经重新验收的产品改动可显式更新该封口合同。
     accepted_catalogue_sha = migration["catalogue_sha256"]
-    library = Path(remote["local_release_root"]).resolve(strict=True) / "library"
+    library = candidate_dir
     from dashboard_product.shadow_bi.p4.sql_release import load_release
     sealed_release, sealed_candidate, sealed_database = load_release(library)
     if (sealed_release.get("release_id") != release_id
@@ -473,7 +463,7 @@ cd /srv/shadow-bi/code
     }
     _atomic_json(sql_current_path, new_pointer)
     if on_stage is not None:
-        on_stage("publish", "passed", {"release": release_id, "candidate": str(candidate_dir),
+        on_stage("publish", "passed", {"release": release_id, "candidate": str(release_root),
                     "predecessor": str(baseline.resolve()), "biz_day": day,
                     "data_through": candidate["through_date"],
                     "artifact_sha256": candidate["database"]["sha256"]})

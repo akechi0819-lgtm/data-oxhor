@@ -484,7 +484,6 @@ def retire_previous(target, *, expected_previous):
             raise ValueError('旧发布包含未核销内容，保留待检查')
         shutil.rmtree(previous)
         previous_link.unlink()
-        (base/'sql-incoming'/(current.name+'.tar')).unlink(missing_ok=True)
         return {'status': 'retired', 'current': current.name, 'removed': expected_previous,
                 'warehouse_count_in_releases': len(list((base/'releases').glob('*/library/warehouse.duckdb')))}
 

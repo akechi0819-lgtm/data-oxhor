@@ -2,7 +2,9 @@
 import hashlib
 import json
 from pathlib import Path
+import subprocess
 import tarfile
+from types import SimpleNamespace
 
 import pytest
 
@@ -167,6 +169,60 @@ def test_cloud_download_reassembles_and_checks_compressed_segments(tmp_path,monk
         cloud_foundation._fetch_result(Path('/bounded/cloud/job'),receipt,tmp_path,['ssh','approved'],{})
 
 
+def test_cloud_gate_blocks_before_packaging_and_cleans_request(tmp_path, monkeypatch):
+    from dashboard_product.shadow_bi.p5 import cloud_foundation, release_guard, sql_bundle
+    from data_platform import sql_release_query
+    from ops import costs
+
+    release, batch = 'daily-gate-regression', 'run_gate_regression'
+    cloud = tmp_path / 'server'
+    monkeypatch.setattr(cloud_foundation, '_CLOUD_ROOT', cloud)
+    job = cloud_foundation._request_path(release)
+    job.mkdir(parents=True)
+    old = cloud / 'releases/daily-baseline'
+    (old / 'library').mkdir(parents=True)
+    (cloud / 'current').symlink_to(old)
+    previous = old / 'library/warehouse.duckdb'
+    previous.write_bytes(b'previous warehouse')
+    (old / 'library/release.json').write_text('{"semantics": {}, "business_context": {}}')
+    snapshots = {'training': 'training', 'abroad': 'abroad'}
+    request = {'release': release, 'batch': batch, 'old': old.name, 'as_of': '2026-11-07',
+               'previous_warehouse_sha256': _sha(previous), 'snapshots': snapshots, 'costs': {'rows': []}}
+    (job / 'request.json').write_text(json.dumps(request))
+    sealed = SimpleNamespace(candidate={'as_of_date': '2026-11-07', 'snapshots': snapshots},
+                             landing_description={}, landing_provenance={}, warehouse=previous,
+                             data_through='2026-11-06')
+    monkeypatch.setattr(sql_release_query, 'resolve_sql_release', lambda path: sealed)
+    monkeypatch.setattr(costs, 'build_cost_candidate', lambda **kwargs: {'through_date': '2026-11-05'})
+    comparison = {'status': 'blocked', 'blocks': ['coverage_regressed']}
+
+    def compare(**kwargs):
+        assert kwargs == {'baseline': previous, 'candidate': job / 'candidate/warehouse.duckdb',
+                          'baseline_through': '2026-11-06', 'candidate_through': '2026-11-05'}
+        return comparison
+
+    def forbidden(*args, **kwargs):
+        pytest.fail('blocked candidates cannot be packaged or fetched')
+
+    monkeypatch.setattr(release_guard, 'compare_releases', compare)
+    monkeypatch.setattr(sql_bundle, 'prepare_release', forbidden)
+    monkeypatch.setattr(cloud_foundation, '_fetch_result', forbidden)
+    monkeypatch.setattr(cloud_foundation.os, 'umask', lambda mode: None)
+
+    def command_result(args, log, **kwargs):
+        if log.name == 'cloud-sql-build.log':
+            return cloud_foundation.build_on_server(release)
+        return json.loads(subprocess.check_output(['bash', '-c', args[-1]], text=True))
+
+    destination = tmp_path / 'releases' / release / 'library'
+    with pytest.raises(ValueError, match='comparison blocked: coverage_regressed'):
+        cloud_foundation._run_and_fetch(job, request, tmp_path, destination, [], {}, command_result, '/code')
+    assert json.loads((tmp_path / 'release-comparison.json').read_text()) == comparison
+    assert not job.exists()
+    assert not destination.exists()
+    assert list((cloud / 'releases').iterdir()) == [old]
+
+
 def test_runtime_acceptance_carries_migration_sha_and_catalogue_contract():
     acceptance = {
         "mode": "runtime_contract",
@@ -229,16 +285,16 @@ def test_full_daily_preview_package_still_transfers_only_sealed_table_files(tmp_
     assert files == {"tables/known.jsonl", "library_manifest.json"}
 
 
-@pytest.mark.parametrize('contract_change,accepted,blocked,cost_only', [
-    (False, True, False, False), (True, True, False, False), (True, False, False, False),
-    (False, True, True, False), (False, True, False, 'cloud'),
+@pytest.mark.parametrize('contract_change,accepted,cost_only', [
+    (False, True, False), (True, True, False), (True, False, False),
+    (False, True, 'cloud'),
 ])
 def test_publish_builds_runtime_contract_and_updates_pointer_only_after_activation(
-        tmp_path, monkeypatch, contract_change, accepted, blocked, cost_only):
+        tmp_path, monkeypatch, contract_change, accepted, cost_only):
     import duckdb
     import sys
     import types
-    from dashboard_product.shadow_bi.p5 import release_guard, sql_bundle
+    from dashboard_product.shadow_bi.p5 import sql_bundle
     from dashboard_product.shadow_bi.sql_warehouse import build as sql_build
     from dashboard_product.shadow_bi.sql_warehouse.foundation import TABLES
 
@@ -352,14 +408,6 @@ def test_publish_builds_runtime_contract_and_updates_pointer_only_after_activati
             "verification": {"status": "passed", "metrics_compared": 18},
         }
 
-    def compare_releases(**kwargs):
-        assert kwargs['baseline'] == baseline / "warehouse.duckdb"
-        assert kwargs['candidate'].name == "warehouse.duckdb"
-        assert kwargs['baseline_through'] == "2026-11-05"
-        assert kwargs['candidate_through'] == "2026-11-06"
-        return {'blocks': ['training.orders:retraction'] if blocked else []}
-
-    monkeypatch.setattr(release_guard, "compare_releases", compare_releases)
     monkeypatch.setattr(sql_daily, "source_order_receipts", source_receipts)
     monkeypatch.setattr(sql_daily, "remote_current", remote_after_activation)
     monkeypatch.setattr(sql_bundle, "prepare_release", prepare_release)
@@ -378,9 +426,11 @@ def test_publish_builds_runtime_contract_and_updates_pointer_only_after_activati
         built = prepare_release(candidate=kwargs["candidate_dir"], workspace=workspace,
                                 release_id=release_id, output_dir=kwargs["attempt"] / "releases",
                                 coverage_template=coverage, acceptance=acceptance)
+        for item in Path(built["library"]).iterdir():
+            if not (kwargs["candidate_dir"] / item.name).exists():
+                item.rename(kwargs["candidate_dir"] / item.name)
         return {"source": source, "candidate": manifest,
-                "local_release_root": str(Path(built["library"]).parent),
-                "release_manifest": json.loads((Path(built["library"]) / "release.json").read_text()),
+                "release_manifest": json.loads((kwargs["candidate_dir"] / "release.json").read_text()),
                 "prepared": {"status": "prepared", "release": release_id, "batch_id": batch_id,
                              "warehouse_sha256": manifest["database"]["sha256"]}}
     module = types.ModuleType('dashboard_product.shadow_bi.p5.cloud_foundation')
@@ -417,14 +467,6 @@ def test_publish_builds_runtime_contract_and_updates_pointer_only_after_activati
         config_root=tmp_path, current_state=current_state)
     if cost_only == 'cloud':
         kwargs['cloud_costs'] = {'sources': [], 'rows': []}
-    if blocked:
-        with pytest.raises(ValueError, match="comparison blocked: training.orders:retraction"):
-            sql_daily.publish(**kwargs)
-        comparison = folder / "sql-attempts" / release_id / "release-comparison.json"
-        assert json.loads(comparison.read_text())['blocks'] == ['training.orders:retraction']
-        assert not commands and not result_commands
-        assert json.loads((workspace / 'Output/ShadowDaily/sql-current.json').read_text()) == pointer
-        return
     if not accepted:
         with pytest.raises(ValueError, match='repeat migration acceptance'):
             sql_daily.publish(**kwargs)
@@ -452,3 +494,4 @@ def test_publish_builds_runtime_contract_and_updates_pointer_only_after_activati
     assert updated["release"] == release_id
     assert updated["batch_id"] == batch_id
     assert updated["candidate"] == str(candidate_builds[0]["output_dir"])
+    assert Path(updated["candidate"]) == Path(updated["local_release_root"]) / "library"
