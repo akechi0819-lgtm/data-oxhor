@@ -189,6 +189,170 @@ class ExpenseWarehouseTests(unittest.TestCase):
         expenses.replace_sources(self.connection,{'sources':[{**source,'replacement_window_complete':True}],'rows':[rows[0]]},'complete')
         self.assertEqual(self.connection.execute('SELECT project_id,amount FROM expenses.expense_rows').fetchall(),[('p1',Decimal('10.00'))])
 
+    def test_account_daily_override_survives_later_project_refresh(self):
+        def project_source(source_id, account):
+            return self.source(source_id, platform="抖音", account_id=account,
+                               source_kind="ocean_daily", end_date="2026-10-02")
+
+        def project_row(source_id, account, day, project, amount, source_row):
+            return self.row(source_id, day, amount, platform="抖音", account_id=account,
+                            project_id=project, placement_type="通投", marketing_scene="短视频",
+                            source_row=source_row)
+
+        initial = {
+            "sources": [project_source("project-a", "account-a"), project_source("project-b", "account-b")],
+            "rows": [project_row("project-a", "account-a", "2026-10-01", "p1", 10, 2),
+                     project_row("project-a", "account-a", "2026-10-01", "p2", 20, 3),
+                     project_row("project-a", "account-a", "2026-10-02", "p1", 30, 4),
+                     project_row("project-b", "account-b", "2026-10-01", "p3", 40, 2)],
+        }
+        expenses.replace_sources(self.connection, initial, "initial")
+        expenses.replace_sources(self.connection, {
+            "sources": [self.source("manual-a", platform="抖音", account_id="account-a",
+                                    source_kind="ocean_account_daily")],
+            "rows": [self.row("manual-a", "2026-10-01", 25, platform="抖音", account_id="account-a")],
+        }, "manual")
+
+        def rows():
+            return self.connection.execute(
+                "SELECT account_id, CAST(start_date AS VARCHAR), project_id, amount "
+                "FROM expenses.expense_rows ORDER BY account_id, start_date, project_id"
+            ).fetchall()
+
+        expected = [("account-a", "2026-10-01", None, Decimal("25.00")),
+                    ("account-a", "2026-10-02", "p1", Decimal("30.00")),
+                    ("account-b", "2026-10-01", "p3", Decimal("40.00"))]
+        self.assertEqual(rows(), expected)
+
+        expenses.replace_sources(self.connection, initial, "project-refresh")
+        self.assertEqual(rows(), expected)
+
+    def test_xhs_account_daily_override_survives_later_mcc_refresh(self):
+        original = {
+            "sources": [self.source("xhs-mcc", account_id="account-a", source_kind="xhs_daily",
+                                    end_date="2026-10-02")],
+            "rows": [self.row("xhs-mcc", "2026-10-01", 10, account_id="account-a"),
+                     self.row("xhs-mcc", "2026-10-02", 20, account_id="account-a", source_row=3)],
+        }
+        expenses.replace_sources(self.connection, original, "initial")
+        expenses.replace_sources(self.connection, {
+            "sources": [self.source("xhs-manual", account_id="account-a", source_kind="xhs_account_daily")],
+            "rows": [self.row("xhs-manual", "2026-10-01", 15, account_id="account-a")],
+        }, "manual")
+
+        def rows():
+            return self.connection.execute(
+                "SELECT CAST(start_date AS VARCHAR), amount FROM expenses.expense_rows ORDER BY start_date"
+            ).fetchall()
+
+        expected = [("2026-10-01", Decimal("15.00")), ("2026-10-02", Decimal("20.00"))]
+        self.assertEqual(rows(), expected)
+        expenses.replace_sources(self.connection, original, "mcc-refresh")
+        self.assertEqual(rows(), expected)
+
+    def test_tencent_manual_account_day_overrides_native_and_preserves_groups(self):
+        account = "123456789"
+        native = {"sources": [], "rows": []}
+        for scope, amount in (("legacy_search", 10), ("display_plus", 20)):
+            source_id = f"native-{scope}"
+            native["sources"].append(self.source(
+                source_id, platform="腾讯广告", account_id=account, product_scope=scope,
+                source_kind="tencent_native_csv", business_group="高中", end_date="2026-10-02"))
+            native["rows"].extend([
+                self.row(source_id, "2026-10-01", amount, platform="腾讯广告", account_id=account,
+                         product_scope=scope, business_group="高中"),
+                self.row(source_id, "2026-10-02", amount + 1, platform="腾讯广告", account_id=account,
+                         product_scope=scope, business_group="高中", source_row=3),
+            ])
+        expenses.replace_sources(self.connection, native, "initial")
+        manual = {"sources": [], "rows": []}
+        for group, amount in (("高中", 15), ("大学", 25)):
+            source_id = f"manual-{group}"
+            manual["sources"].append(self.source(
+                source_id, platform="腾讯广告", account_id=account, business_group=group,
+                source_kind="tencent_manual_csv", grain="daily"))
+            manual["rows"].append(self.row(
+                source_id, "2026-10-01", amount, platform="腾讯广告", account_id=account,
+                business_group=group))
+        expenses.replace_sources(self.connection, manual, "manual")
+
+        def rows():
+            return self.connection.execute(
+                "SELECT CAST(start_date AS VARCHAR), business_group, product_scope, amount "
+                "FROM expenses.expense_rows ORDER BY start_date, business_group, product_scope"
+            ).fetchall()
+
+        expected = [("2026-10-01", "大学", "tencent_manual_csv", Decimal("25.00")),
+                    ("2026-10-01", "高中", "tencent_manual_csv", Decimal("15.00")),
+                    ("2026-10-02", "高中", "display_plus", Decimal("21.00")),
+                    ("2026-10-02", "高中", "legacy_search", Decimal("11.00"))]
+        self.assertEqual(rows(), expected)
+        expenses.replace_sources(self.connection, native, "native-refresh")
+        self.assertEqual(rows(), expected)
+
+    def test_reported_platform_daily_replaces_group_day_and_survives_refresh(self):
+        native = {
+            "sources": [
+                self.source("xhs-a", account_id="account-a"),
+                self.source("xhs-b", account_id="account-b"),
+                self.source("xhs-high", account_id="account-high", business_group="高中"),
+                self.source("ocean", platform="抖音", account_id="account-ocean"),
+            ],
+            "rows": [
+                self.row("xhs-a", "2026-10-01", 10, account_id="account-a"),
+                self.row("xhs-b", "2026-10-01", 20, account_id="account-b"),
+                self.row("xhs-a", "2026-10-02", 30, account_id="account-a", source_row=3),
+                self.row("xhs-high", "2026-10-01", 40, account_id="account-high", business_group="高中"),
+                self.row("ocean", "2026-10-01", 50, platform="抖音", account_id="account-ocean",
+                         project_id="project-ocean", placement_type="通投", marketing_scene="短视频"),
+            ],
+        }
+        expenses.replace_sources(self.connection, native, "native-initial")
+
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            report = root / "reported.csv"
+            manifest = root / "sources.json"
+            manifest.write_text(json.dumps({"sources": [{
+                "source_id": "reported", "kind": "reported_platform_daily", "path": "reported.csv",
+            }]}, ensure_ascii=False), encoding="utf-8")
+
+            def report_batch(amount):
+                report.write_text(
+                    "日期,业务组,平台,消耗(元)\n"
+                    f"2026-10-01,大学,小红书,{amount}\n"
+                    "2026-10-01,留学整体,腾讯广告,0.00\n",
+                    encoding="utf-8-sig")
+                return expenses.parse_manifest(manifest, candidate=False)
+
+            def totals():
+                return self.connection.execute(
+                    "SELECT business_line,business_group,platform,CAST(start_date AS VARCHAR),sum(amount),count(*) "
+                    "FROM expenses.expense_rows GROUP BY ALL ORDER BY ALL"
+                ).fetchall()
+
+            expected = [
+                ("abroad", "留学整体", "腾讯广告", "2026-10-01", Decimal("0.00"), 1),
+                ("training", "大学", "小红书", "2026-10-01", Decimal("25.00"), 1),
+                ("training", "大学", "小红书", "2026-10-02", Decimal("30.00"), 1),
+                ("training", "大学", "抖音", "2026-10-01", Decimal("50.00"), 1),
+                ("training", "高中", "小红书", "2026-10-01", Decimal("40.00"), 1),
+            ]
+            reported = report_batch("25.00")
+            expenses.replace_sources(self.connection, reported, "reported")
+            self.assertEqual(totals(), expected)
+            expenses.replace_sources(self.connection, native, "native-refresh")
+            self.assertEqual(totals(), expected)
+            expenses.replace_sources(self.connection, reported, "reported-repeat")
+            self.assertEqual(totals(), expected)
+
+            corrected = report_batch("27.35")
+            expenses.replace_sources(self.connection, corrected, "reported-correction")
+            expected[1] = ("training", "大学", "小红书", "2026-10-01", Decimal("27.35"), 1)
+            self.assertEqual(totals(), expected)
+            expenses.replace_sources(self.connection, native, "native-after-correction")
+            self.assertEqual(totals(), expected)
+
     def test_decimal_storage_sums_cents_without_binary_float_drift(self):
         expenses.replace_sources(self.connection, {
             "rows": [

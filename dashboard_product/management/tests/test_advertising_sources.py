@@ -198,6 +198,33 @@ class AdvertisingSourcesTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "重复项目日期投放键"):
                 load_sources(duplicate_manifest)
 
+    def test_manual_ocean_declared_summary_delta_and_certified_through_date(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            folder = Path(temporary)
+            source = folder / "ocean.xlsx"
+            make_workbook(source, [
+                ["日期", "消耗(元)", "营销场景", "投放类型"],
+                [None, 29.97, None, None],
+                ["2026-11-24", 10, "短视频", "通投"],
+                ["2026-11-25", 20, "短视频", "通投"],
+            ])
+            entry = manifest_source(source, kind="ocean_account_daily", platform="抖音",
+                                    sha256=hashlib.sha256(source.read_bytes()).hexdigest())
+            entry.update(account_id="12345", reported_detail_delta="0.03", through_date="2026-11-24")
+
+            result = load_sources(write_manifest(folder, [entry]))
+
+            self.assertEqual([(row["start_date"], row["amount"]) for row in result["rows"]],
+                             [("2026-11-24", 10.0)])
+            metadata = result["sources"][0]
+            self.assertEqual(metadata["reported_detail_delta"], "0.03")
+            self.assertEqual((metadata["start_date"], metadata["end_date"]),
+                             ("2026-11-24", "2026-11-24"))
+
+            undeclared = {key: value for key, value in entry.items() if key != "reported_detail_delta"}
+            with self.assertRaisesRegex(ValueError, "账户日报明细与合计不符"):
+                load_sources(write_manifest(folder, [undeclared]))
+
     def test_xlsx_payload_with_csv_extension_uses_read_only_workbook_reader(self):
         with tempfile.TemporaryDirectory() as temporary:
             folder = Path(temporary)

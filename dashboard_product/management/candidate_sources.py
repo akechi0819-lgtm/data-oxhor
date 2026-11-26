@@ -1,6 +1,8 @@
 """Candidate-only source authority checks; registered production inputs are unchanged."""
 from pathlib import Path
 import hashlib
+
+from .advertising_sources import OCEAN_ACCOUNT_DAILY, XHS_ACCOUNT_DAILY
 import json
 
 class CandidateSourceError(ValueError):
@@ -51,8 +53,8 @@ def validate_candidate_authorities(manifest, *, business_scope_confirmation=None
     authorities={};xhs_kinds=set()
     for entry in entries:
         kind=entry.get('kind')
-        if kind=='ocean_daily': authority,platforms='native:ocean',{'抖音'}
-        elif kind in {'xhs_daily','xhs_mcc_daily'}:
+        if kind in {'ocean_daily', OCEAN_ACCOUNT_DAILY}: authority,platforms='native:ocean',{'抖音'}
+        elif kind in {'xhs_daily','xhs_mcc_daily', XHS_ACCOUNT_DAILY}:
             authority,platforms='native:xhs',{'小红书'};xhs_kinds.add(kind)
         elif kind=='tencent_native_csv':
             authority,platforms='native:tencent',{'腾讯广告'}

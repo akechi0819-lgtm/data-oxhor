@@ -8,6 +8,9 @@ import json
 from pathlib import Path
 from typing import Any
 
+from dashboard_product.management.advertising_sources import MANUAL_ACCOUNT_DAILY, REPORTED_PLATFORM_DAILY
+from dashboard_product.management.tencent_sources import TENCENT_MANUAL
+
 
 SCHEMA = "expenses"
 
@@ -216,6 +219,11 @@ def _ocean_account(entry):
     return matches[0]
 
 
+def _platform_day(row):
+    platform = "腾讯广告" if row["platform"] == "腾讯" else row["platform"]
+    return row["business_line"], row["business_group"], platform, row["start_date"]
+
+
 def replace_sources(connection, costs: dict[str, Any], import_id: str) -> dict[str, int]:
     """Validate then atomically replace rows covered by this parsed batch.
 
@@ -229,8 +237,17 @@ def replace_sources(connection, costs: dict[str, Any], import_id: str) -> dict[s
     install(connection)
     connection.execute("BEGIN TRANSACTION")
     try:
+        period_rows = [row for row in rows if row["product_scope"] == TENCENT_MANUAL and row["grain"] == "period"]
+        reported_rows = [row for row in rows if row["product_scope"] == REPORTED_PLATFORM_DAILY and row["amount"] is not None]
+        for period in period_rows:
+            for reported in reported_rows:
+                if (period["business_line"] == reported["business_line"]
+                        and period["business_group"] == reported["business_group"]
+                        and reported["platform"] in {"腾讯广告", "腾讯"}
+                        and period["start_date"] <= reported["start_date"] <= period["end_date"]):
+                    raise ValueError("群报单日费用与期间累计费用重叠，需核对期间明细")
         for row in rows:
-            if row["source_id"].startswith("manual:"):
+            if row["source_id"].startswith("manual:") and row["product_scope"] != REPORTED_PLATFORM_DAILY:
                 conflict = connection.execute(
                     f"SELECT 1 FROM {SCHEMA}.expense_rows WHERE business_line=? AND business_group=? "
                     "AND platform=? AND start_date<=? AND end_date>=? AND source_key<>? LIMIT 1",
@@ -238,6 +255,60 @@ def replace_sources(connection, costs: dict[str, Any], import_id: str) -> dict[s
                      row["end_date"], row["start_date"], row["source_key"]]).fetchone()
                 if conflict:
                     raise ValueError("手工费用与已有同组同平台同日明细冲突，需要确认覆盖口径")
+        retained = []
+        for row in rows:
+            if row["product_scope"] == REPORTED_PLATFORM_DAILY and row["amount"] is None:
+                existing = connection.execute(
+                    f"SELECT 1 FROM {SCHEMA}.expense_rows WHERE business_line=? AND business_group=? "
+                    "AND CASE WHEN platform='腾讯' THEN '腾讯广告' ELSE platform END=? "
+                    "AND start_date=? AND grain='daily' AND amount IS NOT NULL LIMIT 1",
+                    list(_platform_day(row))).fetchone()
+                if existing:
+                    continue
+            if row["product_scope"] == REPORTED_PLATFORM_DAILY and row["amount"] is not None:
+                overlap = connection.execute(
+                    f"SELECT 1 FROM {SCHEMA}.expense_rows WHERE business_line=? AND business_group=? "
+                    "AND CASE WHEN platform='腾讯' THEN '腾讯广告' ELSE platform END=? "
+                    "AND grain='period' AND start_date<=? AND end_date>=? AND amount IS NOT NULL LIMIT 1",
+                    [*_platform_day(row), row["start_date"]]).fetchone()
+                if overlap:
+                    raise ValueError("群报单日费用与已有期间累计费用重叠，需核对期间明细")
+            if row["product_scope"] == TENCENT_MANUAL and row["grain"] == "period":
+                overlap = connection.execute(
+                    f"SELECT 1 FROM {SCHEMA}.expense_rows WHERE business_line=? AND business_group=? "
+                    "AND CASE WHEN platform='腾讯' THEN '腾讯广告' ELSE platform END=? "
+                    "AND grain='daily' AND product_scope=? AND start_date BETWEEN ? AND ? "
+                    "AND amount IS NOT NULL LIMIT 1",
+                    [row["business_line"], row["business_group"], "腾讯广告", REPORTED_PLATFORM_DAILY,
+                     row["start_date"], row["end_date"]]).fetchone()
+                if overlap:
+                    raise ValueError("期间累计费用与已有群报单日费用重叠，需核对期间明细")
+            retained.append(row)
+        rows = retained
+        manual_days = {(row["source_key"], row["start_date"]) for row in rows
+                       if row["product_scope"] in MANUAL_ACCOUNT_DAILY}
+        manual_tencent_days = {(row["account_id"], row["start_date"]) for row in rows
+                               if row["product_scope"] == TENCENT_MANUAL and row["grain"] == "daily"}
+        manual_kinds = sorted([*MANUAL_ACCOUNT_DAILY, TENCENT_MANUAL, REPORTED_PLATFORM_DAILY])
+        reported_days = {_platform_day(row) for row in rows
+                         if row["product_scope"] == REPORTED_PLATFORM_DAILY and row["amount"] is not None}
+        protected_platform_days = reported_days | set(connection.execute(
+            f"SELECT business_line,business_group,platform,start_date FROM {SCHEMA}.expense_rows "
+            "WHERE product_scope=? AND amount IS NOT NULL",
+            [REPORTED_PLATFORM_DAILY]).fetchall())
+        protected_days = set(connection.execute(
+            f"SELECT source_key,start_date FROM {SCHEMA}.expense_rows WHERE product_scope IN ?",
+            [sorted(MANUAL_ACCOUNT_DAILY)]).fetchall()) | manual_days
+        protected_tencent_days = set(connection.execute(
+            f"SELECT account_id,start_date FROM {SCHEMA}.expense_rows WHERE product_scope=? AND grain='daily'",
+            [TENCENT_MANUAL]).fetchall()) | manual_tencent_days
+        rows = [row for row in rows if row["product_scope"] in manual_kinds or (
+            (row["source_key"], row["start_date"]) not in protected_days
+            and (row["platform"] not in {"腾讯广告", "腾讯"}
+                 or (row["account_id"], row["start_date"]) not in protected_tencent_days))]
+        rows = [row for row in rows if row["grain"] != "daily"
+                or row["product_scope"] == REPORTED_PLATFORM_DAILY
+                or _platform_day(row) not in protected_platform_days]
         for source_key, grain, start, end in sorted(scopes):
             if grain == "period":
                 connection.execute(
@@ -245,8 +316,24 @@ def replace_sources(connection, costs: dict[str, Any], import_id: str) -> dict[s
                     [source_key, start, end])
             else:
                 connection.execute(
-                    f"DELETE FROM {SCHEMA}.expense_rows WHERE source_key=? AND grain='daily' AND start_date BETWEEN ? AND ?",
-                    [source_key, start, end])
+                    f"DELETE FROM {SCHEMA}.expense_rows WHERE source_key=? AND grain='daily' "
+                    "AND start_date BETWEEN ? AND ? AND COALESCE(product_scope, '') NOT IN ?",
+                    [source_key, start, end, manual_kinds])
+        if manual_days:
+            connection.executemany(
+                f"DELETE FROM {SCHEMA}.expense_rows WHERE source_key=? AND grain='daily' AND start_date=?",
+                sorted(manual_days))
+        if manual_tencent_days:
+            connection.executemany(
+                f"DELETE FROM {SCHEMA}.expense_rows WHERE account_id=? AND start_date=? AND grain='daily' "
+                "AND platform IN ('腾讯广告', '腾讯')",
+                sorted(manual_tencent_days))
+        if reported_days:
+            connection.executemany(
+                f"DELETE FROM {SCHEMA}.expense_rows WHERE business_line=? AND business_group=? "
+                "AND CASE WHEN platform='腾讯' THEN '腾讯广告' ELSE platform END=? "
+                "AND start_date=? AND grain='daily'",
+                sorted(reported_days))
         for row in rows:
             connection.execute(f"DELETE FROM {SCHEMA}.expense_rows WHERE row_key=?", [row["row_key"]])
         if rows:
@@ -258,8 +345,8 @@ def replace_sources(connection, costs: dict[str, Any], import_id: str) -> dict[s
                 [tuple(row[column] for column in columns) for row in rows])
         for summary in summaries:
             connection.execute(
-                f"DELETE FROM {SCHEMA}.expense_sources WHERE source_key=?",
-                [summary["source_key"]])
+                f"DELETE FROM {SCHEMA}.expense_sources WHERE summary_key=?",
+                [summary["summary_key"]])
         if summaries:
             columns = tuple(summaries[0])
             names = ",".join(columns)
@@ -325,22 +412,39 @@ def _prepare(costs: dict[str, Any], import_id: str):
         placement_type = _optional_text(row.get("placement_type")) or _optional_text(row.get("投放类型"))
         marketing_scene = _optional_text(row.get("marketing_scene")) or _optional_text(row.get("营销场景"))
         company = _optional_text(row.get("company")) or _optional_text(source.get("company"))
+        source_kind = source.get("source_kind")
 
-        if source.get("source_kind") == "manual_daily":
+        if source_kind == REPORTED_PLATFORM_DAILY:
+            source_key = _summary_source_key(source)
+            natural_parts = (source_kind, line, group, platform, start.isoformat())
+            product_scope = source_kind
+        elif source_kind == "manual_daily":
             if grain != "daily" or start != end or not line or not group:
                 raise ValueError("手工费用必须明确业务组和单日")
             source_key = _stable_key("manual", line, group, platform)
             natural_parts = ("manual", line, group, platform, start.isoformat())
+        elif source_kind in MANUAL_ACCOUNT_DAILY:
+            if platform != MANUAL_ACCOUNT_DAILY[source_kind] or not account_id or account_id != source.get("account_id") or start != end or amount is None:
+                raise ValueError(f"账户日报缺少有效账户日费用: {source_id}/{source_row}")
+            product_scope = source_kind
+            account_key = "xhs" if platform == "小红书" else "ocean_account"
+            source_key = _stable_key(account_key, account_id)
+            natural_parts = (source_kind, account_id, start.isoformat())
         elif platform == "小红书":
             if not account_id:
                 raise ValueError(f"小红书行缺少account_id: {source_id}/{source_row}")
             source_key = _stable_key("xhs", account_id)
             natural_parts = ("xhs", account_id, start.isoformat())
         elif platform in {"腾讯广告", "腾讯"}:
-            if not account_id or not product_scope:
+            if source_kind == TENCENT_MANUAL:
+                product_scope = TENCENT_MANUAL
+                source_key = _stable_key("tencent_manual", account_id, group, grain)
+                natural_parts = ("tencent_manual", account_id, group, start.isoformat(), end.isoformat())
+            elif not account_id or not product_scope:
                 raise ValueError(f"腾讯行缺少account_id/product_scope: {source_id}/{source_row}")
-            source_key = _stable_key("tencent", account_id, product_scope)
-            natural_parts = ("tencent", account_id, product_scope, start.isoformat())
+            else:
+                source_key = _stable_key("tencent", account_id, product_scope)
+                natural_parts = ("tencent", account_id, product_scope, start.isoformat())
         elif source_sheet is not None:
             source_key = _stable_key("sem", source_sheet)
             natural_parts = ("sem", source_sheet, start.isoformat())
@@ -398,6 +502,8 @@ def _prepare(costs: dict[str, Any], import_id: str):
             summary_start = _optional_date(source.get("start_date"))
             summary_end = _optional_date(source.get("end_date"))
             summary_material = [key]
+            if source.get("source_kind") in MANUAL_ACCOUNT_DAILY:
+                summary_material.append(source["source_kind"])
             summary_key = hashlib.sha256(json.dumps(summary_material, ensure_ascii=False,
                 separators=(",", ":")).encode("utf-8")).hexdigest()
             if summary_key in summary_keys:
@@ -443,6 +549,10 @@ def _summary_source_key(source: dict[str, Any]) -> str:
     company = _optional_text(source.get("company"))
     if source.get("source_kind") == "manual_daily":
         return _stable_key("manual", line, _required_text(source.get("business_group"), "business_group"), platform)
+    if source.get("source_kind") == REPORTED_PLATFORM_DAILY:
+        return _stable_key(REPORTED_PLATFORM_DAILY, line, source.get("business_group"), platform)
+    if source.get("source_kind") == TENCENT_MANUAL:
+        return _stable_key("tencent_manual", account_id, source.get("business_group"), source.get("grain"))
     if platform == "小红书" and account_id:
         return _stable_key("xhs", account_id)
     if platform in {"腾讯广告", "腾讯"} and account_id and product_scope:

@@ -42,15 +42,48 @@ def test_sem_requires_actual_platform_and_scoped_zero(tmp_path):
     assert parsed['rows'][0]['platform']=='百度'
 
 
-def test_rejects_native_overlap_transactionally(tmp_path):
+def test_reported_total_replaces_native_day_without_touching_other_dates(tmp_path):
     con=duckdb.connect()
     source={'source_id':'x', 'platform':'小红书','grain':'daily','business_line':'training','business_group':'高中','account_id':'a'}
     row={'source_id':'x','source_row':1,'account_id':'a','start_date':'2026-11-23','end_date':'2026-11-23','amount':42}
     expenses.replace_sources(con,{'sources':[source],'rows':[row]},'old')
     path=tmp_path/'input.csv';path.write_text('日期,业务组,金额\n2026-11-23,高中,12\n',encoding='utf-8')
-    with pytest.raises(ValueError,match='冲突'):
-        ingest(con,path=path,platform='xhs',import_id='manual')
-    assert con.execute('SELECT amount FROM expenses.expense_rows').fetchall()==[(Decimal('42.00'),)]
+    ingest(con,path=path,platform='xhs',import_id='manual')
+    assert con.execute('SELECT amount FROM expenses.expense_rows').fetchall()==[(Decimal('12.00'),)]
+
+
+def test_reported_day_corrects_existing_report_and_ignores_blank(tmp_path):
+    con = duckdb.connect()
+    source = {'source_id': 'reported-20261125:高中:腾讯广告', 'source_kind': 'reported_platform_daily',
+              'platform': '腾讯广告', 'grain': 'daily', 'business_line': 'training',
+              'business_group': '高中'}
+    row = {'source_id': source['source_id'], 'source_row': 1, 'business_line': 'training',
+           'business_group': '高中', 'platform': '腾讯广告', 'start_date': '2026-11-25',
+           'end_date': '2026-11-25', 'amount': Decimal('295.22')}
+    expenses.replace_sources(con, {'sources': [source], 'rows': [row]}, 'original')
+    path = tmp_path / 'input.csv'
+    path.write_text('日期,业务组,金额\n2026-11-25,高中,300.25\n', encoding='utf-8')
+    ingest(con, path=path, platform='tencent', import_id='correction')
+    ingest(con, path=path, platform='tencent', import_id='retry')
+    assert con.execute('SELECT count(*),sum(amount) FROM expenses.expense_rows').fetchone() == (1, Decimal('300.25'))
+    path.write_text('日期,业务组,金额\n2026-11-25,高中,\n', encoding='utf-8')
+    ingest(con, path=path, platform='tencent', import_id='blank')
+    assert con.execute('SELECT count(*),sum(amount) FROM expenses.expense_rows').fetchone() == (1, Decimal('300.25'))
+
+
+def test_reported_day_rejects_overlapping_period_total(tmp_path):
+    con = duckdb.connect()
+    source = {'source_id': 'tencent-period', 'source_kind': 'tencent_manual_csv', 'grain': 'period',
+              'business_line': 'training', 'business_group': '高中', 'platform': '腾讯广告', 'account_id': '94274565'}
+    row = {'source_id': source['source_id'], 'source_row': 1, 'business_line': 'training',
+           'business_group': '高中', 'platform': '腾讯广告', 'account_id': '94274565',
+           'start_date': '2026-11-01', 'end_date': '2026-11-24', 'amount': Decimal('7322.43')}
+    expenses.replace_sources(con, {'sources': [source], 'rows': [row]}, 'period')
+    path = tmp_path / 'input.csv'
+    path.write_text('日期,业务组,金额\n2026-11-20,高中,12\n', encoding='utf-8')
+    with pytest.raises(ValueError, match='期间累计费用重叠'):
+        ingest(con, path=path, platform='tencent', import_id='overlap')
+    assert con.execute('SELECT count(*),sum(amount) FROM expenses.expense_rows').fetchone() == (1, Decimal('7322.43'))
 
 
 def test_cost_candidate_clones_identity_and_keeps_business_and_preview(tmp_path):

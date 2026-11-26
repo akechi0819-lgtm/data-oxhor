@@ -117,7 +117,8 @@ def parse_input(path, *, platform, confirmed_zero=()):
         identity = json.dumps([line, group, channel], ensure_ascii=False, separators=(",", ":"))
         source_id = "manual:" + hashlib.sha256(identity.encode()).hexdigest()
         if not any(source["source_id"] == source_id for source in sources):
-            sources.append({"source_id": source_id, "source_kind": "manual_daily", "grain": "daily",
+            source_kind = "manual_daily" if platform == "sem" else "reported_platform_daily"
+            sources.append({"source_id": source_id, "source_kind": source_kind, "grain": "daily",
                             "business_line": line, "business_group": group, "platform": channel,
                             "sha256": digest})
         rows.append({"source_id": source_id, "source_row": number, "business_line": line,

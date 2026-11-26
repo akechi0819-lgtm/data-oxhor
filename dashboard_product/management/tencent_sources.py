@@ -1,8 +1,46 @@
 """Explicit Tencent native CSV candidate; preserve observed scope and cost basis."""
 import hashlib,json,re
 from datetime import date
+from decimal import Decimal
 from pathlib import Path
 from data_acquisition.connectors.advertising.tencent_native import inspect_report
+
+TENCENT_MANUAL = 'tencent_manual_csv'
+
+
+def validate_tencent_manual(entry):
+    required = {'source_id', 'path', 'sha256', 'kind', 'business_line', 'business_group', 'platform', 'account_id', 'grain'}
+    if set(entry) != required or not all(isinstance(entry[k], str) and entry[k] for k in required):
+        raise ValueError('腾讯手工费用清单字段无效')
+    groups = {'training': {'高中', '大学'}, 'abroad': {'留学整体'}}
+    if (entry['platform'] != '腾讯广告' or entry['business_group'] not in groups.get(entry['business_line'], ())
+            or entry['grain'] not in {'daily', 'period'} or not entry['account_id'].isdigit()
+            or not re.fullmatch('[0-9a-f]{64}', entry['sha256'])):
+        raise ValueError('腾讯手工费用归属、粒度或摘要无效')
+    return dict(entry)
+
+
+def parse_tencent_manual(item):
+    from .advertising_sources import _read_rows, _parse_amount, _source_metadata
+    path = item['resolved_path']
+    table, _ = _read_rows(item['raw'], path)
+    if len(table) < 2 or table[0] != ('开始日期', '结束日期', '业务组', '花费'):
+        raise ValueError('腾讯手工费用明细列无效')
+    rows = []
+    seen = set()
+    for source_row, (start, end, group, value) in enumerate(table[1:], 2):
+        start, end = date.fromisoformat(start).isoformat(), date.fromisoformat(end).isoformat()
+        amount = _parse_amount(value, path, source_row, '花费')
+        if (group != item['business_group'] or start > end or ((start == end) != (item['grain'] == 'daily'))
+                or amount is None or amount != amount.quantize(Decimal('0.01')) or (start, end) in seen):
+            raise ValueError(f'腾讯手工费用日期或金额无效: {path} 第{source_row}行')
+        seen.add((start, end))
+        record = {name: item[name] for name in ('source_id', 'business_line', 'business_group', 'platform', 'account_id')}
+        rows.append({**record, 'source_row': source_row, 'start_date': start, 'end_date': end, 'amount': float(amount)})
+    source = _source_metadata(item, grain=item['grain'], platform=item['platform'],
+                              start_date=min(r['start_date'] for r in rows), end_date=max(r['end_date'] for r in rows))
+    return rows, [{**source, 'account_id': item['account_id'], 'source_kind': TENCENT_MANUAL}]
+
 
 def validate_tencent_entry(entry):
     required={'source_id','path','sha256','kind','business_line','business_group','platform','account_id','product_scope','time_basis','start_date','end_date','capture_evidence'}

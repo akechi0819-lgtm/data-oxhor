@@ -17,9 +17,14 @@ from zipfile import BadZipFile
 from openpyxl import load_workbook
 from openpyxl.utils.datetime import from_excel
 from .platforms import canonical_platform
+from .tencent_sources import TENCENT_MANUAL
 
 
-_KINDS = {"xhs_daily", "ocean_daily", "network_weekly", "sem_daily", "xhs_mcc_daily"}
+OCEAN_ACCOUNT_DAILY = "ocean_account_daily"
+XHS_ACCOUNT_DAILY = "xhs_account_daily"
+REPORTED_PLATFORM_DAILY = "reported_platform_daily"
+MANUAL_ACCOUNT_DAILY = {OCEAN_ACCOUNT_DAILY: "抖音", XHS_ACCOUNT_DAILY: "小红书"}
+_KINDS = {"xhs_daily", "ocean_daily", "network_weekly", "sem_daily", "xhs_mcc_daily", *MANUAL_ACCOUNT_DAILY}
 _BUSINESS_LINES = {"training", "abroad"}
 _BUSINESS_GROUPS = {"留学预备", "高中", "大学", "留学整体"}
 _DAILY_PLATFORMS = {"小红书", "抖音"}
@@ -92,12 +97,19 @@ def load_sources(manifest_path: Path | None) -> dict[str, Any]:
             parsed_rows, parsed_sources = _parse_daily(item, date_header="时间", amount_header="消费")
         elif item["kind"] == "ocean_daily":
             parsed_rows, parsed_sources = _parse_daily(item, date_header="日期", amount_header="消耗(元)", ocean=True)
+        elif item["kind"] in MANUAL_ACCOUNT_DAILY:
+            parsed_rows, parsed_sources = _parse_manual_account_daily(item)
+        elif item["kind"] == REPORTED_PLATFORM_DAILY:
+            parsed_rows, parsed_sources = _parse_reported_platform_daily(item)
         elif item["kind"] == "xhs_mcc_daily":
             from .xhs_sources import parse_xhs_mcc
             parsed_rows, parsed_sources = parse_xhs_mcc(item)
         elif item["kind"] == "tencent_native_csv":
             from .tencent_sources import parse_tencent
             parsed_rows, parsed_sources = parse_tencent(item)
+        elif item["kind"] == TENCENT_MANUAL:
+            from .tencent_sources import parse_tencent_manual
+            parsed_rows, parsed_sources = parse_tencent_manual(item)
         elif item["kind"] == "sem_daily":
             from .sem_sources import parse_sem
             parsed_rows, parsed_sources = parse_sem(item)
@@ -149,11 +161,29 @@ def _validate_manifest_entry(entry: Any, index: int) -> dict[str, Any]:
     if entry.get("kind") == "tencent_native_csv":
         from .tencent_sources import validate_tencent_entry
         return validate_tencent_entry(entry)
+    if entry.get("kind") == TENCENT_MANUAL:
+        from .tencent_sources import validate_tencent_manual
+        return validate_tencent_manual(entry)
     if entry.get("kind") == "sem_daily":
         from .sem_sources import validate_sem_entry
         return validate_sem_entry(entry)
+    if entry.get("kind") == REPORTED_PLATFORM_DAILY:
+        fields = {"source_id", "path", "kind"}
+        if (not fields <= entry.keys() <= fields | {"sha256"}
+                or any(not isinstance(entry[key], str) or not entry[key].strip() for key in fields)
+                or ("sha256" in entry and (not isinstance(entry["sha256"], str)
+                    or not _SHA256_RE.fullmatch(entry["sha256"])))):
+            raise ValueError(f"群报日报来源字段无效: sources[{index - 1}]")
+        return dict(entry)
     allowed = {"source_id", "path", "kind", "business_line", "business_group", "platform", "sha256", "company", "exclude_platforms"}
     required = {"source_id", "path", "kind", "business_line", "business_group"}
+    if entry.get("kind") in MANUAL_ACCOUNT_DAILY:
+        allowed.add("account_id")
+        required.add("account_id")
+        if not isinstance(entry.get("account_id"), str) or not entry["account_id"].isdigit():
+            raise ValueError("账户日报必须登记账户ID")
+    if entry.get("kind") == OCEAN_ACCOUNT_DAILY:
+        allowed.update(("through_date", "reported_detail_delta"))
     if not required.issubset(entry) or not set(entry).issubset(allowed):
         missing = sorted(required - set(entry))
         extra = sorted(set(entry) - allowed)
@@ -178,10 +208,10 @@ def _validate_manifest_entry(entry: Any, index: int) -> dict[str, Any]:
         raise ValueError(f"业务组{business_group}必须归属business_line={expected_line}")
 
     platform = entry.get("platform")
-    if kind in {"xhs_daily", "ocean_daily"}:
+    if kind in {"xhs_daily", "ocean_daily", *MANUAL_ACCOUNT_DAILY}:
         if not isinstance(platform, str) or platform not in _DAILY_PLATFORMS:
             raise ValueError(f"日报来源{source_id}必须声明有效platform")
-        expected_platform = "小红书" if kind == "xhs_daily" else "抖音"
+        expected_platform = MANUAL_ACCOUNT_DAILY.get(kind, "小红书" if kind == "xhs_daily" else "抖音")
         if platform != expected_platform:
             raise ValueError(f"{kind}来源{source_id}的platform必须是{expected_platform}")
     elif platform is not None and (not isinstance(platform, str) or platform not in _DAILY_PLATFORMS):
@@ -190,6 +220,12 @@ def _validate_manifest_entry(entry: Any, index: int) -> dict[str, Any]:
     sha256 = entry.get("sha256")
     if sha256 is not None and (not isinstance(sha256, str) or not _SHA256_RE.fullmatch(sha256)):
         raise ValueError(f"manifest sources[{index - 1}].sha256必须是64位十六进制")
+    through = entry.get("through_date")
+    if through is not None and (not isinstance(through, str) or date.fromisoformat(through).isoformat() != through):
+        raise ValueError("巨量账户日报截止日无效")
+    delta = entry.get("reported_detail_delta")
+    if delta is not None and (not sha256 or not isinstance(delta, str) or not re.fullmatch(r"-?\d+\.\d{2}", delta)):
+        raise ValueError("巨量账户日报尾差必须绑定原表摘要并明确登记分差")
 
     company = entry.get("company")
     if company is not None and (not isinstance(company, str) or not company.strip()):
@@ -212,6 +248,8 @@ def _validate_manifest_entry(entry: Any, index: int) -> dict[str, Any]:
         "sha256": sha256,
         "company": company.strip() if company is not None else None,
         "exclude_platforms": exclusions,
+        **({"account_id": entry["account_id"]} if kind in MANUAL_ACCOUNT_DAILY else {}),
+        **{key: entry[key] for key in ("through_date", "reported_detail_delta") if key in entry},
     }
 
 
@@ -398,6 +436,93 @@ def _parse_daily(
         end_date=max(dates) if dates else None,
     )
     return parsed, [source]
+
+
+def _parse_reported_platform_daily(item: dict[str, Any]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    path = item["resolved_path"]
+    table, is_excel = _read_rows(item["raw"], path)
+    if not table:
+        raise ValueError(f"群报日报为空: {path}")
+    headers = _header_map(table[0], path, 1)
+    _require_columns(headers, ("日期", "业务组", "平台", "消耗(元)"), path)
+    by_group: dict[tuple[str, str], dict[str, dict[str, Any]]] = {}
+    for number, cells in enumerate(table[1:], start=2):
+        if not _row_has_values(cells):
+            continue
+        fields = _row_values(headers, cells)
+        group = str(fields["业务组"] or "").strip()
+        platform = str(fields["平台"] or "").strip()
+        day = _parse_date(fields["日期"], is_excel, path, number, "日期")
+        amount = _parse_amount(fields["消耗(元)"], path, number, "消耗(元)")
+        if (group not in _BUSINESS_GROUPS or platform not in {*_DAILY_PLATFORMS, "腾讯广告"}
+                or amount is None or amount < 0 or amount.as_tuple().exponent < -2):
+            raise ValueError(f"群报日报业务组、平台或消耗无效: {path} 第{number}行")
+        days = by_group.setdefault((group, platform), {})
+        if day in days:
+            raise ValueError(f"群报日报业务组、平台和日期重复: {path} 第{number}行")
+        days[day] = {"source_row": number, "start_date": day, "end_date": day, "amount": float(amount)}
+    if not by_group:
+        raise ValueError(f"群报日报无费用明细: {path}")
+    rows, sources = [], []
+    for (group, platform), days in by_group.items():
+        identity = {"source_id": f"{item['source_id']}:{group}:{platform}",
+                    "business_group": group, "business_line": "abroad" if group == "留学整体" else "training"}
+        rows.extend({**row, **identity, "platform": platform} for row in days.values())
+        sources.append(_source_metadata({**item, **identity}, grain="daily", platform=platform,
+                                        start_date=min(days), end_date=max(days)))
+    return rows, sources
+
+
+def _parse_manual_account_daily(item: dict[str, Any]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    path = item["resolved_path"]
+    table, is_excel = _read_rows(item["raw"], path)
+    if len(table) < 3:
+        raise ValueError(f"账户日报缺少合计或明细: {path}")
+    headers = _header_map(table[0], path, 1)
+    if item["kind"] == OCEAN_ACCOUNT_DAILY:
+        dimensions = ("单元ID",) if "单元ID" in headers else ("营销场景", "投放类型")
+        date_header, amount_header = "日期", "消耗(元)"
+    else:
+        dimensions = tuple(name for name in ("单元ID", "计划ID") if name in headers)
+        date_header, amount_header = "时间", "消费"
+    _require_columns(headers, (date_header, amount_header, *dimensions), path)
+    summary = _row_values(headers, table[1])
+    total = _parse_amount(summary[amount_header], path, 2, amount_header)
+    valid_summary = (_is_control_label(summary[date_header]) if item["kind"] == XHS_ACCOUNT_DAILY
+                     else all(summary[name] is None for name in (date_header, *dimensions)))
+    if total is None or not valid_summary:
+        raise ValueError(f"账户日报合计行无效: {path}")
+    dates = {}
+    keys = set()
+    for row_number, cells in enumerate(table[2:], 3):
+        values = _row_values(headers, cells)
+        day = _parse_date(values[date_header], is_excel, path, row_number, date_header)
+        amount = _parse_amount(values[amount_header], path, row_number, amount_header)
+        key = (day, *(values[name] for name in dimensions))
+        if amount is None or amount != amount.quantize(Decimal("0.01")) or any(v in (None, "") for v in key) or key in keys:
+            raise ValueError(f"账户日报明细键或金额无效: {path} 第{row_number}行")
+        keys.add(key)
+        row = dates.setdefault(day, {
+            "source_id": item["source_id"], "source_row": row_number, "account_id": item["account_id"],
+            "business_line": item["business_line"], "business_group": item["business_group"],
+            "platform": item["platform"], "start_date": day, "end_date": day, "amount": Decimal(0),
+        })
+        row["amount"] += amount
+    detail_delta = sum(row["amount"] for row in dates.values()) - total
+    delta = item.get("reported_detail_delta")
+    if detail_delta != Decimal(delta or "0"):
+        raise ValueError(f"账户日报明细与合计不符: {path}")
+    through = item.get("through_date")
+    if through is not None:
+        dates = {day: row for day, row in dates.items() if day <= through}
+        if not dates:
+            raise ValueError(f"账户日报截止日前无明细: {path}")
+    for row in dates.values():
+        row["amount"] = float(row["amount"])
+    source = _source_metadata(item, grain="daily", platform=item["platform"],
+                              start_date=min(dates), end_date=max(dates))
+    return list(dates.values()), [{**source, "account_id": item["account_id"], "detail_row_count": len(keys),
+                                  **({"reported_detail_delta": delta} if delta is not None else {})}]
 
 
 def _parse_network_weekly(item: dict[str, Any]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
