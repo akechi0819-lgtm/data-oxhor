@@ -87,7 +87,8 @@ def _validated_business_inputs(path, day, batch_dir):
         raise DailyBlocked('business_inputs_start_date_after_as_of')
 
     input_paths = {}
-    for name in BUSINESS_INPUT_NAMES:
+    names = BUSINESS_INPUT_NAMES if 'tencent' in value else BUSINESS_INPUT_NAMES[:2]
+    for name in names:
         spec = value.get(name)
         if not isinstance(spec, dict):
             raise DailyBlocked('business_inputs_file_spec_invalid')
@@ -146,7 +147,7 @@ def _notification_summary(raw, day, release):
     status = raw.get('status')
     summary = {'status': status if isinstance(status, str) else 'unknown',
                'day': day, 'release': release}
-    for key in ('release_id', 'as_of_date', 'message_count'):
+    for key in ('release_id', 'as_of_date', 'message_count', 'reason', 'deduplicated', 'network_send_attempted'):
         if raw.get(key) is not None:
             summary[key] = raw[key]
     counts = raw.get('message_status_counts')
@@ -194,16 +195,17 @@ def _default_publishers():
     return publish_business, publish_expenses, notify_published, assert_daily_ready
 
 
-def run(workspace, *, batch_dir, collect, prepare=False, day=None, now=None,
+def run(workspace, *, batch_dir, collect=None, prepare=False, day=None, now=None,
         publish_business=None, publish_expenses=None, notify=None,
         assert_ready=None, refresh_business=False, business_inputs=None,
-        orders_start_date=None, orders_end_date=None):
+        orders_start_date=None, orders_end_date=None, business_only=False,
+        no_notify=False, on_stage=None, candidate_root=None):
     """Run the two-stage daily release while persisting each confirmed boundary."""
     if prepare:
         raise DailyBlocked('business_first_publish_only')
     if business_inputs is not None and not refresh_business:
         raise DailyBlocked('business_inputs_requires_refresh_business')
-    if not callable(collect):
+    if not business_only and not callable(collect):
         raise DailyBlocked('advertising_collector_required')
     workspace = Path(workspace).resolve()
     batch_dir = Path(batch_dir).resolve()
@@ -245,13 +247,13 @@ def run(workspace, *, batch_dir, collect, prepare=False, day=None, now=None,
         if previous is not None and previous.get('status') == 'complete':
             business = previous.get('business')
             expenses = previous.get('expenses')
-            if (not isinstance(business, dict) or not isinstance(expenses, dict)
-                    or not isinstance(expenses.get('release'), str)
-                    or not expenses.get('release')):
+            completed_release = (business.get('release') if business_only and isinstance(business, dict)
+                                 else expenses.get('release') if isinstance(expenses, dict) else None)
+            if not isinstance(business, dict) or not completed_release:
                 raise DailyBlocked('completed_pipeline_receipt_invalid')
             try:
                 _business_recheck(publish_business, workspace, selected_day, manifest_path,
-                                  assert_ready, expenses['release'], business['sources'])
+                                  assert_ready, completed_release, business['sources'])
             except Exception:
                 raise DailyBlocked('completed_pipeline_current_mismatch') from None
             return previous
@@ -285,6 +287,10 @@ def run(workspace, *, batch_dir, collect, prepare=False, day=None, now=None,
             raw_business = None
             try:
                 publish_kwargs = {'advertising_manifest': manifest_path}
+                if on_stage is not None:
+                    publish_kwargs['on_stage'] = on_stage
+                if candidate_root is not None:
+                    publish_kwargs['candidate_root'] = candidate_root
                 if refresh_business and previous is None:
                     publish_kwargs['force_refresh'] = True
                     if business_inputs is not None:
@@ -321,11 +327,15 @@ def run(workspace, *, batch_dir, collect, prepare=False, day=None, now=None,
             _write_result(result_path, state)
 
         state.update(status='running', published=True, release=business['release'], business=business)
-        if state.get('notification') is None or not _notification_recorded_sent(
+        if no_notify:
+            state['notification'] = {'status': 'skipped', 'reason': 'no_notify_requested'}
+        elif state.get('notification') is None or not _notification_recorded_sent(
                 state['notification'], selected_day, business['release']):
             state['notification'] = {'status': 'running', 'day': selected_day,
                                      'release': business['release']}
             _write_result(result_path, state)
+            if on_stage is not None:
+                on_stage('notify', 'running')
             try:
                 notification_result = notify(
                     workspace, selected_day, business['release'], batch_dir)
@@ -349,6 +359,11 @@ def run(workspace, *, batch_dir, collect, prepare=False, day=None, now=None,
             state['notification'].update(
                 message_count=8, message_status_counts={'sent': 8})
             _write_result(result_path, state)
+
+        if business_only:
+            state.update(status='complete', expenses={'status': 'skipped', 'reason': 'independent_cost_pipeline'})
+            _write_result(result_path, state)
+            return state
 
         try:
             if assert_ready(workspace, selected_day) != business['sources']:

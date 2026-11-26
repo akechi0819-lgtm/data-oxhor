@@ -33,6 +33,7 @@ full = [
 ]
 
 [project.scripts]
+ops = "ops.cli:main"
 data-platform = "interfaces.data_platform:main"
 business-pack = "interfaces.business_pack:main"
 company-bridge = "interfaces.company_bridge:main"
@@ -42,7 +43,7 @@ business-data-mcp = "business_data_mcp.server:main"
 business-data-mcp-keys = "business_data_mcp.keys:main"
 
 [tool.setuptools.packages.find]
-include = ["workspace_modeling*", "data_platform*", "data_acquisition*", "dashboard_product*", "monitoring_product*", "interfaces*", "business_data_mcp*"]
+include = ["workspace_modeling*", "data_platform*", "data_acquisition*", "dashboard_product*", "monitoring_product*", "interfaces*", "business_data_mcp*", "ops*"]
 
 [tool.setuptools.package-data]
 "workspace_modeling.business_pack" = ["packs/**/*.json"]

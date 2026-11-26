@@ -235,8 +235,8 @@ def refresh_daily(*, workspace: Path, as_of_date: str, run_id: str,
     if start > as_of:
         raise ValueError("bi_start_date must be on or before as_of_date")
 
-    if input_paths is not None and set(input_paths) != {'orders', 'cash', 'tencent'}:
-        raise ValueError('offline inputs require both BI exports and the full Tencent workbook')
+    if input_paths is not None and set(input_paths) not in ({'orders', 'cash'}, {'orders', 'cash', 'tencent'}):
+        raise ValueError('offline inputs require both BI exports; the Tencent workbook is optional')
     workspace = Path(workspace).resolve()
     root = _safe_daily_root(workspace)
     run_root = root / "Runs" / run_id
@@ -355,7 +355,7 @@ def refresh_daily(*, workspace: Path, as_of_date: str, run_id: str,
                 snapshot_id=study_snapshot_id,
                 through_date=as_of.isoformat(),
                 refresh_months=[as_of.strftime("%Y-%m")],
-                **({'source_file': input_paths['tencent']} if input_paths else {}),
+                **({'source_file': input_paths['tencent']} if input_paths and 'tencent' in input_paths else {}),
             )
             if (result.get("run_id") != run_id or result.get("snapshot_id") != study_snapshot_id
                     or result.get("through_date") != as_of.isoformat()):

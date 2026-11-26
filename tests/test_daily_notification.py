@@ -98,3 +98,62 @@ def test_execute_uses_published_send_mode(tmp_path, monkeypatch):
 
     assert daily_notification._execute(tmp_path, DAY, RELEASE, tmp_path/'notification.log') == 0
     assert calls[0][0] == ['ssh', 'host', f'/usr/local/sbin/shadow-bi-notify send-published {RELEASE} {DAY}']
+
+
+def _server_report(**changes):
+    return {**sent(), 'deduplicated': 8, 'network_send_attempted': False, **changes}
+
+
+def test_resume_reconciles_crashed_local_attempt_with_server_dedup(tmp_path):
+    from data_acquisition.jobs.daily_notification import notify_published_resumable
+    batch = tmp_path / 'batch'
+    old = batch / 'notification-attempts' / 'crashed'
+    old.mkdir(parents=True)
+    (old / 'attempt.json').write_text('{}')
+    calls = []
+
+    def execute(workspace, day, release, log):
+        calls.append(log)
+        log.write_text(json.dumps(_server_report()))
+        return 0
+
+    result = notify_published_resumable(tmp_path, DAY, RELEASE, batch,
+        clock=lambda: datetime(2026, 10, 30, 10, 1, tzinfo=TZ), execute=execute)
+    assert result['status'] == 'sent' and result['reason'] == 'already_sent_today'
+    assert result['network_send_attempted'] is False
+    assert len(calls) == 1 and calls[0].parent != old
+    assert (old / 'attempt.json').read_text() == '{}'
+
+
+def test_resume_reports_partial_and_uses_new_attempt_for_next_server_decision(tmp_path):
+    from data_acquisition.jobs.daily_notification import notify_published_resumable
+    reports = iter([
+        (_server_report(status='partial', message_status_counts={'sent': 7, 'pending': 1},
+                        deduplicated=7, network_send_attempted=False), 2),
+        (_server_report(deduplicated=7, network_send_attempted=True), 0),
+    ])
+    logs = []
+
+    def execute(workspace, day, release, log):
+        logs.append(log)
+        report, code = next(reports)
+        log.write_text(json.dumps(report))
+        return code
+
+    kwargs = dict(clock=lambda: datetime(2026, 10, 30, 10, 1, tzinfo=TZ), execute=execute)
+    first = notify_published_resumable(tmp_path, DAY, RELEASE, tmp_path/'batch', **kwargs)
+    second = notify_published_resumable(tmp_path, DAY, RELEASE, tmp_path/'batch', **kwargs)
+    assert first['status'] == 'partial'
+    assert second['status'] == 'sent' and second.get('reason') != 'already_sent_today'
+    assert len(set(logs)) == 2
+    assert all((log.parent / 'result.json').is_file() for log in logs)
+
+
+def test_resume_does_not_accept_unconfirmed_or_inconsistent_receipt(tmp_path):
+    from data_acquisition.jobs.daily_notification import notify_published_resumable
+    def execute(workspace, day, release, log):
+        log.write_text(json.dumps(_server_report(message_status_counts={'sent': 7, 'unknown': 1})))
+        return 0
+    result = notify_published_resumable(tmp_path, DAY, RELEASE, tmp_path/'batch',
+        clock=lambda: datetime(2026, 10, 30, 10, 1, tzinfo=TZ), execute=execute)
+    assert result['status'] == 'unknown'

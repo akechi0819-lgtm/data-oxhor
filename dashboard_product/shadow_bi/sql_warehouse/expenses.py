@@ -229,6 +229,15 @@ def replace_sources(connection, costs: dict[str, Any], import_id: str) -> dict[s
     install(connection)
     connection.execute("BEGIN TRANSACTION")
     try:
+        for row in rows:
+            if row["source_id"].startswith("manual:"):
+                conflict = connection.execute(
+                    f"SELECT 1 FROM {SCHEMA}.expense_rows WHERE business_line=? AND business_group=? "
+                    "AND platform=? AND start_date<=? AND end_date>=? AND source_key<>? LIMIT 1",
+                    [row["business_line"], row["business_group"], row["platform"],
+                     row["end_date"], row["start_date"], row["source_key"]]).fetchone()
+                if conflict:
+                    raise ValueError("手工费用与已有同组同平台同日明细冲突，需要确认覆盖口径")
         for source_key, grain, start, end in sorted(scopes):
             if grain == "period":
                 connection.execute(
@@ -317,7 +326,12 @@ def _prepare(costs: dict[str, Any], import_id: str):
         marketing_scene = _optional_text(row.get("marketing_scene")) or _optional_text(row.get("营销场景"))
         company = _optional_text(row.get("company")) or _optional_text(source.get("company"))
 
-        if platform == "小红书":
+        if source.get("source_kind") == "manual_daily":
+            if grain != "daily" or start != end or not line or not group:
+                raise ValueError("手工费用必须明确业务组和单日")
+            source_key = _stable_key("manual", line, group, platform)
+            natural_parts = ("manual", line, group, platform, start.isoformat())
+        elif platform == "小红书":
             if not account_id:
                 raise ValueError(f"小红书行缺少account_id: {source_id}/{source_row}")
             source_key = _stable_key("xhs", account_id)
@@ -427,6 +441,8 @@ def _summary_source_key(source: dict[str, Any]) -> str:
     sheet = _optional_text(source.get("source_sheet"))
     line = _optional_text(source.get("business_line"))
     company = _optional_text(source.get("company"))
+    if source.get("source_kind") == "manual_daily":
+        return _stable_key("manual", line, _required_text(source.get("business_group"), "business_group"), platform)
     if platform == "小红书" and account_id:
         return _stable_key("xhs", account_id)
     if platform in {"腾讯广告", "腾讯"} and account_id and product_scope:

@@ -129,7 +129,7 @@ def _fee_refresh_expected(workspace, advertising_manifest):
 def run(workspace, day, resume=None, publish_prepared=False, *, held_lock=None,
         prepared_sources=None, run_id_override=None, before_publish=None,
         advertising_manifest=None, force_refresh=False, bi_start_date=None,
-        input_paths=None, orders_start_date=None, orders_end_date=None):
+        input_paths=None, orders_start_date=None, orders_end_date=None, on_stage=None, candidate_root=None):
     from data_acquisition.jobs.daily_warehouses import refresh_daily, assert_daily_ready
     from . import sql_daily
 
@@ -195,6 +195,8 @@ def run(workspace, day, resume=None, publish_prepared=False, *, held_lock=None,
             write(folder / 'result.json', report)
 
             if not resume and not publish_prepared and prepared_sources is None:
+                if on_stage is not None:
+                    on_stage('acquire', 'running')
                 refresh_kwargs = {}
                 if bi_start_date is not None:
                     refresh_kwargs['bi_start_date'] = bi_start_date
@@ -210,12 +212,17 @@ def run(workspace, day, resume=None, publish_prepared=False, *, held_lock=None,
                     **refresh_kwargs)
                 if captured.get('status') != 'passed':
                     raise RuntimeError('双仓采集未同时成功；保留当前SQL版本，需检查来源回执')
+            if on_stage is not None:
+                on_stage('acquire', 'passed' if not (resume or publish_prepared or prepared_sources is not None) else 'skipped')
+                on_stage('validate', 'running')
             pair = assert_daily_ready(workspace, day)
             if prepared_sources is not None and pair != prepared_sources:
                 raise ValueError('完整日更双仓身份已改变')
             if resume and pair != report.get('sources'):
                 raise ValueError('续跑时双仓身份已改变，拒绝混用批次')
             report['sources'] = pair
+            if on_stage is not None:
+                on_stage('validate', 'passed', {'sources': pair})
             if publish_prepared:
                 report['reused_capture'] = True
                 report['repair_of'] = pair.get('repair_of')
@@ -230,7 +237,9 @@ def run(workspace, day, resume=None, publish_prepared=False, *, held_lock=None,
                 advertising_manifest=advertising_manifest, ssh=ssh, ssh_env=ssh_env,
                 command=command, command_result=command_result,
                 before_publish=before_publish, config_root=ROOT,
-                current_state=current_state)
+                current_state=current_state,
+                **({'on_stage': on_stage} if on_stage is not None else {}),
+                **({'candidate_root': candidate_root} if candidate_root is not None else {}))
             if publication.get('status') != 'published' or publication.get('release') != release_id:
                 raise ValueError('SQL warehouse publication was not confirmed')
             report.update(publication)

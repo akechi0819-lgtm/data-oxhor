@@ -1,4 +1,4 @@
-> **SQL 日更入口（2026-11-07 已切换）**：`prepare_full_daily --publish` 通过 `business_first_daily` 先发布 SQL 业务 release、再发送日报，最后以 SQL release 刷新费用。默认模式（含 `--prepare`）仅准备隔离的本地候选。SQL 正式切换与旧 raw 通道退役见[看板部署说明](../dashboard_product/DEPLOYMENT.md)和[SQL 迁移记录](shadow-bi-sql-local-migration.md)；bi-3 调度当前状态须另行实时核验。
+> **SQL 日更入口**：`ops run business` 更新双 Snapshot、发布 SQL 看板及发送日报。既有的 `prepare_full_daily --publish` 进入同一业务链。费用按日独立录入，见 4.1。
 
 > **2026-10-26 历史回执**：正式产品为 Superset 原生 BI。服务器 raw worker 实际运行到39张表，Dot 批次因截止不匹配以 `failed/published=false` 结束，没有发布 raw release；当时 Mac `p5.daily` 更新了 `daily-20261026_094052`。这些事实是当日记录，不是当前日更入口或当前调度状态。详见[部署说明](../dashboard_product/DEPLOYMENT.md)及本页 4.1。
 
@@ -81,7 +81,13 @@ PPT Master 现由宿主全局 Skill 管理。项目只保证交给它的当前 S
 
 ## 4.1 正式 BI、服务器计算与固定发布
 
-Mac 日更总入口为 `data_acquisition.jobs.prepare_full_daily --publish`。该流程先更新双 Snapshot 来源并构建、发布 SQL 业务 release，随即调用固定通知入口；只有8条消息全部确认后才继续采集和发布费用 SQL release。费用阶段复用同一双 Snapshot；失败保留已成功的业务 release 和日报。默认运行及显式 `--prepare` 只生成隔离的本地候选，不发布、不发送。阶段结果写入本批 `pipeline-result.json`；排查时按其中 business、notification、expenses 状态定位，不用费用失败覆盖已发布的业务 current。
+Mac 默认运行 `ops run business`，也可在当前 Python 环境运行 `python -m ops run business`。兼容现有调度命令 `data_acquisition.jobs.prepare_full_daily --publish`，该入口不再采集或发布费用。用 `ops status --day YYYY-MM-DD` 查看 `runtime/ops_state.db` 最近一次核验的来源日期、Superset 版本、当日日报与独立费用。若从其他主机执行日更，该主机的台账需单独查看。点评与初三的台账栏在各自入口接入前显示尚无核验记录。
+
+人工补全量时将 `orders.xlsx`、`cash.xlsx` 放入 `runtime/inbox/manual/YYYY-MM-DD/` 后运行 `ops run business --day YYYY-MM-DD --from-manual`，可同目录附 `tencent.xlsx`。未附腾讯表时仍走现有留学采集。工单及现金会用文件 SHA 写入补数清单并走原门禁。日报由服务器每日键在共享投递锁内判定。若已确认 8 条，则返回 `notify: skipped (already_sent_today)`；传输未知的条目由原服务保持阻塞。只更新看板的操作可用 `--no-notify`。
+
+费用录入使用 `ops ingest-cost --input 费用.csv --platform xhs --confirm-zero 高中=YYYY-MM-DD`，同一命令也支持 XLSX、JSON 以及抖音、腾讯和 SEM。列名为日期、业务组、金额或 `date,business_group,amount`。业务组未出现在记录中的日期保留缺失，空金额仍为缺失，需要明确的业务组与日期声明才能录入零消费。SEM 需指定明细平台，零声明填 `高中/百度=YYYY-MM-DD`。费用独立候选沿用当前业务仓的封存数据与通知预览，经整仓发布更新费用视图，录入过程不调用日报入口。原生费用抓取保留在 `ops fetch-cost-optional`，用于产生本地核验资料。
+
+`runtime/releases` 只跟踪新入口登记的候选。每次成功发布后，保留当前、前一版本、月末与额外登记的引用，将超过 7 天且无引用的候选移至同级 `releases-cold`。需要保留其他候选时，把绝对路径填入 `runtime/release-references.json` 的字符串数组。保留处理结果可在台账查阅。
 
 工单、现金导出按各自声明窗口核验必填列、非空、同窗行数和新表截止日。旧窗口行数减少超过一半，或新表截止日期不足时，先停在临时候选。历史补数按所声明的补数结束日校验，合并后的双表仍须覆盖到昨天。若回执显示 `EMPTY_EXPORT`，确认源系统导出后用同一请求重试，或按已校验的人工输入恢复流程处理。当前 BI 下载和人工清单没有可证明零事件日的来源回执，按实际日期门禁停下。既有保护式完成证明只适用于与证明绑定的来源。
 

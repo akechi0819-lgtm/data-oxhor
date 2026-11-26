@@ -1,5 +1,5 @@
-"""Preview fees locally, or publish business and notify before updating fees."""
-import argparse,json
+"""Preview optional fee sources locally, or run the business daily pipeline."""
+import argparse,json,os
 from datetime import date,timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -438,11 +438,12 @@ def build_parser():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--workspace',type=Path,required=True)
     p.add_argument('--batch-dir',type=Path,required=True)
-    p.add_argument('--source-contracts',type=Path,required=True)
-    p.add_argument('--xhs-scope',type=Path,required=True)
+    p.add_argument('--source-contracts',type=Path)
+    p.add_argument('--xhs-scope',type=Path)
     run_mode=p.add_mutually_exclusive_group()
     run_mode.add_argument('--prepare',action='store_true',help='Build a local candidate only (the default)')
-    run_mode.add_argument('--publish',action='store_true',help='Publish business, send the daily notification, then update fees through the existing gates')
+    run_mode.add_argument('--publish',action='store_true',help='Publish business and send the daily notification')
+    p.add_argument('--business-only', action='store_true', help=argparse.SUPPRESS)
     p.add_argument('--refresh-business',action='store_true',
                    help='Force a fresh same-day business source refresh for a manual correction; requires --publish')
     p.add_argument('--orders-start-date', help='Explicit recovery order window start; cash keeps its normal window')
@@ -465,26 +466,36 @@ def main(argv=None, *, run_fn=None):
         parser.error('--refresh-business requires --publish')
     if a.business_inputs is not None and not (a.publish and a.refresh_business):
         parser.error('--business-inputs requires --publish --refresh-business')
-    if run_fn is None and a.publish:
-        from data_acquisition.jobs.business_first_daily import run as selected_run
-    else:
-        selected_run=run if run_fn is None else run_fn
+    if not a.publish and (a.source_contracts is None or a.xhs_scope is None):
+        parser.error('expense preview requires --source-contracts and --xhs-scope')
     try:
-        kwargs={
-            'prepare':not a.publish,
-            'collect':collector(a.batch_dir,a.source_contracts,a.xhs_scope,a.sem_receipt,
-                               sem_auto=a.sem_auto,sem_executable_path=a.sem_executable_path,
-                               tencent_confirmation=a.tencent_scope_confirmation),
-        }
-        if a.publish:
-            kwargs['batch_dir']=a.batch_dir
-        if a.refresh_business:
-            kwargs['refresh_business']=True
-        if a.business_inputs is not None:
-            kwargs['business_inputs']=a.business_inputs
-        if a.orders_start_date:
-            kwargs.update(orders_start_date=a.orders_start_date, orders_end_date=a.orders_end_date)
-        result=selected_run(a.workspace.resolve(),**kwargs)
+        if a.publish and run_fn is None:
+            from ops.pipeline import run_business
+
+            workspace = a.workspace.resolve()
+            result = run_business(
+                workspace, Path(os.environ.get('COWH_OPS_RUNTIME', Path(__file__).resolve().parents[2] / 'runtime')).resolve(),
+                day=datetime.now(ZoneInfo('Asia/Shanghai')).date().isoformat(),
+                batch_dir=a.batch_dir, business_inputs=a.business_inputs,
+                force_refresh=a.refresh_business, orders_start_date=a.orders_start_date,
+                orders_end_date=a.orders_end_date,
+            )
+        else:
+            selected_run = run if run_fn is None else run_fn
+            kwargs = {'prepare': not a.publish}
+            if a.publish:
+                kwargs['batch_dir'] = a.batch_dir
+            else:
+                kwargs['collect'] = collector(a.batch_dir, a.source_contracts, a.xhs_scope, a.sem_receipt,
+                                              sem_auto=a.sem_auto, sem_executable_path=a.sem_executable_path,
+                                              tencent_confirmation=a.tencent_scope_confirmation)
+            if a.refresh_business:
+                kwargs['refresh_business'] = True
+            if a.business_inputs is not None:
+                kwargs['business_inputs'] = a.business_inputs
+            if a.orders_start_date:
+                kwargs.update(orders_start_date=a.orders_start_date, orders_end_date=a.orders_end_date)
+            result = selected_run(a.workspace.resolve(), **kwargs)
         print(json.dumps(result))
         return 2 if result.get('status') in {'blocked','failed','partial'} else 0
     except DailyBlocked as e:

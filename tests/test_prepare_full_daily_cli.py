@@ -28,6 +28,14 @@ class PrepareFullDailyCliTests(unittest.TestCase):
         self.assertEqual(main(self.args('--publish'), run_fn=run), 0)
         self.assertFalse(run.call_args.kwargs['prepare'])
 
+    def test_formal_publish_delegates_to_ops_without_a_fee_collector(self):
+        with patch('ops.pipeline.run_business', return_value={'status': 'complete'}) as business:
+            with patch('data_acquisition.jobs.prepare_full_daily.collector') as collector:
+                self.assertEqual(main(self.args('--publish')), 0)
+        collector.assert_not_called()
+        self.assertEqual(business.call_args.kwargs['batch_dir'], Path('/tmp/batch'))
+        self.assertNotIn('collect', business.call_args.kwargs)
+
     def test_explicit_prepare_flag_keeps_preview_mode(self):
         run = Mock(return_value={'status': 'prepared', 'published': False})
         self.assertEqual(main(self.args('--prepare'), run_fn=run), 0)
