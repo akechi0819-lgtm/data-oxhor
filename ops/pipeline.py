@@ -3,7 +3,6 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from datetime import datetime
-from functools import partial
 import hashlib
 import json
 from pathlib import Path
@@ -161,8 +160,6 @@ def run_business(workspace: Path, runtime: Path, *, day: str, from_manual=False,
 def publish_costs(workspace, runtime, *, costs, on_stage, config_root=None):
     """Reuse the verified business release; publish only independently changed expenses."""
     from dashboard_product.shadow_bi.p5 import daily, sql_daily
-    from .costs import build_cost_candidate
-
     state = workspace / 'Output/ShadowDaily'
     with daily.production_lock(state):
         ssh, ssh_env = daily.ssh_config(workspace / '.private')
@@ -190,7 +187,7 @@ def publish_costs(workspace, runtime, *, costs, on_stage, config_root=None):
             release_id=release_id, folder=verification, advertising_manifest=None, ssh=ssh,
             ssh_env=ssh_env, command=daily.command, command_result=daily.command_result,
             config_root=config_root or sql_daily.ROOT, current_state=current, on_stage=on_stage,
-            cost_builder=partial(build_cost_candidate, costs=costs), candidate_root=runtime / 'releases',
+            cloud_costs=costs, candidate_root=runtime / 'releases',
         )
         daily.write(previous_path, result)
         daily.write(state / 'current.json', result)

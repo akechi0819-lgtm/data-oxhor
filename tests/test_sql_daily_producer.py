@@ -176,6 +176,33 @@ def test_runtime_acceptance_carries_migration_sha_and_catalogue_contract():
     assert acceptance["runtime_contract"]["source_gates_passed"] is True
 
 
+def test_cloud_candidate_identity_mismatch_blocks_activation(tmp_path, monkeypatch):
+    import sys
+    import types
+
+    workspace, baseline, pointer, acceptance_file = _pointer_fixture(tmp_path)
+    migration = json.loads(acceptance_file.read_text())
+    baseline_manifest = json.loads((baseline / "candidate.json").read_text())
+    current = (pointer, {"through_date": "2026-11-05"}, baseline_manifest,
+               baseline, migration, _sha(acceptance_file))
+    pair = {"sources": {"bi": {"snapshot_id": "training"},
+                        "study_abroad": {"snapshot_id": "abroad"}}}
+    module = types.ModuleType('dashboard_product.shadow_bi.p5.cloud_foundation')
+    module.prepare_remote_business = lambda **kwargs: {"candidate": {"batch_id": "different"}, "source": {}}
+    monkeypatch.setitem(sys.modules, module.__name__, module)
+    monkeypatch.setattr(sql_daily, "_validate_candidate", lambda *args, **kwargs: ({"batch_id": "expected"}, None, None))
+    commands = []
+    with pytest.raises(ValueError, match="differs from the staging receipt"):
+        sql_daily.publish(workspace=workspace, day="2026-11-07", pair=pair,
+                          run_id="run_fixture", release_id="daily-sql-next", folder=tmp_path,
+                          advertising_manifest=None, ssh=[], ssh_env={},
+                          command=lambda *a, **kw: commands.append(a),
+                          command_result=lambda *a, **kw: commands.append(a),
+                          config_root=tmp_path, current_state=current)
+    assert commands == []
+    assert json.loads((workspace/'Output/ShadowDaily/sql-current.json').read_text()) == pointer
+
+
 def test_full_daily_preview_package_still_transfers_only_sealed_table_files(tmp_path):
     source = tmp_path / "source"
     presentation = tmp_path / "presentation"
@@ -197,11 +224,13 @@ def test_full_daily_preview_package_still_transfers_only_sealed_table_files(tmp_
 
 @pytest.mark.parametrize('contract_change,accepted,blocked,cost_only', [
     (False, True, False, False), (True, True, False, False), (True, False, False, False),
-    (False, True, True, False), (False, True, False, True),
+    (False, True, True, False), (False, True, False, True), (False, True, False, 'cloud'),
 ])
 def test_publish_builds_runtime_contract_and_updates_pointer_only_after_activation(
         tmp_path, monkeypatch, contract_change, accepted, blocked, cost_only):
     import duckdb
+    import sys
+    import types
     from dashboard_product.shadow_bi.p5 import release_guard, sql_bundle
     from dashboard_product.shadow_bi.sql_warehouse import build as sql_build
     from dashboard_product.shadow_bi.sql_warehouse.foundation import TABLES
@@ -233,7 +262,7 @@ def test_publish_builds_runtime_contract_and_updates_pointer_only_after_activati
     archives = []
 
     def source_receipts(**kwargs):
-        assert not cost_only, "fee-only publication must not rebuild source evidence"
+        assert cost_only is not True, "fee-only publication must not rebuild source evidence"
         return {"source_order_receipts": [str(tmp_path / "receipt.json")],
                 "coverage": {"orders_start": "2025-03-01", "orders_end": "2026-11-06",
                              "cash_start": "2024-06-01", "cash_end": "2026-11-05"},
@@ -328,12 +357,38 @@ def test_publish_builds_runtime_contract_and_updates_pointer_only_after_activati
     monkeypatch.setattr(sql_daily, "source_order_receipts", source_receipts)
     monkeypatch.setattr(sql_daily, "remote_current", remote_after_activation)
     monkeypatch.setattr(sql_bundle, "prepare_release", prepare_release)
-    if cost_only:
+    if cost_only is True:
         def no_business_build(**_kwargs):
             raise AssertionError("fee-only publication must reuse the business warehouse")
         monkeypatch.setattr(sql_build, "build_local", no_business_build)
     else:
-        monkeypatch.setattr(sql_build, "build_local", build_local)
+        def prepare_remote_business(**kwargs):
+            manifest = build_local(output_dir=kwargs["candidate_dir"], expense_baseline=baseline)
+            source = source_receipts()
+            acceptance = {
+                "mode": "runtime_contract",
+                "migration_acceptance": {"path": pointer["migration_acceptance"], "sha256": migration_sha},
+                "runtime_contract": {"status": "passed", "catalogue_sha256": current_catalogue_sha,
+                                     "candidate_identity_passed": True, "source_gates_passed": True},
+            }
+            coverage = dict(pointer["coverage"])
+            coverage["notes"] = ["preserve this note",
+                "活动按当前Snapshot可用历史累计；工单覆盖2025-03-01至2026-11-06，现金覆盖2024-06-01至2026-11-05，不保证覆盖活动完整生命周期。"]
+            built = prepare_release(candidate=kwargs["candidate_dir"], workspace=workspace,
+                                    release_id=release_id, output_dir=kwargs["attempt"] / "releases",
+                                    coverage_template=coverage, acceptance=acceptance)
+            return {"source": source, "candidate": manifest,
+                    "local_release_root": str(Path(built["library"]).parent),
+                    "release_manifest": json.loads((Path(built["library"]) / "release.json").read_text()),
+                    "prepared": {"status": "prepared", "release": release_id, "batch_id": batch_id,
+                                 "warehouse_sha256": manifest["database"]["sha256"]}}
+        module = types.ModuleType('dashboard_product.shadow_bi.p5.cloud_foundation')
+        module.prepare_remote_business = prepare_remote_business
+        def prepare_remote_costs(**kwargs):
+            assert kwargs['costs'] == {'sources': [], 'rows': []}
+            return prepare_remote_business(**kwargs)
+        module.prepare_remote_costs = prepare_remote_costs
+        monkeypatch.setitem(sys.modules, module.__name__, module)
 
     commands = []
     result_commands = []
@@ -359,17 +414,19 @@ def test_publish_builds_runtime_contract_and_updates_pointer_only_after_activati
         release_id=release_id, folder=folder, advertising_manifest=None,
         ssh=ssh, ssh_env={}, command=command, command_result=command_result,
         config_root=tmp_path, current_state=current_state)
-    if cost_only:
+    if cost_only is True:
         def cost_builder(*, baseline_dir, output_dir, batch_id):
             assert baseline_dir == baseline and batch_id == kwargs["run_id"]
             return build_local(output_dir=output_dir)
         kwargs["cost_builder"] = cost_builder
+    elif cost_only == 'cloud':
+        kwargs['cloud_costs'] = {'sources': [], 'rows': []}
     if blocked:
         with pytest.raises(ValueError, match="comparison blocked: training.orders:retraction"):
             sql_daily.publish(**kwargs)
         comparison = folder / "sql-attempts" / release_id / "release-comparison.json"
         assert json.loads(comparison.read_text())['blocks'] == ['training.orders:retraction']
-        assert not commands and not result_commands and not prepared_acceptance
+        assert not commands and not result_commands
         assert json.loads((workspace / 'Output/ShadowDaily/sql-current.json').read_text()) == pointer
         return
     if not accepted:
@@ -380,7 +437,7 @@ def test_publish_builds_runtime_contract_and_updates_pointer_only_after_activati
         return
     result = sql_daily.publish(**kwargs)
 
-    if cost_only:
+    if cost_only is True:
         assert prepared_coverage == pointer["coverage"]
         assert commands
         assert result["status"] == "published"
@@ -397,9 +454,7 @@ def test_publish_builds_runtime_contract_and_updates_pointer_only_after_activati
         "path": pointer["migration_acceptance"], "sha256": migration_sha,
     }
     assert prepared_acceptance["runtime_contract"]["catalogue_sha256"] == current_catalogue_sha
-    assert len(commands) == 1
-    assert commands[0][0][:-1] == ["ssh", "-C", "-o", "BatchMode=yes", "example"]
-    assert commands[0][1] == archives[0].read_bytes()
+    assert not commands
     assert result_commands and all(args == ssh + ["bash -s"] for args in result_commands)
     assert ssh == ["ssh", "-o", "BatchMode=yes", "example"]
     updated = json.loads((workspace / "Output/ShadowDaily/sql-current.json").read_text())

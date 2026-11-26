@@ -368,10 +368,9 @@ def publish(*, workspace: str | Path, day: str, pair: dict, run_id: str,
             command: Callable, command_result: Callable, before_publish: Callable | None = None,
             config_root: str | Path = ROOT, current_state: tuple | None = None,
             on_stage: Callable | None = None, cost_builder: Callable | None = None,
-            candidate_root: str | Path | None = None) -> dict:
+            candidate_root: str | Path | None = None, cloud_costs: dict | None = None) -> dict:
     """Build a candidate, transfer only its sealed archive, and activate it."""
     from dashboard_product.shadow_bi.p5.sql_bundle import prepare_release
-    from dashboard_product.shadow_bi.sql_warehouse.build import build_local
     from data_platform.query.evidence import resolve_file
 
     workspace, folder = Path(workspace).resolve(strict=True), Path(folder).resolve()
@@ -385,6 +384,8 @@ def publish(*, workspace: str | Path, day: str, pair: dict, run_id: str,
     pointer, old_remote, baseline_manifest, baseline, migration, migration_sha = current_state
     training_snapshot = pair["sources"]["bi"]["snapshot_id"]
     abroad_snapshot = pair["sources"]["study_abroad"]["snapshot_id"]
+    if cost_builder is not None and cloud_costs is not None:
+        raise ValueError("local and cloud expense builders cannot be used together")
     if not training_snapshot or not abroad_snapshot:
         raise ValueError("explicit source Snapshot pair is incomplete")
     if before_publish is not None:
@@ -393,24 +394,32 @@ def publish(*, workspace: str | Path, day: str, pair: dict, run_id: str,
         on_stage("build", "running")
     candidates = Path(candidate_root) if candidate_root is not None else Path(config_root) / ".local/sql-daily/candidates"
     candidate_dir = candidates.resolve() / release_id
-    if cost_builder is None:
-        source = source_order_receipts(
-            workspace=workspace, training_snapshot=training_snapshot, as_of_date=day,
-            batch_id=run_id, output_root=attempt / "source-order")
-        build_local(
-            workspace=workspace, output_dir=candidate_dir, batch_id=run_id,
-            training_snapshot=training_snapshot, abroad_snapshot=abroad_snapshot,
-            as_of_date=day, config_root=config_root,
-            source_order_receipts=source["source_order_receipts"],
-            expense_baseline=baseline,
-            advertising_manifest=advertising_manifest,
+    if cloud_costs is not None:
+        from dashboard_product.shadow_bi.p5.cloud_foundation import prepare_remote_costs
+        remote = prepare_remote_costs(
+            workspace=workspace, day=day, pair=pair, run_id=run_id,
+            release_id=release_id, attempt=attempt, candidate_dir=candidate_dir,
+            ssh=ssh, ssh_env=ssh_env, command=command, command_result=command_result,
+            current_state=current_state, costs=cloud_costs,
         )
+        source = remote["source"]
+    elif cost_builder is None:
+        from dashboard_product.shadow_bi.p5.cloud_foundation import prepare_remote_business
+        remote = prepare_remote_business(
+            workspace=workspace, day=day, pair=pair, run_id=run_id,
+            release_id=release_id, attempt=attempt, candidate_dir=candidate_dir,
+            ssh=ssh, ssh_env=ssh_env, command=command, command_result=command_result,
+            current_state=current_state, advertising_manifest=advertising_manifest,
+        )
+        source = remote["source"]
     else:
         source = {"source_order_receipts": baseline_manifest["source_order_receipts"]}
         cost_builder(baseline_dir=baseline, output_dir=candidate_dir, batch_id=run_id)
     candidate, database, preview = _validate_candidate(
         candidate_dir, batch_id=run_id, training_snapshot=training_snapshot,
         abroad_snapshot=abroad_snapshot, as_of_date=day)
+    if cost_builder is None and remote["candidate"] != candidate:
+        raise ValueError("retrieved cloud candidate differs from the staging receipt")
     from dashboard_product.shadow_bi.p5.release_guard import compare_releases
 
     comparison = compare_releases(
@@ -431,81 +440,57 @@ def publish(*, workspace: str | Path, day: str, pair: dict, run_id: str,
 
     # 日常数据更新沿用已验收目录；经重新验收的产品改动可显式更新该封口合同。
     accepted_catalogue_sha = migration["catalogue_sha256"]
-    release_out = attempt / "releases"
-    acceptance = {
-        "mode": "runtime_contract",
-        "migration_acceptance": {
-            "path": str(Path(pointer["migration_acceptance"]).resolve()),
-            "sha256": migration_sha,
-        },
-        "runtime_contract": {
-            "status": "passed",
-            "catalogue_sha256": accepted_catalogue_sha,
-            "candidate_identity_passed": True,
-            "source_gates_passed": True,
-        },
-    }
-    coverage_template = deepcopy(pointer["coverage"])
     if cost_builder is None:
-        current_start = min(source["coverage"]["orders_start"], source["coverage"]["cash_start"])
-        capacity_start = max("2026-06-01", current_start)
-        coverage_template.update(
-            title=coverage_template.get("title", "市场经营 · 管理融合看板"),
-            coverage_start=current_start,
-            orders_coverage_start=source["coverage"]["orders_start"],
-            cash_coverage_start=source["coverage"]["cash_start"],
-            capacity_start=capacity_start,
-        )
-        coverage = source["coverage"]
-        through = candidate["through_date"]
-        activity_note = (
-            f"活动按当前Snapshot可用历史累计；工单覆盖{coverage['orders_start']}至"
-            f"{min(coverage['orders_end'], through)}，现金覆盖{coverage['cash_start']}至"
-            f"{min(coverage['cash_end'], through)}，不保证覆盖活动完整生命周期。"
-        )
-        legacy_scope = 'SSC及待确认归属只计留学总盘，不计线上/线下留学团队；'
-        cash_only_scope = '线上留学现金汇总包含线上虚拟人；留学及小语种现金总计剔除SSC；待确认归属只计留学总盘；'
-        previous_scope = '工单、现金和去重人头汇总中，线上留学包含虚拟人，留学及小语种总计剔除SSC；待确认归属只计留学总盘；'
-        abroad_scope = '工单、现金和去重人头汇总中，线上留学包含虚拟人，待确认归属只计留学总盘；'
-        coverage_template['notes'] = [
-            note.replace(legacy_scope, abroad_scope).replace(cash_only_scope, abroad_scope).replace(previous_scope, abroad_scope)
-            for note in coverage_template['notes'] if not note.startswith('活动按当前Snapshot可用历史累计；')
-        ]
-        coverage_template['notes'].append(activity_note)
-    release = prepare_release(
-        candidate=candidate_dir, workspace=workspace, release_id=release_id,
-        output_dir=release_out, coverage_template=coverage_template,
-        acceptance=acceptance)
-    library = Path(release["library"]).resolve(strict=True)
+        library = Path(remote["local_release_root"]).resolve(strict=True) / "library"
+    else:
+        acceptance = {
+            "mode": "runtime_contract",
+            "migration_acceptance": {
+                "path": str(Path(pointer["migration_acceptance"]).resolve()),
+                "sha256": migration_sha,
+            },
+            "runtime_contract": {
+                "status": "passed", "catalogue_sha256": accepted_catalogue_sha,
+                "candidate_identity_passed": True, "source_gates_passed": True,
+            },
+        }
+        release = prepare_release(
+            candidate=candidate_dir, workspace=workspace, release_id=release_id,
+            output_dir=attempt / "releases", coverage_template=deepcopy(pointer["coverage"]),
+            acceptance=acceptance)
+        library = Path(release["library"]).resolve(strict=True)
     from dashboard_product.shadow_bi.p4.sql_release import load_release
     sealed_release, sealed_candidate, sealed_database = load_release(library)
     if (sealed_release.get("release_id") != release_id
-            or sealed_candidate.get("batch_id") != run_id
-            or sealed_candidate.get("database", {}).get("sha256") != candidate["database"]["sha256"]
+            or sealed_candidate != candidate
             or sealed_database != library / "warehouse.duckdb"):
         raise ValueError("sealed SQL release identity or database is invalid")
     release_manifest = _read_json(library / "release.json", "SQL release manifest")
+    if cost_builder is None and remote["release_manifest"] != release_manifest:
+        raise ValueError("retrieved cloud release differs from the staging receipt")
     catalogue_path = resolve_file(library, release_manifest["superset_catalogue"])
     catalogue_sha = sha256_file(catalogue_path)
     if catalogue_sha != accepted_catalogue_sha:
         raise ValueError("static SQL dataset and option contract changed; repeat migration acceptance before publishing")
-    archive = Path(release["archive"]).resolve(strict=True)
-    _validate_archive(archive, release_id)
-    archive_sha = sha256_file(archive)
-    if archive_sha != release["archive_sha256"]:
-        raise ValueError("SQL release archive hash mismatch")
-    if before_publish is not None:
-        before_publish()
-
-    incoming = f"{INCOMING}/{release_id}.tar"
-    with archive.open("rb") as archive_stream:
-        command(ssh[:1] + ["-C"] + ssh[1:] + [f"umask 077; mkdir -p {INCOMING}; cat > {incoming}"],
-                attempt / "transfer.log", stdin=archive_stream, env=ssh_env)
-    prepared = command_result(
-        ssh + ["bash -s"], attempt / "install.log",
-        input=_install_script(release_id, run_id, pointer["release"],
-                              candidate["database"]["sha256"], archive_sha),
-        text=True, env=ssh_env)
+    if cost_builder is None:
+        prepared = remote["prepared"]
+    else:
+        archive = Path(release["archive"]).resolve(strict=True)
+        _validate_archive(archive, release_id)
+        archive_sha = sha256_file(archive)
+        if archive_sha != release["archive_sha256"]:
+            raise ValueError("SQL release archive hash mismatch")
+        if before_publish is not None:
+            before_publish()
+        incoming = f"{INCOMING}/{release_id}.tar"
+        with archive.open("rb") as archive_stream:
+            command(ssh[:1] + ["-C"] + ssh[1:] + [f"umask 077; mkdir -p {INCOMING}; cat > {incoming}"],
+                    attempt / "transfer.log", stdin=archive_stream, env=ssh_env)
+        prepared = command_result(
+            ssh + ["bash -s"], attempt / "install.log",
+            input=_install_script(release_id, run_id, pointer["release"],
+                                  candidate["database"]["sha256"], archive_sha),
+            text=True, env=ssh_env)
     if (prepared.get("status") != "prepared" or prepared.get("release") != release_id
             or prepared.get("batch_id") != run_id
             or prepared.get("warehouse_sha256") != candidate["database"]["sha256"]):

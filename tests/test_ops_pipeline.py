@@ -101,3 +101,35 @@ def test_independent_cost_run_records_cost_coverage(tmp_path):
     assert {row['stage'] for row in snapshot['stage_events']} == {'validate', 'build', 'publish'}
     costs = next(row for row in snapshot['live_pointers'] if row['domain'] == 'ad_costs')
     assert costs['data_through'] == '2026-11-24'
+
+
+def test_cost_publication_sends_normalized_costs_to_cloud_builder(tmp_path, monkeypatch):
+    from contextlib import nullcontext
+    from dashboard_product.shadow_bi.p5 import daily, sql_daily
+    from ops.pipeline import publish_costs
+
+    workspace = tmp_path / 'workspace'
+    state = workspace / 'Output/ShadowDaily'
+    state.mkdir(parents=True)
+    pair = {'sources': {'bi': {'snapshot_id': 'training'}, 'study_abroad': {'snapshot_id': 'abroad'}}}
+    (state / '2026-11-26.json').write_text(json.dumps({
+        'status': 'published', 'day': '2026-11-26', 'release': 'daily-previous', 'sources': pair,
+    }))
+    pointer = {'release': 'daily-previous'}
+    baseline = {'as_of_date': '2026-11-26', 'snapshots': {'training': 'training', 'abroad': 'abroad'}}
+    current = (pointer, {}, baseline, tmp_path, {}, 'hash')
+    monkeypatch.setattr(daily, 'production_lock', lambda path: nullcontext())
+    monkeypatch.setattr(daily, 'ssh_config', lambda path: (['ssh'], {}))
+    monkeypatch.setattr(sql_daily, 'verify_current_pointer', lambda **kwargs: current)
+    costs = {'sources': [], 'rows': [{'amount': Decimal('12.34')}]}
+    calls = []
+
+    def publish(**kwargs):
+        calls.append(kwargs)
+        return {'status': 'published', 'release': kwargs['release_id']}
+
+    monkeypatch.setattr(sql_daily, 'publish', publish)
+    publish_costs(workspace, tmp_path / 'runtime', costs=costs, on_stage=lambda *args: None)
+    assert calls[0]['cloud_costs'] is costs
+    assert calls[0]['pair'] == pair
+    assert 'cost_builder' not in calls[0]
