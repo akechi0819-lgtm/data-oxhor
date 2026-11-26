@@ -227,6 +227,8 @@ def build_on_server(release_id):
     library = Path(result['library'])
     if _file_hash(library/'superset-catalogue.json')!=request['catalogue_sha256']:
         raise ValueError('server-generated SQL catalogue differs from the approved contract')
+    if resolve_sql_release(library.parent) is None:
+        raise ValueError('server-generated SQL release is unavailable to the controlled query service')
     if (_CLOUD_ROOT/'current').resolve(strict=True)!=old:
         raise ValueError('current cloud release changed during SQL build')
     target = _CLOUD_ROOT/'releases'/release_id

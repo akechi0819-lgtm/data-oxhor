@@ -221,7 +221,8 @@ def build_local(*,workspace,output_dir,batch_id,training_snapshot,abroad_snapsho
             evidence=con.execute('SELECT DISTINCT snapshot_id FROM meta.training_source_order_evidence').fetchall()
             if evidence != [(training_snapshot,)]:
                 raise ValueError('封存遍历来源身份不一致')
-            source_queries=[]
+            source_queries=(sealed[1]['source_queries'] if landing_metadata is None
+                            else landing_metadata['source_queries'])
         con.execute('CREATE SCHEMA raw')
         for table in (*TABLES['training'], *TABLES['abroad']):
             con.execute(f'CREATE VIEW raw.{quote(table)} AS SELECT * FROM landing.{quote(table)}')
@@ -323,6 +324,7 @@ def build_local(*,workspace,output_dir,batch_id,training_snapshot,abroad_snapsho
         'notification_preview':file_ref(output_dir/'notification-preview.json',output_dir,'application/json'),
         'server_actions':False,'notification_delivery':False}
     if sealed is not None:
+        manifest['approved_rule_inputs']=build_inputs['approved_rule_inputs']
         manifest['sealed_source']={'release_id':sealed[0]['release_id'], 'candidate_sha256':sealed[0]['candidate_sha256'],
                                    'warehouse_sha256':sealed[0]['database_sha256'],
                                    'original_source_queries':sealed[1]['source_queries'],
@@ -371,15 +373,20 @@ def prepare_sealed_build_inputs(*, workspace, sealed_candidate, output_dir, comp
     bridge_path=workspace/'Work/Bridge/reference.json'
     history_path=workspace/'Input/Reference/人员产能'/HISTORY_FILENAME
     original=candidate['input_binding']
+    approved=candidate.get('approved_rule_inputs',{})
+    input_hashes={}
     for path in (reference,bridge_path,history_path):
+        relative=str(path.relative_to(workspace))
         if not path.is_file():
-            if path == history_path and not any(k.endswith(HISTORY_FILENAME) for k in original):
+            if path == history_path and relative not in approved and not any(k.endswith(HISTORY_FILENAME) for k in original):
                 continue
             raise ValueError('原封存所需业务规则输入不存在')
-        matches=[value for key,value in original.items() if key.endswith('/'+str(path.relative_to(workspace)))]
+        matches=([approved[relative]] if relative in approved else
+                 [value for key,value in original.items() if key.endswith('/'+relative)])
         actual=hashlib.sha256(path.read_bytes()).hexdigest()
         if len(matches)!=1 or matches[0]!=actual:
             raise ValueError('业务规则输入与封存来源不一致: '+path.name)
+        input_hashes[relative]=actual
     bridge=json.loads(bridge_path.read_bytes())
     config=build_abroad_config(bridge=bridge, reference=load_work_order_reference(reference),
                                decisions=load_decisions())
@@ -387,7 +394,9 @@ def prepare_sealed_build_inputs(*, workspace, sealed_candidate, output_dir, comp
     table, fields=_source_table(training_manifest)
     scorecard=workspace/'Input/Reference/留学板块-官方记分卡.json'
     scorecard_bytes=scorecard.read_bytes()
-    contract=json.loads(Path(comparison_contract).read_bytes())
+    contract_path=(Path(comparison_contract) if comparison_contract is not None else
+                   scorecard.with_name('留学板块-官方记分卡-对账口径.json'))
+    contract=json.loads(contract_path.read_bytes())
     if contract['source_sha256'] != hashlib.sha256(scorecard_bytes).hexdigest():
         raise ValueError('官方记分卡对账合同与数据不一致')
     inputs={'schema_version':'sealed_sql_build_inputs.v1',
@@ -397,7 +406,7 @@ def prepare_sealed_build_inputs(*, workspace, sealed_candidate, output_dir, comp
             'abroad_config':config,
             'grade_table':table, 'grade_fields':fields, 'history':load_history(history_path),
             'abroad_pointer':{'through_date':abroad['through_date'],'source_sha256':abroad['source_sha256']},
-            'scorecard_comparison':contract}
+            'scorecard_comparison':contract,'approved_rule_inputs':input_hashes}
     output_dir=Path(output_dir).resolve()
     output_dir.mkdir(parents=True,exist_ok=False)
     (output_dir/'build-inputs.json').write_text(json.dumps(inputs,ensure_ascii=False,indent=2))
