@@ -1,7 +1,6 @@
 """Build and activate one isolated SQL warehouse for the daily dashboard."""
 from __future__ import annotations
 
-from copy import deepcopy
 from datetime import date, datetime, timedelta
 import hashlib
 import json
@@ -16,7 +15,6 @@ from data_platform.query.evidence import read_query_result, resolve_file
 
 ROOT = Path(__file__).resolve().parents[3]
 RELEASES = "/var/lib/shadow-bi/releases"
-INCOMING = "/var/lib/shadow-bi/sql-incoming"
 _ARCHIVE_FILES = {
     "candidate.json", "warehouse.duckdb", "notification-preview.json",
     "superset-catalogue.json", "landing-description.json", "acceptance.json",
@@ -318,59 +316,14 @@ def _validate_archive(path: Path, release_id: str) -> None:
             raise ValueError("SQL release archive must contain exactly seven runtime files")
 
 
-def _install_script(release_id: str, batch_id: str, expected_current: str,
-                    database_sha256: str, archive_sha256: str) -> str:
-    for value in (release_id, expected_current):
-        if not re.fullmatch(r"daily-[A-Za-z0-9_-]{1,90}", value):
-            raise ValueError("SQL release identity is invalid")
-    if not re.fullmatch(r"run_[A-Za-z0-9_-]{3,72}", batch_id):
-        raise ValueError("SQL batch identity is invalid")
-    if any(not re.fullmatch(r"[0-9a-f]{64}", value)
-           for value in (database_sha256, archive_sha256)):
-        raise ValueError("SQL release hash is invalid")
-    incoming = f"{INCOMING}/{release_id}.tar"
-    target = f"{RELEASES}/{release_id}"
-    return f'''set -eu
-set -a
-. /etc/shadow-bi.env
-set +a
-cd /srv/shadow-bi/code
-current=$(readlink -f /var/lib/shadow-bi/current)
-test "$current" = "{RELEASES}/{expected_current}"
-test ! -e "{target}"
-actual_archive=$(sha256sum "{incoming}" | awk '{{print $1}}')
-test "$actual_archive" = "{archive_sha256}"
-tar --no-same-owner --no-same-permissions -xf "{incoming}" -C "{RELEASES}"
-/srv/shadow-bi/venv/bin/python - "{release_id}" "{batch_id}" "{database_sha256}" <<'PY'
-import hashlib, json, sys
-from pathlib import Path
-from dashboard_product.shadow_bi.p4.sql_release import load_release
-release_id, batch_id, expected_hash = sys.argv[1:]
-root = Path('/var/lib/shadow-bi/releases') / release_id
-release, candidate, database = load_release(root / 'library')
-if release['release_id'] != release_id or candidate['batch_id'] != batch_id:
-    raise SystemExit('installed SQL candidate identity mismatch')
-digest = hashlib.sha256()
-with database.open('rb') as stream:
-    for block in iter(lambda: stream.read(1024 * 1024), b''):
-        digest.update(block)
-if digest.hexdigest() != expected_hash:
-    raise SystemExit('installed SQL warehouse hash mismatch')
-print(json.dumps({{'status':'prepared','release':release_id,'batch_id':batch_id,
-                  'warehouse_sha256':expected_hash}}, ensure_ascii=False))
-PY
-'''
-
-
 def publish(*, workspace: str | Path, day: str, pair: dict, run_id: str,
             release_id: str, folder: str | Path,
             advertising_manifest: str | Path | None, ssh: list[str], ssh_env: dict,
             command: Callable, command_result: Callable, before_publish: Callable | None = None,
             config_root: str | Path = ROOT, current_state: tuple | None = None,
-            on_stage: Callable | None = None, cost_builder: Callable | None = None,
+            on_stage: Callable | None = None,
             candidate_root: str | Path | None = None, cloud_costs: dict | None = None) -> dict:
-    """Build a candidate, transfer only its sealed archive, and activate it."""
-    from dashboard_product.shadow_bi.p5.sql_bundle import prepare_release
+    """Receive the verified cloud build and activate it."""
     from data_platform.query.evidence import resolve_file
 
     workspace, folder = Path(workspace).resolve(strict=True), Path(folder).resolve()
@@ -384,8 +337,6 @@ def publish(*, workspace: str | Path, day: str, pair: dict, run_id: str,
     pointer, old_remote, baseline_manifest, baseline, migration, migration_sha = current_state
     training_snapshot = pair["sources"]["bi"]["snapshot_id"]
     abroad_snapshot = pair["sources"]["study_abroad"]["snapshot_id"]
-    if cost_builder is not None and cloud_costs is not None:
-        raise ValueError("local and cloud expense builders cannot be used together")
     if not training_snapshot or not abroad_snapshot:
         raise ValueError("explicit source Snapshot pair is incomplete")
     if before_publish is not None:
@@ -403,7 +354,7 @@ def publish(*, workspace: str | Path, day: str, pair: dict, run_id: str,
             current_state=current_state, costs=cloud_costs,
         )
         source = remote["source"]
-    elif cost_builder is None:
+    else:
         from dashboard_product.shadow_bi.p5.cloud_foundation import prepare_remote_business
         remote = prepare_remote_business(
             workspace=workspace, day=day, pair=pair, run_id=run_id,
@@ -412,13 +363,10 @@ def publish(*, workspace: str | Path, day: str, pair: dict, run_id: str,
             current_state=current_state, advertising_manifest=advertising_manifest,
         )
         source = remote["source"]
-    else:
-        source = {"source_order_receipts": baseline_manifest["source_order_receipts"]}
-        cost_builder(baseline_dir=baseline, output_dir=candidate_dir, batch_id=run_id)
     candidate, database, preview = _validate_candidate(
         candidate_dir, batch_id=run_id, training_snapshot=training_snapshot,
         abroad_snapshot=abroad_snapshot, as_of_date=day)
-    if cost_builder is None and remote["candidate"] != candidate:
+    if remote["candidate"] != candidate:
         raise ValueError("retrieved cloud candidate differs from the staging receipt")
     from dashboard_product.shadow_bi.p5.release_guard import compare_releases
 
@@ -440,25 +388,7 @@ def publish(*, workspace: str | Path, day: str, pair: dict, run_id: str,
 
     # 日常数据更新沿用已验收目录；经重新验收的产品改动可显式更新该封口合同。
     accepted_catalogue_sha = migration["catalogue_sha256"]
-    if cost_builder is None:
-        library = Path(remote["local_release_root"]).resolve(strict=True) / "library"
-    else:
-        acceptance = {
-            "mode": "runtime_contract",
-            "migration_acceptance": {
-                "path": str(Path(pointer["migration_acceptance"]).resolve()),
-                "sha256": migration_sha,
-            },
-            "runtime_contract": {
-                "status": "passed", "catalogue_sha256": accepted_catalogue_sha,
-                "candidate_identity_passed": True, "source_gates_passed": True,
-            },
-        }
-        release = prepare_release(
-            candidate=candidate_dir, workspace=workspace, release_id=release_id,
-            output_dir=attempt / "releases", coverage_template=deepcopy(pointer["coverage"]),
-            acceptance=acceptance)
-        library = Path(release["library"]).resolve(strict=True)
+    library = Path(remote["local_release_root"]).resolve(strict=True) / "library"
     from dashboard_product.shadow_bi.p4.sql_release import load_release
     sealed_release, sealed_candidate, sealed_database = load_release(library)
     if (sealed_release.get("release_id") != release_id
@@ -466,31 +396,13 @@ def publish(*, workspace: str | Path, day: str, pair: dict, run_id: str,
             or sealed_database != library / "warehouse.duckdb"):
         raise ValueError("sealed SQL release identity or database is invalid")
     release_manifest = _read_json(library / "release.json", "SQL release manifest")
-    if cost_builder is None and remote["release_manifest"] != release_manifest:
+    if remote["release_manifest"] != release_manifest:
         raise ValueError("retrieved cloud release differs from the staging receipt")
     catalogue_path = resolve_file(library, release_manifest["superset_catalogue"])
     catalogue_sha = sha256_file(catalogue_path)
     if catalogue_sha != accepted_catalogue_sha:
         raise ValueError("static SQL dataset and option contract changed; repeat migration acceptance before publishing")
-    if cost_builder is None:
-        prepared = remote["prepared"]
-    else:
-        archive = Path(release["archive"]).resolve(strict=True)
-        _validate_archive(archive, release_id)
-        archive_sha = sha256_file(archive)
-        if archive_sha != release["archive_sha256"]:
-            raise ValueError("SQL release archive hash mismatch")
-        if before_publish is not None:
-            before_publish()
-        incoming = f"{INCOMING}/{release_id}.tar"
-        with archive.open("rb") as archive_stream:
-            command(ssh[:1] + ["-C"] + ssh[1:] + [f"umask 077; mkdir -p {INCOMING}; cat > {incoming}"],
-                    attempt / "transfer.log", stdin=archive_stream, env=ssh_env)
-        prepared = command_result(
-            ssh + ["bash -s"], attempt / "install.log",
-            input=_install_script(release_id, run_id, pointer["release"],
-                                  candidate["database"]["sha256"], archive_sha),
-            text=True, env=ssh_env)
+    prepared = remote["prepared"]
     if (prepared.get("status") != "prepared" or prepared.get("release") != release_id
             or prepared.get("batch_id") != run_id
             or prepared.get("warehouse_sha256") != candidate["database"]["sha256"]):

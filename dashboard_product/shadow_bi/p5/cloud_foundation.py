@@ -1,6 +1,8 @@
 """Run fixed SQL against the cloud warehouse's verified landing tables."""
 import base64
+from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
+import gzip
 import json
 import os
 from pathlib import Path
@@ -128,10 +130,7 @@ def _run_and_fetch(job,request,attempt,candidate_dir,ssh,ssh_env,command_result,
     if staged.get('status')!='prepared' or staged.get('release')!=release_id or staged.get('batch_id')!=run_id:
         raise ValueError('invalid cloud foundation build receipt')
     sql_daily._atomic_json(attempt/'cloud-sql-build.json',staged)
-    result_archive = attempt/'cloud-result.tar'
-    with result_archive.open('wb') as result, (attempt/'cloud-result-transfer.log').open('w') as errors:
-        subprocess.run(ssh[:1]+['-C']+ssh[1:]+[f'cat {shlex.quote(str(job/"result/sql-release.tar"))}'],
-                       stdout=result,stderr=errors,check=True,env=ssh_env)
+    result_archive = _fetch_result(job,staged,attempt,ssh,ssh_env)
     if _file_hash(result_archive)!=staged['archive_sha256']:
         raise ValueError('cloud SQL result archive hash mismatch')
     sql_daily._validate_archive(result_archive,release_id)
@@ -149,8 +148,41 @@ def _run_and_fetch(job,request,attempt,candidate_dir,ssh,ssh_env,command_result,
     candidate_dir.mkdir(parents=True)
     for item in ('candidate.json','warehouse.duckdb','notification-preview.json'):
         shutil.copyfile(release_root/'library'/item,candidate_dir/item)
+    result_archive.unlink()
     return {'prepared':staged,'local_release_root':release_root,'candidate':candidate,
             'release_manifest':release_manifest,'source':staged['source']}
+
+
+def _fetch_result(job,receipt,attempt,ssh,ssh_env):
+    block = 65_536
+    chunk = 40
+    size = receipt['compressed_size']
+    if type(size) is not int or size <= 0:
+        raise ValueError('cloud result transport size is invalid')
+    blocks = (size+block-1)//block
+    path = shlex.quote(str(job/'result/sql-release.tar.gz'))
+    with tempfile.TemporaryDirectory(prefix='cloud-transfer-',dir=attempt) as directory:
+        temp = Path(directory)
+        def receive(start):
+            part = temp/str(start)
+            count = min(chunk,blocks-start)
+            cmd = f'dd if={path} bs={block} skip={start} count={count} status=none'
+            with part.open('wb') as output, (attempt/f'cloud-result-part-{start}.log').open('w') as errors:
+                subprocess.run(ssh+[cmd],stdout=output,stderr=errors,check=True,env=ssh_env)
+            if part.stat().st_size != min(size-start*block,count*block):
+                raise ValueError('cloud result transport segment size mismatch')
+            return part
+        compressed = temp/'result.gz'
+        with compressed.open('wb') as output, ThreadPoolExecutor(max_workers=8) as pool:
+            for part in pool.map(receive,range(0,blocks,chunk)):
+                with part.open('rb') as source:
+                    shutil.copyfileobj(source,output)
+        if _file_hash(compressed)!=receipt['compressed_sha256']:
+            raise ValueError('cloud compressed result hash mismatch')
+        archive = attempt/'cloud-result.tar'
+        with gzip.open(compressed,'rb') as source, archive.open('wb') as output:
+            shutil.copyfileobj(source,output)
+        return archive
 
 
 def build_on_server(release_id):
@@ -235,6 +267,11 @@ def build_on_server(release_id):
     # Repository code builds in a private directory; only the derived runtime library is installed.
     if target.exists():
         raise ValueError('cloud SQL target release already exists')
+    archive = Path(result['archive'])
+    compressed = archive.with_suffix('.tar.gz')
+    with archive.open('rb') as original, gzip.open(compressed,'wb',compresslevel=1) as packed:
+        shutil.copyfileobj(original,packed)
+    archive.unlink()
     library.parent.rename(target)
     target.chmod(0o755)
     (target/'library').chmod(0o755)
@@ -244,6 +281,7 @@ def build_on_server(release_id):
     (candidate_dir/'notification-preview.json').unlink()
     return {'status':'prepared','release':release_id,'batch_id':batch,'warehouse_sha256':candidate['database']['sha256'],
             'archive_sha256':result['archive_sha256'],'source':source,'foundation_snapshots':request['snapshots'],
+            'compressed_sha256':_file_hash(compressed),'compressed_size':compressed.stat().st_size,
             'uploaded_database_files':0,
             'computed_on':'cloud_fixed_sql','mode':'costs' if 'costs' in request else 'business'}
 

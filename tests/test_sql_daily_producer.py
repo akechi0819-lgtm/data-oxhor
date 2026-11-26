@@ -147,17 +147,24 @@ def test_sql_release_archive_accepts_only_the_seven_runtime_files(tmp_path):
         sql_daily._validate_archive(unsafe_path, release)
 
 
-def test_install_script_uses_fixed_release_root_and_sql_release_activation():
-    script = sql_daily._install_script(
-        "daily-sql-next", "run_shadow_daily_20261107_093634",
-        "daily-sql-previous", "a" * 64, "b" * 64)
-    assert "tar --no-same-owner --no-same-permissions" in script
-    assert "/var/lib/shadow-bi/releases/daily-sql-next" in script
-    assert "/srv/shadow-bi/venv/bin/python -m dashboard_product.shadow_bi.p4.sql_release" not in script
+def test_cloud_download_reassembles_and_checks_compressed_segments(tmp_path,monkeypatch):
+    import gzip
+    import random
+    import re
+    from dashboard_product.shadow_bi.p5 import cloud_foundation
 
-    with pytest.raises(ValueError, match="release identity"):
-        sql_daily._install_script("../../candidate", "run_shadow_daily_20261107_093634",
-                                  "daily-sql-previous", "a" * 64, "b" * 64)
+    content = random.Random(1).randbytes(3_000_000)
+    packed = gzip.compress(content,compresslevel=1)
+    receipt = {'compressed_size':len(packed),'compressed_sha256':hashlib.sha256(packed).hexdigest()}
+    def receive(args,*,stdout,stderr,check,env):
+        block,start,count = map(int,re.search(r'bs=(\d+) skip=(\d+) count=(\d+)',args[-1]).groups())
+        stdout.write(packed[start*block:(start+count)*block])
+    monkeypatch.setattr(cloud_foundation.subprocess,'run',receive)
+    archive = cloud_foundation._fetch_result(Path('/bounded/cloud/job'),receipt,tmp_path,['ssh','approved'],{})
+    assert archive.read_bytes() == content
+    receipt['compressed_sha256'] = '0' * 64
+    with pytest.raises(ValueError,match='compressed result hash mismatch'):
+        cloud_foundation._fetch_result(Path('/bounded/cloud/job'),receipt,tmp_path,['ssh','approved'],{})
 
 
 def test_runtime_acceptance_carries_migration_sha_and_catalogue_contract():
@@ -224,7 +231,7 @@ def test_full_daily_preview_package_still_transfers_only_sealed_table_files(tmp_
 
 @pytest.mark.parametrize('contract_change,accepted,blocked,cost_only', [
     (False, True, False, False), (True, True, False, False), (True, False, False, False),
-    (False, True, True, False), (False, True, False, True), (False, True, False, 'cloud'),
+    (False, True, True, False), (False, True, False, 'cloud'),
 ])
 def test_publish_builds_runtime_contract_and_updates_pointer_only_after_activation(
         tmp_path, monkeypatch, contract_change, accepted, blocked, cost_only):
@@ -262,7 +269,6 @@ def test_publish_builds_runtime_contract_and_updates_pointer_only_after_activati
     archives = []
 
     def source_receipts(**kwargs):
-        assert cost_only is not True, "fee-only publication must not rebuild source evidence"
         return {"source_order_receipts": [str(tmp_path / "receipt.json")],
                 "coverage": {"orders_start": "2025-03-01", "orders_end": "2026-11-06",
                              "cash_start": "2024-06-01", "cash_end": "2026-11-05"},
@@ -357,38 +363,33 @@ def test_publish_builds_runtime_contract_and_updates_pointer_only_after_activati
     monkeypatch.setattr(sql_daily, "source_order_receipts", source_receipts)
     monkeypatch.setattr(sql_daily, "remote_current", remote_after_activation)
     monkeypatch.setattr(sql_bundle, "prepare_release", prepare_release)
-    if cost_only is True:
-        def no_business_build(**_kwargs):
-            raise AssertionError("fee-only publication must reuse the business warehouse")
-        monkeypatch.setattr(sql_build, "build_local", no_business_build)
-    else:
-        def prepare_remote_business(**kwargs):
-            manifest = build_local(output_dir=kwargs["candidate_dir"], expense_baseline=baseline)
-            source = source_receipts()
-            acceptance = {
-                "mode": "runtime_contract",
-                "migration_acceptance": {"path": pointer["migration_acceptance"], "sha256": migration_sha},
-                "runtime_contract": {"status": "passed", "catalogue_sha256": current_catalogue_sha,
-                                     "candidate_identity_passed": True, "source_gates_passed": True},
-            }
-            coverage = dict(pointer["coverage"])
-            coverage["notes"] = ["preserve this note",
-                "活动按当前Snapshot可用历史累计；工单覆盖2025-03-01至2026-11-06，现金覆盖2024-06-01至2026-11-05，不保证覆盖活动完整生命周期。"]
-            built = prepare_release(candidate=kwargs["candidate_dir"], workspace=workspace,
-                                    release_id=release_id, output_dir=kwargs["attempt"] / "releases",
-                                    coverage_template=coverage, acceptance=acceptance)
-            return {"source": source, "candidate": manifest,
-                    "local_release_root": str(Path(built["library"]).parent),
-                    "release_manifest": json.loads((Path(built["library"]) / "release.json").read_text()),
-                    "prepared": {"status": "prepared", "release": release_id, "batch_id": batch_id,
-                                 "warehouse_sha256": manifest["database"]["sha256"]}}
-        module = types.ModuleType('dashboard_product.shadow_bi.p5.cloud_foundation')
-        module.prepare_remote_business = prepare_remote_business
-        def prepare_remote_costs(**kwargs):
-            assert kwargs['costs'] == {'sources': [], 'rows': []}
-            return prepare_remote_business(**kwargs)
-        module.prepare_remote_costs = prepare_remote_costs
-        monkeypatch.setitem(sys.modules, module.__name__, module)
+    def prepare_remote_business(**kwargs):
+        manifest = build_local(output_dir=kwargs["candidate_dir"], expense_baseline=baseline)
+        source = source_receipts()
+        acceptance = {
+            "mode": "runtime_contract",
+            "migration_acceptance": {"path": pointer["migration_acceptance"], "sha256": migration_sha},
+            "runtime_contract": {"status": "passed", "catalogue_sha256": current_catalogue_sha,
+                                 "candidate_identity_passed": True, "source_gates_passed": True},
+        }
+        coverage = dict(pointer["coverage"])
+        coverage["notes"] = ["preserve this note",
+            "活动按当前Snapshot可用历史累计；工单覆盖2025-03-01至2026-11-06，现金覆盖2024-06-01至2026-11-05，不保证覆盖活动完整生命周期。"]
+        built = prepare_release(candidate=kwargs["candidate_dir"], workspace=workspace,
+                                release_id=release_id, output_dir=kwargs["attempt"] / "releases",
+                                coverage_template=coverage, acceptance=acceptance)
+        return {"source": source, "candidate": manifest,
+                "local_release_root": str(Path(built["library"]).parent),
+                "release_manifest": json.loads((Path(built["library"]) / "release.json").read_text()),
+                "prepared": {"status": "prepared", "release": release_id, "batch_id": batch_id,
+                             "warehouse_sha256": manifest["database"]["sha256"]}}
+    module = types.ModuleType('dashboard_product.shadow_bi.p5.cloud_foundation')
+    module.prepare_remote_business = prepare_remote_business
+    def prepare_remote_costs(**kwargs):
+        assert kwargs['costs'] == {'sources': [], 'rows': []}
+        return prepare_remote_business(**kwargs)
+    module.prepare_remote_costs = prepare_remote_costs
+    monkeypatch.setitem(sys.modules, module.__name__, module)
 
     commands = []
     result_commands = []
@@ -414,12 +415,7 @@ def test_publish_builds_runtime_contract_and_updates_pointer_only_after_activati
         release_id=release_id, folder=folder, advertising_manifest=None,
         ssh=ssh, ssh_env={}, command=command, command_result=command_result,
         config_root=tmp_path, current_state=current_state)
-    if cost_only is True:
-        def cost_builder(*, baseline_dir, output_dir, batch_id):
-            assert baseline_dir == baseline and batch_id == kwargs["run_id"]
-            return build_local(output_dir=output_dir)
-        kwargs["cost_builder"] = cost_builder
-    elif cost_only == 'cloud':
+    if cost_only == 'cloud':
         kwargs['cloud_costs'] = {'sources': [], 'rows': []}
     if blocked:
         with pytest.raises(ValueError, match="comparison blocked: training.orders:retraction"):
@@ -437,11 +433,6 @@ def test_publish_builds_runtime_contract_and_updates_pointer_only_after_activati
         return
     result = sql_daily.publish(**kwargs)
 
-    if cost_only is True:
-        assert prepared_coverage == pointer["coverage"]
-        assert commands
-        assert result["status"] == "published"
-        return
     assert prepared_coverage['notes'] == [
         'preserve this note',
         '活动按当前Snapshot可用历史累计；工单覆盖2025-03-01至2026-11-06，现金覆盖2024-06-01至2026-11-05，不保证覆盖活动完整生命周期。',
