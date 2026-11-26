@@ -197,6 +197,8 @@ def _valid_facts(facts, through, *, include_non_completion=False):
     end = _date(through)
     cleaned = []
     for fact in facts:
+        if fact.get('business_line') == 'abroad' and fact.get('segment_id') == 'ssc':
+            continue
         event_date = _date(fact['event_date'])
         if event_date > end:
             continue
@@ -879,7 +881,7 @@ def aggregate(facts, people_config, abroad_people_config, training_targets,
                              **{kind: _abroad_metric(team_facts, kind,
                                  lambda fact, segment=segment: fact.get('segment_id') == segment, period)
                                 for kind in ('orders', 'cash', 'heads')}}
-                            for segment, label in (('international_market', '国际市场'), ('ssc', 'SSC'), ('unassigned', '归属待确认'))]
+                            for segment, label in (('international_market', '国际市场'), ('unassigned', '归属待确认'))]
             selected_people = [row for row in people_rows if team_id == 'total' or
                 (team_id in GROUP_BY_TEAM and 'offline_market' in people_map[row['name']]['team_ids']
                  and row['home_group'] == GROUP_BY_TEAM[team_id]) or

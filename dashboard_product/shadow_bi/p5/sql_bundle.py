@@ -53,12 +53,12 @@ def prepare_release(*, candidate, workspace, release_id, output_dir, coverage_te
     from dashboard_product.shadow_bi.p3.catalog import PAGES
     entries = [{'table_name': PAGES.get(item.page, '市场活动')+' · '+item.title, 'sql': item.sql}
                for item in catalogue.values() if item.sql and not item.unsupported]
-    if len(entries) != 159:
+    if len(entries) != 158:
         raise ValueError('单仓 SQL 数据集数量不符')
     entries += [{'table_name': key, 'sql': value} for key, value in OPTION_SQL.items()]
     overview_group_ignored_keys = {
         'overview_abroad_targets', 'native_overview_abroad_targets',
-        'overview_supplemental', 'native_overview_ssc',
+        'overview_supplemental',
         'overview_countries', 'overview_countries_child', 'native_overview_country_tree',
         'native_overview_abroad', 'native_overview_grades_abroad',
         'native_overview_schools_abroad', 'native_overview_channel_tree_abroad',
@@ -123,13 +123,13 @@ def prepare_release(*, candidate, workspace, release_id, output_dir, coverage_te
     coverage.update(data_through=manifest['through_date'], snapshot_id=manifest['snapshots']['training'],
                     study_abroad_source=source_coverage, run_id=manifest['batch_id'],
                     created_at=datetime.now(timezone.utc).isoformat())
-    semantics = {rel: hashlib.sha256((workspace/rel).read_bytes()).hexdigest()
-                 for rel in ('Work/Pack/pack.json', 'Work/Bridge/reference.json')}
+    reference = 'Work/Bridge/reference.json'
+    semantics = {reference: hashlib.sha256((workspace/reference).read_bytes()).hexdigest()}
     acceptance = {**acceptance, 'candidate_sha256': hashlib.sha256((library/'candidate.json').read_bytes()).hexdigest()}
     _write(library/'acceptance.json', acceptance)
     from business_data_mcp.build_context import build_bundle
     business_context = build_bundle(workspace=workspace)
-    if business_context["manifest"]["source_sha256"]["bridge"] != semantics["Work/Bridge/reference.json"]:
+    if business_context["manifest"]["source_sha256"]["bridge"] != semantics[reference]:
         raise ValueError("发布口径与 Bridge 不一致")
     release = {
         'schema_version': 'sql_warehouse_release.v1', 'release_id': release_id,

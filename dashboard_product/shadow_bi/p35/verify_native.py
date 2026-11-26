@@ -10,7 +10,7 @@ def main():
         columns=None if v.more and v.more.get('query_mode')=='aggregate' else ['业务线','学校','学校树'] if '学校表现' in v.columns else v.columns
         if '_cash_' not in v.key and v.key.endswith(('_groups','_targets')):columns=list(dict.fromkeys(v.columns+['工单完成','工单目标','工单进度','现金完成（元）','现金目标（元）','现金进度','人头','人头同比']))
         result=c.query(v.key,columns=columns,limit=1000,name=v.key)['data']
-        assert result or v.key not in ['native_overview_training','native_overview_targets','native_overview_ssc']
+        assert result or v.key not in ['native_overview_training','native_overview_targets']
         if '_cash_' not in v.key and v.key.endswith(('_groups','_targets')):
             source_key=v.key.removeprefix('native_');source=BASE[source_key]
             columns=source.columns+(['业务线'] if '业务线' in source.filters and '业务线' not in source.columns else [])

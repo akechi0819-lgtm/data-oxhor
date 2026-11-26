@@ -127,7 +127,9 @@ def test_flat_catalogue_preserves_every_legacy_dataset_contract():
         assert entry.title == view.title, view.key
         assert entry.page == view.page, view.key
         assert entry.section == view.section, view.key
-    assert len(catalogue) == 159
+    assert len(catalogue) == 158
+    assert 'native_overview_ssc' not in catalogue
+    assert all('SSC' not in entry.title for entry in catalogue.values())
     assert catalogue_status(catalogue)['status'] == 'pass'
     assert catalogue_status(catalogue)['unsupported'] == []
     assert len(supported_views(catalogue)) == len(catalogue)
@@ -403,7 +405,7 @@ def test_rendered_catalogue_sql_binds_against_readonly_candidate(catalog_integra
         legacy_con.close()
 
     assert not pending, f'Catalogue references missing candidate relations/macros: {pending}'
-    assert len(bound) >= 159, f'Only {len(bound)} rendered datasets bound'
+    assert len(bound) >= 158, f'Only {len(bound)} rendered datasets bound'
 
 
 def test_overview_market_preserves_legacy_total_and_training_order_target(catalog_integration_paths):

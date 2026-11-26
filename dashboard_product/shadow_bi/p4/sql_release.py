@@ -58,15 +58,24 @@ def metadata_snapshot():
     from superset.models.core import Database
     from superset.models.dashboard import Dashboard
     from superset.connectors.sqla.models import SqlaTable
+    from superset.models.slice import Slice
     database = db.session.query(Database).filter_by(database_name=DATABASE_NAME).one()
     dashboard = db.session.query(Dashboard).filter_by(slug='shadow-bi-native').one()
     tables = db.session.query(SqlaTable).filter_by(database_id=database.id).all()
+    retired_ids = [table.id for table in tables if table.table_name.endswith(' · SSC · 留学就地摘要')]
+    retired_charts = (db.session.query(Slice).filter(
+        Slice.datasource_type == 'table', Slice.datasource_id.in_(retired_ids)).all()
+        if retired_ids else [])
+    charts = {chart.id: chart for chart in [*dashboard.slices, *retired_charts]}
     return {'database_id': database.id, 'sqlalchemy_uri': database.sqlalchemy_uri,
             'extra': database.extra, 'dashboard_id': dashboard.id,
             'position_json': dashboard.position_json, 'json_metadata': dashboard.json_metadata,
             'dataset_sql': {str(table.id): table.sql for table in tables},
+            'dataset_names': {str(table.id): table.table_name for table in tables},
             'column_names': {str(column.id): column.column_name for table in tables for column in table.columns},
-            'chart_params': {str(chart.id): chart.params for chart in dashboard.slices}}
+            'chart_params': {str(chart.id): chart.params for chart in charts.values()},
+            'chart_names': {str(chart.id): chart.slice_name for chart in charts.values()},
+            'chart_ids': [chart.id for chart in dashboard.slices]}
 
 
 def restore_metadata(snapshot):
@@ -81,10 +90,16 @@ def restore_metadata(snapshot):
     dashboard = db.session.get(Dashboard, snapshot['dashboard_id'])
     dashboard.position_json = snapshot['position_json']
     dashboard.json_metadata = snapshot['json_metadata']
+    if 'chart_ids' in snapshot:
+        dashboard.slices = [db.session.get(Slice, chart_id) for chart_id in snapshot['chart_ids']]
     for key, sql in snapshot['dataset_sql'].items():
         db.session.get(SqlaTable, int(key)).sql = sql
+    for key, name in snapshot.get('dataset_names', {}).items():
+        db.session.get(SqlaTable, int(key)).table_name = name
     for key, params in snapshot['chart_params'].items():
         db.session.get(Slice, int(key)).params = params
+    for key, name in snapshot.get('chart_names', {}).items():
+        db.session.get(Slice, int(key)).slice_name = name
     for key, name in snapshot['column_names'].items():
         db.session.get(TableColumn, int(key)).column_name = name
     db.session.commit()
@@ -135,20 +150,72 @@ def configure_overview_group_filter(metadata, options_dataset_id, ignored_chart_
                                      if positions.get(parent, {}).get('type') == 'TAB'})
 
 
+def _without_ssc_title(name):
+    return name.replace('业务组同期对比 · 含 SSC', '业务组同期对比').replace(
+        '留学专项 · 国际市场 / SSC / 待确认', '留学专项 · 国际市场 / 待确认')
+
+
+def _remove_chart_from_layout(positions, metadata, chart_id):
+    removed = {key for key, node in positions.items()
+               if isinstance(node, dict) and node.get('type') == 'CHART'
+               and node.get('meta', {}).get('chartId') == chart_id}
+    if len(removed) != 1:
+        raise ValueError('SSC图表在布局中缺失或不唯一')
+    for key in removed:
+        del positions[key]
+    for node in positions.values():
+        if isinstance(node, dict) and isinstance(node.get('children'), list):
+            node['children'] = [child for child in node['children'] if child not in removed]
+    empty_rows = {key for key, node in positions.items() if isinstance(node, dict)
+                  and node.get('type') == 'ROW' and not node.get('children')}
+    for key in empty_rows:
+        del positions[key]
+    for node in positions.values():
+        if isinstance(node, dict) and isinstance(node.get('children'), list):
+            node['children'] = [child for child in node['children'] if child not in empty_rows]
+    for item in metadata.get('native_filter_configuration', []):
+        for container, key in ((item, 'chartsInScope'), (item.get('scope', {}), 'excluded')):
+            if key in container:
+                container[key] = [value for value in container[key] if value != chart_id]
+
+
+def _retire_ssc(tables, dashboard, positions, metadata, charts=None):
+    retired = [table for table in tables if table.table_name.endswith(' · SSC · 留学就地摘要')]
+    if retired:
+        retired_ids = {table.id for table in retired}
+        ssc_charts = [chart for chart in (charts if charts is not None else dashboard.slices)
+                      if chart.datasource_type == 'table' and chart.datasource_id in retired_ids]
+        attached = [chart for chart in dashboard.slices
+                    if chart.datasource_type == 'table' and chart.datasource_id in retired_ids]
+        if len(attached) > 1 or (len(dashboard.slices) == 93 and len(attached) != 1):
+            raise ValueError('SSC看板图表身份不唯一')
+        if attached:
+            _remove_chart_from_layout(positions, metadata, attached[0].id)
+            dashboard.slices.remove(attached[0])
+        for chart in ssc_charts:
+            chart.slice_name = f'archived_retired_chart_{chart.id}'
+        for table in retired:
+            table.sql = "SELECT NULL AS 期间, NULL AS 管理单元, NULL AS 工单, NULL AS \"现金（元）\", NULL AS 人头 WHERE FALSE"
+            table.table_name = f'archived_retired_dataset_{table.id}'
+    if len(dashboard.slices) != 92:
+        raise ValueError('看板图表迁移数量不符')
+
+
 def install_metadata(library, *, current_library=None):
     """更新 SQL、连接和日期文案；按发布合同调整市场总览筛选，保留对象身份及图表展示参数。"""
     from superset import db
     from superset.models.core import Database
     from superset.models.dashboard import Dashboard
     from superset.connectors.sqla.models import SqlaTable
+    from superset.models.slice import Slice
     from dashboard_product.shadow_bi.p35.expense_coverage import LIMITATION
     release, candidate, _ = load_release(library)
     catalogue = json.loads(resolve_file(Path(library), release['superset_catalogue']).read_bytes())
     if catalogue.get('schema_version') != 'sql_superset_catalogue.v1':
         raise ValueError('单仓数据集合同无效')
     entries = catalogue['datasets']
-    if len(entries) != 168 or len({x['table_name'] for x in entries}) != 168:
-        raise ValueError('必须包含159个数据集和9个筛选来源')
+    if len(entries) != 167 or len({x['table_name'] for x in entries}) != 167:
+        raise ValueError('必须包含158个数据集和9个筛选来源')
     database = db.session.query(Database).filter_by(database_name=DATABASE_NAME).one()
     dashboard = db.session.query(Dashboard).filter_by(slug='shadow-bi-native').one()
     positions = json.loads(dashboard.position_json)
@@ -156,7 +223,7 @@ def install_metadata(library, *, current_library=None):
     from dashboard_product.shadow_bi.p35.bootstrap_native import configure_overview_student_filter
     configure_overview_student_filter(metadata, positions, dashboard, database)
     tables = db.session.query(SqlaTable).filter_by(database_id=database.id).all()
-    by_name = {table.table_name: table for table in tables}
+    by_name = {_without_ssc_title(table.table_name): table for table in tables}
     if len(by_name) != len(tables) or not {x['table_name'] for x in entries} <= by_name.keys():
         raise ValueError('原数据集身份缺失或不唯一')
     dashboard = db.session.query(Dashboard).filter_by(slug='shadow-bi-native').one()
@@ -167,16 +234,24 @@ def install_metadata(library, *, current_library=None):
     fees = [node for node in positions.values() if isinstance(node, dict)
             and node.get('type') == 'MARKDOWN'
             and LIMITATION in node.get('meta', {}).get('code', '')]
-    if len(headers) != 1 or len(fees) != 1 or len(dashboard.slices) != 93:
+    if len(headers) != 1 or len(fees) != 1 or len(dashboard.slices) not in (92, 93):
         raise ValueError('原看板组件身份不符')
     if len(metadata['native_filter_configuration']) != 87:
         raise ValueError('原看板筛选身份不符')
+    retired_ids = [table.id for table in tables if table.table_name.endswith(' · SSC · 留学就地摘要')]
+    retired_charts = (db.session.query(Slice).filter(
+        Slice.datasource_type == 'table', Slice.datasource_id.in_(retired_ids)).all()
+        if retired_ids else [])
+    _retire_ssc(tables, dashboard, positions, metadata, retired_charts)
+    for table in tables:
+        table.table_name = _without_ssc_title(table.table_name)
     for entry in entries:
         by_name[entry['table_name']].sql = entry['sql']
         for column in by_name[entry['table_name']].columns:
             column.column_name = column.column_name.replace('被动现金占新生收入', '被动现金占收入').replace(
                 '新生现金固定分母', '现金固定分母')
     for chart in dashboard.slices:
+        chart.slice_name = _without_ssc_title(chart.slice_name)
         chart.params = chart.params.replace('被动现金占新生收入', '被动现金占收入').replace(
             '新生现金固定分母', '现金固定分母')
     if catalogue.get('overview_filter_mode') == 'training_business_group':
@@ -208,7 +283,7 @@ def install_metadata(library, *, current_library=None):
                                            enable_external_access=False, lock_configuration=True)
     database.extra = json.dumps(extra)
     db.session.commit()
-    return {'datasets': len(entries), 'charts': 93, 'filters': 87}
+    return {'datasets': len(entries), 'charts': 92, 'filters': 87}
 
 
 def _wait_health():

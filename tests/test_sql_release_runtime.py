@@ -11,6 +11,121 @@ from data_platform.query.evidence import file_ref
 from monitoring_product import release_notifications as notifications
 
 
+def test_ssc_chart_migration_removes_layout_and_filter_references():
+    from dashboard_product.shadow_bi.p4.sql_release import _remove_chart_from_layout, _without_ssc_title
+
+    positions = {
+        'tab': {'type': 'TAB', 'children': ['row-ssc', 'row-other']},
+        'row-ssc': {'type': 'ROW', 'children': ['chart-ssc']},
+        'row-other': {'type': 'ROW', 'children': ['chart-other']},
+        'chart-ssc': {'type': 'CHART', 'meta': {'chartId': 3}},
+        'chart-other': {'type': 'CHART', 'meta': {'chartId': 4}},
+    }
+    metadata = {'native_filter_configuration': [
+        {'chartsInScope': [3, 4], 'scope': {'excluded': [3]}},
+    ]}
+    _remove_chart_from_layout(positions, metadata, 3)
+    assert set(positions) == {'tab', 'row-other', 'chart-other'}
+    assert positions['tab']['children'] == ['row-other']
+    assert metadata['native_filter_configuration'][0]['chartsInScope'] == [4]
+    assert metadata['native_filter_configuration'][0]['scope']['excluded'] == []
+    assert _without_ssc_title('业务组同期对比 · 含 SSC') == '业务组同期对比'
+    assert _without_ssc_title('留学专项 · 国际市场 / SSC / 待确认') == '留学专项 · 国际市场 / 待确认'
+
+
+def test_ssc_metadata_retirement_is_idempotent_and_keeps_restorable_objects():
+    from types import SimpleNamespace
+    from dashboard_product.shadow_bi.p4.sql_release import _retire_ssc
+
+    retired = SimpleNamespace(id=7, table_name='市场总览 · SSC · 留学就地摘要', sql='SELECT 123')
+    detached = [
+        SimpleNamespace(id=9, table_name='线上虚拟人 · SSC · 留学就地摘要', sql='SELECT 9'),
+        SimpleNamespace(id=10, table_name='大学 · SSC · 留学就地摘要', sql='SELECT 10'),
+    ]
+    chart = SimpleNamespace(id=8, datasource_type='table', datasource_id=7,
+                            slice_name='SSC · 留学就地摘要')
+    detached_charts = [
+        SimpleNamespace(id=11, datasource_type='table', datasource_id=9, slice_name='SSC · 留学就地摘要'),
+        SimpleNamespace(id=12, datasource_type='table', datasource_id=10, slice_name='SSC · 留学就地摘要'),
+    ]
+    other = [SimpleNamespace(id=i, datasource_type='table', datasource_id=i + 100,
+                             slice_name='existing') for i in range(20, 112)]
+    dashboard = SimpleNamespace(slices=[chart, *other])
+    positions = {
+        'tab': {'type': 'TAB', 'children': ['row']},
+        'row': {'type': 'ROW', 'children': ['chart']},
+        'chart': {'type': 'CHART', 'meta': {'chartId': 8}},
+    }
+    metadata = {'native_filter_configuration': [{'chartsInScope': [8, 20], 'scope': {'excluded': []}}]}
+    _retire_ssc([retired, *detached], dashboard, positions, metadata, [chart, *detached_charts])
+    assert retired.table_name == 'archived_retired_dataset_7'
+    assert 'WHERE FALSE' in retired.sql
+    assert chart.slice_name == 'archived_retired_chart_8'
+    assert [table.table_name for table in detached] == ['archived_retired_dataset_9', 'archived_retired_dataset_10']
+    assert all('WHERE FALSE' in table.sql for table in detached)
+    assert [item.slice_name for item in detached_charts] == ['archived_retired_chart_11', 'archived_retired_chart_12']
+    assert len(dashboard.slices) == 92 and chart not in dashboard.slices
+    assert positions['tab']['children'] == []
+    _retire_ssc([retired, *detached], dashboard, positions, metadata, [chart, *detached_charts])
+    assert len(dashboard.slices) == 92
+
+
+def test_ssc_metadata_rollback_restores_names_sql_chart_and_layout(monkeypatch):
+    import sys
+    from types import ModuleType, SimpleNamespace
+    from dashboard_product.shadow_bi.p4.sql_release import restore_metadata
+
+    class Database: pass
+    class Dashboard: pass
+    class SqlaTable: pass
+    class TableColumn: pass
+    class Slice: pass
+
+    database = SimpleNamespace(sqlalchemy_uri='new', extra='new')
+    dashboard = SimpleNamespace(position_json='new', json_metadata='new', slices=[])
+    dataset = SimpleNamespace(table_name='archived_retired_dataset_7', sql='SELECT NULL WHERE FALSE')
+    chart = SimpleNamespace(slice_name='archived_retired_chart_8', params='new')
+    detached_dataset = SimpleNamespace(table_name='archived_retired_dataset_9', sql='SELECT NULL WHERE FALSE')
+    detached_chart = SimpleNamespace(slice_name='archived_retired_chart_11', params='new')
+    objects = {(Database, 1): database, (Dashboard, 2): dashboard,
+               (SqlaTable, 7): dataset, (SqlaTable, 9): detached_dataset,
+               (Slice, 8): chart, (Slice, 11): detached_chart}
+    session = SimpleNamespace(get=lambda model, ident: objects[model, ident], commit=lambda: None)
+    superset = ModuleType('superset')
+    superset.db = SimpleNamespace(session=session)
+    modules = {
+        'superset': superset,
+        'superset.models': ModuleType('superset.models'),
+        'superset.models.core': ModuleType('superset.models.core'),
+        'superset.models.dashboard': ModuleType('superset.models.dashboard'),
+        'superset.models.slice': ModuleType('superset.models.slice'),
+        'superset.connectors': ModuleType('superset.connectors'),
+        'superset.connectors.sqla': ModuleType('superset.connectors.sqla'),
+        'superset.connectors.sqla.models': ModuleType('superset.connectors.sqla.models'),
+    }
+    modules['superset.models.core'].Database = Database
+    modules['superset.models.dashboard'].Dashboard = Dashboard
+    modules['superset.models.slice'].Slice = Slice
+    modules['superset.connectors.sqla.models'].SqlaTable = SqlaTable
+    modules['superset.connectors.sqla.models'].TableColumn = TableColumn
+    for name, module in modules.items():
+        monkeypatch.setitem(sys.modules, name, module)
+    restore_metadata({
+        'database_id': 1, 'sqlalchemy_uri': 'old', 'extra': 'old',
+        'dashboard_id': 2, 'position_json': 'old layout', 'json_metadata': 'old filters',
+        'dataset_sql': {'7': 'old SQL', '9': 'detached SQL'},
+        'dataset_names': {'7': 'old dataset', '9': 'detached dataset'},
+        'column_names': {}, 'chart_params': {'8': 'old params', '11': 'detached params'},
+        'chart_names': {'8': 'old chart', '11': 'detached chart'}, 'chart_ids': [8],
+    })
+    assert (dataset.table_name, dataset.sql) == ('old dataset', 'old SQL')
+    assert (chart.slice_name, chart.params) == ('old chart', 'old params')
+    assert (detached_dataset.table_name, detached_dataset.sql) == ('detached dataset', 'detached SQL')
+    assert (detached_chart.slice_name, detached_chart.params) == ('detached chart', 'detached params')
+    assert dashboard.slices == [chart]
+    assert (dashboard.position_json, dashboard.json_metadata) == ('old layout', 'old filters')
+
+
 @pytest.fixture
 def release(tmp_path):
     root = tmp_path/'daily-sql-fixture'

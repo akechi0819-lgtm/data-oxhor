@@ -80,6 +80,23 @@ class ScorecardSQLTest(unittest.TestCase):
         self.assertEqual(self.con.execute("""SELECT comparability_reason FROM mart.study_abroad_summary
             WHERE metric='毛签万元' AND scope='online'""").fetchone()[0], 'comparison_contract_missing')
 
+    def test_comparison_excludes_ssc_even_if_contract_lists_it(self):
+        self.con.execute("""INSERT INTO business.abroad_facts VALUES
+          ('study_abroad','orders','2026-07-01',1,'ssc','网络资源','ssc-id')""")
+        contract = {
+            'source_sha256': hashlib.sha256(self.path.read_bytes()).hexdigest(),
+            'approval_reference': 'fixture-authority',
+            'resource_comparisons': [{
+                'period': 'FY27-Q1', 'scope': 'online', 'dimension': '累计',
+                'period_start': '2026-06-01', 'period_end': '2026-08-31',
+                'segments': ['study_abroad_online', 'study_abroad_virtual', 'ssc'],
+                'first_channels': ['网络资源'],
+            }],
+        }
+        self.install(start='2026-06-01', comparison_contract=contract)
+        self.assertEqual(self.con.execute("""SELECT warehouse_value FROM mart.study_abroad_summary
+          WHERE metric='资源数' AND scope='online'""").fetchone()[0], 2)
+
     def test_fiscal_calendar_uses_calendar_month_boundaries(self):
         self.assertEqual(_fiscal_dates('FY27'), (date(2026, 6, 1), date(2027, 5, 31)))
         self.assertEqual(_fiscal_dates('FY27-Q2'), (date(2026, 9, 1), date(2026, 11, 30)))

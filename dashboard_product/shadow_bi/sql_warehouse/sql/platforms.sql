@@ -45,8 +45,7 @@ WITH matched AS (
  SELECT l.fact_id,l.layer,a.kind,a.platform
  FROM business.channel_labels l JOIN config.platform_aliases a ON
  (a.kind='brand' AND l.include_brands OR a.kind='category' AND l.include_categories)
- AND CASE WHEN a.alias='ssc' THEN regexp_matches(regexp_replace(lower(l.label),'\s+','','g'),'(^|[^a-z0-9])ssc([^a-z0-9]|$)')
- ELSE contains(regexp_replace(lower(l.label),'\s+','','g'),a.alias) END
+ AND a.alias <> 'ssc' AND contains(regexp_replace(lower(l.label),'\s+','','g'),a.alias)
  UNION ALL
  SELECT fact_id,layer,'category','官网/自有入口' FROM business.channel_labels
  WHERE include_categories AND regexp_matches(lower(label),'(^|[^a-z0-9])app([^a-z0-9]|$)')

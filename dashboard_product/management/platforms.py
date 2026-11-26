@@ -37,7 +37,7 @@ _SOURCE_CATEGORIES = (
     )),
     ("电话/在线咨询", ("乐语", "在线咨询", "电话咨询", "咨询热线", "电话", "座机", "400")),
     ("官网/自有入口", ("官网", "自有入口", "小程序", "微服务")),
-    ("总部电商", ("总部电商", "ssc")),
+    ("总部电商", ("总部电商",)),
 )
 
 _RECORD_KEYS = {
@@ -270,16 +270,12 @@ def _source_category_matches(value: str) -> set[str]:
     }
     if re.search(r"(?<![a-z0-9])app(?![a-z0-9])", normalized):
         matches.add("官网/自有入口")
-    if re.search(r"(?<![a-z0-9])ssc(?![a-z0-9])", normalized):
-        matches.add("总部电商")
     return matches
 
 
 def _contains_alias(normalized: str, alias: str) -> bool:
     if alias == "app":
         return bool(re.search(r"(?<![a-z0-9])app(?![a-z0-9])", normalized))
-    if alias == "ssc":
-        return bool(re.search(r"(?<![a-z0-9])ssc(?![a-z0-9])", normalized))
     return alias.casefold() in normalized
 
 

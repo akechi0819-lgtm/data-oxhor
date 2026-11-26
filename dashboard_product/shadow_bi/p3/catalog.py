@@ -133,8 +133,8 @@ for page in ['overview','virtual','prep','university']:
   special='combined_orders' if page=='virtual' else 'market_orders'
   sql=cte(page)+"SELECT 期间, 管理单元, '"+('团队合并工单' if page=='virtual' else '语培总盘逐ID工单')+"' AS 指标, "+', '.join(metric_cols("json_extract(v, '$.combined_orders')" if page=='virtual' else "COALESCE(json_extract(v, '$.market_orders'),json_extract(v, '$.combined_orders'))"))+" FROM b"
   add(page+'_market','团队合并工单' if page=='virtual' else '语培市场总盘 · 逐工单去重',sql,METRIC_COLUMNS,page,'经营总览',common)
- # Ordinary group comparison and SSC remain independent from target-team scope.
- for path,title,key in [('business_groups','业务组目标与完成','groups'),('yoy_groups','业务组同期对比 · 含 SSC','yoy')]:
+ # Ordinary group comparison remains independent from target-team scope.
+ for path,title,key in [('business_groups','业务组目标与完成','groups'),('yoy_groups','业务组同期对比','yoy')]:
   sql=cte(page)+metric_rows([q('期间'),q('管理单元'),col(txt('g.value','name'),'业务组名称')],'g.value',f"b, json_each(b.v, '$.{path}') g")
   add(page+'_'+key,title,sql,['业务组名称']+METRIC_COLUMNS,page,'经营总览',common)
  if page=='overview':
@@ -283,9 +283,10 @@ for page in ['overview','virtual','prep','university','online']:
  add(page+'_window','统计窗口',sql,['统计期间','开始日期','截止日期','时间进度','状态'],page,'经营总览',{name:'2026-10' if page=='online' else 'FY27'})
  if page!='prep':
   sql=cte(page)+metric_rows([q('期间'),q('管理单元'),col(txt('e.value','name'),'补充范围')],'e.value',"b, json_each(b.v, '$.lines.abroad.supplemental') e")
+  sql += " AND COALESCE(json_extract_string(e.value, '$.name'), '') <> 'SSC'"
   filters={'期间':'FY27'}
   if page=='overview':filters['管理单元']='市场总计';sql="SELECT * REPLACE (CASE 管理单元 WHEN 'total' THEN '市场总计' WHEN 'virtual' THEN '线上虚拟人' WHEN 'online' THEN '线上团队' ELSE 管理单元 END AS 管理单元) FROM ("+sql+") managed"
-  add(page+'_supplemental','留学专项 · 国际市场 / SSC / 待确认',sql,['补充范围']+METRIC_COLUMNS,page,'经营总览',filters)
+  add(page+'_supplemental','留学专项 · 国际市场 / 待确认',sql,['补充范围']+METRIC_COLUMNS,page,'经营总览',filters)
 # All three legacy daily series, with each unit retained on its own axis.
 daily=next(v.sql for v in VIEWS if v.key=='online_daily')
 for key,label,viz in [('花费','每日花费','echarts_timeseries_bar'),('现金','每日毛签金额','echarts_timeseries_line')]:

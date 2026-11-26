@@ -210,7 +210,10 @@ class SqlMetricTests(unittest.TestCase):
         self.assertEqual(values['online_scope'], (120, 2, 2))
         self.assertEqual(values['university'], (30, 1, 1))
         self.assertEqual(values['virtual'], (20, 1, 1))
-        self.assertEqual(values['ssc'], (40, 1, 1))
+        self.assertNotIn('ssc', values)
+        self.assertEqual(c.execute("SELECT COUNT(*) FROM business.facts WHERE segment_id='ssc'").fetchone()[0], 0)
+        self.assertEqual(c.execute("SELECT COUNT(*) FROM business.personnel_facts WHERE segment_id='ssc'").fetchone()[0], 0)
+        self.assertEqual(c.execute("SELECT COUNT(*) FROM business.abroad_facts WHERE segment_id='ssc'").fetchone()[0], 2)
         self.assertEqual(c.execute("""
             SELECT cash FROM business.team_values
             WHERE period_id='2026-06' AND unit_id='total' AND business_line='training'
@@ -240,6 +243,24 @@ class SqlMetricTests(unittest.TestCase):
           AND unit_id='total' AND acquisition_scope='全部' AND business_line='abroad' AND comparison='actual'""").fetchone()[0]
         self.assertEqual(actual, 1)
         self.assertEqual(c.execute("SELECT * FROM mart.team_metrics EXCEPT ALL SELECT * FROM business.team_metrics").fetchall(), [])
+
+    def test_study_monthly_and_people_aggregates_exclude_ssc(self):
+        c = duckdb.connect(); self.addCleanup(c.close)
+        facts = """SELECT * FROM (VALUES
+          (DATE '2026-06-01','ssc','一号',TRUE,TRUE,'留学','active','resource','',
+           'study_abroad','a',1,1,0,FALSE),
+          (DATE '2026-06-01','study_abroad_online','二号',TRUE,TRUE,'留学','active','resource','',
+           'study_abroad','b',1,1,0,FALSE)
+        ) t(event_date,segment_id,owner,team_eligible,personal_eligible,roster_group,roster_status,
+            fact_type,resource_status,business_line,customer_key,resource_count,personal_resource_count,
+            gross_signing_amount,positive_signature)"""
+        root = ROOT / 'dashboard_product/management/sql/study_abroad'
+        monthly = (root / 'monthly.sql').read_text().replace('__STUDY_ABROAD_FACTS__', facts)
+        people = (root / 'people.sql').read_text().replace('__STUDY_ABROAD_FACTS__', facts)
+        rows = c.execute(monthly).fetchall()
+        self.assertEqual([(row[1], row[2], row[3]) for row in rows],
+                         [('team', 'study_abroad_online', 1), ('total', 'total', 1)])
+        self.assertEqual([row[1] for row in c.execute(people).fetchall()], ['二号'])
 
     def test_abroad_source_exclusions_are_available_when_enrichment_exists(self):
         c = duckdb.connect(); self.addCleanup(c.close)

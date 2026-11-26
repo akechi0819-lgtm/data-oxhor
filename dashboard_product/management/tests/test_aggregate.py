@@ -548,10 +548,10 @@ class ManagementAggregateTest(unittest.TestCase):
         self.assertEqual(online_team['lines']['abroad']['orders']['actual'], 5)
         self.assertEqual([row['country'] for row in university['countries']], ['意大利'])
         self.assertEqual([row['country'] for row in online_team['countries']], ['西班牙'])
-        self.assertEqual(total['lines']['abroad']['orders']['actual'], 15)
+        self.assertEqual(total['lines']['abroad']['orders']['actual'], 13)
         self.assertEqual(
             {row['id']: row['orders']['actual'] for row in total['lines']['abroad']['supplemental']},
-            {'international_market': 1, 'ssc': 2, 'unassigned': 3},
+            {'international_market': 1, 'unassigned': 3},
         )
 
     def test_abroad_metrics_use_coverage_without_yoy_or_fabricated_zeroes(self):
@@ -799,7 +799,7 @@ class ManagementAggregateTest(unittest.TestCase):
         self.assertEqual(online['lines']['abroad']['orders']['actual'], 1)
         self.assertEqual(virtual['lines']['abroad']['orders']['actual'], 1)
         self.assertEqual(virtual['lines']['abroad']['orders']['status'], 'available')
-        self.assertEqual(supplemental['ssc']['orders']['actual'], 1)
+        self.assertNotIn('ssc', supplemental)
         self.assertEqual(supplemental['international_market']['orders']['actual'], 1)
         self.assertEqual(supplemental['unassigned']['orders']['actual'], 1)
         self.assertEqual(
@@ -809,7 +809,7 @@ class ManagementAggregateTest(unittest.TestCase):
             + sum(row['orders']['actual'] for row in supplemental.values()),
             total['lines']['abroad']['orders']['actual'],
         )
-        self.assertEqual(total['lines']['abroad']['orders']['actual'], 6)
+        self.assertEqual(total['lines']['abroad']['orders']['actual'], 5)
 
     def test_virtual_personal_orders_and_cash_use_virtual_owners_across_team_and_group(self):
         people = inputs(

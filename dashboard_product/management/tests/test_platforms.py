@@ -76,7 +76,8 @@ class CanonicalPlatformTests(unittest.TestCase):
             "小程序": "官网/自有入口",
             "APP": "官网/自有入口",
             "微服务": "官网/自有入口",
-            "SSC": "总部电商",
+            "总部电商": "总部电商",
+            "SSC": OTHER,
         }
         for label, platform in expected.items():
             with self.subTest(label=label):

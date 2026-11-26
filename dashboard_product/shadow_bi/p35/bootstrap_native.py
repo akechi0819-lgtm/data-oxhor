@@ -209,7 +209,6 @@ def main():
                 if v.key.startswith('native_') and not v.key.endswith('_schools'):
                     params.update(server_pagination=False,include_search=False,page_length=0)
                     params['column_config']={c:{'d3NumberFormat':'+.1%' if '同比' in c else '.1%' if '进度' in c or '占比' in c else ',.2f' if '现金' in c else ',.2~f','showCellBars':'进度' in c,'colorPositiveNegative':'同比' in c} for c in v.columns if c not in ['业务组名称','指标','本期完成','目标与完成率','上年同期','同比变化','人头']}
-                    if v.key.endswith('_ssc'):params['column_config']['工单']={'d3NumberFormat':',.0f'}
                     if '被动现金占收入' in v.columns:params['column_config']['被动现金占收入']={'d3NumberFormat':'.1%','showCellBars':True}
                     if numeric_sort_bindings(v):params.update(server_pagination=True,server_page_length=50,page_length=50)
                     if v.key.endswith('_people') or v.key=='native_capacity_month':params.update(v.more)
@@ -298,7 +297,6 @@ def main():
                         row(tab,['native_online_roi_tree'],64)
                         row(tab,['native_online_costs'],18)
                         row(tab,['native_online_abroad_annual_goals'],18)
-                    row(tab,[f'native_{page}_ssc'],18)
                     if page=='overview':
                         row(tab,['native_overview_abroad_targets'],34)
                         row(tab,['native_overview_targets'],56)

@@ -607,14 +607,14 @@ def _metric_page_sql(key, page):
         prefix = _OVERVIEW_SELECTION if page == 'overview' else ''
         page_filter = '' if page == 'overview' else ' AND FALSE'
         return (prefix + _ACQUISITION + "SELECT tm.period_id AS 期间,'市场总计' AS 管理单元,CASE tm.unit_id WHEN 'international_market' THEN '国际市场' "
-                "WHEN 'ssc' THEN 'SSC' ELSE '归属待确认' END AS 补充范围,"
+                "ELSE '归属待确认' END AS 补充范围,"
                 + ', '.join(_metric_projection(metric='tm.metric', actual='tm.actual', prior='tm.prior',
                     target='tm.target', status='tm.status', progress='tm.time_progress',
                     display="CASE WHEN tm.metric='heads' AND tm.status='separate_counts' THEN '留学'||CAST(tv.study_heads AS BIGINT)::VARCHAR||'人／小语种'||CAST(tv.language_heads AS BIGINT)::VARCHAR||'人' END",
                     note='tm.note')) +
                 " FROM business.team_metrics tm LEFT JOIN business.team_values tv ON tv.period_id=tm.period_id AND tv.unit_id=tm.unit_id "
                 "AND tv.acquisition_scope=tm.acquisition_scope AND tv.business_line=tm.business_line AND tv.comparison='actual' "
-                "WHERE tm.unit_id IN ('international_market','ssc','unassigned') "
+                "WHERE tm.unit_id IN ('international_market','unassigned') "
                 "AND tm.business_line='abroad' AND tm.acquisition_scope='{{ acquisition_scope }}' "
                 "AND tm.metric IN ('orders','cash','heads')"+page_filter)
     return None
@@ -908,17 +908,6 @@ def _ordered_sql(sql, columns, default):
     return prefix+'SELECT ordered.*,ROW_NUMBER() OVER(ORDER BY '+expression+') AS 排列顺序 FROM ('+sql+') ordered'
 
 
-def _native_sql(key):
-    """Return the native SSC adapter that cannot reuse a P3 view verbatim."""
-    if key == 'native_overview_ssc':
-        source = _sql_for('overview_supplemental', 'overview')
-        return ("SELECT 期间,管理单元,MAX(CASE WHEN 指标='工单' THEN 当期 END) AS 工单,"
-                "MAX(CASE WHEN 指标='现金（元）' THEN 当期 END) AS \"现金（元）\","
-                "MAX(CASE WHEN 指标='人头' THEN COALESCE(呈现,printf('%.1f',TRY_CAST(当期 AS DOUBLE)),'—') END) AS 人头 "
-                "FROM ("+source+") s WHERE 补充范围='SSC' GROUP BY 期间,管理单元")
-    return None
-
-
 def _overview_native_grade_sql(sql, *, training=True):
     """Scope the native overview grade tree to selected training plus total abroad."""
     selection = _OVERVIEW_SELECTION
@@ -1041,12 +1030,6 @@ def _flat_native_views(metadata, flat_base):
 
     with patch.object(native_module, 'BASE', flat_base), patch.object(native_module, 'school_tree', school_tree):
         views = native_module.native_views()
-
-    # The native SSC summary stringifies a DOUBLE head count (``3.0``). The
-    # flat warehouse stores DECIMAL, so use an explicit one-decimal display.
-    for view in views:
-        if view.key == 'native_overview_ssc':
-            view.sql = _native_sql(view.key)
 
     # Keep query-local JSON traversal where the unchanged native ROW_NUMBER
     # relies on the original parent/array iteration order for equal values.

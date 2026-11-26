@@ -18,6 +18,6 @@ SELECT STRFTIME(event_date, '%Y-%m') AS month, owner, segment_id, roster_group,
   CASE WHEN COUNT(DISTINCT CASE WHEN positive_signature THEN business_line END) > 1
     THEN 'cross_system_unaligned' ELSE 'available' END AS signed_customer_count_status
 FROM facts
-WHERE personal_eligible
+WHERE personal_eligible AND segment_id IS DISTINCT FROM 'ssc'
 GROUP BY month, owner, segment_id, roster_group, scope
 ORDER BY month, segment_id, owner

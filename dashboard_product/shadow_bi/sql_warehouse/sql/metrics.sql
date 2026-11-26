@@ -1,8 +1,10 @@
 CREATE OR REPLACE VIEW business.facts AS
-SELECT * FROM business.training_facts UNION ALL BY NAME SELECT * FROM business.abroad_facts;
+SELECT * FROM business.training_facts UNION ALL BY NAME
+SELECT * FROM business.abroad_facts WHERE segment_id IS DISTINCT FROM 'ssc';
 
 CREATE OR REPLACE VIEW business.personnel_facts AS
-SELECT * FROM business.training_personnel_facts UNION ALL BY NAME SELECT * FROM business.abroad_facts;
+SELECT * FROM business.training_personnel_facts UNION ALL BY NAME
+SELECT * FROM business.abroad_facts WHERE segment_id IS DISTINCT FROM 'ssc';
 
 CREATE OR REPLACE VIEW business.periods AS
 WITH definitions AS (
@@ -32,7 +34,7 @@ SELECT *,NULL::INTEGER AS selection_mask FROM (VALUES
  ('overview_prep',NULL,'留学预备',NULL),('overview_high',NULL,'高中',NULL),
  ('overview_university',NULL,'大学',NULL),
  ('virtual','online_private',NULL,'study_abroad_virtual'),('online','online_platform',NULL,'study_abroad_online'),
- ('international_market',NULL,NULL,'international_market'),('ssc',NULL,NULL,'ssc'),('unassigned',NULL,NULL,'unassigned'),
+ ('international_market',NULL,NULL,'international_market'),('unassigned',NULL,NULL,'unassigned'),
  ('offline_scope','offline_market',NULL,'study_abroad_offline'),('online_scope','__online__',NULL,'study_abroad_online')
 ) t(unit_id,source_team,business_group,abroad_segment)
 UNION ALL SELECT 'selection_'||i::VARCHAR,'offline_market',NULL,NULL,i::INTEGER FROM range(1,8) t(i);
@@ -158,7 +160,7 @@ WITH ssc_excluded AS (
   'actual' AS comparison,greatest(p.start_date,c.abroad_start) AS covered_start,
   least(p.through_date,c.abroad_through) AS covered_through
  FROM business.periods p CROSS JOIN config.clock c CROSS JOIN business.acquisition_scopes a
- JOIN business.facts f ON f.business_line='abroad' AND f.segment_id='ssc'
+ JOIN business.abroad_facts f ON f.segment_id='ssc'
  AND CAST(f.event_date AS DATE) BETWEEN p.start_date AND p.through_date
  AND CAST(f.event_date AS DATE) BETWEEN c.abroad_start AND c.abroad_through
 ), scoped AS (

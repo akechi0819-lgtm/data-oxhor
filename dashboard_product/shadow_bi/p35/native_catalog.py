@@ -63,20 +63,11 @@ def compact(source):
     result.more={'server_pagination':False,'page_length':0,'order_by_cols':['["业务组顺序", true]']}
     return result
 
-def ssc(page):
-    if page!='overview':return None
-    source=page+'_supplemental'
-    if source not in BASE:return None
-    v=BASE[source];dims=list(v.filters)
-    sql='SELECT '+', '.join([q(k) for k in dims])+", MAX(CASE WHEN 指标='工单' THEN 当期 END) AS 工单, MAX(CASE WHEN 指标='现金（元）' THEN 当期 END) AS \"现金（元）\", MAX(CASE WHEN 指标='人头' THEN COALESCE(呈现,CAST(当期 AS VARCHAR),'—') END) AS 人头 FROM ("+v.sql+") src WHERE 补充范围='SSC' GROUP BY "+', '.join(q(k) for k in dims)
-    result=view('native_'+page+'_ssc',source,'SSC · 留学就地摘要',sql,['工单','现金（元）','人头']);result.more={'server_pagination':False,'page_length':0};return result
-
 def native_views():
     result=[]
     for page in ['overview','virtual','prep','university','online']:
         result.extend(summaries(page))
         result.append(compact(page+'_groups'))
-        if row:=ssc(page):result.append(row)
     result.append(online_costs())
     result.append(online_annual_goals())
     result.extend(compact(key) for key in ['overview_targets','overview_abroad_targets'])

@@ -301,13 +301,8 @@ class StudyAbroadWarehouseTests(unittest.TestCase):
         online = next(row for row in september
                       if row.get("scope") == "team"
                       and row.get("segment_id") == "study_abroad_online")
-        ssc = next(row for row in september
-                   if row.get("scope") == "supplemental"
-                   and row.get("segment_id") == "ssc")
-
-        # The resource owner only attributes the resource itself to SSC.
-        self.assertEqual(1, total["resource_count"])
-        self.assertEqual(1, ssc["resource_count"])
+        self.assertFalse(any(row["segment_id"] == "ssc" for row in september))
+        self.assertEqual(0, total["resource_count"])
         self.assertEqual(0, offline["resource_count"])
         self.assertEqual(0, online["resource_count"])
 
@@ -315,7 +310,6 @@ class StudyAbroadWarehouseTests(unittest.TestCase):
         self.assertEqual(Decimal("200.00"), Decimal(str(total["gross_signing_amount"])))
         self.assertEqual(Decimal("120.00"), Decimal(str(offline["gross_signing_amount"])))
         self.assertEqual(Decimal("80.00"), Decimal(str(online["gross_signing_amount"])))
-        self.assertEqual(Decimal("0.00"), Decimal(str(ssc["gross_signing_amount"])))
         self.assertEqual(1, offline["study_abroad_signed_customers"])
         self.assertEqual(1, online["small_language_signed_customers"])
 
@@ -349,8 +343,6 @@ class StudyAbroadWarehouseTests(unittest.TestCase):
         international = next(row for row in september
                              if row.get("scope") == "supplemental"
                              and row.get("segment_id") == "international_market")
-        ssc = next(row for row in september
-                   if row.get("scope") == "supplemental" and row.get("segment_id") == "ssc")
         unassigned = next(row for row in september
                           if row.get("scope") == "supplemental"
                           and row.get("segment_id") == "unassigned")
@@ -360,19 +352,18 @@ class StudyAbroadWarehouseTests(unittest.TestCase):
         self.assertEqual(1, offline["personal_resource_count"])
         self.assertEqual(1, online["resource_count"])
         self.assertEqual(1, international["resource_count"])
-        self.assertEqual(1, ssc["resource_count"])
+        self.assertFalse(any(row["segment_id"] == "ssc" for row in september))
         self.assertEqual(1, unassigned["resource_count"])
-        self.assertEqual(7, total["resource_count"])
-        self.assertEqual(5, total["personal_resource_count"])
+        self.assertEqual(6, total["resource_count"])
+        self.assertEqual(4, total["personal_resource_count"])
 
         # Eight contracts for one person contribute eight amounts and one customer.
         # The same customer also signs online, so the total remains one customer.
-        self.assertEqual(Decimal("1145.00"), Decimal(str(total["gross_signing_amount"])))
-        self.assertEqual(4, total["study_abroad_signed_customers"])
+        self.assertEqual(Decimal("1065.00"), Decimal(str(total["gross_signing_amount"])))
+        self.assertEqual(3, total["study_abroad_signed_customers"])
         self.assertEqual(1, offline["study_abroad_signed_customers"])
         self.assertEqual(1, online["study_abroad_signed_customers"])
         self.assertEqual(1, international["study_abroad_signed_customers"])
-        self.assertEqual(1, ssc["study_abroad_signed_customers"])
         self.assertEqual(1, unassigned["study_abroad_signed_customers"])
 
         # Slash resource IDs still contribute language amount and learner count;

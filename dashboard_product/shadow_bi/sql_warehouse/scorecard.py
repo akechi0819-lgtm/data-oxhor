@@ -133,7 +133,7 @@ def install_scorecard(con, scorecard_path, *, warehouse_coverage_start, warehous
                         THEN COUNT(DISTINCT NULLIF(TRIM(f.resource_id), ''))::DOUBLE
                         ELSE ROUND(COALESCE(SUM(f.value), 0)::DOUBLE / 10000, 6) END
             FROM business.abroad_facts f
-            WHERE f.customer_domain='study_abroad'
+            WHERE f.customer_domain='study_abroad' AND f.segment_id IS DISTINCT FROM 'ssc'
               AND ((m.metric='资源数' AND f.metric='orders')
                    OR (m.metric='毛签万元' AND f.metric='cash' AND f.value>0))
               AND TRY_CAST(f.event_date AS DATE) BETWEEN m.compared_start AND m.compared_end
