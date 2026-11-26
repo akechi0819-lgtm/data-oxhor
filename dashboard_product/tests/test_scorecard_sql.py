@@ -32,15 +32,17 @@ class ScorecardSQLTest(unittest.TestCase):
             acquisition_scope VARCHAR, business_line VARCHAR, comparison VARCHAR, orders DOUBLE, cash DOUBLE, heads DOUBLE)''')
         self.con.execute("INSERT INTO business.team_values VALUES ('Q1','online_scope','全部','abroad','actual',7,80,2)")
         self.con.execute('''CREATE TABLE business.abroad_facts(customer_domain VARCHAR, metric VARCHAR,
-            event_date DATE, value DOUBLE, segment_id VARCHAR, first_channel VARCHAR)''')
+            event_date DATE, value DOUBLE, segment_id VARCHAR, first_channel VARCHAR, resource_id VARCHAR)''')
         self.con.execute("""INSERT INTO business.abroad_facts VALUES
-            ('study_abroad','orders','2026-07-01',1,'study_abroad_online','网络资源'),
-            ('study_abroad','orders','2026-07-02',1,'study_abroad_virtual','网络资源'),
-            ('small_language','orders','2026-07-02',1,'study_abroad_online','网络资源'),
-            ('study_abroad','orders','2026-07-02',1,'study_abroad_online','其他'),
-            ('study_abroad','cash','2026-07-02',50000,'study_abroad_online','网络资源'),
-            ('study_abroad','cash','2026-07-03',-10000,'study_abroad_online','网络资源'),
-            ('small_language','cash','2026-07-03',90000,'study_abroad_online','网络资源')""")
+            ('study_abroad','orders','2026-07-01',1,'study_abroad_online','网络资源','1'),
+            ('study_abroad','orders','2026-07-02',1,'study_abroad_virtual','网络资源','2'),
+            ('study_abroad','orders','2026-07-02',1,'study_abroad_online','网络资源','1'),
+            ('study_abroad','orders','2026-07-02',1,'study_abroad_online','网络资源',NULL),
+            ('small_language','orders','2026-07-02',1,'study_abroad_online','网络资源','3'),
+            ('study_abroad','orders','2026-07-02',1,'study_abroad_online','其他','4'),
+            ('study_abroad','cash','2026-07-02',50000,'study_abroad_online','网络资源',NULL),
+            ('study_abroad','cash','2026-07-03',-10000,'study_abroad_online','网络资源',NULL),
+            ('small_language','cash','2026-07-03',90000,'study_abroad_online','网络资源',NULL)""")
 
     def install(self, start='2026-08-01', end='2026-08-31', comparison_contract=None):
         return install_scorecard(self.con, self.path, warehouse_coverage_start=start,

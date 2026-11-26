@@ -109,7 +109,9 @@ def install_scorecard(con, scorecard_path, *, warehouse_coverage_start, warehous
             ON c.period=o.period AND c.scope=o.scope AND c.dimension=o.dimension AND c.metric=o.metric
         ), compared AS (
           SELECT m.*, CASE WHEN m.reason IS NULL THEN (
-            SELECT COALESCE(SUM(f.value), 0)::DOUBLE / CASE WHEN m.metric='毛签万元' THEN 10000 ELSE 1 END
+            SELECT CASE WHEN m.metric='资源数'
+                        THEN COUNT(DISTINCT NULLIF(TRIM(f.resource_id), ''))::DOUBLE
+                        ELSE COALESCE(SUM(f.value), 0)::DOUBLE / 10000 END
             FROM business.abroad_facts f
             WHERE f.customer_domain='study_abroad'
               AND ((m.metric='资源数' AND f.metric='orders')
