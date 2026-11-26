@@ -297,7 +297,8 @@ def test_metadata_uses_original_peer_identity_and_stdin_for_restore(monkeypatch)
 
 
 @pytest.mark.parametrize('unexpected_file', [False, True])
-def test_retire_only_verified_previous_sql_bundle(release, tmp_path, monkeypatch, unexpected_file):
+@pytest.mark.parametrize('has_replaced_previous', [False, True])
+def test_retire_only_verified_previous_sql_bundle(release, tmp_path, monkeypatch, unexpected_file, has_replaced_previous):
     from pathlib import Path
     import shutil
     from dashboard_product.shadow_bi.p4 import sql_release as runtime
@@ -317,7 +318,14 @@ def test_retire_only_verified_previous_sql_bundle(release, tmp_path, monkeypatch
     (base/'previous').symlink_to(old)
     receipt = base/'app/sql-cutover'/current.name/'verification.json'
     receipt.parent.mkdir(parents=True)
-    receipt.write_text(json.dumps({'status': 'passed', 'metrics_compared': 18}))
+    verification = {'status': 'passed', 'metrics_compared': 18}
+    if has_replaced_previous:
+        older = base/'releases/daily-older'
+        shutil.copytree(old, older)
+        manifest['release_id'] = older.name
+        (older/'library/release.json').write_text(json.dumps(manifest))
+        verification['replaced_previous'] = older.name
+    receipt.write_text(json.dumps(verification))
     if unexpected_file:
         (old/'library/unreviewed.txt').write_text('keep')
     real_path = Path
@@ -326,6 +334,8 @@ def test_retire_only_verified_previous_sql_bundle(release, tmp_path, monkeypatch
         with pytest.raises(ValueError, match='未核销'):
             runtime.retire_previous(current, expected_previous=old.name)
         assert old.is_dir() and (base/'previous').is_symlink()
+        if has_replaced_previous:
+            assert older.is_dir()
     else:
         result = runtime.retire_previous(current, expected_previous=old.name)
         assert result['status'] == 'retired' and result['warehouse_count_in_releases'] == 1

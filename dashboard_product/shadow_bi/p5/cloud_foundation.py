@@ -182,7 +182,7 @@ def _fetch_result(job,receipt,attempt,ssh,ssh_env):
     if type(size) is not int or size <= 0:
         raise ValueError('cloud result transport size is invalid')
     blocks = (size+block-1)//block
-    path = shlex.quote(str(job/'result/sql-release.tar.gz'))
+    path = shlex.quote(str(job/'releases/sql-release.tar.gz'))
     with tempfile.TemporaryDirectory(prefix='cloud-transfer-',dir=attempt) as directory:
         temp = Path(directory)
         def receive(start):
@@ -282,7 +282,7 @@ def build_on_server(release_id):
     acceptance = {'mode':'runtime_contract','migration_acceptance':{'sha256':request['contract_sha256']},
                   'runtime_contract':{'status':'passed','catalogue_sha256':request['catalogue_sha256'],
                                       'candidate_identity_passed':True,'source_gates_passed':True}}
-    result = prepare_release(candidate=candidate_dir,workspace=job,release_id=release_id,output_dir=job/'result',
+    result = prepare_release(candidate=candidate_dir,workspace=job,release_id=release_id,output_dir=job/'releases',
         coverage_template=coverage,acceptance=acceptance,landing_contract=landing)
     library = Path(result['library'])
     if _file_hash(library/'superset-catalogue.json')!=request['catalogue_sha256']:

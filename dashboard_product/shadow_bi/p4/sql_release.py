@@ -401,6 +401,10 @@ def _activate(target, *, expected_current):
     old = current.resolve(strict=True)
     if old.name != expected_current:
         raise ValueError('正式版本已变化，必须重新同批核对')
+    previous = base/'previous'
+    older = previous.resolve(strict=True) if previous.is_symlink() else None
+    if older is not None and (older.parent != old.parent or older in (old, target)):
+        raise ValueError('上一回滚版本不在已验证发布目录')
     before = _metadata_call('snapshot')
     backup = base/'app'/'sql-cutover'/target.name
     backup.mkdir(parents=True, exist_ok=False)
@@ -432,8 +436,9 @@ def _activate(target, *, expected_current):
         if mcp_verified.get('status') != 'passed' or mcp_verified.get('release') != target.name:
             raise ValueError('正式查询服务核验失败')
         verified['business_data_mcp'] = mcp_verified
+        if older is not None:
+            verified['replaced_previous'] = older.name
         (backup/'verification.json').write_text(json.dumps(verified, ensure_ascii=False, indent=2))
-        previous = base/'previous'
         previous.unlink(missing_ok=True)
         previous.symlink_to(old)
         maintenance.unlink()
@@ -478,11 +483,26 @@ def retire_previous(target, *, expected_previous):
             raise ValueError('新仓尚无实际核验回执')
         names = {'candidate.json', 'warehouse.duckdb', 'notification-preview.json',
                  'release.json', 'superset-catalogue.json', 'landing-description.json', 'acceptance.json'}
-        if (set(previous.iterdir()) != {previous/'library'}
-                or set((previous/'library').iterdir()) != {previous/'library'/name for name in names}
-                or any(path.is_symlink() or not path.is_file() for path in (previous/'library').iterdir())):
-            raise ValueError('旧发布包含未核销内容，保留待检查')
-        shutil.rmtree(previous)
+        retired = [previous]
+        older_name = verified.get('replaced_previous')
+        if older_name is not None:
+            older = previous.parent / older_name
+            if (older.name != older_name or older.parent != previous.parent or older in (current, previous)
+                    or older.is_symlink()):
+                raise ValueError('被替换回滚版本身份不明确')
+            if older.exists():
+                older_release, _, _ = load_release(older/'library')
+                if older_release['release_id'] != older_name:
+                    raise ValueError('被替换回滚版本身份不明确')
+                retired.insert(0, older)
+        for release in retired:
+            library = release/'library'
+            if (set(release.iterdir()) != {library} or library.is_symlink()
+                    or set(library.iterdir()) != {library/name for name in names}
+                    or any(path.is_symlink() or not path.is_file() for path in library.iterdir())):
+                raise ValueError('旧发布包含未核销内容，保留待检查')
+        for release in retired:
+            shutil.rmtree(release)
         previous_link.unlink()
         return {'status': 'retired', 'current': current.name, 'removed': expected_previous,
                 'warehouse_count_in_releases': len(list((base/'releases').glob('*/library/warehouse.duckdb')))}
