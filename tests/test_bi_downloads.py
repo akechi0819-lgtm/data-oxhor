@@ -2,6 +2,24 @@ from __future__ import annotations
 
 from pathlib import Path
 
+
+def _workbook(path: Path, target: str, rows=None) -> Path:
+    from openpyxl import Workbook
+
+    workbook = Workbook()
+    sheet = workbook.active
+    if target == "orders":
+        sheet.append(["ID", "分配时间"])
+        default = ["order-1", "2026-11-05"]
+    else:
+        sheet.append(["工单ID", "业务日期", "现金收入"])
+        default = ["order-1", "2026-11-05", 100]
+    for row in ([default] if rows is None else rows):
+        sheet.append(row)
+    workbook.save(path)
+    workbook.close()
+    return path
+
 from data_acquisition.auth.auth_sessions import AuthSessionPaths, write_auth_session
 from data_acquisition.connectors.bi.bi_downloads import BIExportConfig, build_cash_export_request, build_order_export_request
 
@@ -100,7 +118,7 @@ def test_confirmed_failure_falls_back_once_and_cash_keeps_full_window(tmp_path: 
             if task.task_id == '1':
                 raise OfficialExportFailed(task, 'CANCELED')
             path = tmp_path / f'{task.task_id}.xlsx'
-            path.write_bytes(b'validated fixture')
+            _workbook(path, task.target)
             return path
 
     client = Client()
@@ -159,14 +177,14 @@ def test_cash_failure_preserves_downloaded_orders_and_reuses_them(tmp_path: Path
             if task.target == 'cash':
                 raise TimeoutError('cash pending')
             path = tmp_path / 'orders.xlsx'
-            path.write_bytes(b'orders')
+            _workbook(path, task.target)
             return path
 
     client = Client()
     for _ in range(2):
         with pytest.raises(TimeoutError):
             run_bi_download(BIExportConfig(download_dir=tmp_path), client, start_date='2026-05-05', end_date='2026-11-05')
-    assert (tmp_path / 'orders.xlsx').read_bytes() == b'orders'
+    assert (tmp_path / 'orders.xlsx').is_file()
     assert client.submissions == ['orders', 'cash']
 
 
@@ -213,7 +231,7 @@ def test_finished_invalid_xlsx_uses_order_fallback_and_is_not_resubmitted(tmp_pa
             if task.task_id == '1':
                 raise OfficialExportFailed(task, 'INVALID_XLSX')
             path = tmp_path / 'fallback.xlsx'
-            path.write_bytes(b'captured fixture')
+            _workbook(path, task.target)
             return path
 
     config = BIExportConfig(download_dir=tmp_path)
@@ -322,7 +340,7 @@ def test_complete_downloads_reuse_without_browser_and_verify_sha(tmp_path: Path)
 
         def poll_download(self, task, config):
             path = tmp_path / f'{task.target}.xlsx'
-            path.write_bytes(task.target.encode())
+            _workbook(path, task.target)
             return path
 
     config = BIExportConfig(download_dir=tmp_path)
@@ -334,3 +352,86 @@ def test_complete_downloads_reuse_without_browser_and_verify_sha(tmp_path: Path)
         with pytest.raises(ValueError, match='SHA mismatch'):
             run_bi_download(config, start_date='2026-05-05', end_date='2026-11-05')
         browser.assert_not_called()
+
+
+def test_empty_exports_are_recorded_and_can_be_retried(tmp_path: Path) -> None:
+    import json
+    import pytest
+    from data_acquisition.connectors.bi.bi_downloads import EmptyExport, ExportTask, run_bi_download
+
+    class Client:
+        def __init__(self):
+            self.count = 0
+
+        def trigger_export(self, request):
+            self.count += 1
+            return ExportTask(request.target, str(self.count), "export.xlsx")
+
+        def poll_download(self, task, config):
+            return _workbook(tmp_path / f"{task.task_id}.xlsx", task.target,
+                             rows=[[None, "  "]] if self.count == 1 else None)
+
+    config = BIExportConfig(download_dir=tmp_path)
+    client = Client()
+    kwargs = dict(targets=("orders",), start_date="2026-05-05", end_date="2026-11-05")
+    with pytest.raises(EmptyExport, match="EMPTY_EXPORT"):
+        run_bi_download(config, client, **kwargs)
+    state_path = tmp_path / "orders-2026-05-05-2026-11-05.task.json"
+    state = json.loads(state_path.read_text())
+    assert state["status"] == "EMPTY_EXPORT"
+    assert "path" not in state and "sha256" not in state
+    assert run_bi_download(config, client, **kwargs)[0].path.is_file()
+    assert client.count == 2
+
+
+def test_old_empty_downloaded_cache_is_rejected_and_replaced(tmp_path: Path) -> None:
+    import hashlib
+    import json
+    import pytest
+    from data_acquisition.connectors.bi.bi_downloads import EmptyExport, ExportTask, run_bi_download
+
+    class Client:
+        def trigger_export(self, request):
+            return ExportTask(request.target, "new", "export.xlsx")
+
+        def poll_download(self, task, config):
+            return _workbook(tmp_path / "new.xlsx", task.target)
+
+    config = BIExportConfig(download_dir=tmp_path)
+    kwargs = dict(targets=("cash",), start_date="2026-05-05", end_date="2026-11-05")
+    original = run_bi_download(config, Client(), **kwargs)[0].path
+    _workbook(original, "cash", rows=[])
+    state_path = tmp_path / "cash-2026-05-05-2026-11-05.task.json"
+    state = json.loads(state_path.read_text())
+    state["sha256"] = hashlib.sha256(original.read_bytes()).hexdigest()
+    state_path.write_text(json.dumps(state))
+    with pytest.raises(EmptyExport, match="EMPTY_EXPORT"):
+        run_bi_download(config, Client(), **kwargs)
+    assert json.loads(state_path.read_text())["status"] == "EMPTY_EXPORT"
+    assert run_bi_download(config, Client(), **kwargs)[0].path.is_file()
+
+
+def test_missing_required_columns_are_rejected(tmp_path: Path) -> None:
+    import json
+    import pytest
+    from openpyxl import Workbook
+    from data_acquisition.connectors.bi.bi_downloads import ExportTask, OfficialExportFailed, run_bi_download
+
+    class Client:
+        def trigger_export(self, request):
+            return ExportTask(request.target, "one", "export.xlsx")
+
+        def poll_download(self, task, config):
+            workbook = Workbook()
+            workbook.active.append(["业务日期"])
+            workbook.active.append(["2026-11-05"])
+            path = tmp_path / "missing.xlsx"
+            workbook.save(path)
+            return path
+
+    config = BIExportConfig(download_dir=tmp_path)
+    for target in ("orders", "cash"):
+        with pytest.raises(OfficialExportFailed, match="INVALID_XLSX"):
+            run_bi_download(config, Client(), targets=(target,), start_date="2026-05-05", end_date="2026-11-05")
+        state = json.loads((tmp_path / f"{target}-2026-05-05-2026-11-05.task.json").read_text())
+        assert state["status"] == "INVALID_XLSX"

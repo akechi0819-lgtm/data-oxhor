@@ -10,7 +10,7 @@ are projected into that schema.
 
 Cash (现金): do **not** invent a hard unique key for upsert — landing may contain
 fully duplicate business rows. Outside-window = prior landing rows whose
-``业务日期`` converts to a date ``< start`` (duplicates kept). Near-window = the
+``业务日期`` is outside the declared window (duplicates kept). Near-window = the
 fresh export xlsx in full. Result = outside ∪ near (near replaces the whole window).
 Suggested soft key for humans/docs only (not enforced):
 工单ID + 业务日期 + 学员编号 + 现金收入 + 业务类型 (not strictly unique).
@@ -210,13 +210,35 @@ def _business_columns(export_cols: list[str]) -> list[str]:
     return strip_meta_columns(export_cols)
 
 
+def _validate_export(rows, prior_rows, date_column, start, end, expected_through, label):
+    if not rows:
+        raise ValueError("empty_export_rejected")
+    dates = [excel_serial_to_date(row.get(date_column)) for row in rows]
+    if end is not None:
+        for index, value in enumerate(dates, start=1):
+            if value is None or not start <= value <= end:
+                raise ValueError(f"fresh {label} export row {index} has invalid or out-of-window {date_column}")
+    prior_window = sum(
+        1 for row in prior_rows
+        if (value := excel_serial_to_date(row.get(date_column))) is not None
+        and value >= start and (end is None or value <= end)
+    )
+    if len(rows) * 2 < prior_window:
+        raise ValueError(f"{label} export window row count below 0.5: {len(rows)}/{prior_window}")
+    maximum = max((value for value in dates if value is not None), default=None)
+    if expected_through is not None and (maximum is None or maximum < expected_through):
+        raise ValueError(f"{label} export max date {maximum} before expected {expected_through}")
+    return maximum
+
+
 def merge_orders(
     *,
     export_xlsx: Path,
     prior_parquet: Path | None,
     start: date,
     end: date | None = None,
-) -> tuple[str, list[str], list[dict[str, Any]], dict[str, int]]:
+    expected_through: date | None = None,
+) -> tuple[str, list[str], list[dict[str, Any]], dict[str, Any]]:
     if end is not None and end < start:
         raise ValueError(f"orders end date {end.isoformat()} is before start date {start.isoformat()}")
 
@@ -224,6 +246,8 @@ def merge_orders(
     prior_rows: list[dict[str, Any]] = []
     if prior_parquet is not None:
         _, prior_rows = _read_parquet_rows(prior_parquet)
+
+    export_max = _validate_export(export_rows, prior_rows, "分配时间", start, end, expected_through, "order")
 
     columns = _business_columns(export_cols)
     outside: list[dict[str, Any]] = []
@@ -233,20 +257,6 @@ def merge_orders(
             outside.append({c: row.get(c) for c in columns})
 
     near = [{c: row.get(c) for c in columns} for row in export_rows]
-    if end is not None:
-        for index, row in enumerate(near, start=1):
-            raw_date = row.get("分配时间")
-            assigned = excel_serial_to_date(raw_date)
-            if assigned is None:
-                raise ValueError(
-                    f"fresh order export row {index} has an invalid 分配时间: {raw_date!r}"
-                )
-            if assigned < start or assigned > end:
-                raise ValueError(
-                    f"fresh order export row {index} date {assigned.isoformat()} is outside "
-                    f"the inclusive window {start.isoformat()}..{end.isoformat()}"
-                )
-
     by_id: dict[str, dict[str, Any]] = {}
     order: list[str] = []
 
@@ -288,6 +298,7 @@ def merge_orders(
     stats = {
         "prior_rows": len(prior_rows),
         "export_rows": len(export_rows),
+        "export_max_date": export_max.isoformat() if export_max else None,
         "outside_rows": len(outside),
         "merged_rows": len(merged),
     }
@@ -299,26 +310,33 @@ def merge_cash(
     export_xlsx: Path,
     prior_parquet: Path | None,
     start: date,
-) -> tuple[str, list[str], list[dict[str, Any]], dict[str, int]]:
+    end: date | None = None,
+    expected_through: date | None = None,
+) -> tuple[str, list[str], list[dict[str, Any]], dict[str, Any]]:
+    if end is not None and end < start:
+        raise ValueError("cash end date is before start date")
     # Soft key (documented only): 工单ID+业务日期+学员编号+现金收入+业务类型 — not unique.
     sheet_name, export_cols, export_rows = _read_xlsx_rows(export_xlsx)
     prior_rows: list[dict[str, Any]] = []
     if prior_parquet is not None:
         _, prior_rows = _read_parquet_rows(prior_parquet)
 
+    export_max = _validate_export(export_rows, prior_rows, "业务日期", start, end, expected_through, "cash")
+
     columns = _business_columns(export_cols)
     outside: list[dict[str, Any]] = []
     for row in prior_rows:
         biz = excel_serial_to_date(row.get("业务日期"))
-        if biz is not None and biz < start:
+        if biz is not None and (biz < start or (end is not None and biz > end)):
             outside.append({c: row.get(c) for c in columns})
 
     near = [{c: row.get(c) for c in columns} for row in export_rows]
-    # Window replace: keep all outside rows (incl. duplicates) then append entire near window.
+    # Window replace: keep outside rows (including duplicates), then append the export.
     merged = outside + near
     stats = {
         "prior_rows": len(prior_rows),
         "export_rows": len(export_rows),
+        "export_max_date": export_max.isoformat() if export_max else None,
         "outside_rows": len(outside),
         "merged_rows": len(merged),
     }
@@ -334,6 +352,8 @@ def merge_exports_with_prior(
     output_dir: Path,
     orders_start_date: str | None = None,
     orders_end_date: str | None = None,
+    cash_end_date: str | None = None,
+    expected_through: str | None = None,
 ) -> dict[str, Any]:
     """Build merged Input xlsx for orders+cash; return paths and stats.
 
@@ -346,6 +366,8 @@ def merge_exports_with_prior(
         raise ValueError("orders_start_date and orders_end_date must be provided together")
     orders_start = date.fromisoformat(orders_start_date) if orders_start_date is not None else start
     orders_end = date.fromisoformat(orders_end_date) if orders_end_date is not None else None
+    cash_end = date.fromisoformat(cash_end_date) if cash_end_date else None
+    expected = date.fromisoformat(expected_through) if expected_through else None
     landing = resolve_prior_landing_dir(workspace)
     orders_parquet = find_landing_parquet(landing, "br_work_orders") if landing else None
     cash_parquet = find_landing_parquet(landing, "br_cash") if landing else None
@@ -355,10 +377,11 @@ def merge_exports_with_prior(
     cash_out = output_dir / "现金表_merged.xlsx"
 
     o_sheet, o_cols, o_rows, o_stats = merge_orders(
-        export_xlsx=orders_xlsx, prior_parquet=orders_parquet, start=orders_start, end=orders_end
+        export_xlsx=orders_xlsx, prior_parquet=orders_parquet, start=orders_start, end=orders_end,
+        expected_through=min(expected, orders_end) if expected and orders_end else expected
     )
     c_sheet, c_cols, c_rows, c_stats = merge_cash(
-        export_xlsx=cash_xlsx, prior_parquet=cash_parquet, start=start
+        export_xlsx=cash_xlsx, prior_parquet=cash_parquet, start=start, end=cash_end, expected_through=expected
     )
     max_assignment_date = max(
         (
@@ -368,6 +391,7 @@ def merge_exports_with_prior(
         ),
         default=None,
     )
+    cash_max_date = max((d for row in c_rows if (d := excel_serial_to_date(row.get("业务日期"))) is not None), default=None)
     _write_xlsx(orders_out, o_cols, o_rows, o_sheet)
     _write_xlsx(cash_out, c_cols, c_rows, c_sheet)
 
@@ -377,6 +401,8 @@ def merge_exports_with_prior(
         "prior_landing": str(landing) if landing else None,
         "orders_prior_parquet": str(orders_parquet) if orders_parquet else None,
         "cash_prior_parquet": str(cash_parquet) if cash_parquet else None,
+        "export_orders_max_date": o_stats["export_max_date"],
+        "export_cash_max_date": c_stats["export_max_date"],
         "export_orders_rows": o_stats["export_rows"],
         "export_cash_rows": c_stats["export_rows"],
         "merged_orders_rows": o_stats["merged_rows"],
@@ -386,6 +412,7 @@ def merge_exports_with_prior(
         "outside_orders_rows": o_stats["outside_rows"],
         "outside_cash_rows": c_stats["outside_rows"],
         "start_date": start_date,
+        "cash_max_business_date": cash_max_date.isoformat() if cash_max_date else None,
         "orders_max_assignment_date": (
             max_assignment_date.isoformat() if max_assignment_date is not None else None
         ),

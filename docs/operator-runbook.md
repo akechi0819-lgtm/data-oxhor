@@ -83,6 +83,12 @@ PPT Master 现由宿主全局 Skill 管理。项目只保证交给它的当前 S
 
 Mac 日更总入口为 `data_acquisition.jobs.prepare_full_daily --publish`。该流程先更新双 Snapshot 来源并构建、发布 SQL 业务 release，随即调用固定通知入口；只有8条消息全部确认后才继续采集和发布费用 SQL release。费用阶段复用同一双 Snapshot；失败保留已成功的业务 release 和日报。默认运行及显式 `--prepare` 只生成隔离的本地候选，不发布、不发送。阶段结果写入本批 `pipeline-result.json`；排查时按其中 business、notification、expenses 状态定位，不用费用失败覆盖已发布的业务 current。
 
+工单、现金导出按各自声明窗口核验必填列、非空、同窗行数和新表截止日。旧窗口行数减少超过一半，或新表截止日期不足时，先停在临时候选。历史补数按所声明的补数结束日校验，合并后的双表仍须覆盖到昨天。若回执显示 `EMPTY_EXPORT`，确认源系统导出后用同一请求重试，或按已校验的人工输入恢复流程处理。当前 BI 下载和人工清单没有可证明零事件日的来源回执，按实际日期门禁停下。既有保护式完成证明只适用于与证明绑定的来源。
+
+SQL 日更传输前，以当前已验证发布为基线，在同一历史截止日对账。门禁明细写入本批 `sql-attempts/<release>/release-comparison.json`。核对覆盖日、源表行数及 FY27 市场总计的工单、现金和人头，留学与小语种人头分开判断。出现阻断时保留原看板版本，按回执中的来源表或指标排查。
+
+本机看板认证生成器的密码本和输出目录默认位于 `~/.config/cowh-ops/secrets/`，可用 `COWH_SECRETS_DIR` 指定同等私有权限的目录。迁移至新分支前，若需要用旧生成器，可显式提供仓库外的 `--password-book` 和 `--dest`。
+
 11/3 回执记录的是旧发布路径及当时 bi-3 计划，不是实时调度查询；该路径已由 11/7 SQL 切换取代。旧 raw 服务、失败批次与暂停安排仅供追溯，见[固定发布回执](server-raw-fixed-publisher-20261026.md)、[接收部署回执](server-raw-receiver-deployment-20261026.md)和[raw合同](server-raw-pipeline-contract.md)。
 
 服务器通知适配已部署。10-26 历史人工触发中，DeliveryState 有 8 条 `sent` 回执；另一个 HTTP send job 仍保留 `unknown`，其只读对账回执确认这 8 条发送来自此前执行，并标记 `no_send_performed=true`。这不是该 HTTP job 自身成功发送的证明；不得重发这 8 条或清空状态。通知作业控制修复见[回执](notification-job-receipt-repair-20261026.md)。

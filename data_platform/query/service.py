@@ -23,6 +23,10 @@ DENIED_CATALOG_RELATIONS = re.compile(
 )
 QUERY_ID = re.compile(r"^[a-z][a-z0-9_-]{2,63}$")
 VERSION = re.compile(r"^v[0-9]+(?:\.[0-9]+){0,2}$")
+RETIRED_SAVED_QUERIES = frozenset(
+    {("dashboard_actuals", f"v{version}") for version in range(9, 15)}
+    | {("attributed_passive_reported_cash", "v1")}
+)
 RUN_ID = re.compile(r"^run_[a-z0-9][a-z0-9_-]{2,67}$")
 
 
@@ -31,6 +35,11 @@ class QueryError(ValueError):
     def __init__(self, code: str, message: str) -> None:
         super().__init__(message)
         self.code = code
+
+
+def _reject_retired_saved_query(query_id: str, version: str) -> None:
+    if (query_id, version) in RETIRED_SAVED_QUERIES:
+        raise QueryError("SAVED_QUERY_RETIRED", "saved query version has been retired")
 
 
 def _json_value(value: Any) -> Any:
@@ -477,6 +486,7 @@ def promote_query(
     *, warehouse: Path, snapshot_id: str, sql: str, registry_root: Path,
     query_id: str, version: str, confirmed_by: str,
 ) -> dict[str, Any]:
+    _reject_retired_saved_query(query_id, version)
     if not QUERY_ID.fullmatch(query_id) or not VERSION.fullmatch(version) or not confirmed_by.strip():
         raise QueryError("PROMOTION_INVALID", "query_id, version, and confirmed_by are required and invalid")
     target = registry_root / query_id / version
@@ -515,6 +525,7 @@ def run_saved_query(
     *, warehouse: Path, snapshot_id: str, registry_root: Path, query_id: str, version: str,
     parameters: Any, run_id: str, output_root: Path, max_rows: int, max_result_bytes: int,
 ) -> dict[str, Any]:
+    _reject_retired_saved_query(query_id, version)
     target = registry_root / query_id / version
     try:
         manifest = json.loads((target / "manifest.json").read_text(encoding="utf-8"))

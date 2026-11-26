@@ -202,6 +202,16 @@ def _safe_daily_root(workspace: Path) -> Path:
     return resolved_root
 
 
+def _verify_bi_coverage(coverage: dict, as_of: date) -> None:
+    for label in ("orders", "cash"):
+        count = coverage.get(f"{label}_rows")
+        if type(count) is not int or count <= 0:
+            raise ValueError(f"BI {label} coverage has no rows")
+        maximum = _iso_date(coverage.get(f"{label}_max_date"), f"BI {label} max date")
+        if maximum < as_of - timedelta(days=1):
+            raise ValueError(f"BI {label} coverage does not reach yesterday")
+
+
 def refresh_daily(*, workspace: Path, as_of_date: str, run_id: str,
                   bi_snapshot_id: str, study_snapshot_id: str,
                   bi_start_date: str | None = None,
@@ -302,8 +312,16 @@ def refresh_daily(*, workspace: Path, as_of_date: str, run_id: str,
                     "orders": _result_file_sha256(result, "export_orders"),
                     "cash": _result_file_sha256(result, "export_cash"),
                 }
+                bi_coverage = {
+                    "orders_rows": result["merged_orders_rows"],
+                    "cash_rows": result["merged_cash_rows"],
+                    "orders_max_date": result["orders_max_assignment_date"],
+                    "cash_max_date": result["cash_max_business_date"],
+                }
+                _verify_bi_coverage(bi_coverage, as_of)
                 bi.update({
                     "status": "success",
+                    "coverage": bi_coverage,
                     "captured_at": _now_shanghai(),
                     "value_sha256": _canonical_sha256(values),
                     "company_id": company_id,
@@ -512,6 +530,10 @@ def assert_daily_ready(workspace: Path, as_of_date: str, *,
 
     if _snapshot_cut_date(bi_current_id or "") != as_of:
         raise ValueError("current BI Snapshot date does not match as_of_date")
+    coverage = bi.get("coverage")
+    if not isinstance(coverage, dict):
+        raise ValueError("daily receipt has no verified BI coverage")
+    _verify_bi_coverage(coverage, as_of)
     through_date = _iso_date(study.get("through_date"), "study-abroad through_date")
     if through_date < as_of - timedelta(days=1):
         raise ValueError("study-abroad source does not cover through yesterday")

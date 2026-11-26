@@ -2,7 +2,7 @@
 """Maintain the C-layer htpasswd consumed by the native BI account verifier.
 
 Passwords are read from the xlsx password book (mode 600). They are never
-printed. Do not commit deploy/secrets/. Do not upload initial-passwords to
+printed. Do not commit secrets. Do not upload initial-passwords to
 the web root.
 """
 
@@ -20,7 +20,8 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-DEFAULT_PASSWORD_BOOK = Path(__file__).resolve().parent / 'secrets' / 'password-book-20260907.xlsx'
+SECRETS_DIR = Path(os.environ.get('COWH_SECRETS_DIR', '~/.config/cowh-ops/secrets')).expanduser()
+DEFAULT_PASSWORD_BOOK = SECRETS_DIR / 'password-book-20260907.xlsx'
 REQUIRED_COLUMNS = ('用户名', '密码', '权限')
 
 
@@ -175,8 +176,8 @@ def main() -> int:
     parser.add_argument(
         '--dest',
         type=Path,
-        default=Path(__file__).resolve().parent / 'secrets',
-        help='C-layer directory (default: deploy/secrets)',
+        default=SECRETS_DIR,
+        help='C-layer directory (default: COWH_SECRETS_DIR or ~/.config/cowh-ops/secrets)',
     )
     parser.add_argument(
         '--password-book',

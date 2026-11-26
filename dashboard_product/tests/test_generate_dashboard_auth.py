@@ -6,6 +6,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 try:
     import openpyxl
@@ -33,6 +34,16 @@ def _write_book(path: Path, rows):
 
 @unittest.skipUnless(openpyxl is not None, 'openpyxl required to build fixture password books')
 class GenerateDashboardAuthTest(unittest.TestCase):
+    def test_secrets_directory_defaults_and_override(self):
+        with mock.patch.dict(os.environ, {}, clear=True):
+            module = _load_module()
+            self.assertEqual(module.SECRETS_DIR, Path.home() / '.config/cowh-ops/secrets')
+            self.assertEqual(module.DEFAULT_PASSWORD_BOOK.parent, module.SECRETS_DIR)
+        with mock.patch.dict(os.environ, {'COWH_SECRETS_DIR': '/tmp/cowh-fixture'}, clear=True):
+            module = _load_module()
+            self.assertEqual(module.SECRETS_DIR, Path('/tmp/cowh-fixture'))
+            self.assertEqual(module.DEFAULT_PASSWORD_BOOK.parent, module.SECRETS_DIR)
+
     def test_imports_password_book_and_never_prints_passwords(self):
         module = _load_module()
         with tempfile.TemporaryDirectory() as directory:

@@ -368,7 +368,7 @@ def publish(*, workspace: str | Path, day: str, pair: dict, run_id: str,
         current_state = verify_current_pointer(
             workspace=workspace, ssh=ssh, ssh_env=ssh_env,
             log=attempt / "preflight-current.log", command_result=command_result)
-    pointer, old_remote, _, baseline, migration, migration_sha = current_state
+    pointer, old_remote, baseline_manifest, baseline, migration, migration_sha = current_state
     training_snapshot = pair["sources"]["bi"]["snapshot_id"]
     abroad_snapshot = pair["sources"]["study_abroad"]["snapshot_id"]
     if not training_snapshot or not abroad_snapshot:
@@ -390,6 +390,17 @@ def publish(*, workspace: str | Path, day: str, pair: dict, run_id: str,
     candidate, database, preview = _validate_candidate(
         candidate_dir, batch_id=run_id, training_snapshot=training_snapshot,
         abroad_snapshot=abroad_snapshot, as_of_date=day)
+    from dashboard_product.shadow_bi.p5.release_guard import compare_releases
+
+    comparison = compare_releases(
+        baseline=resolve_file(baseline, baseline_manifest["database"]),
+        candidate=database,
+        baseline_through=old_remote["through_date"],
+        candidate_through=candidate["through_date"],
+    )
+    _atomic_json(attempt / "release-comparison.json", comparison)
+    if comparison["blocks"]:
+        raise ValueError("SQL release comparison blocked: " + ", ".join(comparison["blocks"]))
     if before_publish is not None:
         before_publish()
 

@@ -3,6 +3,9 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 .venv/
+/.venv
+.env*
+**/secrets/*
 customers/
 
 # Local generated reports and deliverables; never commit customer outputs.

@@ -98,6 +98,10 @@ class OfficialExportFailed(RuntimeError):
         super().__init__(f"{task.target} export {status} (task_id={task.task_id})")
 
 
+class EmptyExport(RuntimeError):
+    """The exported workbook has no data rows."""
+
+
 class BIExportClient(Protocol):
     def trigger_export(self, request: BIExportRequest) -> ExportTask:
         ...
@@ -228,6 +232,47 @@ def _is_valid_xlsx_payload(payload: bytes) -> bool:
             return archive.testzip() is None and "[Content_Types].xml" in archive.namelist()
     except zipfile.BadZipFile:
         return False
+
+
+_REQUIRED_COLUMNS = {
+    "orders": {"ID", "分配时间"},
+    "cash": {"工单ID", "业务日期", "现金收入"},
+}
+
+
+def validate_export_artifact(path: Path, target: str, *, expected_rows: int | None = None) -> None:
+    """Validate the first sheet, which is the sheet consumed by the merge."""
+    from openpyxl import load_workbook
+    from openpyxl.utils.exceptions import InvalidFileException
+    from xml.etree.ElementTree import ParseError
+
+    try:
+        workbook = load_workbook(path, read_only=True, data_only=True)
+        try:
+            rows = workbook.worksheets[0].iter_rows(values_only=True)
+            header = next(rows, ())
+            columns = {str(value).strip() for value in header if value is not None and str(value).strip()}
+            if not columns:
+                raise EmptyExport(f"{target} EMPTY_EXPORT: empty header")
+            if not _REQUIRED_COLUMNS[target].issubset(columns):
+                raise ValueError(f"{target} INVALID_XLSX: missing required columns")
+            width = len(header)
+            nonempty = (row for row in rows if any(value is not None and str(value).strip() for value in row[:width]))
+            if next(nonempty, None) is None:
+                raise EmptyExport(f"{target} EMPTY_EXPORT: no data rows")
+            if expected_rows is not None and (actual_rows := 1 + sum(1 for _ in nonempty)) != expected_rows:
+                raise ValueError(f"merged row count mismatch: expected {expected_rows}, found {actual_rows}")
+        finally:
+            workbook.close()
+    except (zipfile.BadZipFile, InvalidFileException, ValueError, KeyError, IndexError, ParseError) as error:
+        raise ValueError(f"{target} INVALID_XLSX: {error}") from error
+
+
+def _save_request_state(path: Path, state: dict) -> None:
+    temporary = path.with_suffix(".tmp")
+    temporary.write_text(json.dumps(state, ensure_ascii=False, indent=2))
+    temporary.chmod(0o600)
+    temporary.replace(path)
 
 
 def _poll_state_label(data: dict) -> str:
@@ -550,10 +595,7 @@ def _download_request(*, client: BIExportClient, request: BIExportRequest,
     fingerprint = hashlib.sha256(json.dumps(request.payload, sort_keys=True).encode()).hexdigest()
 
     def save(state):
-        temporary = state_path.with_suffix(".tmp")
-        temporary.write_text(json.dumps(state, ensure_ascii=False, indent=2))
-        temporary.chmod(0o600)
-        temporary.replace(state_path)
+        _save_request_state(state_path, state)
 
     state = _load_request_state(request, config, start_date, end_date)
     if state is not None:
@@ -570,6 +612,14 @@ def _download_request(*, client: BIExportClient, request: BIExportRequest,
         print(f"[BI] target={request.target} task_id={task.task_id} state=submitted")
     try:
         path = client.poll_download(task, config).resolve()
+        try:
+            validate_export_artifact(path, request.target)
+        except ValueError as error:
+            raise OfficialExportFailed(task, "INVALID_XLSX") from error
+    except EmptyExport:
+        state["status"] = "EMPTY_EXPORT"
+        save(state)
+        raise
     except OfficialExportFailed as error:
         state["status"] = error.status
         save(state)
@@ -590,6 +640,26 @@ def _load_request_state(request: BIExportRequest, config: BIExportConfig,
     fingerprint = hashlib.sha256(json.dumps(request.payload, sort_keys=True).encode()).hexdigest()
     if state.get("request_sha256") != fingerprint:
         raise ValueError("BI saved task request mismatch")
+    if state["status"] == "EMPTY_EXPORT":
+        return None
+    if state["status"] == "downloaded":
+        path = Path(state["path"])
+        if hashlib.sha256(path.read_bytes()).hexdigest() != state["sha256"]:
+            raise ValueError("BI saved export SHA mismatch")
+        try:
+            validate_export_artifact(path, request.target)
+        except EmptyExport:
+            state["status"] = "EMPTY_EXPORT"
+            state.pop("path", None)
+            state.pop("sha256", None)
+            _save_request_state(state_path, state)
+            raise
+        except ValueError as error:
+            state["status"] = "INVALID_XLSX"
+            state.pop("path", None)
+            state.pop("sha256", None)
+            _save_request_state(state_path, state)
+            raise OfficialExportFailed(ExportTask(request.target, state["task_id"], state["file_name"]), "INVALID_XLSX") from error
     if state["status"] != "downloaded" and not state.get("task_id"):
         raise RuntimeError("BI export submission result unknown; inspect original task before retry")
     if state["status"] in {"CANCELED", "FAILED", "INVALID_XLSX"}:
@@ -600,7 +670,4 @@ def _load_request_state(request: BIExportRequest, config: BIExportConfig,
 
 def _cached_artifact(target: str, state: dict, start_date: str, end_date: str,
                      mode: str) -> DownloadedArtifact:
-    path = Path(state["path"])
-    if hashlib.sha256(path.read_bytes()).hexdigest() != state["sha256"]:
-        raise ValueError("BI saved export SHA mismatch")
-    return DownloadedArtifact(target, path, start_date, end_date, mode)
+    return DownloadedArtifact(target, Path(state["path"]), start_date, end_date, mode)

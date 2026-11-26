@@ -240,6 +240,35 @@ class QueryServiceTests(unittest.TestCase):
             result = run_saved_query(warehouse=other_db, snapshot_id="snapshot_other", registry_root=registry, query_id="snapshot_bound", version="v1", parameters=None, run_id="run_query_test", output_root=root, max_rows=10, max_result_bytes=10000)
             self.assertEqual(result["snapshot_id"], "snapshot_other")
 
+    def test_retired_saved_query_id_and_version_are_rejected(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            db = root / "warehouse.duckdb"
+            registry = root / "registry"
+            warehouse(db)
+            retired = [("dashboard_actuals", f"v{n}") for n in range(9, 15)]
+            retired.append(("attributed_passive_reported_cash", "v1"))
+            for query_id, version in retired:
+                with self.subTest(query_id=query_id, version=version):
+                    target = registry / query_id / version
+                    target.mkdir(parents=True)
+                    sql = b"SELECT 1\n"
+                    (target / "query.sql").write_bytes(sql)
+                    (target / "manifest.json").write_text(json.dumps({
+                        "query_id": query_id, "version": version,
+                        "sql_path": "query.sql", "sha256": hashlib.sha256(sql).hexdigest(),
+                    }))
+                    with self.assertRaises(QueryError) as error:
+                        run_saved_query(warehouse=db, snapshot_id="snapshot_query_test", registry_root=registry, query_id=query_id, version=version, parameters=None, run_id="run_query_test", output_root=root, max_rows=10, max_result_bytes=10000)
+                    self.assertEqual(error.exception.code, "SAVED_QUERY_RETIRED")
+                    with self.assertRaises(QueryError) as error:
+                        promote_query(warehouse=db, snapshot_id="snapshot_query_test", sql="SELECT 1", registry_root=registry, query_id=query_id, version=version, confirmed_by="user")
+                    self.assertEqual(error.exception.code, "SAVED_QUERY_RETIRED")
+            for query_id, version in [("dashboard_actuals", "v15"), ("other_query", "v9")]:
+                promote_query(warehouse=db, snapshot_id="snapshot_query_test", sql="SELECT 1", registry_root=registry, query_id=query_id, version=version, confirmed_by="user")
+                result = run_saved_query(warehouse=db, snapshot_id="snapshot_query_test", registry_root=registry, query_id=query_id, version=version, parameters=None, run_id="run_query_test", output_root=root, max_rows=10, max_result_bytes=10000)
+                self.assertEqual(result["status"], "passed")
+
     def test_select_string_literal_with_denied_word_is_allowed(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

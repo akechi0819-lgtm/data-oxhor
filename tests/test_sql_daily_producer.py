@@ -195,11 +195,13 @@ def test_full_daily_preview_package_still_transfers_only_sealed_table_files(tmp_
     assert files == {"tables/known.jsonl", "library_manifest.json"}
 
 
-@pytest.mark.parametrize('contract_change,accepted', [(False, True), (True, True), (True, False)])
+@pytest.mark.parametrize('contract_change,accepted,blocked', [
+    (False, True, False), (True, True, False), (True, False, False), (False, True, True),
+])
 def test_publish_builds_runtime_contract_and_updates_pointer_only_after_activation(
-        tmp_path, monkeypatch, contract_change, accepted):
+        tmp_path, monkeypatch, contract_change, accepted, blocked):
     import duckdb
-    from dashboard_product.shadow_bi.p5 import sql_bundle
+    from dashboard_product.shadow_bi.p5 import release_guard, sql_bundle
     from dashboard_product.shadow_bi.sql_warehouse import build as sql_build
     from dashboard_product.shadow_bi.sql_warehouse.foundation import TABLES
 
@@ -210,11 +212,13 @@ def test_publish_builds_runtime_contract_and_updates_pointer_only_after_activati
     current_catalogue_sha = hashlib.sha256(current_catalogue).hexdigest()
     remote_before = {"catalogue_sha256": hashlib.sha256(b'previous catalogue').hexdigest()
                      if contract_change else current_catalogue_sha}
+    remote_before["through_date"] = "2026-11-05"
     migration = json.loads(acceptance_file.read_text())
     migration['catalogue_sha256'] = current_catalogue_sha if accepted else remote_before['catalogue_sha256']
     acceptance_file.write_text(json.dumps(migration))
     migration_sha = _sha(acceptance_file)
-    current_state = (pointer, remote_before, {}, baseline, migration, migration_sha)
+    current_state = (pointer, remote_before, json.loads((baseline / "candidate.json").read_text()),
+                     baseline, migration, migration_sha)
     pair = {"sources": {
         "bi": {"snapshot_id": "snapshot_training_new"},
         "study_abroad": {"snapshot_id": "snapshot_abroad_new"},
@@ -310,6 +314,14 @@ def test_publish_builds_runtime_contract_and_updates_pointer_only_after_activati
             "verification": {"status": "passed", "metrics_compared": 18},
         }
 
+    def compare_releases(**kwargs):
+        assert kwargs['baseline'] == baseline / "warehouse.duckdb"
+        assert kwargs['candidate'].name == "warehouse.duckdb"
+        assert kwargs['baseline_through'] == "2026-11-05"
+        assert kwargs['candidate_through'] == "2026-11-06"
+        return {'blocks': ['training.orders:retraction'] if blocked else []}
+
+    monkeypatch.setattr(release_guard, "compare_releases", compare_releases)
     monkeypatch.setattr(sql_daily, "source_order_receipts", source_receipts)
     monkeypatch.setattr(sql_daily, "remote_current", remote_after_activation)
     monkeypatch.setattr(sql_bundle, "prepare_release", prepare_release)
@@ -339,6 +351,14 @@ def test_publish_builds_runtime_contract_and_updates_pointer_only_after_activati
         release_id=release_id, folder=folder, advertising_manifest=None,
         ssh=ssh, ssh_env={}, command=command, command_result=command_result,
         config_root=tmp_path, current_state=current_state)
+    if blocked:
+        with pytest.raises(ValueError, match="comparison blocked: training.orders:retraction"):
+            sql_daily.publish(**kwargs)
+        comparison = folder / "sql-attempts" / release_id / "release-comparison.json"
+        assert json.loads(comparison.read_text())['blocks'] == ['training.orders:retraction']
+        assert not commands and not result_commands and not prepared_acceptance
+        assert json.loads((workspace / 'Output/ShadowDaily/sql-current.json').read_text()) == pointer
+        return
     if not accepted:
         with pytest.raises(ValueError, match='repeat migration acceptance'):
             sql_daily.publish(**kwargs)

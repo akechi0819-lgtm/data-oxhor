@@ -72,6 +72,10 @@ class DailyWarehousesTests(unittest.TestCase):
                 "end_date": kwargs["end_date"],
                 "export_orders": str(orders),
                 "export_cash": str(cash),
+                "merged_orders_rows": 10,
+                "merged_cash_rows": 12,
+                "orders_max_assignment_date": kwargs["end_date"],
+                "cash_max_business_date": kwargs["end_date"],
             }
 
         def update(**kwargs):
@@ -163,6 +167,17 @@ class DailyWarehousesTests(unittest.TestCase):
         self.assertEqual("failed", result["content_work_orders"]["status"])
         self.assertNotIn("private token", json.dumps(result))
         daily_warehouses.assert_daily_ready(self.workspace, AS_OF)
+
+    def test_bi_coverage_rejects_empty_or_stale_actual_facts(self) -> None:
+        from datetime import date
+
+        coverage = {"orders_rows": 10, "cash_rows": 12,
+                    "orders_max_date": "2026-10-08", "cash_max_date": "2026-10-08"}
+        daily_warehouses._verify_bi_coverage(coverage, date(2026, 10, 9))
+        with self.assertRaisesRegex(ValueError, "orders coverage has no rows"):
+            daily_warehouses._verify_bi_coverage({**coverage, "orders_rows": 0}, date(2026, 10, 9))
+        with self.assertRaisesRegex(ValueError, "cash coverage does not reach yesterday"):
+            daily_warehouses._verify_bi_coverage({**coverage, "cash_max_date": "2026-10-07"}, date(2026, 10, 9))
 
     def test_running_attempt_blocks_old_ready_state_before_either_source_moves(self) -> None:
         state_root = self.workspace / "Work/DailyWarehouseRefresh"

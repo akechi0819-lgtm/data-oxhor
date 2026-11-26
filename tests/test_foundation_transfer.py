@@ -203,7 +203,9 @@ def paired_workspace(tmp_path: Path) -> Path:
         "sources": {
             "bi": {"status": "success", "company_id": COMPANY, "snapshot_id": BI_ID,
                    "run_id": daily_run, "cutoff_date": AS_OF, "captured_at": AS_OF,
-                   "value_sha256": "a" * 64},
+                   "value_sha256": "a" * 64,
+                   "coverage": {"orders_rows": 1, "cash_rows": 1,
+                                "orders_max_date": AS_OF, "cash_max_date": AS_OF}},
             "study_abroad": {"status": "success", "company_id": COMPANY, "snapshot_id": ABROAD_ID,
                              "run_id": daily_run, "cutoff_date": AS_OF, "through_date": AS_OF,
                              "captured_at": AS_OF, "value_sha256": "b" * 64},

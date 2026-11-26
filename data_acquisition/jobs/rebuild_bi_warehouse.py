@@ -14,7 +14,7 @@ import tempfile
 sys.path.insert(0, str(Path(__file__).parents[1]))
 from data_acquisition.auth.auth_sessions import AuthSessionPaths
 from workspace_modeling.onboarding.service import import_data, init_workspace, sync
-from data_acquisition.connectors.bi.bi_downloads import BIExportConfig, run_bi_download
+from data_acquisition.connectors.bi.bi_downloads import BIExportConfig, run_bi_download, validate_export_artifact
 from data_acquisition.jobs.bi_window_merge import merge_exports_with_prior, rolling_start_date
 from workspace_modeling.bridge_alignment.workspace import load_workspace, validate_sync_preconditions
 
@@ -161,11 +161,18 @@ def rebuild(*, workspace: Path, snapshot_id: str, start_date: str, end_date: str
             output_dir=temporary_root / "merged",
             orders_start_date=actual_orders_start,
             orders_end_date=actual_orders_end,
+            cash_end_date=end_date,
+            expected_through=(date.fromisoformat(end_date) - timedelta(days=1)).isoformat(),
         )
         merged_orders = Path(merge_stats["orders_path"])
         merged_cash = Path(merge_stats["cash_path"])
-        _valid_xlsx(merged_orders)
-        _valid_xlsx(merged_cash)
+        validate_export_artifact(merged_orders, "orders", expected_rows=merge_stats["merged_orders_rows"])
+        validate_export_artifact(merged_cash, "cash", expected_rows=merge_stats["merged_cash_rows"])
+        expected_merged = (date.fromisoformat(end_date) - timedelta(days=1)).isoformat()
+        for key in ("orders_max_assignment_date", "cash_max_business_date"):
+            observed = merge_stats[key]
+            if observed is None or observed < expected_merged:
+                raise ValueError(f"merged {key} {observed} before expected {expected_merged}")
 
         # Keep raw exports for Snapshot evidence; task files also survive failed attempts.
         keep_dir.mkdir(parents=True, exist_ok=True)
@@ -243,6 +250,10 @@ def rebuild(*, workspace: Path, snapshot_id: str, start_date: str, end_date: str
             "status": result["status"],
             "start_date": start_date,
             "end_date": end_date,
+            "orders_max_assignment_date": merge_stats["orders_max_assignment_date"],
+            "cash_max_business_date": merge_stats["cash_max_business_date"],
+            "export_orders_max_date": merge_stats["export_orders_max_date"],
+            "export_cash_max_date": merge_stats["export_cash_max_date"],
             "export_orders_rows": merge_stats["export_orders_rows"],
             "export_cash_rows": merge_stats["export_cash_rows"],
             "merged_orders_rows": merge_stats["merged_orders_rows"],

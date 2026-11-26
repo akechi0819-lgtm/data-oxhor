@@ -255,6 +255,34 @@ class MergeCashTests(unittest.TestCase):
                 merge_cash(export_xlsx=cash, prior_parquet=missing, start=date(2026, 3, 1))
 
 
+class ExportGateTests(unittest.TestCase):
+    def test_empty_and_low_ratio_rejected_before_replacement_for_both_sources(self):
+        for label, merge, headers, date_column in (
+            ("order", merge_orders, ["ID", "分配时间"], "分配时间"),
+            ("cash", merge_cash, ["工单ID", "业务日期"], "业务日期"),
+        ):
+            with self.subTest(label=label), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                prior, export = root / "prior.parquet", root / "fresh.xlsx"
+                _write_parquet(prior, headers, [[str(i), "2026-11-04"] for i in range(4)])
+                for rows, message in (([], "empty_export_rejected"), ([["1", "2026-11-04"]], "below 0.5")):
+                    _write_xlsx(export, headers, rows)
+                    with self.assertRaisesRegex(ValueError, message):
+                        merge(export_xlsx=export, prior_parquet=prior, start=date(2026, 11, 4), end=date(2026, 11, 4))
+                _write_xlsx(export, headers, [[str(i), "2026-11-04"] for i in range(2)])
+                self.assertEqual(2, len(merge(export_xlsx=export, prior_parquet=prior, start=date(2026, 11, 4), end=date(2026, 11, 4))[2]))
+
+    def test_export_max_cannot_be_masked_by_prior_outside_window(self):
+        for merge, headers in ((merge_orders, ["ID", "分配时间"]), (merge_cash, ["工单ID", "业务日期"])):
+            with self.subTest(merge=merge.__name__), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                prior, export = root / "prior.parquet", root / "fresh.xlsx"
+                _write_parquet(prior, headers, [["old", "2026-11-05"]])
+                _write_xlsx(export, headers, [["fresh", "2026-11-03"]])
+                with self.assertRaisesRegex(ValueError, "export max date"):
+                    merge(export_xlsx=export, prior_parquet=prior, start=date(2026, 11, 3), end=date(2026, 11, 4), expected_through=date(2026, 11, 4))
+
+
 class PriorSnapshotLookupTests(unittest.TestCase):
     def setUp(self) -> None:
         self.pack = Path("workspace_modeling/business_pack/packs/education_training_operations_cn/pack.json").resolve()

@@ -4,6 +4,7 @@ import tempfile
 import json
 import unittest
 import sys
+from datetime import date, timedelta
 from contextlib import redirect_stdout
 from io import StringIO
 from pathlib import Path
@@ -35,18 +36,19 @@ def _write_workbook(path: Path, sheet_name: str, rows: list[list[object]]) -> No
 
 def _mock_download(config, targets, start_date, end_date, **kwargs):
     downloaded = []
+    through = (date.fromisoformat(end_date) - timedelta(days=1)).isoformat()
     for target in targets:
         if target == "orders":
             filename, sheet, rows = (
                 "BI工单.xlsx",
                 "工单明细导出用表",
-                [["ID", "分配时间", "姓名"], ["NEW", "2026-08-01", "新工单"]],
+                [["ID", "分配时间", "姓名"], ["NEW", through, "新工单"]],
             )
         else:
             filename, sheet, rows = (
                 "BI现金.xlsx",
                 "现金明细表",
-                [["工单ID", "业务日期", "现金收入"], ["NEW", "2026-08-01", 200]],
+                [["工单ID", "业务日期", "现金收入"], ["NEW", through, 200]],
             )
         path = config.download_dir / filename
         _write_workbook(path, sheet, rows)
@@ -157,7 +159,7 @@ class RebuildBIWarehouseTests(unittest.TestCase):
             self.assertTrue(Path(result["export_cash"]).is_file())
             self.assertEqual(other_bytes, other_path.read_bytes())
             self.assertEqual("snapshot_rebuild_next", load_workspace(workspace)[1]["current_snapshot_id"])
-            self.assertEqual("2026-08-01", result["order_refresh"]["orders_covered_through"])
+            self.assertEqual("2026-09-29", result["order_refresh"]["orders_covered_through"])
             self.assertNotIn("export_keep_orders", result)
             self.assertNotIn("export_keep_cash", result)
             self.assertNotIn("prior_landing", result)
@@ -215,6 +217,47 @@ class RebuildBIWarehouseTests(unittest.TestCase):
                     workbook.close()
             stored = json.loads((workspace / "Work/BIRefresh/snapshot_rebuild_incremental.json").read_text())
             self.assertEqual(refresh, stored)
+
+    def test_bad_export_pair_leaves_inputs_and_snapshot_unchanged(self) -> None:
+        for target, issue in (("orders", "empty"), ("cash", "empty"), ("orders", "stale"), ("cash", "stale")):
+            with self.subTest(target=target, issue=issue), tempfile.TemporaryDirectory() as directory:
+                workspace = self._workspace(Path(directory) / "workspace")
+                before = self._bi_files(workspace)
+                def download(config, targets, start_date, end_date, **kwargs):
+                    artifacts = _mock_download(config, targets, start_date, end_date)
+                    artifact = next(item for item in artifacts if item.target == target)
+                    headers = ["ID", "分配时间", "姓名"] if target == "orders" else ["工单ID", "业务日期", "现金收入"]
+                    sheet = "工单明细导出用表" if target == "orders" else "现金明细表"
+                    rows = [headers] if issue == "empty" else [headers, ["x", "2026-08-01", "x"]]
+                    _write_workbook(artifact.path, sheet, rows)
+                    return artifacts
+                with patch.object(rebuild_bi_warehouse, "run_bi_download", side_effect=download), \
+                     patch.object(rebuild_bi_warehouse, "import_data") as imported:
+                    with self.assertRaisesRegex(ValueError, "empty_export_rejected|export max date"):
+                        rebuild_bi_warehouse.rebuild(workspace=workspace, snapshot_id="snapshot_bad",
+                                                     start_date="2026-03-01", end_date="2026-09-30")
+                    imported.assert_not_called()
+                self.assertEqual(before, self._bi_files(workspace))
+                self.assertEqual("snapshot_rebuild_initial", load_workspace(workspace)[1]["current_snapshot_id"])
+
+    def test_repair_with_stale_merged_history_cannot_switch_snapshot(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            workspace = self._workspace(Path(directory) / "workspace")
+            before = self._bi_files(workspace)
+            def download(config, targets, start_date, end_date, **kwargs):
+                artifacts = _mock_download(config, targets, start_date, end_date)
+                orders = next(item for item in artifacts if item.target == "orders")
+                _write_workbook(orders.path, "工单明细导出用表", [["ID", "分配时间", "姓名"], ["A", "2026-01-02", "A"]])
+                return artifacts
+            with patch.object(rebuild_bi_warehouse, "run_bi_download", side_effect=download), \
+                 patch.object(rebuild_bi_warehouse, "import_data") as imported:
+                with self.assertRaisesRegex(ValueError, "merged orders_max_assignment_date"):
+                    rebuild_bi_warehouse.rebuild(workspace=workspace, snapshot_id="snapshot_repair_stale",
+                        start_date="2026-03-01", end_date="2026-09-30",
+                        orders_start_date="2026-01-02", orders_end_date="2026-01-02")
+                imported.assert_not_called()
+            self.assertEqual(before, self._bi_files(workspace))
+            self.assertEqual("snapshot_rebuild_initial", load_workspace(workspace)[1]["current_snapshot_id"])
 
     def test_active_session_blocks_before_download_and_input_replacement(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
