@@ -4,8 +4,22 @@ from __future__ import annotations
 
 import hashlib
 import json
-from datetime import date
+import re
+from datetime import date, timedelta
 from pathlib import Path
+
+
+def _fiscal_dates(period):
+    match = re.fullmatch(r'FY(\d{2})(?:-Q([1-4]))?', period)
+    if match is None:
+        return None, None
+    year = 2000 + int(match[1]) - 1
+    if match[2] is None:
+        return date(year, 6, 1), date(year + 1, 5, 31)
+    start_month = 5 + 3 * (int(match[2]) - 1)
+    end_month = start_month + 3
+    return (date(year + start_month // 12, start_month % 12 + 1, 1),
+            date(year + end_month // 12, end_month % 12 + 1, 1) - timedelta(days=1))
 
 
 def install_scorecard(con, scorecard_path, *, warehouse_coverage_start, warehouse_coverage_end,
@@ -37,6 +51,7 @@ def install_scorecard(con, scorecard_path, *, warehouse_coverage_start, warehous
             period, row_kind = record['period'], record['row_kind']
             if not isinstance(period, str) or not isinstance(row_kind, str) or not period or not row_kind:
                 raise ValueError('invalid scorecard period or row kind')
+            period_start, period_end = _fiscal_dates(period)
             for dimension, values in record.items():
                 if dimension in ('period', 'row_kind'):
                     continue
@@ -47,9 +62,7 @@ def install_scorecard(con, scorecard_path, *, warehouse_coverage_start, warehous
                     if isinstance(value, bool) or not isinstance(value, (int, float)):
                         raise ValueError('invalid scorecard measure')
                     unit = units.get(metric_units.get(metric, '')) if isinstance(values, dict) else None
-                    # The official source explicitly states that the fiscal calendar dates
-                    # are unspecified. Do not infer dates from the dashboard's calendar.
-                    rows.append((scorecard_id, version, digest, captured_at, period, None, None,
+                    rows.append((scorecard_id, version, digest, captured_at, period, period_start, period_end,
                                  scope, dimension if isinstance(values, dict) else 'scope_share', row_kind, metric, unit, value))
     if not rows:
         raise ValueError('scorecard has no measures')
@@ -87,6 +100,9 @@ def install_scorecard(con, scorecard_path, *, warehouse_coverage_start, warehous
                     or not all(isinstance(v, str) and v for v in segments + channels)
                     or (metric == '毛签万元' and item.get('definition') != 'positive_signature_yuan')):
                 raise ValueError('invalid scorecard comparison')
+            expected_start, expected_end = _fiscal_dates(period)
+            if expected_start is not None and (period_start, period_end) != (expected_start, expected_end):
+                raise ValueError('scorecard comparison dates differ from the fiscal calendar')
             entries.append((period, scope, dimension, metric, period_start, period_end, segments, channels, approval))
         if len({entry[:4] for entry in entries}) != len(entries):
             raise ValueError('duplicate scorecard comparison')
@@ -95,14 +111,18 @@ def install_scorecard(con, scorecard_path, *, warehouse_coverage_start, warehous
     # Bounds are already parsed dates, not user-provided SQL fragments.
     con.execute(f'''CREATE VIEW mart.study_abroad_summary AS
         WITH matched AS (
-          SELECT o.*, c.period_start AS approved_start, c.period_end AS approved_end,
+          SELECT o.*, COALESCE(c.period_start, o.period_start) AS compared_start,
+                 COALESCE(c.period_end, o.period_end) AS compared_end,
                  c.segments, c.first_channels, c.approval_reference,
                  CASE WHEN o.row_kind IN ('annual_target', 'target') THEN 'official_target'
                       WHEN o.row_kind LIKE '%completion%' THEN 'official_completion_rate'
+                      WHEN compared_end < DATE '{start}' OR compared_start > DATE '{end}'
+                          THEN 'warehouse_coverage_missing'
+                      WHEN compared_start < DATE '{start}' OR compared_end > DATE '{end}'
+                          THEN 'warehouse_coverage_incomplete'
                       WHEN c.period IS NULL THEN 'comparison_contract_missing'
                       WHEN NOT ((o.metric='资源数' AND o.unit='资源/工单数')
                              OR (o.metric='毛签万元' AND o.unit='毛签万元')) THEN 'metric_or_unit_not_approved'
-                      WHEN c.period_start < DATE '{start}' OR c.period_end > DATE '{end}' THEN 'warehouse_coverage_incomplete'
                       ELSE NULL END AS reason
           FROM ref.official_scorecard o
           LEFT JOIN ref.scorecard_comparison_contract c
@@ -111,21 +131,21 @@ def install_scorecard(con, scorecard_path, *, warehouse_coverage_start, warehous
           SELECT m.*, CASE WHEN m.reason IS NULL THEN (
             SELECT CASE WHEN m.metric='资源数'
                         THEN COUNT(DISTINCT NULLIF(TRIM(f.resource_id), ''))::DOUBLE
-                        ELSE COALESCE(SUM(f.value), 0)::DOUBLE / 10000 END
+                        ELSE ROUND(COALESCE(SUM(f.value), 0)::DOUBLE / 10000, 6) END
             FROM business.abroad_facts f
             WHERE f.customer_domain='study_abroad'
               AND ((m.metric='资源数' AND f.metric='orders')
                    OR (m.metric='毛签万元' AND f.metric='cash' AND f.value>0))
-              AND TRY_CAST(f.event_date AS DATE) BETWEEN m.approved_start AND m.approved_end
+              AND TRY_CAST(f.event_date AS DATE) BETWEEN m.compared_start AND m.compared_end
               AND list_contains(m.segments, f.segment_id)
               AND list_contains(m.first_channels, f.first_channel)
           ) END AS measured_value
           FROM matched m
         )
         SELECT scorecard_id, source_version, source_sha256, period,
-               approved_start AS period_start, approved_end AS period_end,
+               compared_start AS period_start, compared_end AS period_end,
                scope, dimension, row_kind, metric, unit, official_value,
-               measured_value AS warehouse_value, measured_value - official_value AS delta,
+               measured_value AS warehouse_value, ROUND(measured_value - official_value, 6) AS delta,
                'official_scorecard' AS authority_source,
                reason AS comparability_reason, approval_reference AS comparison_approval
         FROM compared

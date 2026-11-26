@@ -2,11 +2,12 @@ import hashlib
 import json
 import tempfile
 import unittest
+from datetime import date
 from pathlib import Path
 
 import duckdb
 
-from dashboard_product.shadow_bi.sql_warehouse.scorecard import install_scorecard
+from dashboard_product.shadow_bi.sql_warehouse.scorecard import _fiscal_dates, install_scorecard
 from data_platform.query.service import QueryError, validate_query
 
 
@@ -52,7 +53,7 @@ class ScorecardSQLTest(unittest.TestCase):
         result = self.install()
         self.assertEqual(result['source_sha256'], hashlib.sha256(self.path.read_bytes()).hexdigest())
         official = self.con.execute("SELECT period_start,period_end,official_value,unit FROM ref.official_scorecard WHERE scope='online' AND metric='资源数'").fetchone()
-        self.assertEqual(official[:2], (None, None))
+        self.assertEqual(official[:2], (date(2026, 6, 1), date(2026, 8, 31)))
         self.assertEqual(official[2:], (30.0, '资源/工单数'))
         row = self.con.execute("SELECT official_value,warehouse_value,delta,authority_source FROM mart.study_abroad_summary WHERE metric='资源数' AND scope='online'").fetchone()
         self.assertEqual(row, (30.0, None, None, 'official_scorecard'))
@@ -78,6 +79,12 @@ class ScorecardSQLTest(unittest.TestCase):
             WHERE metric='资源数' AND scope='online'""").fetchone()[0], 'fixture-authority')
         self.assertEqual(self.con.execute("""SELECT comparability_reason FROM mart.study_abroad_summary
             WHERE metric='毛签万元' AND scope='online'""").fetchone()[0], 'comparison_contract_missing')
+
+    def test_fiscal_calendar_uses_calendar_month_boundaries(self):
+        self.assertEqual(_fiscal_dates('FY27'), (date(2026, 6, 1), date(2027, 5, 31)))
+        self.assertEqual(_fiscal_dates('FY27-Q2'), (date(2026, 9, 1), date(2026, 11, 30)))
+        self.assertEqual(_fiscal_dates('FY28-Q3'), (date(2027, 12, 1), date(2028, 2, 29)))
+        self.assertEqual(_fiscal_dates('FY27-Q4'), (date(2027, 3, 1), date(2027, 5, 31)))
 
     def test_approved_gross_signing_converts_positive_yuan_to_wan_yuan(self):
         contract = {
