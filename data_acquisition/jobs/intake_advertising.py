@@ -85,7 +85,7 @@ def intake(inventory_path, output_dir, *, now=None):
         'missing_required_sources':missing,'failed_sources':sorted(set(failures)),
         'source_completeness_checked':False,'registration_performed':False,'aggregation_performed':False,
         'candidate_built':False,'production_ready':False,'published':False,
-        'next_step':'Validate native account/date/amount/completion and assemble final capture receipt before full_daily --prepare'}
+        'next_step':'Validate native account/date/amount/completion and assemble final capture receipt for independent expense intake'}
     (output/'intake-receipt.json').write_text(json.dumps(result,ensure_ascii=False,indent=2)+'\n')
     return result
 

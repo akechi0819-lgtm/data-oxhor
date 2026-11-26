@@ -18,7 +18,7 @@ from data_platform.snapshots.ingest import SNAPSHOT_ID
 from workspace_modeling.operations.personnel import (
     BUSINESS_GROUP_BY_ROSTER_GROUP, is_displayable_person,
 )
-from workspace_modeling.operations.study_abroad_source import read_sources
+from data_acquisition.connectors.study_abroad_source import read_sources
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -506,7 +506,7 @@ def build(*, workspace: Path, source_file: Path, run_id: str, snapshot_id: str,
             'people': hashlib.sha256(people_before).hexdigest(),
             'abroad_people': hashlib.sha256(abroad_before).hexdigest(),
             'normalizer': sha256_file(Path(__file__)),
-            'reader': sha256_file(ROOT / 'workspace_modeling/operations/study_abroad_source.py'),
+            'reader': sha256_file(ROOT / 'data_acquisition/connectors/study_abroad_source.py'),
             'identity_reader': sha256_file(ROOT / 'data_acquisition/jobs/study_abroad_identity.py'),
         }
         if standardized_source:

@@ -5,7 +5,7 @@ from collections import defaultdict
 from datetime import date, timedelta
 from decimal import Decimal, ROUND_HALF_UP
 
-from dashboard_product.online_team.build import metric, periods as online_periods
+from dashboard_product.management.windowing import metric, periods as online_periods
 from workspace_modeling.operations.personnel import (
     BUSINESS_GROUP_BY_ROSTER_GROUP,
     ORDER_STATUS_MODES,
@@ -232,7 +232,7 @@ def _sum_fact_values(facts, business_line, metric_name, start, end, predicate=No
 
 def _unique_heads(facts, business_line, start, end, predicate=None):
     if business_line == 'training':
-        from .heads import qualified_students
+        from .windowing import qualified_students
         return len(qualified_students(f for f in facts if f['business_line']=='training'
             and f['metric']=='cash' and _in_window(f,start,end)
             and (predicate is None or predicate(f))))
@@ -396,7 +396,7 @@ def _team_target(configs, period, team_id, line, kind, facts):
                 _department_training_cash_target(training_targets, period, team_config_id, group))
 
     if kind == 'cash' and team_id in ('online', 'university'):
-        from dashboard_product.online_team.build import study_target
+        from dashboard_product.management.windowing import study_target
         cash_config = online_abroad_targets if team_id == 'online' else offline_abroad_targets
         return study_target(cash_config, period, 'cash') if 'cash' in cash_config else None
     if kind != 'orders':

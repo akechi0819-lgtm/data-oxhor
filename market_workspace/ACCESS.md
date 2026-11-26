@@ -7,7 +7,6 @@
 | `Programs/`、`Scratch/` | 按任务读写、清理 | 生成程序、依赖环境、临时脚本放各自任务子目录 |
 | `Reports/`、`Evidence/`、`Notes/` | 按任务读写 | 正式成果、证据、参考资料，不自动批量删除 |
 | `/Users/akechi/Desktop/manager -CowH/customers/shadow_bi_daily/Work/workspace.json` | 只读 | 正式数仓的数据身份和当前 Snapshot 指针的唯一来源 |
-| 上述配置指向的 Pack、Bridge | 只读 | 经确认的业务口径，接口 status 返回具体路径 |
 | `/Users/akechi/Desktop/manager -CowH/customers/shadow_bi_daily/Input/` | 按需只读 | 不修改源文件，不将整目录读入上下文 |
 | `/Users/akechi/Desktop/manager -CowH/customers/shadow_bi_daily/Input/Reference/留学板块-官方记分卡.md`、`/Users/akechi/Desktop/manager -CowH/customers/shadow_bi_daily/Input/Reference/留学板块-官方记分卡.json` | 只读 | 官方业务确认事实；不修改、不入仓、不写入 Bridge |
 | `/Users/akechi/Desktop/manager -CowH/customers/shadow_bi_daily/Work/Runs/` | 仅受控查询 | 不直接连接 DuckDB，不扫描历史运行猜状态 |

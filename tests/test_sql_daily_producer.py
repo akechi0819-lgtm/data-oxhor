@@ -75,7 +75,7 @@ def test_migration_acceptance_must_keep_all_three_checks_true(tmp_path):
 def test_source_order_receipts_are_fresh_controlled_queries_for_each_year_window(
         tmp_path, monkeypatch):
     import data_platform.query.evidence as evidence
-    from dashboard_product.management.calculation import _confirmed_adviser_lists
+    from dashboard_product.shadow_bi.p5.sql_daily import _confirmed_adviser_lists
 
     workspace = tmp_path / "workspace"
     warehouse = workspace / "warehouse.duckdb"

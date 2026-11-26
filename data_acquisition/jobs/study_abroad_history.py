@@ -7,7 +7,7 @@ import json
 from pathlib import Path
 import re
 
-from workspace_modeling.operations.study_abroad_source import read_sources
+from data_acquisition.connectors.study_abroad_source import read_sources
 
 
 _SCHEMA = "study_abroad_monthly_history.v1"

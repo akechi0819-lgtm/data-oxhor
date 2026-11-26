@@ -7,7 +7,7 @@ import subprocess
 from zoneinfo import ZoneInfo
 
 from dashboard_product.shadow_bi.p5.daily import ssh_config
-from dashboard_product.shadow_bi.p5.full_daily import atomic_json
+from data_acquisition.ops_io import atomic_json
 
 SHANGHAI = ZoneInfo('Asia/Shanghai')
 

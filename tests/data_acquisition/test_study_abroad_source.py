@@ -11,7 +11,7 @@ from zipfile import ZipFile
 
 import openpyxl
 
-from workspace_modeling.operations.study_abroad_source import read_sheet_rows, read_sources
+from data_acquisition.connectors.study_abroad_source import read_sheet_rows, read_sources
 
 
 RESOURCE_HEADERS = [
@@ -286,7 +286,7 @@ class StudyAbroadReaderTests(unittest.TestCase):
             self.assertEqual(64, len(result["source_sha256"]))
             self.assertEqual(str(path), result["source_path"])
 
-            with patch("workspace_modeling.operations.study_abroad_source._sha256",
+            with patch("data_acquisition.connectors.study_abroad_source._sha256",
                        side_effect=["before", "after"]):
                 with self.assertRaisesRegex(ValueError, "读取过程中发生变化"):
                     read_sources(path)

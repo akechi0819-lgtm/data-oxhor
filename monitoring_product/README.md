@@ -1,6 +1,6 @@
 # 日常监控
 
-Mac 日更总入口为 `data_acquisition.jobs.prepare_full_daily --publish`：先更新业务双仓并发布基础看板，立即经下述固定入口的 `send-published` 发送日报（不等待10点）；8条消息确认后才采集和发布费用。基础构建不依赖费用原件，费用失败保留基础发布与投递结果。未指定 `--publish` 时默认只准备隔离候选，显式 `--prepare` 也不发布或发送。11/3回执记载 bi-3 为本机09:30执行计划，但本 README 不把日期回执当作实时调度核验。阶段回执见 `batch-dir/pipeline-result.json`。现行完整说明见[最新日更状态](../docs/archive/shadow-bi-full-daily-20261028.md)。
+日更入口为 `python -m ops run business`。现行调度以 `prepare_full_daily --publish --business-only` 转入同一业务链，发布正式 SQL release 后核验通知。费用通过 `ops ingest-cost` 独立录入，`ops fetch-cost-optional` 可生成隔离采集证据。
 
 > **历史运行回执（2026-10-26）**：固定服务器通知适配从正式 release 构建8条消息，经 `shared_delivery` 去重投递；当日人工触发有8条 `sent` 记录，另一个HTTP job保留 `unknown`，只读对账确认其 `no_send_performed=true`。不得把job本身记为sent或重发该批消息。raw worker当日运行到39张业务表后因截止门禁失败，没有发布release；该状态不代表本地 bi-3 总入口。Dot上海10:00记录针对通知，与BI采集／刷新分开。回执见[通知作业修复记录](../docs/archive/notification-job-receipt-repair-20261026.md)和[BI部署说明](../dashboard_product/DEPLOYMENT.md)。
 
@@ -29,7 +29,7 @@ python3 -m monitoring_product.shared_delivery \
 
 旧Grok 09:30／09:45／10:24运行时刻及7条消息合同均属于历史版本，不是当前服务器通知入口。用户已要求停止Grok例行；日期回执提供的是停止安排，不构成本页编辑期间的云端实时检查。历史通知部署记录见[监控模块旧部署](../docs/monitoring-cloud-deployment.md)。
 
-广告费用已纳入 `prepare_full_daily --publish` 的通知后采集阶段，不再只有用户手工原表路径；腾讯品牌非空报告可自动分页、对账和入仓，不需人工补品牌明细。其他来源仍按各自合同和门禁运行，不能推断永远不需登录恢复或业务补数：腾讯语培费用来源尚未接入，SEM 完成标记缺失及226条空金额均如实保留。费用采集、校验或发布失败时只记录费用阶段失败，保留已经完成的基础发布与日报。腾讯文档（留学数据与工单反馈）单独走官方 MCP，旧 Cookie 下载器已退役；不把留学数据当作广告费用。详见[费用与 ROI 输入说明](../docs/dashboard-advertising-costs.md)。
+语培、留学、看板和通知按显式 Snapshot 与 release 追溯。历史静态与 39 表路径已退役。
 
 ## 个人通知分配与未分配签约（2026-10-12）
 

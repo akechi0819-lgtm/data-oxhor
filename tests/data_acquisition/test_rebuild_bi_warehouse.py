@@ -14,9 +14,8 @@ from unittest.mock import patch
 from openpyxl import Workbook, load_workbook
 
 from data_acquisition.jobs import rebuild_bi_warehouse
-from workspace_modeling.bridge_alignment.service import start_session
-from workspace_modeling.bridge_alignment.workspace import (
-    AlignmentError,
+from data_acquisition.workspace_snapshot import (
+    WorkspaceError,
     init_workspace,
     load_workspace,
     sync_data,
@@ -57,9 +56,6 @@ def _mock_download(config, targets, start_date, end_date, **kwargs):
 
 
 class RebuildBIWarehouseTests(unittest.TestCase):
-    def setUp(self) -> None:
-        self.pack = Path("workspace_modeling/business_pack/packs/education_training_operations_cn/pack.json").resolve()
-
     def test_cli_defaults_to_main_current_workspace(self) -> None:
         with (
             patch.object(sys, "argv", ["rebuild_bi_warehouse", "--snapshot-id", "snapshot_rebuild_test"]),
@@ -75,7 +71,6 @@ class RebuildBIWarehouseTests(unittest.TestCase):
             root=root,
             company_id="company_rebuild_test",
             business_port="operations",
-            pack_path=self.pack,
         )
         inputs = root / "Input" / "Data"
         _write_workbook(
@@ -101,7 +96,6 @@ class RebuildBIWarehouseTests(unittest.TestCase):
             root=root,
             company_id="company_rebuild_test",
             business_port="operations",
-            pack_path=self.pack,
         )
         return root
 
@@ -124,7 +118,7 @@ class RebuildBIWarehouseTests(unittest.TestCase):
                 self.assertEqual(1, download.call_count)
                 before = self._bi_files(workspace)
 
-                with self.assertRaises(AlignmentError) as captured:
+                with self.assertRaises(WorkspaceError) as captured:
                     rebuild_bi_warehouse.rebuild(
                         workspace=workspace,
                         snapshot_id="snapshot_rebuild_first",
@@ -259,25 +253,6 @@ class RebuildBIWarehouseTests(unittest.TestCase):
             self.assertEqual(before, self._bi_files(workspace))
             self.assertEqual("snapshot_rebuild_initial", load_workspace(workspace)[1]["current_snapshot_id"])
 
-    def test_active_session_blocks_before_download_and_input_replacement(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            workspace = self._workspace(Path(directory) / "workspace")
-            before = self._bi_files(workspace)
-            start_session(root=workspace, session_id="session_rebuild_pending")
-
-            with patch.object(rebuild_bi_warehouse, "run_bi_download", side_effect=_mock_download) as download:
-                with self.assertRaises(AlignmentError) as captured:
-                    rebuild_bi_warehouse.rebuild(
-                        workspace=workspace,
-                        snapshot_id="snapshot_rebuild_blocked",
-                        start_date="2026-03-01",
-                        end_date="2026-09-30",
-                    )
-
-            self.assertEqual("ACTIVE_SESSION_EXISTS", captured.exception.code)
-            download.assert_not_called()
-            self.assertEqual(before, self._bi_files(workspace))
-
     def test_failed_ingest_restores_only_bi_input_slots(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             workspace = self._workspace(Path(directory) / "workspace")
@@ -291,9 +266,9 @@ class RebuildBIWarehouseTests(unittest.TestCase):
 
             with (
                 patch.object(rebuild_bi_warehouse, "run_bi_download", side_effect=_mock_download),
-                patch("workspace_modeling.bridge_alignment.workspace.ingest_sources", return_value=failure),
+                patch("data_acquisition.workspace_snapshot.ingest_sources", return_value=failure),
             ):
-                with self.assertRaises(AlignmentError) as captured:
+                with self.assertRaises(WorkspaceError) as captured:
                     rebuild_bi_warehouse.rebuild(
                         workspace=workspace,
                         snapshot_id="snapshot_rebuild_failed",
@@ -320,7 +295,7 @@ class RebuildBIWarehouseTests(unittest.TestCase):
 
             with (
                 patch.object(rebuild_bi_warehouse, "run_bi_download", side_effect=_mock_download),
-                patch("workspace_modeling.onboarding.service.shutil.copyfile", side_effect=fail_cash_import),
+                patch("data_acquisition.jobs.rebuild_bi_warehouse.shutil.copyfile", side_effect=fail_cash_import),
             ):
                 with self.assertRaisesRegex(OSError, "cash import copy failure"):
                     rebuild_bi_warehouse.rebuild(
@@ -346,7 +321,7 @@ class RebuildBIWarehouseTests(unittest.TestCase):
 
             with (
                 patch.object(rebuild_bi_warehouse, "run_bi_download", side_effect=_mock_download),
-                patch("workspace_modeling.onboarding.service.shutil.copyfile", side_effect=fail_cash_import),
+                patch("data_acquisition.jobs.rebuild_bi_warehouse.shutil.copyfile", side_effect=fail_cash_import),
                 patch.object(rebuild_bi_warehouse, "_restore_bi_inputs", side_effect=OSError("synthetic restore failure")),
             ):
                 with self.assertRaisesRegex(RuntimeError, "backup retained at") as captured:

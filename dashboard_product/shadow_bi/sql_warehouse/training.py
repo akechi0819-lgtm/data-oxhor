@@ -714,6 +714,47 @@ WHERE personal_qualification;
 """
 
 
+
+def install_training_exclusions(con):
+    """Preserve the normalizer's rejected source rows with their actual predicate."""
+    prefix = _NORMALIZE_SQL.split("), eligible AS (", 1)[0]
+    prefix = prefix.replace("business._training_normalized AS", "business.training_input_exclusions AS", 1)
+    con.execute(prefix + r"""
+), classified AS (
+    SELECT *,
+      CASE
+        WHEN final_team_id IS NOT NULL AND final_team_id NOT IN ('offline_market', 'online_private', 'online_platform')
+          THEN 'outside_team_whitelist'
+        WHEN normalized_metric = 'orders' AND normalized_work_order_id IS NULL THEN 'missing_order_id'
+        WHEN normalized_metric = 'cash' AND normalized_source_row_number IS NULL THEN 'missing_source_row'
+        WHEN normalized_metric = 'orders' AND normalized_work_order_id IN (SELECT work_order_id FROM confirmed_abroad)
+          THEN 'abroad_order'
+        WHEN normalized_metric = 'orders' AND _linked_order_id IS NOT NULL
+             AND NULLIF(TRIM(_source_team), '') IS NULL THEN 'missing_source_team'
+        WHEN normalized_metric = 'orders' AND NULLIF(TRIM(_source_team), '') IS NOT NULL
+             AND TRIM(_source_team) NOT IN ('塘沽','大学','无法判断','校区资源无法归属','武清','留学预备','需要判定','高中')
+          THEN 'outside_team_whitelist'
+        WHEN normalized_metric = 'orders' AND _linked_order_id IS NULL AND normalized_group IS NULL
+          THEN 'unmapped_business_group'
+      END AS rejection,
+      CASE WHEN normalized_metric = 'orders' THEN 'training:order:' || normalized_work_order_id
+           ELSE 'training:cash:' || normalized_source_row_number END AS fact_id
+    FROM with_confirmed WHERE NOT personal_qualification
+), ranked AS (
+    SELECT *, row_number() OVER (
+      PARTITION BY fact_id, (rejection IS NULL) ORDER BY _input_order
+    ) AS duplicate_rank
+    FROM classified
+)
+SELECT _input_order AS source_input_order, fact_id, normalized_metric AS metric,
+  'training'::VARCHAR AS business_line, TRY_CAST(event_date AS DATE) AS event_date,
+  normalized_work_order_id AS work_order_id, TRY_CAST(normalized_source_row_number AS BIGINT) AS source_row_number,
+  final_team_id AS team_id, normalized_group AS business_group, acquisition_mode,
+  CASE WHEN rejection IS NOT NULL THEN rejection ELSE 'deduplicated_fact_id' END AS exclude_reason
+FROM ranked WHERE rejection IS NOT NULL OR duplicate_rank > 1
+""")
+
+
 def install_training(
     con,
     training_rows: list[dict[str, Any]],

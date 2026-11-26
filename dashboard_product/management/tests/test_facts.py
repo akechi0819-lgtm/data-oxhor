@@ -4,7 +4,7 @@ import unittest
 from datetime import date
 
 from dashboard_product.management.aggregate import aggregate
-from dashboard_product.management.facts import _safe_country, normalize_facts
+from tests.legacy_dashboard.training_facts import _safe_country, normalize_facts
 
 
 def configs():

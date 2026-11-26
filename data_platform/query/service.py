@@ -176,11 +176,19 @@ def validate_query(
         plan = connection.execute("EXPLAIN (FORMAT JSON) " + sql, plan_parameters).fetchone()
     except duckdb.Error as exc:
         raise QueryError("QUERY_INVALID", str(exc)) from exc
-    plan_text = plan[1] if plan else ""
-    for match in re.finditer(r'"Table":\s*"([^"]+)"', plan_text):
-        parts = match.group(1).split(".")
-        if len(parts) >= 2 and parts[-2] not in allowed_schemas:
-            raise QueryError("QUERY_REJECTED", f"schema is not allowed: {parts[-2]}")
+    nodes = [json.loads(plan[1])] if plan else []
+    while nodes:
+        node = nodes.pop()
+        if isinstance(node, list):
+            nodes.extend(node)
+        elif isinstance(node, dict):
+            table = node.get("Table")
+            if isinstance(table, str):
+                parts = re.findall(r'"(?:[^"]|"")*"|[^.]+', table)
+                schema = parts[-2].strip('"').replace('""', '"') if len(parts) >= 2 else None
+                if schema is not None and schema not in allowed_schemas:
+                    raise QueryError("QUERY_REJECTED", f"schema is not allowed: {schema}")
+            nodes.extend(node.values())
 
 
 _BUSINESS_DENIED_FUNCTIONS = frozenset({

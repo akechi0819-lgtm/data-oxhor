@@ -5,8 +5,8 @@ from collections import defaultdict
 from datetime import date
 
 from dashboard_product.management import aggregate as _aggregate
-from dashboard_product.online_team.build import metric as _metric
-from dashboard_product.online_team.build import periods as _source_periods
+from dashboard_product.management.windowing import metric as _metric
+from dashboard_product.management.windowing import periods as _source_periods
 
 
 BUSINESS_GROUPS = ('留学预备', '高中', '大学')

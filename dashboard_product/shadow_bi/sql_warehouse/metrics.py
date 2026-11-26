@@ -45,6 +45,66 @@ def install_metrics(con, *, through, abroad_start, abroad_through, config_root):
     load_rows(con, 'config', 'targets', targets, columns={
         'business_line':'VARCHAR', 'business_group':'VARCHAR', 'team_id':'VARCHAR',
         'period_id':'VARCHAR', 'metric':'VARCHAR', 'target':'DECIMAL(24,2)'})
+    # Fixtures can supply pre-normalized facts directly. Production candidates
+    # retain the controlled input tables and their normalization configuration.
+    source_exists = con.execute("""
+        SELECT COUNT(*) FROM information_schema.tables
+        WHERE table_schema='source' AND table_name='training_rows'
+    """).fetchone()[0]
+    if source_exists:
+        from .training import install_training_exclusions
+        install_training_exclusions(con)
+    else:
+        con.execute("""CREATE OR REPLACE VIEW business.training_input_exclusions AS
+            SELECT NULL::BIGINT AS source_input_order, NULL::VARCHAR AS fact_id,
+              NULL::VARCHAR AS metric, NULL::VARCHAR AS business_line, NULL::DATE AS event_date,
+              NULL::VARCHAR AS work_order_id, NULL::BIGINT AS source_row_number,
+              NULL::VARCHAR AS team_id, NULL::VARCHAR AS business_group,
+              NULL::VARCHAR AS acquisition_mode, NULL::VARCHAR AS exclude_reason
+            WHERE FALSE""")
+    # The SQL release contains the imported raw landing tables. Their input
+    # query filters invalid dates, acquisition modes and duplicate order IDs.
+    landing = con.execute("""
+        SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='landing'
+        AND table_name IN ('br_work_orders__sheet_1f0596db9f25','br_cash__sheet_39b8dee2e4b3')
+    """).fetchone()[0]
+    if landing == 2:
+        con.execute("""CREATE OR REPLACE VIEW business.training_landing_exclusions AS
+          WITH orders AS (
+            SELECT source_row_number, NULLIF(TRIM(ID),'') AS work_order_id,
+              TRIM(主被动) AS acquisition_mode,
+              CASE WHEN TRY_CAST(分配时间 AS DOUBLE) BETWEEN 0 AND 100000
+                THEN DATE '1899-12-30' + CAST(TRY_CAST(分配时间 AS DOUBLE) AS INTEGER) END AS event_date,
+              row_number() OVER (PARTITION BY NULLIF(TRIM(ID),'') ORDER BY source_row_number) AS rn
+            FROM landing.br_work_orders__sheet_1f0596db9f25
+          ), cash AS (
+            SELECT source_row_number, NULLIF(TRIM(工单ID),'') AS work_order_id,
+              TRIM(渠道属性) AS acquisition_mode,
+              CASE WHEN TRY_CAST(业务日期 AS DOUBLE) BETWEEN 0 AND 100000
+                THEN DATE '1899-12-30' + CAST(TRY_CAST(业务日期 AS DOUBLE) AS INTEGER) END AS event_date
+            FROM landing.br_cash__sheet_39b8dee2e4b3
+          )
+          SELECT source_row_number, 'training:order:' || work_order_id AS fact_id,
+            'orders'::VARCHAR AS metric, 'training'::VARCHAR AS business_line,
+            event_date, work_order_id, acquisition_mode,
+            CASE WHEN work_order_id IS NULL THEN 'missing_order_id'
+                 WHEN rn>1 THEN 'deduplicated_order_id'
+                 WHEN acquisition_mode IS NULL OR acquisition_mode NOT IN ('主动','被动') THEN 'excluded_acquisition_mode'
+                 ELSE 'missing_date' END AS exclude_reason
+          FROM orders WHERE work_order_id IS NULL OR rn>1 OR event_date IS NULL
+                            OR acquisition_mode IS NULL OR acquisition_mode NOT IN ('主动','被动')
+          UNION ALL
+          SELECT source_row_number, 'training:cash:' || source_row_number::VARCHAR,
+            'cash', 'training', event_date, work_order_id, acquisition_mode,
+            CASE WHEN acquisition_mode IS NULL OR acquisition_mode NOT IN ('主动','被动')
+                 THEN 'excluded_acquisition_mode' ELSE 'missing_date' END
+          FROM cash WHERE event_date IS NULL OR acquisition_mode IS NULL OR acquisition_mode NOT IN ('主动','被动')
+        """)
+    else:
+        con.execute("""CREATE OR REPLACE VIEW business.training_landing_exclusions AS
+          SELECT source_row_number, fact_id, metric, business_line, event_date,
+            work_order_id, acquisition_mode, exclude_reason
+          FROM business.training_input_exclusions WHERE FALSE""")
     con.execute((Path(__file__).parent/'sql/metrics.sql').read_text())
 
     # Production enrichment retains signature rows omitted from business.abroad_facts.

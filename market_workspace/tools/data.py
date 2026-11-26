@@ -38,17 +38,11 @@ def source_file(pointer):
     return path
 
 
-def context():
-    code, route = call('interfaces.casebook', ['guide', '--workspace', SOURCE])
-    config = json.loads((SOURCE / 'Work/workspace.json').read_text(encoding='utf-8'))
-    return code, route, config
-
-
 def parser():
     result = argparse.ArgumentParser(description='市场工作区：绑定主目录正式数仓的只读入口')
     commands = result.add_subparsers(dest='command', required=True)
-    commands.add_parser('status', help='检查主目录正式数仓/Bridge 状态并显示实际授权路径')
-    for name in ('describe', 'quality', 'query', 'saved-query', 'cases', 'verify-case'):
+    commands.add_parser('status', help='检查主目录正式数仓状态并显示实际授权路径')
+    for name in ('describe', 'quality', 'query', 'saved-query'):
         command = commands.add_parser(name)
         command.add_argument('--snapshot-id', required=name != 'query')
         command.add_argument('--run-id', required=True)
@@ -65,10 +59,6 @@ def parser():
         if name == 'saved-query':
             command.add_argument('--query-id', required=True)
             command.add_argument('--version', required=True)
-        if name == 'cases':
-            command.add_argument('--category')
-        if name == 'verify-case':
-            command.add_argument('--case-id', required=True)
     return result
 
 
@@ -157,7 +147,9 @@ def execute(args):
             return _semantic_query(args)
         if not args.snapshot_id or args.release_id:
             raise ValueError('原始查询需要 --snapshot-id；语义查询使用 --release-id')
-    code, route, config = context()
+    from data_acquisition.workspace_snapshot import load_workspace
+
+    _, config = load_workspace(SOURCE)
     if args.command == 'status':
         try:
             pointer = _release_pointer()
@@ -165,20 +157,18 @@ def execute(args):
                                 'local_sealed': bool(pointer.get('local_release_root'))}
         except (OSError, KeyError, ValueError):
             semantic_release = None
-        return code, {
-            **route, 'working_role': 'marketing', 'business_port': config.get('business_port'),
+        return 0, {
+            'status': 'ready' if config['current_snapshot_id'] else 'snapshot_missing',
+            'snapshot_id': config['current_snapshot_id'], 'working_role': 'marketing',
+            'business_port': config.get('business_port'),
             'semantic_release': semantic_release,
             'paths': {
                 'market_workspace': str(MARKET), 'data_workspace': str(SOURCE),
                 'workspace_config': str(SOURCE / 'Work/workspace.json'),
-                'pack': str(source_file(config['pack_path'])),
-                'bridge': str(source_file(config.get('current_bridge_path') or config.get('bridge_reference_path'))),
                 'evidence': str(MARKET / 'Evidence'), 'reports': str(MARKET / 'Reports'),
             },
         }
-    if code or route.get('next_step') != 'analyze':
-        raise ValueError(f"analysis blocked: {route.get('next_step')}; see daily-ops")
-    if args.snapshot_id != route.get('snapshot_id') or args.snapshot_id != config.get('current_snapshot_id'):
+    if args.snapshot_id != config['current_snapshot_id']:
         raise ValueError('Snapshot changed or mismatched; check status and explicitly bind a new run')
     if not RUN_ID.fullmatch(args.run_id):
         raise ValueError('invalid run_id')
@@ -192,33 +182,23 @@ def execute(args):
     run = evidence / args.run_id
     # One invocation per evidence directory: do not overwrite a previous result.
     run.mkdir(parents=True, exist_ok=False)
-    if args.command in ('cases', 'verify-case'):
-        command = ['case-search' if args.command == 'cases' else 'case-verify', '--workspace', SOURCE]
-        if args.command == 'cases':
-            command += ['--company-id', config['company_id'], '--primary-role', 'marketing']
-            if args.category:
-                command += ['--question-category', args.category]
-        else:
-            command += ['--case-id', args.case_id]
-        module = 'interfaces.casebook'
-    else:
-        name = 'run-saved-query' if args.command == 'saved-query' else args.command
-        command = [name, '--warehouse', warehouse, '--snapshot-id', args.snapshot_id]
-        if args.command != 'describe':
-            command += ['--run-id', args.run_id, '--output-root', evidence,
-                        '--max-rows', args.max_rows, '--max-result-bytes', args.max_result_bytes]
-        if args.command in ('query', 'saved-query'):
-            command += ['--params-json', args.params_json]
-        if sql_path:
-            frozen_sql = run / 'query.sql'
-            frozen_sql.write_bytes(sql_path.read_bytes())
-            command += ['--sql-file', frozen_sql]
-        if args.command == 'saved-query':
-            registry = SOURCE / 'Work/SavedQueries'
-            if not registry.resolve().is_relative_to(SOURCE.resolve()):
-                raise ValueError('saved query registry escapes the bound workspace')
-            command += ['--registry-root', registry, '--query-id', args.query_id, '--version', args.version]
-        module = 'interfaces.data_platform'
+    name = 'run-saved-query' if args.command == 'saved-query' else args.command
+    command = [name, '--warehouse', warehouse, '--snapshot-id', args.snapshot_id]
+    if args.command != 'describe':
+        command += ['--run-id', args.run_id, '--output-root', evidence,
+                    '--max-rows', args.max_rows, '--max-result-bytes', args.max_result_bytes]
+    if args.command in ('query', 'saved-query'):
+        command += ['--params-json', args.params_json]
+    if sql_path:
+        frozen_sql = run / 'query.sql'
+        frozen_sql.write_bytes(sql_path.read_bytes())
+        command += ['--sql-file', frozen_sql]
+    if args.command == 'saved-query':
+        registry = SOURCE / 'Work/SavedQueries'
+        if not registry.resolve().is_relative_to(SOURCE.resolve()):
+            raise ValueError('saved query registry escapes the bound workspace')
+        command += ['--registry-root', registry, '--query-id', args.query_id, '--version', args.version]
+    module = 'interfaces.data_platform'
     code, payload = call(module, command)
     if code == 0 and args.command in ('query', 'quality', 'saved-query'):
         from data_platform.query.evidence import read_query_result

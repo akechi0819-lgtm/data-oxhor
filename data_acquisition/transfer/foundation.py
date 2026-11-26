@@ -442,7 +442,7 @@ def prepare_bundle(workspace: Path, snapshot_ids: dict[str, Any], run_id: str,
     scorecard = workspace / "Input/Reference/留学板块-官方记分卡.json"
     if scorecard.is_file():
         bundle.add(scorecard, "workspace/Input/Reference/留学板块-官方记分卡.json")
-    from dashboard_product.management.personnel_contribution import RESOURCE_FILENAME, SOURCE_DIRECTORY
+    from workspace_modeling.operations.personnel import RESOURCE_FILENAME, SOURCE_DIRECTORY
     from dashboard_product.management.personnel_history import HISTORY_FILENAME
     for filename in (RESOURCE_FILENAME, HISTORY_FILENAME):
         optional = workspace / SOURCE_DIRECTORY / filename

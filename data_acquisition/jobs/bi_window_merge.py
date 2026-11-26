@@ -91,7 +91,7 @@ def resolve_prior_landing_dir(workspace: Path) -> Path | None:
     """Locate the configured current Snapshot landing, or return None before first sync."""
     import json
 
-    from workspace_modeling.bridge_alignment.workspace import current_snapshot_root
+    from data_acquisition.workspace_snapshot import current_snapshot_root
 
     try:
         snapshot_root = current_snapshot_root(workspace.resolve())

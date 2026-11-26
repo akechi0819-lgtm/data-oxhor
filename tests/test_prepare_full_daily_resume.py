@@ -1,8 +1,8 @@
 import json,tempfile,unittest
 from pathlib import Path
 from unittest.mock import Mock
-from data_acquisition.jobs.prepare_full_daily import resume_ocean_account
-from dashboard_product.shadow_bi.p5.full_daily import DailyBlocked,digest
+from data_acquisition.jobs.fee_sources import resume_ocean_account
+from data_acquisition.ops_io import DailyBlocked,digest
 class ResumeTests(unittest.TestCase):
  def setUp(self):
   self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup);self.p=Path(self.tmp.name);self.file=self.p/'projection.xlsx';self.file.write_bytes(b'confirmed projection');self.raw=self.p/'page.json';self.raw.write_text('{}');self.value={'account_id':'known','selected_window':['2026-09-01','2026-10-28'],'captured_at':'2026-10-29T00:34:00+08:00','file':{'path':str(self.file),'sha256':digest(self.file)},'query_pages':[{'path':str(self.raw),'sha256':digest(self.raw)}]};self.proof=self.p/'verification.json';self.proof.write_text(json.dumps(self.value));self.client=Mock();self.args=dict(account=('known','abroad','留学整体'),start='2026-09-01',through='2026-10-28',output=self.p,day='2026-10-29')

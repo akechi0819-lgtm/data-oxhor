@@ -6,7 +6,7 @@ import unittest
 
 import duckdb
 
-from dashboard_product.management.facts import normalize_facts
+from tests.legacy_dashboard.training_facts import normalize_facts
 from dashboard_product.management.school_attributes import attach_school_attributes
 from dashboard_product.shadow_bi.sql_warehouse.training import install_training
 

@@ -1,7 +1,7 @@
 """Precomputed selectors; no client-side business aggregation."""
 from . import aggregate as a
 from . import breakdowns as b
-from dashboard_product.online_team.build import metric
+from dashboard_product.management.windowing import metric
 
 GROUPS = ('青少', '初中', '高中')
 ROSTER_GROUPS = {'youth':'青少', 'middle_school':'初中', 'high_school':'高中'}

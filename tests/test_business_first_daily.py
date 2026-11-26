@@ -8,9 +8,8 @@ from zoneinfo import ZoneInfo
 import pytest
 
 from dashboard_product.shadow_bi.p5 import daily as daily_runner
-from dashboard_product.shadow_bi.p5.full_daily import DailyBlocked
-from data_acquisition.jobs.business_first_daily import run
-from data_acquisition.jobs.prepare_full_daily import main
+from data_acquisition.ops_io import DailyBlocked
+from ops.business import run
 
 
 DAY = '2026-10-30'
@@ -34,7 +33,6 @@ def args(tmp_path, **overrides):
     result = {
         'workspace': tmp_path / 'workspace',
         'batch_dir': tmp_path / 'batch',
-        'collect': Mock(),
         'day': DAY,
         'now': NOW,
         'assert_ready': Mock(return_value=PAIR),
@@ -58,134 +56,19 @@ def business_inputs_manifest(tmp_path, *, as_of_date=DAY, bi_start_date='2025-03
     return manifest_path, manifest
 
 
-def test_business_failure_never_notifies_or_collects_expenses(tmp_path):
+def test_business_failure_never_notifies(tmp_path):
     notify = Mock()
-    expenses = Mock()
     result = run(**args(
         tmp_path,
         publish_business=Mock(side_effect=DailyBlocked('business_pair_missing')),
-        publish_expenses=expenses,
         notify=notify,
     ))
 
     assert result['status'] == 'blocked'
     assert result['published'] is False
     notify.assert_not_called()
-    expenses.assert_not_called()
     assert json.loads((tmp_path / 'batch/business-sources.json').read_text()) == {'sources': []}
     assert json.loads((tmp_path / 'batch/pipeline-result.json').read_text()) == result
-
-
-def test_expense_failure_keeps_business_current_after_eight_sent(tmp_path):
-    workspace = tmp_path / 'workspace'
-    current = workspace / 'Output/ShadowDaily/current.json'
-    current.parent.mkdir(parents=True)
-    current.write_text(json.dumps({'release': 'old-release'}))
-    order = []
-
-    def publish_business(ws, day, *, advertising_manifest):
-        assert json.loads(Path(advertising_manifest).read_text()) == {'sources': []}
-        order.append('business')
-        current.write_text(json.dumps({'release': 'business-release'}))
-        return {'status': 'published', 'day': day, 'release': 'business-release',
-                'sources': PAIR}
-
-    def notify(ws, day, release, batch_dir):
-        order.append('notify')
-        return sent(release)
-
-    def publish_expenses(ws, day, *, collect, prepare, business_capture):
-        order.append('expenses')
-        collect(ws, day, 'expense-run', tmp_path / 'capture')
-        order.append('collect')
-        assert business_capture(ws, day, 'expense-run') == PAIR
-        raise RuntimeError('expense publication failed')
-
-    result = run(**args(
-        tmp_path,
-        publish_business=publish_business,
-        publish_expenses=publish_expenses,
-        notify=notify,
-    ))
-
-    assert result['status'] == 'partial'
-    assert result['published'] is True
-    assert result['business']['status'] == 'published'
-    assert result['notification']['status'] == 'sent'
-    assert result['expenses']['error_type'] == 'RuntimeError'
-    assert order == ['business', 'notify', 'expenses', 'collect']
-    assert json.loads(current.read_text()) == {'release': 'business-release'}
-    assert json.loads((tmp_path / 'batch/pipeline-result.json').read_text()) == result
-
-
-def test_partial_retry_rechecks_business_skips_sent_notice_and_complete_retry_is_read_only(tmp_path):
-    workspace = tmp_path / 'workspace'
-    current = workspace / 'Output/ShadowDaily/current.json'
-    current.parent.mkdir(parents=True)
-    current.write_text(json.dumps({'release': 'old-release'}))
-    business_calls = []
-    notice = Mock(side_effect=lambda ws, day, release, batch: sent(release))
-    expense_calls = []
-    collect = Mock()
-
-    def publish_business(ws, day, *, advertising_manifest):
-        release = json.loads(current.read_text())['release']
-        if release == 'old-release':
-            release = 'business-release'
-            current.write_text(json.dumps({'release': release}))
-        business_calls.append(release)
-        return {'status': 'published', 'date': day, 'release': release,
-                'sources': PAIR}
-
-    def publish_expenses(ws, day, *, collect, prepare, business_capture):
-        expense_calls.append(day)
-        collect(ws, day, 'expense-run', tmp_path / f'capture-{len(expense_calls)}')
-        assert business_capture(ws, day, 'expense-run') == PAIR
-        if len(expense_calls) == 1:
-            raise RuntimeError('first expense attempt failed')
-        current.write_text(json.dumps({'release': 'expense-release'}))
-        return {'status': 'published', 'release': 'expense-release'}
-
-    common = args(tmp_path, collect=collect, publish_business=publish_business,
-                  publish_expenses=publish_expenses, notify=notice)
-    first = run(**common)
-    second = run(**common)
-    saved = json.loads((tmp_path / 'batch/pipeline-result.json').read_text())
-    third = run(**common)
-
-    assert first['status'] == 'partial'
-    assert second['status'] == 'complete'
-    assert third == saved
-    assert business_calls == ['business-release', 'business-release', 'expense-release']
-    assert notice.call_count == 1
-    assert expense_calls == [DAY, DAY]
-    assert collect.call_count == 2
-
-
-def test_expense_stage_requires_same_business_warehouse_pair(tmp_path):
-    changed_pair = {
-        'sources': {
-            'bi': {'snapshot_id': 'snapshot-bi-new', 'run_id': 'run-bi-new'},
-            'study_abroad': PAIR['sources']['study_abroad'],
-        },
-    }
-    readiness = Mock(side_effect=[PAIR, changed_pair])
-    expenses = Mock()
-    result = run(**args(
-        tmp_path,
-        assert_ready=readiness,
-        publish_business=Mock(return_value={
-            'status': 'published', 'day': DAY, 'release': 'business-release',
-            'sources': PAIR,
-        }),
-        publish_expenses=expenses,
-        notify=Mock(side_effect=lambda ws, day, release, batch: sent(release)),
-    ))
-
-    assert result['status'] == 'partial'
-    assert result['published'] is True
-    assert result['expenses']['reason'] == 'business_sources_changed_before_expenses'
-    expenses.assert_not_called()
 
 
 def test_refresh_business_forces_only_new_pipeline_initial_publish(tmp_path):
@@ -201,15 +84,10 @@ def test_refresh_business_forces_only_new_pipeline_initial_publish(tmp_path):
         return {'status': 'published', 'day': day, 'release': current_release[0],
                 'sources': PAIR}
 
-    def publish_expenses(ws, day, *, collect, prepare, business_capture):
-        current_release[0] = 'expense-release'
-        return {'status': 'published', 'release': current_release[0]}
-
     common = args(
         tmp_path,
         refresh_business=True,
         publish_business=publish_business,
-        publish_expenses=publish_expenses,
         notify=notices,
     )
 
@@ -250,7 +128,6 @@ def test_business_inputs_reject_invalid_hash_date_and_relative_path(tmp_path, ch
         refresh_business=True,
         business_inputs=manifest_path,
         publish_business=publish_business,
-        publish_expenses=Mock(),
         notify=Mock(),
     ))
 
@@ -271,16 +148,11 @@ def test_business_inputs_are_copied_and_used_only_for_new_pipeline_publish(tmp_p
         return {'status': 'published', 'day': day, 'release': current_release[0],
                 'sources': PAIR}
 
-    def publish_expenses(ws, day, *, collect, prepare, business_capture):
-        current_release[0] = 'expense-release'
-        return {'status': 'published', 'release': current_release[0]}
-
     common = args(
         tmp_path,
         refresh_business=True,
         business_inputs=manifest_path,
         publish_business=publish_business,
-        publish_expenses=publish_expenses,
         notify=notices,
     )
 
@@ -305,76 +177,6 @@ def test_business_inputs_are_copied_and_used_only_for_new_pipeline_publish(tmp_p
     assert all('input_paths' not in call and 'bi_start_date' not in call
                for call in business_calls[1:])
     assert notices.call_count == 2
-
-
-def test_prepare_cli_keeps_original_full_daily_path_and_publish_uses_new_runner(tmp_path):
-    common = [
-        '--workspace', str(tmp_path / 'workspace'),
-        '--batch-dir', str(tmp_path / 'batch'),
-        '--source-contracts', str(tmp_path / 'contracts'),
-        '--xhs-scope', str(tmp_path / 'scope.json'),
-    ]
-    preview = Mock(return_value={'status': 'prepared', 'published': False})
-    assert main(common, run_fn=preview) == 0
-    assert preview.call_args.kwargs['prepare'] is True
-    assert 'batch_dir' not in preview.call_args.kwargs
-
-    publishing = Mock(return_value={'status': 'complete', 'published': True})
-    assert main([*common, '--publish'], run_fn=publishing) == 0
-    assert publishing.call_args.kwargs['prepare'] is False
-    assert publishing.call_args.kwargs['batch_dir'] == Path(tmp_path / 'batch')
-    assert 'refresh_business' not in publishing.call_args.kwargs
-
-    refreshing = Mock(return_value={'status': 'complete', 'published': True})
-    assert main([*common, '--publish', '--refresh-business'], run_fn=refreshing) == 0
-    assert refreshing.call_args.kwargs['refresh_business'] is True
-
-    manifest = tmp_path / 'business-inputs.json'
-    importing = Mock(return_value={'status': 'complete', 'published': True})
-    assert main([
-        *common, '--publish', '--refresh-business', '--business-inputs', str(manifest),
-    ], run_fn=importing) == 0
-    assert importing.call_args.kwargs['business_inputs'] == manifest
-
-
-@pytest.mark.parametrize('mode', [[], ['--prepare']])
-def test_refresh_business_cli_requires_publish(tmp_path, mode, capsys):
-    common = [
-        '--workspace', str(tmp_path / 'workspace'),
-        '--batch-dir', str(tmp_path / 'batch'),
-        '--source-contracts', str(tmp_path / 'contracts'),
-        '--xhs-scope', str(tmp_path / 'scope.json'),
-    ]
-
-    with pytest.raises(SystemExit) as error:
-        main([*common, *mode, '--refresh-business'], run_fn=Mock())
-
-    assert error.value.code == 2
-    assert '--refresh-business requires --publish' in capsys.readouterr().err
-
-
-@pytest.mark.parametrize(('mode', 'reason'), [
-    (['--business-inputs', 'inputs.json'],
-     '--business-inputs requires --publish --refresh-business'),
-    (['--publish', '--business-inputs', 'inputs.json'],
-     '--business-inputs requires --publish --refresh-business'),
-    (['--refresh-business', '--business-inputs', 'inputs.json'],
-     '--refresh-business requires --publish'),
-])
-def test_business_inputs_cli_requires_publish_and_refresh_business(
-        tmp_path, mode, reason, capsys):
-    common = [
-        '--workspace', str(tmp_path / 'workspace'),
-        '--batch-dir', str(tmp_path / 'batch'),
-        '--source-contracts', str(tmp_path / 'contracts'),
-        '--xhs-scope', str(tmp_path / 'scope.json'),
-    ]
-
-    with pytest.raises(SystemExit) as error:
-        main([*common, *mode], run_fn=Mock())
-
-    assert error.value.code == 2
-    assert reason in capsys.readouterr().err
 
 
 def test_daily_default_reuses_same_day_success_receipt(tmp_path, monkeypatch):
@@ -547,21 +349,3 @@ def test_daily_rejects_explicit_inputs_without_start_or_with_prepared_sources(tm
             workspace, day, force_refresh=True, bi_start_date='2025-03-01',
             input_paths=input_paths, prepared_sources=PAIR,
         )
-
-
-def test_order_recovery_cli_and_publisher_keep_separate_window(tmp_path):
-    cli = Mock(return_value={'status': 'complete', 'published': True})
-    assert main([
-        '--workspace', str(tmp_path / 'workspace'), '--batch-dir', str(tmp_path / 'batch'),
-        '--source-contracts', str(tmp_path / 'contracts'), '--xhs-scope', str(tmp_path / 'scope'),
-        '--publish', '--orders-start-date', '2026-10-29', '--orders-end-date', '2026-10-29',
-    ], run_fn=cli) == 0
-    assert cli.call_args.kwargs['orders_start_date'] == '2026-10-29'
-    assert cli.call_args.kwargs['orders_end_date'] == '2026-10-29'
-    publisher = Mock(side_effect=DailyBlocked('stop_before_publish'))
-    result = run(**args(tmp_path, publish_business=publisher, publish_expenses=Mock(), notify=Mock(),
-                        orders_start_date='2026-10-29', orders_end_date='2026-10-29'))
-    assert result['status'] == 'blocked'
-    assert publisher.call_args.kwargs['orders_start_date'] == '2026-10-29'
-    assert publisher.call_args.kwargs['orders_end_date'] == '2026-10-29'
-    assert 'bi_start_date' not in publisher.call_args.kwargs

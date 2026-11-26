@@ -4,6 +4,8 @@
 
 日更由 `data_acquisition.jobs.prepare_full_daily --publish` 进入 SQL 建仓及 P4 发布。本机已记录的发布批次、双 Snapshot 和业务截止日见 `customers/shadow_bi_daily/Output/ShadowDaily/sql-current.json`。核对线上版本时读取服务器正式 release 及其激活回执，比对批次和截止日。核对日程时读取宿主 bi-3 的启停状态及最近执行回执。以下具名批次均为当日记录。
 
+部署重构分支时，通知 HTTP 的 systemd 单元与 `monitoring_product.notification_receiver:app` 同批同步。核验状态、预览及回执接口后再切换服务。固定通知发布入口和逐消息投递台账沿用既有路径。
+
 ## 历史：新生老生口径与构建配置（2026-11-12）
 
 该日正式 release 为 `daily-sql-20261112-174737168646-16318108b6`。语培现金默认包括全部新老生，主动、被动范围均生效；市场总览新增“新老生”筛选，默认全部，未标注类型仅进入全部。工单不联动，费用和目标金额保持原值。保留原 93 张图及原筛选配置，新增控件只作用于总览 10 张含语培现金的图。日更继续通过原 SQL 总入口，不重发当天已 sent 日报。

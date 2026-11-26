@@ -13,10 +13,9 @@ import tempfile
 
 sys.path.insert(0, str(Path(__file__).parents[1]))
 from data_acquisition.auth.auth_sessions import AuthSessionPaths
-from workspace_modeling.onboarding.service import import_data, init_workspace, sync
 from data_acquisition.connectors.bi.bi_downloads import BIExportConfig, run_bi_download, validate_export_artifact
 from data_acquisition.jobs.bi_window_merge import merge_exports_with_prior, rolling_start_date
-from workspace_modeling.bridge_alignment.workspace import load_workspace, validate_sync_preconditions
+from data_acquisition.workspace_snapshot import init_workspace, load_workspace, sync_data as sync, validate_sync_preconditions
 
 
 def _valid_xlsx(path: Path) -> None:
@@ -46,6 +45,20 @@ def _backup_bi_inputs(input_data: Path, backup_root: Path) -> dict[str, bool]:
         if slot.is_dir():
             shutil.copytree(slot, backup_root / source_id)
     return existed
+
+
+def import_data(*, root: Path, source_id: str, source_file: Path, replace: bool) -> dict:
+    slot = root / "Input/Data" / source_id
+    slot.mkdir(parents=True, exist_ok=True)
+    files = [path for path in slot.iterdir() if path.is_file() and not path.name.startswith("~$")
+             and path.suffix.lower() in {".xlsx", ".xlsm"}]
+    if files and not replace:
+        raise ValueError(f"source slot already contains a workbook: {source_id}")
+    for path in files:
+        path.unlink()
+    destination = slot / source_file.name
+    shutil.copyfile(source_file, destination)
+    return {"source_file": str(destination.resolve())}
 
 
 def _restore_bi_inputs(input_data: Path, backup_root: Path, existed: dict[str, bool]) -> None:
@@ -90,17 +103,7 @@ def rebuild(*, workspace: Path, snapshot_id: str, start_date: str, end_date: str
             orders_start_date: str | None = None, orders_end_date: str | None = None) -> dict:
     workspace = workspace.resolve()
     if not (workspace / "Work" / "workspace.json").exists():
-        init_workspace(
-            root=workspace,
-            company_id="workspace_bi_operations",
-            business_port="operations",
-            pack_path=Path(__file__).parents[2]
-            / "workspace_modeling"
-            / "business_pack"
-            / "packs"
-            / "education_training_operations_cn"
-            / "pack.json",
-        )
+        init_workspace(root=workspace, company_id="workspace_bi_operations")
     if bool(orders_start_date) != bool(orders_end_date):
         raise ValueError("both order recovery dates are required")
     if orders_start_date and not (date.fromisoformat(orders_start_date) <= date.fromisoformat(orders_end_date) < date.fromisoformat(end_date)):

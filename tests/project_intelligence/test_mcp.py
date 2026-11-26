@@ -134,10 +134,14 @@ class MCPClientTests(unittest.IsolatedAsyncioTestCase):
                 result = await client.call_tool(name, args)
                 self.assertTrue(result.is_error)
                 self.assertEqual(result.structured_content['error']['code'], code)
+            pointer = self.root / 'customers/shadow_bi_daily/Work/workspace.json'
+            workspace = json.loads(pointer.read_text())
+            workspace['current_snapshot_id'] = None
+            pointer.write_text(json.dumps(workspace))
             partial = await client.call_tool('get_workspace_metadata', {'workspace_id': 'bi_operations'})
             self.assertFalse(partial.is_error)
             self.assertTrue(partial.structured_content['data']['partial'])
-            self.assertEqual(partial.structured_content['data']['business_readiness'], 'not_evaluated')
+            self.assertEqual(partial.structured_content['data']['errors'][0]['component'], 'schema')
 
     async def test_stale_hash_rejected_over_protocol(self):
         async with self.client() as client:

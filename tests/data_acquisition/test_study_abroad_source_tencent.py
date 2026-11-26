@@ -11,7 +11,7 @@ import xml.etree.ElementTree as ET
 
 import openpyxl
 
-from workspace_modeling.operations.study_abroad_source import read_sources
+from data_acquisition.connectors.study_abroad_source import read_sources
 
 
 RESOURCE_SHEET = '资源登记表（前途）'

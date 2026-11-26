@@ -6,7 +6,7 @@ from decimal import Decimal
 from unittest.mock import patch
 
 from dashboard_product.management.aggregate import aggregate
-from dashboard_product.management.notifications import build_notifications
+from dashboard_product.management.tests.reference_notifications import build_notifications
 
 
 def study_coverage(start_date='2026-09-01', through_date='2026-09-30'):
@@ -424,7 +424,7 @@ class ManagementNotificationsTest(unittest.TestCase):
         fact['business_group'] = '大学'
         public = public_aggregate([fact], self.people, self.abroad_people, date(2026, 9, 28))
 
-        with patch('dashboard_product.management.notifications._aggregate._personal_weights',
+        with patch('dashboard_product.management.tests.reference_notifications._aggregate._personal_weights',
                    return_value={'大学同事': Decimal('0')}):
             result = build_notifications(public, [fact], self.people, self.abroad_people)
         message = next(row for row in result['messages'] if row['id'] == 'university.training')
@@ -715,7 +715,7 @@ class ManagementNotificationsTest(unittest.TestCase):
 
     def test_platforms_merge_same_secondary_channel_and_include_deleted_for_team(self):
         from datetime import date
-        from dashboard_product.management.notifications import _channels
+        from dashboard_product.management.tests.reference_notifications import _channels
         rows = [
             {'first_channel': '平台', 'second_channel': '小红书', 'event_date': '2026-09-27', 'value': 2},
             {'first_channel': 'TMK激活-平台', 'second_channel': '小红书', 'event_date': '2026-09-28', 'value': 1},
@@ -732,47 +732,3 @@ class ManagementNotificationsTest(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
-
-
-class OnlineProjectionScopeTest(unittest.TestCase):
-    def test_projection_uses_team_attribution_scope_and_counts_deleted_orders(self):
-        from dashboard_product.management.online_view import online_view
-        from dashboard_product.online_team.build import metric
-        from datetime import date
-        source = study_coverage()
-        p={'id':'FY27','label':'2027财年全年','kind':'year','status':'available',
-           'start_date':'2026-06-01','through_date':'2026-09-28',
-           'prior_start_date':'2025-06-01','prior_through_date':'2025-09-28',
-           'teams':[{'id':'online','business_groups':[],
-             'channels':[{'business_line':'abroad','name':'网络资源',
-                          'first_channel':'网络资源','orders':{'actual':2},
-                          'cash':{'actual':0},'share':1}],
-             'lines':{
-               line:{'orders':metric(2 if line=='abroad' else 0,0,None,0,'单'),
-                     'cash':metric(0,None,None,0,'元'),
-                     'heads':metric(0,None,None,0,'人')}
-               for line in ('training','abroad')}}]}
-        p['abroad_source'] = source
-        p['teams'][0]['lines']['abroad']['source_coverage'] = source
-        for metric_name in ('orders', 'cash', 'heads'):
-            p['teams'][0]['lines']['abroad'][metric_name]['source_coverage'] = source
-        facts=[{'fact_id':'deleted-online','work_order_id':'a','team_id':'online_platform',
-                'business_line':'abroad','acquisition_mode':'online','metric':'orders',
-                'segment_id':'study_abroad_online','source_product':'study_abroad',
-                'customer_domain':'study_abroad','source_kind':'study_abroad_warehouse',
-                'event_date':'2026-09-28','value':1,'order_status':'删除','counts_toward_completion':False},
-               {'fact_id':'offline-attribution','work_order_id':'b','team_id':'online_platform',
-                'business_line':'abroad','acquisition_mode':'offline','metric':'orders',
-                'segment_id':'study_abroad_online','source_product':'study_abroad',
-                'customer_domain':'study_abroad','source_kind':'study_abroad_warehouse',
-                'event_date':'2026-09-28','value':1,'order_status':'回收','counts_toward_completion':False}]
-        result=online_view({'metadata':{'data_through':'2026-09-28',
-                                       'study_abroad_source':source},
-                            'schema_version':'dashboard_rebuild.v1','periods':[p]},facts,{'cash':{'total':{'annual':None}}})
-        period=result['periods'][0]
-        self.assertEqual(period['lines']['abroad']['orders']['actual'],2)
-        self.assertEqual(sum(r['orders'] for r in period['lines']['abroad']['channels']),2)
-        daily={row['date']:row['abroad_orders'] for row in period['daily']}
-        self.assertEqual(daily['2026-09-28'],2)
-        self.assertIsNone(daily['2026-06-01'])
-        self.assertIsNone(daily['2026-08-31'])

@@ -3,8 +3,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import Mock
 
-from dashboard_product.shadow_bi.p5.full_daily import DailyBlocked
-from data_acquisition.jobs.prepare_full_daily import (
+from data_acquisition.ops_io import DailyBlocked
+from data_acquisition.jobs.fee_sources import (
     resolve_sem_receipt, sem_auth_workspace, sem_capture_status, tencent_window_status,
 )
 

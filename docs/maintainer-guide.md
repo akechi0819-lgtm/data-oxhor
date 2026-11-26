@@ -1,6 +1,6 @@
 > **2026-10-28唯一正式数据源**：本机main只使用 `customers/shadow_bi_daily`。旧 `bi_operations` 与独立 `shadow_bi_operations` 数仓、c373客户副本和废弃派生成品已清理。原始输入、确认资产和必要证据保留；P1 Superset运行环境是测试依赖，不是另一套正式数仓。验收与回执见[开发文档](../DEVELOPMENT.md)。
 
-> **SQL 日更代码入口（2026-11-07 已切换）**：Mac `data_acquisition.jobs.prepare_full_daily --publish` 通过 `business_first_daily` 调用 `p5.daily` 的 SQL 建仓与 P4 SQL release 发布，随后通知并刷新费用；默认模式（含 `--prepare`）只准备隔离候选。腾讯文档下载统一走官方 MCP。旧 raw 39 表计算/上传通道已退役；bi-3 调度状态不由历史回执推定。部署详情见[看板部署说明](../dashboard_product/DEPLOYMENT.md)和[SQL 迁移记录](shadow-bi-sql-local-migration.md)。
+日更入口为 `python -m ops run business`。现行调度以 `prepare_full_daily --publish --business-only` 转入同一业务链，发布正式 SQL release 后核验通知。费用通过 `ops ingest-cost` 独立录入，`ops fetch-cost-optional` 可生成隔离采集证据。
 
 通用核心回归可用已有Python3.12执行`python3 -B -m pytest tests dashboard_product/tests dashboard_product/management/tests monitoring_product/tests -p no:cacheprovider`；Superset认证测试在核心环境明确skip，必须另外在固定Superset环境运行`python -B -m unittest tests.test_shadow_bi_legacy_auth`。两类环境分别报告，不把skip计为通过。
 
@@ -13,8 +13,8 @@
 - Python 要求 `>=3.12`；运行时核心依赖 DuckDB `1.5.5`。
 - 安装开发测试环境：`sh tools/install_runtime.sh test`。
 - 运行完整回归：`sh tools/run_tests.sh -v`；入口使用项目 `.venv` 中的 pytest，覆盖 `tests`、`dashboard_product/tests`、`dashboard_product/management/tests`、`monitoring_product/tests`，默认不生成字节码缓存。Project Intelligence的MCP协议测试在未独立安装SDK时明确skip。
-- CLI 冒烟：`python3 -m interfaces.data_platform --help`、`python3 -m interfaces.business_pack validate`、`python3 -m interfaces.workspace_modeling --help`、`python3 -m dashboard_product.shadow_bi.p5.raw_inputs --help`、`python3 -m monitoring_product.shared_delivery --help`。
-- `dashboard_product/management/calculation.py`、`dashboard_product/online_team/build.py` 和 `dashboard_product/refresh.py` 保留管理计算与历史对账 helpers；旧 raw/候选流程仍含 Python 计算路径。当前 `prepare_full_daily --publish` 使用 SQL warehouse build 与 P4 SQL activation，不发布 39 张 Python 逐图结果表。
+- CLI 冒烟使用 `python3 -m ops --help`、`python3 -m interfaces.data_platform --help`、`market_workspace/oxhor --help` 及 `python3 -m monitoring_product.shared_delivery --help`。
+语培、留学、看板和通知按显式 Snapshot 与 release 追溯。历史静态与 39 表路径已退役。
 - 看板回归：`python3 -m unittest discover -s dashboard_product/tests -v`。
 - 通知投递适配回归：`python3 -m unittest monitoring_product.tests.test_shared_delivery -v`；mock 测试不连接服务器。服务器发布状态和接口边界以部署回执为准。
 - PPT Master 属于宿主全局 Skill；不要在项目内恢复其副本、安装 profile 或完整性测试。
@@ -24,19 +24,19 @@
 
 - CLI 是公开机器接口；变更命令、JSON、路径、退出码或目录合同前，先更新对应合同文档和测试。
 - 宿主 Agent、Session、模型和工具选择属于宿主；项目不包装第二层 Agent Loop 或模型路由。
-- 只读门禁、Snapshot 身份、Bridge 状态、证据哈希和文件验收由确定性代码负责。
+- 只读门禁、Snapshot 身份、证据哈希和文件验收由确定性代码负责。
 - 新增治理、适配器或平台层必须对应可复现失败或明确客户需求；不要为未来宿主预建协议层。
 - 原始客户数据、DuckDB、Parquet、`runs/` 和 `customers/` 不进入 Git。
 
 ## 本地瘦身
 
-正式日更维护范围为“原表入仓 → SQL warehouse build → P4 SQL release activation → BI 刷新”，不恢复静态看板。生产 `--publish` 路径不调用 `library.build()` 生成 39 张逐图 Python 结果表；这些旧 raw/候选路径仅供历史回溯或隔离预览。旧 verifier 已退役。已被用户明确废弃的静态 HTML/计算副本只保留退役说明和 hash，不因旧库存或旧 ROI 验收提及而长期保存大文件。
+正式日更维护范围为“原表入仓 → SQL warehouse build → P4 SQL release activation → BI 刷新”，不恢复静态看板。生产 `--publish` 路径不调用 `library.build()` 生成 39 张逐图 Python 结果表，历史 raw/候选说明仅供回溯。旧 verifier 已退役。已被用户明确废弃的静态 HTML/计算副本只保留退役说明和 hash，不因旧库存或旧 ROI 验收提及而长期保存大文件。
 
 既有维护任务“项目旧产物与传输副本清理”（`bi-2`）的启停及执行时间以宿主调度记录为准。按用户2026-11-09最新确认，以现行依赖和任务是否已结束判断，不再为已被新版替代的发布传输包设置7天等待期。旧失败任务已被后续成功批次替代、所属流程退役或不再支持续跑时，删除无恢复用途的派生产物；只为明确仍在进行的恢复任务保留必要 `input_backup`。已入仓且另有有效主本/明确替代证明的无引用下载副本及时核销，同字节原表只留一份有效主本。
 
 清理范围同时覆盖旧PPT/周报草稿、渲染图、校验PDF、重复导出、确认界面暂存、单次生成程序，以及已结束且不再支撑有效交付的单次拉表/分析记录。每个有价值项目留文档明确指定的一份最终版、不可替代的人工原稿与最小证据；近期未结束的工作保留。引用须追到具体文件及最小依赖闭包，不因历史README、旧脚本提及或缺少初次判断就把整个审计目录长期保护。旧数仓明确退役且现行更新只消费主目录输入/当前SQL仓时，旧日期全量工作簿和试验工作区原件不再属于现行输入；经实际读路径核查和当前输入可读验证后可核销，不要求为每份旧表找到相同SHA替身。旧P3/P4独立校验脚本的历史路径不等于正式SQL更新依赖。无法判定者记录具体依赖或缺失证明，不能笼统标“可能有用”。
 
-保护当前 `Work/workspace.json`、留学current及 `Output/ShadowDaily/sql-current.json` 指定的身份、SQL候选和真实输入依赖，以及当前Snapshot、`Input/Data`主本、费用清单实际引用原表、Pack/Bridge、官方记分卡、有效报告/Casebook必要证据、登录态/凭据、运行环境和DeliveryState。删除前记录具体路径/大小/SHA与完成或替代证据，删后复核保护文件和指针未变，并通过现有Data Platform受控入口验证当前双Snapshot与SQL库可读。保留小型清理清单及回执；受影响旧manifest/查询回执标记历史不可完整回放。该任务只做本地清理，不接管浏览器采集、数据更新、云端同步、BI发布、日报或日程，不恢复静态HTML产品。
+保护当前 `Work/workspace.json`、留学current及 `Output/ShadowDaily/sql-current.json` 指定的身份、SQL候选和真实输入依赖，以及当前Snapshot、`Input/Data`主本、费用清单实际引用原表、官方记分卡、有效报告的必要证据、登录态/凭据、运行环境和DeliveryState。删除前记录具体路径/大小/SHA与完成或替代证据，删后复核保护文件和指针未变，并通过现有Data Platform受控入口验证当前双Snapshot与SQL库可读。保留小型清理清单及回执；受影响旧manifest/查询回执标记历史不可完整回放。该任务只做本地清理，不接管浏览器采集、数据更新、云端同步、BI发布、日报或日程，不恢复静态HTML产品。
 
 2026-10-28已按用户确认完成旧BI数仓退役；清理结果和逐文件SHA见 `.local/audits/single-warehouse-cleanup-20261028/`。只有 `customers/shadow_bi_daily/Work/workspace.json` 及其独立留学current指针定义当前BI数据，不从退役归档恢复为第二个默认数据源。旧结果被清理的回执仅保留历史身份，不再宣称其result/封存包可完整重放。
 

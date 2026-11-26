@@ -3,6 +3,8 @@ from pathlib import Path
 from decimal import Decimal
 
 PEOPLE_CONFIG_PATH = Path(__file__).with_name("people.json")
+SOURCE_DIRECTORY = 'Input/Reference/人员产能'
+RESOURCE_FILENAME = '资源与签约.xlsx'
 BUSINESS_GROUP_BY_ROSTER_GROUP={'青少组':'留学预备','小初提能组':'留学预备','高中组':'高中','高中多途径组':'高中','国际学校择校组':'高中','大学组':'大学'}
 HIDDEN_PERSON_STATUSES = frozenset({'vacant', 'departed', 'transferred'})
 ORDER_STATUS_MODES = ('00', '01', '10', '11')

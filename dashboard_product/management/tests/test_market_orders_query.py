@@ -10,7 +10,7 @@ import duckdb
 
 from data_platform.query.evidence import read_query_result, verify_receipt
 from data_platform.query.service import execute_query
-from dashboard_product.online_team.build import MAPPING
+MAPPING = Path(__file__).resolve().parents[2] / 'online_team/config/confirmed_team_mapping.json'
 from tests.evidence_helpers import manifest
 
 

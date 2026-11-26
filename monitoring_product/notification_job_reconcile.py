@@ -4,6 +4,7 @@ import fcntl
 import hashlib
 import json
 import os
+import stat
 from pathlib import Path
 from zoneinfo import ZoneInfo
 from dashboard_product.shadow_bi.p5 import notification_contract as nc
@@ -66,8 +67,18 @@ def read_receipt(control,identifier,original,owner_uid=0):
         meta=p.stat(follow_symlinks=False)
         if p.is_symlink() or meta.st_uid!=owner_uid or meta.st_mode & 0o022:
             raise ValueError('untrusted reconciliation receipt')
-    from dashboard_product.shadow_bi.p5.raw_status import read_regular
-    value=json.loads(read_regular(path,8192))
+    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    try:
+        info = os.fstat(fd)
+        if not stat.S_ISREG(info.st_mode) or not 0 < info.st_size <= 8192:
+            raise ValueError('regular bounded receipt required')
+        with os.fdopen(fd, 'rb', closefd=False) as stream:
+            raw = stream.read(8193)
+        if len(raw) > 8192:
+            raise ValueError('receipt exceeds limit')
+    finally:
+        os.close(fd)
+    value=json.loads(raw)
     if (not isinstance(value,dict) or value.get('schema_version')!='notification_job_reconciliation.v1'
             or value.get('job_id')!=identifier or value.get('original_status')!='unknown'
             or value.get('original_result_sha256')!=hashlib.sha256(original).hexdigest()

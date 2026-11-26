@@ -5,7 +5,7 @@ import json
 from ops import cli
 from ops.pipeline import ingest_costs, run_business
 from ops.state import OpsState
-from data_acquisition.jobs import business_first_daily
+from ops import business
 from data_acquisition.jobs.daily_notification import notify_published_resumable
 
 
@@ -55,10 +55,8 @@ def test_incremental_notification_then_manual_rebuild_does_not_resend(tmp_path, 
         return {'status': 'published', 'day': DAY, 'release': release, 'sources': current.copy()}
 
     def pipeline(*args, **kwargs):
-        def should_not_collect(*_args, **_kwargs):
-            raise AssertionError('business must not acquire or publish fees')
-        return business_first_daily.run(*args, **kwargs, publish_business=publish,
-                                         publish_expenses=should_not_collect, assert_ready=lambda *_: current)
+        return business.run(*args, **kwargs, publish_business=publish,
+                            assert_ready=lambda *_: current)
 
     automatic = run_business(workspace, runtime, day=DAY, now=NOW, pipeline=pipeline, notify=notify)
     assert automatic['release'] == 'daily-incremental'

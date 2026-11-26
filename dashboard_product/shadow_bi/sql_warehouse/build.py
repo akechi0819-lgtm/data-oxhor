@@ -12,9 +12,16 @@ from .relations import quote,records
 
 
 def _rule_binding(root):
-    from dashboard_product.shadow_bi.library import code_files
-    files=set(code_files())|{p for p in (root/'dashboard_product/shadow_bi/sql_warehouse').rglob('*') if p.suffix in ('.py','.sql')}
+    roots = ('dashboard_product/config', 'workspace_modeling/operations', 'data_acquisition/jobs',
+             'data_acquisition/connectors/advertising', 'data_platform/query',
+             'dashboard_product/management', 'dashboard_product/online_team/config')
+    files = {path for name in roots for path in (root / name).rglob('*')
+             if path.is_file() and 'tests' not in path.parts and path.suffix in ('.py', '.sql', '.json', '.toml')}
+    files.update({p for p in (root / 'dashboard_product/shadow_bi/sql_warehouse').rglob('*')
+                  if p.is_file() and p.suffix in ('.py', '.sql')})
     files.update(root/p for p in ('data_platform/sql_candidate.py',
+        'data_acquisition/workspace_snapshot.py', 'data_acquisition/connectors/study_abroad_source.py',
+        'ops/business.py',
         'dashboard_product/shadow_bi/p3/catalog.py','dashboard_product/shadow_bi/p35/native_catalog.py',
         'dashboard_product/shadow_bi/p35/bootstrap_native.py',
         'dashboard_product/shadow_bi/p35/coverage_note.py',
@@ -127,12 +134,16 @@ def build_local(*,workspace,output_dir,batch_id,training_snapshot,abroad_snapsho
     output_dir.mkdir(parents=True,exist_ok=False)
     fee_manifest=Path(advertising_manifest).resolve() if advertising_manifest is not None else workspace/'Input/AdvertisingCosts/sources.json'
     scorecard_path=workspace/'Input/Reference/留学板块-官方记分卡.json'
+    scorecard_comparison_path=scorecard_path.with_name('留学板块-官方记分卡-对账口径.json')
     inputs=[scorecard_path,workspace/'Work/workspace.json',workspace/'Work/StudyAbroad/current.json',
         workspace/'Work/Bridge/reference.json',
         workspace/'Input/Reference/留学-FY26-资源表.xlsx']
+    if scorecard_comparison_path.is_file():inputs.append(scorecard_comparison_path)
     history_path=workspace/'Input/Reference/人员产能'/HISTORY_FILENAME
     if history_path.is_file():inputs.append(history_path)
     fingerprints={str(p):hashlib.sha256(p.read_bytes()).hexdigest() for p in inputs}
+    scorecard_comparison=(json.loads(scorecard_comparison_path.read_text())
+                          if scorecard_comparison_path in inputs else None)
     company=json.loads((workspace/'Work/workspace.json').read_text())['company_id']
     baseline_manifest=None;baseline_database=None
     if expense_baseline is not None:
@@ -170,7 +181,8 @@ def build_local(*,workspace,output_dir,batch_id,training_snapshot,abroad_snapsho
         abroad_through=min(abroad_pointer['through_date'],(date.fromisoformat(as_of_date)-timedelta(days=1)).isoformat())
         install_metrics(con,through=meta['through'],abroad_start='2026-06-01',abroad_through=abroad_through,config_root=root)
         scorecard=install_scorecard(con, scorecard_path, warehouse_coverage_start='2026-06-01',
-                                    warehouse_coverage_end=abroad_through)
+                                    warehouse_coverage_end=abroad_through,
+                                    comparison_contract=scorecard_comparison)
         install_personal(con,config_root=root)
         history=load_history(workspace/'Input/Reference/人员产能'/HISTORY_FILENAME)
         install_contribution(con,history=history)

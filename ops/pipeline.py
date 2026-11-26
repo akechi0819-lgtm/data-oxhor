@@ -10,8 +10,8 @@ from pathlib import Path
 from threading import Event, Thread
 from uuid import uuid4
 
-from dashboard_product.shadow_bi.p5.full_daily import DailyBlocked, atomic_json
-from data_acquisition.jobs import business_first_daily
+from data_acquisition.ops_io import DailyBlocked, atomic_json
+from . import business
 from data_acquisition.jobs.bi_window_merge import rolling_start_date
 from data_acquisition.jobs.daily_notification import notify_published_resumable
 from .state import OpsState
@@ -88,7 +88,7 @@ def _retain_published(runtime, publication, record):
     try:
         enrolled = json.loads(index.read_text()) if index.exists() else []
         protected = json.loads(references.read_text()) if references.exists() else []
-        entry = {'path': publication['candidate'], 'created_at': datetime.now(business_first_daily.SHANGHAI).isoformat(),
+        entry = {'path': publication['candidate'], 'created_at': datetime.now(business.SHANGHAI).isoformat(),
                  'biz_day': publication['biz_day'], 'verified_release_id': publication['release']}
         enrolled.append(entry)
         atomic_json(index, enrolled)
@@ -109,7 +109,7 @@ def run_business(workspace: Path, runtime: Path, *, day: str, from_manual=False,
     state = OpsState(runtime)
     run_id = 'business-' + day + '-' + uuid4().hex[:12]
     batch = Path(batch_dir) if batch_dir is not None else runtime / 'business' / run_id
-    pipeline = pipeline or business_first_daily.run
+    pipeline = pipeline or business.run
     events = {}
 
     def stage(name, status, detail=None):
@@ -131,7 +131,7 @@ def run_business(workspace: Path, runtime: Path, *, day: str, from_manual=False,
                 stage('acquire', 'failed')
                 raise
         report = pipeline(
-            workspace, batch_dir=batch, day=day, now=now, business_only=True,
+            workspace, batch_dir=batch, day=day, now=now,
             no_notify=no_notify, refresh_business=from_manual or force_refresh,
             business_inputs=business_inputs, orders_start_date=orders_start_date,
             orders_end_date=orders_end_date, notify=notify or notify_published_resumable,
@@ -184,7 +184,7 @@ def publish_costs(workspace, runtime, *, costs, on_stage, config_root=None):
         if (pair['sources']['bi']['snapshot_id'] != baseline['snapshots']['training']
                 or pair['sources']['study_abroad']['snapshot_id'] != baseline['snapshots']['abroad']):
             raise ValueError('fee publication business snapshot mismatch')
-        release_id = daily._release_id(business_day, run_id, datetime.now(business_first_daily.SHANGHAI).strftime('%H%M%S%f'))
+        release_id = daily._release_id(business_day, run_id, datetime.now(business.SHANGHAI).strftime('%H%M%S%f'))
         result = sql_daily.publish(
             workspace=workspace, day=business_day, pair=pair, run_id=run_id,
             release_id=release_id, folder=verification, advertising_manifest=None, ssh=ssh,

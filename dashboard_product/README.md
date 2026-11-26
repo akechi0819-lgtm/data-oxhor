@@ -1,25 +1,10 @@
-> **2026-10-28正式主线**：只维护主目录 `customers/shadow_bi_daily` 新版BI数仓；旧仓与旧看板派生产物已清理。当前批次、保留边界和验证见[开发文档](../DEVELOPMENT.md)，运行合同见[部署说明](DEPLOYMENT.md)。下方旧日期内容保留当时事实。
-
-> **10月26日最新运行记录**：raw接收/计算/发布已暂停，保留Mac更新链路与既有成品/通知入口；服务器数仓和聚合代码能力仍保留。以[清理与暂停回执](../docs/archive/server-cleanup-20261026.md)区分能力部署与当前启停。本轮未实读或修改服务器/日程，以下raw说明为代码/已部署能力合同，不是恢复运行指令。
-
 # 正式原生 BI 看板
 
-正式用户界面为 Superset 原生看板，见[正式入口](https://dashboard.apinova.cn/superset/dashboard/shadow-bi-native/?standalone=1)。沿用原18个账号和已授权只读范围；用户身份及权限边界见[正式基线](../docs/archive/bi-production-baseline-20261025.md)。
-
-## 服务器能力与当前运行安排
-
-- 服务器raw receiver、历史基线、双Snapshot/quality/共享聚合worker与固定publisher已经部署；最新回执记载raw触发路径暂停，相关代码和必要基线保留。
-- raw worker 在服务器执行历史合并、双仓 Snapshot、质量查询及共同聚合计算，生成39张封存业务表。10月26日真实批次实际运行到39表，但最终因 `data_through` 业务截止不匹配以 `failed/published=false` 结束；该批没有发布新 release。
-- root 固定 publisher 已独立部署。只有通过来源、Snapshot、quality、39表及正式身份校验并进入 `prepared` 的候选，才能按明确授权进入 P4 和 release 切换。
-- 服务器数仓与聚合计算能力已落地。有效新 raw 包正式发布、持续日更安排及唯一生产者收口尚待各自验收；本轮未实读服务器或调度平台。
-- 日期回执记录 Superset current `daily-20261026_094052`（数据截止10-25）由 Mac `shadow_bi.p5.daily` 手动入口更新。该入口按最新清理回执保留为当前Mac命令更新链路，本轮不改变日程。
+Superset 原生看板使用同批 SQL release。部署、身份和运行状态见[部署说明](DEPLOYMENT.md)。
 
 ## 代码职责
 
-- 共享业务计算：`management/calculation.py`，供本地日更、服务器 raw worker 和原生 BI 数据库构建复用。
-- Superset 数据库与投影：`shadow_bi/library.py`、`shadow_bi/p3/`、`shadow_bi/p35/`。
-- 服务器构建与验证：`shadow_bi/p4/`；raw 接收、受限计算和固定发布：`shadow_bi/p5/raw_*.py` 与 `shadow_bi/p5/deploy/`。
-- `online_team/build.py` 保留为共享计算、查询 helper；`dashboard_product/refresh.py` 保留来源映射、归属及历史对账 helpers。它们是实现模块，不是静态页面运行入口。
-- 通知使用正式 release 和 `monitoring_product.release_notifications`，由 `shared_delivery` 去重投递；通知本身不独立查询或计算数仓。
-
-10月26日服务器部署、39表计算结果、截止门禁及当前待验收项见[部署与运行说明](DEPLOYMENT.md)、[raw接收回执](../docs/archive/server-raw-receiver-deployment-20261026.md)和[固定publisher回执](../docs/archive/server-raw-fixed-publisher-20261026.md)。本地新增来源完整性门禁尚未部署到服务器，见[来源完整性合同](../docs/server-source-completion-candidate.md)。
+- `shadow_bi/sql_warehouse/` 构建经营事实、汇总、看板数据集和通知预览。
+- `shadow_bi/p4/` 执行 SQL release 激活与验证；`shadow_bi/p5/sql_daily.py` 对接本机日更。
+- `monitoring_product/sql_release_notifications.py` 读取同批封存通知，`shared_delivery` 负责已授权投递和去重。
+- `workspace_modeling/operations/` 提供共用人员规则。历史发布回执见 `docs/archive/`。

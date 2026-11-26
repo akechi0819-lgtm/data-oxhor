@@ -5,7 +5,7 @@ import json
 import pytest
 
 from dashboard_product.management.tests import test_notifications as fixture_notifications
-from dashboard_product.management.notifications import build_notifications
+from dashboard_product.management.tests.reference_notifications import build_notifications
 from dashboard_product.shadow_bi.p4.sql_release import load_release, verify_acceptance
 from data_platform.query.evidence import file_ref
 from monitoring_product import release_notifications as notifications

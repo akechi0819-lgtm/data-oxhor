@@ -5,8 +5,8 @@ from collections import Counter
 import unittest
 
 from data_acquisition.jobs.work_order_cleaning import WorkOrderReference
-from dashboard_product.management.study_abroad_facts import _make_fact
-from tests.data_acquisition.test_study_abroad_facts import _fact_row
+from tests.legacy_dashboard.abroad_facts import _make_fact
+from tests.legacy_dashboard.abroad_fixture import _fact_row
 
 
 SOURCE_SHA256 = "a" * 64

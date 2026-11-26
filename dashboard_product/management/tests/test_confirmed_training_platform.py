@@ -3,7 +3,7 @@ from __future__ import annotations
 import unittest
 
 from dashboard_product.fallback_mapping import confirmed_training_platform_team
-from dashboard_product.management.facts import normalize_facts
+from tests.legacy_dashboard.training_facts import normalize_facts
 
 
 PEOPLE = {"teams": []}

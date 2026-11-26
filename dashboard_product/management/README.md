@@ -2,11 +2,9 @@
 
 本模块保留经营计算、归属和人员规则。现行日更从 `data_acquisition.jobs.prepare_full_daily --publish` 进入 SQL 建仓与 P4 发布，Superset 和日报使用同批正式 release。核对本机批次、服务器版本及日程的方法见[部署说明](../DEPLOYMENT.md)。
 
-## 历史链路（2026-10-26）
+## 计算入口
 
-当时的 `calculation.calculate` 经受控查询构建共同结果，再由 `shadow_bi.library` 封存 39 张表。raw 链路当日暂停，记录见[清理与暂停回执](../../docs/archive/server-cleanup-20261026.md)。现行 SQL 日更流程见上方部署说明。
-
-`online_team/build.py` 当前只有共享期间、指标、归属与查询helpers，没有旧页面生成器；`refresh.py` 的归属及历史对照算法仍被共同计算直接调用，不是旧站恢复入口。`validation.py` 校验聚合模型身份及隐私字段边界，不生成HTML。删除展示代码不改变业务公式。
+现行 SQL 业务计算位于 `dashboard_product/shadow_bi/sql_warehouse/`，来源 SQL 位于本目录 `sql/`。历史记录见[清理与暂停回执](../../docs/archive/server-cleanup-20261026.md)。
 
 ## 现行口径
 

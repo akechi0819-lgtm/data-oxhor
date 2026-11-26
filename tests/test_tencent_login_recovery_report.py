@@ -10,7 +10,7 @@ from data_acquisition.connectors.advertising import tencent_requests as tencent
 from data_acquisition.connectors.advertising import xhs_requests as xhs
 from data_acquisition.auth.auth_sessions import AuthSessionMissingError
 from data_acquisition.auth.auth_sessions import AuthSessionPaths
-from data_acquisition.jobs import prepare_full_daily
+from data_acquisition.jobs import fee_sources
 
 
 class _Response:
@@ -518,15 +518,15 @@ def test_collector_persists_only_fixed_4501_recovery_details(tmp_path, monkeypat
     contracts.mkdir(parents=True)
     (contracts / "legacy-network-contract.json").write_text("{}")
     (contracts / "dedicated-network-contract.json").write_text("{}")
-    monkeypatch.setattr(prepare_full_daily, "_tencent_scope_confirmation", lambda _path=None: None)
+    monkeypatch.setattr(fee_sources, "_tencent_scope_confirmation", lambda _path=None: None)
     xhs_client = Mock()
     xhs_client.run.side_effect = [
         AuthSessionMissingError("missing"), RuntimeError("xhs detail SECRET"),
     ]
     xhs_login = Mock()
     monkeypatch.setattr(xhs, "save_login", xhs_login)
-    monkeypatch.setattr(prepare_full_daily, "XHSExport", lambda **kwargs: xhs_client)
-    monkeypatch.setattr(prepare_full_daily, "OceanExport", lambda *_args, **kwargs: Mock(run=Mock(side_effect=RuntimeError("ocean detail SECRET"))))
+    monkeypatch.setattr(fee_sources, "XHSExport", lambda **kwargs: xhs_client)
+    monkeypatch.setattr(fee_sources, "OceanExport", lambda *_args, **kwargs: Mock(run=Mock(side_effect=RuntimeError("ocean detail SECRET"))))
 
     outcomes = iter([
         tencent.TencentLoginRequired(),
@@ -544,10 +544,10 @@ def test_collector_persists_only_fixed_4501_recovery_details(tmp_path, monkeypat
         tencent_clients.append(client)
         return client
 
-    monkeypatch.setattr(prepare_full_daily, "TencentExport", make_tencent_client)
-    collect = prepare_full_daily.collector(batch, tmp_path / "contracts", xhs_scope)
+    monkeypatch.setattr(fee_sources, "TencentExport", make_tencent_client)
+    collect = fee_sources.collector(batch, tmp_path / "contracts", xhs_scope)
 
-    with pytest.raises(prepare_full_daily.DailyBlocked):
+    with pytest.raises(fee_sources.DailyBlocked):
         collect(workspace, "2026-10-30", "run-test", tmp_path / "capture")
 
     report_text = (batch / "collection-report.json").read_text()

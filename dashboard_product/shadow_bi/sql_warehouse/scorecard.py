@@ -4,31 +4,16 @@ from __future__ import annotations
 
 import hashlib
 import json
-import re
-from datetime import date, timedelta
+from datetime import date
 from pathlib import Path
 
 
-def _period_dates(period):
-    match = re.fullmatch(r'FY(\d{2})(?:-Q([1-4]))?', period)
-    if not match:
-        return None, None
-    year = 2000 + int(match.group(1)) - 1
-    quarter = match.group(2)
-    if quarter is None:
-        return date(year, 6, 1), date(year + 1, 5, 31)
-    month_index = 5 + (int(quarter) - 1) * 3
-    start = date(year + month_index // 12, month_index % 12 + 1, 1)
-    next_index = month_index + 3
-    next_start = date(year + next_index // 12, next_index % 12 + 1, 1)
-    return start, next_start - timedelta(days=1)
-
-
-def install_scorecard(con, scorecard_path, *, warehouse_coverage_start, warehouse_coverage_end):
+def install_scorecard(con, scorecard_path, *, warehouse_coverage_start, warehouse_coverage_end,
+                      comparison_contract=None):
     """Install only in the candidate DB, after business periods and values exist.
 
-    Warehouse rows remain separate: their combined study/small-language scope has
-    not been established as comparable to any official scorecard dimension.
+    An explicitly approved comparison contract can bind source periods and
+    channels to the same version of the official scorecard.
     """
     start = date.fromisoformat(str(warehouse_coverage_start))
     end = date.fromisoformat(str(warehouse_coverage_end))
@@ -52,7 +37,6 @@ def install_scorecard(con, scorecard_path, *, warehouse_coverage_start, warehous
             period, row_kind = record['period'], record['row_kind']
             if not isinstance(period, str) or not isinstance(row_kind, str) or not period or not row_kind:
                 raise ValueError('invalid scorecard period or row kind')
-            period_start, period_end = _period_dates(period)
             for dimension, values in record.items():
                 if dimension in ('period', 'row_kind'):
                     continue
@@ -63,7 +47,9 @@ def install_scorecard(con, scorecard_path, *, warehouse_coverage_start, warehous
                     if isinstance(value, bool) or not isinstance(value, (int, float)):
                         raise ValueError('invalid scorecard measure')
                     unit = units.get(metric_units.get(metric, '')) if isinstance(values, dict) else None
-                    rows.append((scorecard_id, version, digest, captured_at, period, period_start, period_end,
+                    # The official source explicitly states that the fiscal calendar dates
+                    # are unspecified. Do not infer dates from the dashboard's calendar.
+                    rows.append((scorecard_id, version, digest, captured_at, period, None, None,
                                  scope, dimension if isinstance(values, dict) else 'scope_share', row_kind, metric, unit, value))
     if not rows:
         raise ValueError('scorecard has no measures')
@@ -75,20 +61,78 @@ def install_scorecard(con, scorecard_path, *, warehouse_coverage_start, warehous
         row_kind VARCHAR, metric VARCHAR, unit VARCHAR, official_value DOUBLE
     )''')
     con.executemany('INSERT INTO ref.official_scorecard VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', rows)
+    con.execute('''CREATE TABLE ref.scorecard_comparison_contract (
+        period VARCHAR, scope VARCHAR, dimension VARCHAR, metric VARCHAR, period_start DATE, period_end DATE,
+        segments VARCHAR[], first_channels VARCHAR[], approval_reference VARCHAR
+    )''')
+    if comparison_contract is not None:
+        if comparison_contract.get('source_sha256') != digest:
+            raise ValueError('scorecard comparison contract source hash mismatch')
+        approval = comparison_contract.get('approval_reference')
+        resources = comparison_contract.get('resource_comparisons', [])
+        amounts = comparison_contract.get('gross_signing_comparisons', [])
+        if (not isinstance(approval, str) or not approval.strip()
+                or not isinstance(resources, list) or not isinstance(amounts, list)):
+            raise ValueError('scorecard comparison contract requires approval and comparisons')
+        entries = []
+        comparisons = [(item, '资源数') for item in resources] + [(item, '毛签万元') for item in amounts]
+        for item, metric in comparisons:
+            period, scope, dimension = item['period'], item['scope'], item['dimension']
+            period_start, period_end = date.fromisoformat(item['period_start']), date.fromisoformat(item['period_end'])
+            segments, channels = item['segments'], item['first_channels']
+            if (not all(isinstance(v, str) and v for v in (period, scope, dimension))
+                    or scope not in ('online', 'offline') or period_start > period_end
+                    or not isinstance(segments, list) or not segments
+                    or not isinstance(channels, list) or not channels
+                    or not all(isinstance(v, str) and v for v in segments + channels)
+                    or (metric == '毛签万元' and item.get('definition') != 'positive_signature_yuan')):
+                raise ValueError('invalid scorecard comparison')
+            entries.append((period, scope, dimension, metric, period_start, period_end, segments, channels, approval))
+        if len({entry[:4] for entry in entries}) != len(entries):
+            raise ValueError('duplicate scorecard comparison')
+        if entries:
+            con.executemany('INSERT INTO ref.scorecard_comparison_contract VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)', entries)
     # Bounds are already parsed dates, not user-provided SQL fragments.
     con.execute(f'''CREATE VIEW mart.study_abroad_summary AS
-        SELECT scorecard_id, source_version, source_sha256, period, period_start, period_end,
+        WITH matched AS (
+          SELECT o.*, c.period_start AS approved_start, c.period_end AS approved_end,
+                 c.segments, c.first_channels, c.approval_reference,
+                 CASE WHEN o.row_kind IN ('annual_target', 'target') THEN 'official_target'
+                      WHEN o.row_kind LIKE '%completion%' THEN 'official_completion_rate'
+                      WHEN c.period IS NULL THEN 'comparison_contract_missing'
+                      WHEN NOT ((o.metric='资源数' AND o.unit='资源/工单数')
+                             OR (o.metric='毛签万元' AND o.unit='毛签万元')) THEN 'metric_or_unit_not_approved'
+                      WHEN c.period_start < DATE '{start}' OR c.period_end > DATE '{end}' THEN 'warehouse_coverage_incomplete'
+                      ELSE NULL END AS reason
+          FROM ref.official_scorecard o
+          LEFT JOIN ref.scorecard_comparison_contract c
+            ON c.period=o.period AND c.scope=o.scope AND c.dimension=o.dimension AND c.metric=o.metric
+        ), compared AS (
+          SELECT m.*, CASE WHEN m.reason IS NULL THEN (
+            SELECT COALESCE(SUM(f.value), 0)::DOUBLE / CASE WHEN m.metric='毛签万元' THEN 10000 ELSE 1 END
+            FROM business.abroad_facts f
+            WHERE f.customer_domain='study_abroad'
+              AND ((m.metric='资源数' AND f.metric='orders')
+                   OR (m.metric='毛签万元' AND f.metric='cash' AND f.value>0))
+              AND TRY_CAST(f.event_date AS DATE) BETWEEN m.approved_start AND m.approved_end
+              AND list_contains(m.segments, f.segment_id)
+              AND list_contains(m.first_channels, f.first_channel)
+          ) END AS measured_value
+          FROM matched m
+        )
+        SELECT scorecard_id, source_version, source_sha256, period,
+               approved_start AS period_start, approved_end AS period_end,
                scope, dimension, row_kind, metric, unit, official_value,
-               NULL::DOUBLE AS warehouse_value, NULL::DOUBLE AS delta,
+               measured_value AS warehouse_value, measured_value - official_value AS delta,
                'official_scorecard' AS authority_source,
-               'scope_or_metric_not_verified_comparable' AS comparability_reason
-        FROM ref.official_scorecard
+               reason AS comparability_reason, approval_reference AS comparison_approval
+        FROM compared
         UNION ALL
         SELECT NULL, NULL, NULL, p.period_id, greatest(p.start_date, DATE '{start}'),
                least(p.through_date, DATE '{end}'),
                CASE v.unit_id WHEN 'online_scope' THEN 'online' ELSE 'offline' END,
                'warehouse_study_and_small_language', 'actual', m.metric, m.unit, NULL,
-               m.value, NULL, 'warehouse', 'separate_warehouse_scope'
+               m.value, NULL, 'warehouse', 'separate_warehouse_scope', NULL
         FROM business.team_values v JOIN business.periods p USING (period_id)
         CROSS JOIN LATERAL (VALUES ('orders', 'count', v.orders), ('cash', 'yuan', v.cash), ('heads', 'count', v.heads)) m(metric, unit, value)
         WHERE v.business_line='abroad' AND v.comparison='actual' AND v.acquisition_scope='全部'

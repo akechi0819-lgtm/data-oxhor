@@ -54,6 +54,80 @@ class SqlMetricTests(unittest.TestCase):
         self.assertEqual(values['主动'],(1,None));self.assertEqual(values['全部'],(1,None))
         self.assertEqual(values['被动'][0],0)
 
+    def test_excluded_modes_and_missing_dates_do_not_change_metrics(self):
+        c = self.connect([fact('active', 2, metric='orders', acquisition_mode='主动'),
+                          fact('negative', -1700), fact('missing', 9, event_date=None)])
+        reasons = c.execute("""SELECT fact_id,period_id,exclude_reason
+            FROM core.training_orders_attributed WHERE NOT included AND fact_id='active'
+              AND period_id='2026-06' AND unit_id='total'""").fetchall()
+        self.assertEqual(reasons, [('active', '2026-06', 'excluded_acquisition_mode')])
+        self.assertEqual(c.execute("""SELECT period_id,exclude_reason FROM core.training_cash_attributed
+            WHERE NOT included AND fact_id='missing'""").fetchall(), [(None, 'missing_date')])
+        self.assertEqual(c.execute("""SELECT cash FROM business.team_values WHERE period_id='2026-06'
+            AND unit_id='total' AND acquisition_scope='全部' AND business_line='training'
+            AND comparison='actual'""").fetchone()[0], -1700)
+        self.assertEqual(c.execute("""SELECT actual FROM business.team_metrics WHERE period_id='2026-06'
+            AND unit_id='total' AND acquisition_scope='全部' AND business_line='training'
+            AND metric='heads'""").fetchone()[0], 1)
+
+    def test_landing_exclusions_keep_actual_source_reasons(self):
+        c = duckdb.connect(); self.addCleanup(c.close)
+        load_rows(c, 'business', 'training_facts', [], columns=TYPES)
+        load_rows(c, 'business', 'training_personnel_facts', [], columns=TYPES)
+        load_rows(c, 'business', 'abroad_facts', [], columns=TYPES)
+        c.execute('CREATE SCHEMA landing')
+        c.execute('''CREATE TABLE landing.br_work_orders__sheet_1f0596db9f25
+            (source_row_number BIGINT, ID VARCHAR, 主被动 VARCHAR, 分配时间 VARCHAR)''')
+        c.execute("""INSERT INTO landing.br_work_orders__sheet_1f0596db9f25 VALUES
+            (1,'A','被动','46183'),(2,'A','被动','46183'),
+            (3,'B','不明确','46183'),(4,'C','被动',NULL)""")
+        c.execute('''CREATE TABLE landing.br_cash__sheet_39b8dee2e4b3
+            (source_row_number BIGINT, 工单ID VARCHAR, 渠道属性 VARCHAR, 业务日期 VARCHAR)''')
+        c.execute("""INSERT INTO landing.br_cash__sheet_39b8dee2e4b3 VALUES
+            (1,'A','未知','46183'),(2,'B','被动',NULL)""")
+        install_metrics(c, through='2026-11-05', abroad_start='2026-06-01',
+                        abroad_through='2026-11-05', config_root=ROOT)
+        rows = c.execute("""SELECT metric,source_row_number,exclude_reason,period_id
+            FROM core.training_orders_attributed WHERE NOT included AND (period_id='FY27' OR period_id IS NULL)
+            UNION ALL
+            SELECT metric,source_row_number,exclude_reason,period_id
+            FROM core.training_cash_attributed WHERE NOT included AND (period_id='FY27' OR period_id IS NULL)
+            ORDER BY metric,source_row_number""").fetchall()
+        self.assertEqual(rows, [('cash', 1, 'excluded_acquisition_mode', 'FY27'),
+                                ('cash', 2, 'missing_date', None),
+                                ('orders', 2, 'deduplicated_order_id', 'FY27'),
+                                ('orders', 3, 'excluded_acquisition_mode', 'FY27'),
+                                ('orders', 4, 'missing_date', None)])
+
+    def test_normalization_exclusions_keep_winner_and_reason(self):
+        from dashboard_product.shadow_bi.sql_warehouse.training import install_training
+        c = duckdb.connect(); self.addCleanup(c.close)
+        records = [
+            dict(metric='work_orders', event_date='2026-06-10', work_order_id='A',
+                 source_row_number='1', business_group='高中', team_id='offline_market',
+                 acquisition_mode='被动', actual_value=1),
+            dict(metric='work_orders', event_date='2026-06-10', work_order_id='A',
+                 source_row_number='2', business_group='高中', team_id='offline_market',
+                 acquisition_mode='被动', actual_value=1),
+            dict(metric='work_orders', event_date='2026-06-10', work_order_id='B',
+                 source_row_number='3', business_group='高中', team_id='offline_market',
+                 acquisition_mode='被动', actual_value=1),
+        ]
+        orders = [dict(work_order_id='A', source_team='高中'),
+                  dict(work_order_id='B', source_team='留学')]
+        install_training(c, records, orders, {}, {}, {})
+        load_rows(c, 'business', 'abroad_facts', [], columns=TYPES)
+        install_metrics(c, through='2026-11-05', abroad_start='2026-06-01',
+                        abroad_through='2026-11-05', config_root=ROOT)
+        reasons = c.execute("""SELECT fact_id,exclude_reason FROM core.training_orders_attributed
+          WHERE NOT included AND period_id='2026-06' AND comparison='actual'
+          ORDER BY fact_id""").fetchall()
+        self.assertEqual(reasons, [('training:order:A', 'deduplicated_fact_id'),
+                                   ('training:order:B', 'abroad_order')])
+        self.assertEqual(c.execute("""SELECT orders FROM business.team_values
+          WHERE period_id='2026-06' AND unit_id='total' AND acquisition_scope='被动'
+            AND business_line='training' AND comparison='actual'""").fetchone()[0], 1)
+
     def test_student_type_scopes_filter_cash_not_orders_and_preserve_passive_targets(self):
         c=self.connect([
             fact('passive-new-c1a',1000,student_id='N1',class_code='C1',student_type='新生'),

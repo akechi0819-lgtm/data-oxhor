@@ -20,7 +20,7 @@ from data_acquisition.jobs.bi_window_merge import (
     rolling_start_date,
     resolve_prior_landing_dir,
 )
-from workspace_modeling.bridge_alignment.workspace import init_workspace, sync_data
+from data_acquisition.workspace_snapshot import init_workspace, sync_data
 
 
 def _excel_serial(d: date) -> float:
@@ -284,9 +284,6 @@ class ExportGateTests(unittest.TestCase):
 
 
 class PriorSnapshotLookupTests(unittest.TestCase):
-    def setUp(self) -> None:
-        self.pack = Path("workspace_modeling/business_pack/packs/education_training_operations_cn/pack.json").resolve()
-
     def _workspace(
         self,
         root: Path,
@@ -298,7 +295,6 @@ class PriorSnapshotLookupTests(unittest.TestCase):
             root=root,
             company_id="company_bi_lookup",
             business_port="operations",
-            pack_path=self.pack,
         )
         for source_id, name, sheet, headers, rows in (
             (

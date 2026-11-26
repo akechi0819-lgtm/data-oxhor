@@ -177,13 +177,25 @@ def verify_current_pointer(*, workspace: str | Path, ssh: list[str], ssh_env: di
     return pointer, current, manifest, candidate, migration, migration_sha
 
 
+def yearly_windows(start, end):
+    while start < end:
+        next_start = min(end, date(start.year + 1, 1, 1))
+        yield start.isoformat(), next_start.isoformat()
+        start = next_start
+
+
+def _confirmed_adviser_lists(mapping):
+    rows = mapping['mappings']
+    return ([row['source_adviser'] for row in rows if row['labeled_team'] == '留学'],
+            [row['source_adviser'] for row in rows if row['labeled_team'] == '留学预备'])
+
+
 def source_order_receipts(*, workspace: str | Path, training_snapshot: str,
                           as_of_date: str, batch_id: str, output_root: str | Path,
                           execute_query: Callable | None = None) -> dict:
     """Create fresh controlled receipts for this batch's training traversal."""
     if execute_query is None:
         from data_platform.query.service import execute_query
-    from dashboard_product.management.calculation import yearly_windows, _confirmed_adviser_lists
     from dashboard_product.management.cutoff import calculation_cutoff
     from data_platform.query.evidence import resolve_file
     from workspace_modeling.operations.personnel import date_to_perf_month

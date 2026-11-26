@@ -6,7 +6,7 @@
 
 现有 Python 服务与本地 CLI 面向架构讨论、方案设计与项目评审。现已新增独立 stdio MCP 协议适配器，原服务、CLI、工具参数和读取策略保持不变。MCP 为可选依赖；现已通过项目外的官方 Secure MCP Tunnel 接入 ChatGPT；内核不增加网络监听或模型调用。启动与验收见 [stdio MCP 接入](./project-intelligence-mcp.md) 和 [Tunnel 接入](./project-intelligence-tunnel.md)。
 
-服务不修改业务模块，不执行下载、导入、查询业务行、发布、通知、同步、安装或测试。`project_intelligence/` 单向调用既有 Data Platform 的 `describe`，并使用现有 Bridge 合同校验器。服务不调用 casebook guide：该调用内部的 profile 会取业务样本，不符合本服务只取元数据的范围。
+服务不修改业务模块，不执行下载、导入、查询业务行、发布、通知、同步、安装或测试。`project_intelligence/` 单向调用既有 Data Platform 的 `describe`。
 
 ## 本地使用
 
@@ -35,7 +35,7 @@ Python 调用入口是 `ProjectContextService(root=Path(...))`：
 | `get_project_overview` | 无 | 实际存在的批准模块/文件、Agent、Git 状态、工作区 ID、查询版本证据 |
 | `search_project` | query、offset、limit | 字面文本匹配及文件哈希、行号、分页 |
 | `read_project_context` | content_id、start_line、limit、expected_sha256 | 分段安全文本及来源 |
-| `get_workspace_metadata` | workspace_id | 当前 Snapshot、Pack/Bridge 身份、结构校验状态、表和列 |
+| `get_workspace_metadata` | workspace_id | 当前 Snapshot、结构校验状态、表和列 |
 | `get_integration_map` | 无 | 已声明连接的用途、证据与未核验状态 |
 
 成功响应为 `project_intelligence.v1`，含 `observed_at` 和 `data`。CLI 完整请求失败时输出稳定错误码并返回 1；工作区部分失败保留可验证元数据，返回 0，但明确 `partial=true` 和逐组件 `errors`，不能只检查退出码。命令参数错误也不回显原始输入。Python API 以 `ContextError.code` 表示失败。
@@ -47,7 +47,6 @@ Python 调用入口是 `ProjectContextService(root=Path(...))`：
 - 模块职责与连接说明属于允许清单的声明；文件存在和哈希属于本机实查。连接的 `live_status` 始终为 `not_verified`，服务不探测远端、不读取调度器。
 - 看板查询版本分别从配置、代码字面量、架构文档取证；不同版本并存时只标记差异，不按最大版本号或修改时间选状态，不自动修文档或业务配置。
 - 工作区只按 `Work/workspace.json` 的显式指针读取；仅批准的两个现有工作区可调用。新工作区需修改策略后评审。
-- Bridge 只投影身份、类别数量、合同校验与公司匹配结果；不返回映射正文、人员、枚举值或历史决定。`contract_status=passed` 不代表当前 Snapshot 可做业务分析：`snapshot_compatibility` 与 `business_readiness` 都明确为 `not_evaluated`，不查询质量明细。
 - schema 通过现有 `interfaces.data_platform describe` 子进程读取；限制 15 秒，不直接连接客户 DuckDB。只投影表名、列名、类型，不返回行、样本、质量原值或来源文件内容。
 - schema 的 SHA-256 标记 `hash_scope=projected_schema_not_database`，不是整个数据库哈希。Snapshot 身份由 Data Platform 校验。
 - 工作区请求结束前复核全部已读 JSON 证据哈希；变化则失败 `CONTEXT_CHANGED`。分段读取可用 expected_sha256 防止混读不同文件版本。概览不是跨文件事务快照，各文件以自身哈希为准。

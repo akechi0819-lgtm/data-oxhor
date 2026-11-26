@@ -8,8 +8,8 @@ import unittest
 import duckdb
 
 from data_acquisition.jobs.work_order_cleaning import WorkOrderReference
-from dashboard_product.management.study_abroad_facts import _make_fact
-from dashboard_product.management.study_abroad_channels import legacy_channel
+from tests.legacy_dashboard.abroad_facts import _make_fact
+from tests.legacy_dashboard.channels import legacy_channel
 from dashboard_product.shadow_bi.sql_warehouse.abroad import (
     INPUT_COLUMNS,
     GRADE_INPUT_VIEW,
@@ -19,7 +19,7 @@ from dashboard_product.shadow_bi.sql_warehouse.abroad import (
     build_abroad_config,
     install_abroad,
 )
-from tests.data_acquisition.test_study_abroad_facts import _bridge, _decisions, _fact_row
+from tests.legacy_dashboard.abroad_fixture import _bridge, _decisions, _fact_row
 
 
 SOURCE_SHA = "a" * 64

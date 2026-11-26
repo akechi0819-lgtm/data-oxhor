@@ -14,7 +14,7 @@
 
 ## 当前整批入口
 
-当前广告费用整批采集与候选构建由 `data_acquisition.jobs.prepare_full_daily` 编排；其中腾讯来源每次建立新的上海昨日窗口，采集搜索与展示账户CSV，并以工作区私有配置中的观测合同核验竞价／品牌推广明细与账户账本。默认 `--prepare` 仅生成本地候选；`--publish` 才进入 business-first 发布、日推和费用更新门禁。详见[看板费用与ROI](dashboard-advertising-costs.md)。以下 `tencent_requests` 命令和固定窗口均为旧批次复核入口，不是当前每日窗口配置。
+日更入口为 `python -m ops run business`。现行调度以 `prepare_full_daily --publish --business-only` 转入同一业务链，发布正式 SQL release 后核验通知。费用通过 `ops ingest-cost` 独立录入，`ops fetch-cost-optional` 可生成隔离采集证据。
 
 > 2026-10-29阶段进展见[当时的日更记录](archive/shadow-bi-daily-progress-20261029.md)。下文保留各阶段原始验收回执；其中旧范围和旧候选状态不代表当前费用合同。
 

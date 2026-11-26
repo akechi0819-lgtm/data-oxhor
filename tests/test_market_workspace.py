@@ -23,14 +23,13 @@ class MarketWorkspaceTest(unittest.TestCase):
         (self.source / 'Work/db').write_text('synthetic identity fixture; never opened as a database')
         self.config = {'current_snapshot_id': 'snapshot_test', 'current_warehouse_path': 'Work/db',
                        'company_id': 'workspace_test'}
-        self.route = {'next_step': 'analyze', 'snapshot_id': 'snapshot_test'}
+        self.config['schema_version'] = 'bridge_alignment_workspace.v1'
+        self.pointer = self.source / 'Work/workspace.json'
+        self.pointer.write_text(json.dumps(self.config))
         for name, value in [('MARKET', self.market), ('REPO', self.root), ('SOURCE', self.source)]:
             patch = mock.patch.object(market_data, name, value)
             patch.start()
             self.addCleanup(patch.stop)
-        patch = mock.patch.object(market_data, 'context', return_value=(0, self.route, self.config))
-        patch.start()
-        self.addCleanup(patch.stop)
 
     def args(self, *extra):
         return market_data.parser().parse_args([
@@ -40,12 +39,8 @@ class MarketWorkspaceTest(unittest.TestCase):
         default_spec = importlib.util.spec_from_file_location('market_data_default', SCRIPT)
         default_module = importlib.util.module_from_spec(default_spec)
         default_spec.loader.exec_module(default_module)
-        config = {**self.config, 'current_snapshot_id': 'snapshot_promoted',
-                  'pack_path': 'Work/Pack/pack.json',
-                  'bridge_reference_path': 'Work/Bridge/reference.json'}
-        route = {'next_step': 'analyze', 'snapshot_id': 'snapshot_promoted'}
-        with mock.patch.object(default_module, 'context', return_value=(0, route, config)), \
-             mock.patch.object(default_module, 'source_file', side_effect=lambda p: default_module.SOURCE / p), \
+        config = {**self.config, 'current_snapshot_id': 'snapshot_promoted'}
+        with mock.patch('data_acquisition.workspace_snapshot.load_workspace', return_value=({}, config)), \
              mock.patch.object(default_module, 'call') as call:
             code, status = default_module.execute(default_module.parser().parse_args(['status']))
             self.assertEqual(code, 0)
@@ -76,17 +71,15 @@ class MarketWorkspaceTest(unittest.TestCase):
         self.assertEqual(json.loads((self.market / 'Evidence/run_test_one/receipt.json').read_text()), result)
         self.assertEqual(list(self.source.rglob('receipt.json')), [])
 
-    def test_changed_snapshot_and_unaligned_bridge_block_before_query(self):
+    def test_changed_or_missing_snapshot_blocks_before_query(self):
         sql = self.market / 'draft.sql'
         sql.write_text('SELECT 1')
         with mock.patch.object(market_data, 'call') as call:
-            self.config['current_snapshot_id'] = 'snapshot_changed'
-            with self.assertRaisesRegex(ValueError, 'Snapshot changed'):
-                market_data.execute(self.args('--sql-file', str(sql)))
-            self.config['current_snapshot_id'] = 'snapshot_test'
-            self.route['next_step'] = 'align_bridge'
-            with self.assertRaisesRegex(ValueError, 'analysis blocked'):
-                market_data.execute(self.args('--sql-file', str(sql)))
+            for snapshot in ('snapshot_changed', None):
+                self.config['current_snapshot_id'] = snapshot
+                self.pointer.write_text(json.dumps(self.config))
+                with self.assertRaisesRegex(ValueError, 'Snapshot changed'):
+                    market_data.execute(self.args('--sql-file', str(sql)))
             call.assert_not_called()
 
     def test_escaping_sql_and_evidence_symlinks_are_rejected(self):

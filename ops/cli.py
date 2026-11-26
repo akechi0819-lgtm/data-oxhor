@@ -5,8 +5,8 @@ import os
 from pathlib import Path
 import sys
 
-from dashboard_product.shadow_bi.p5.full_daily import DailyBlocked
-from data_acquisition.jobs.business_first_daily import SHANGHAI
+from data_acquisition.ops_io import DailyBlocked
+from .business import SHANGHAI
 from .pipeline import ingest_costs, run_business
 from .state import OpsState, RunActiveError
 
@@ -119,7 +119,7 @@ def main(argv=None):
             result = ingest_costs(workspace, runtime, day=_today(), input_path=args.input,
                                   platform=args.platform, confirmed_zero=args.confirm_zero)
         else:
-            from data_acquisition.jobs.prepare_full_daily import collector
+            from data_acquisition.jobs.fee_sources import collector
 
             day = _today()
             acquire = collector(args.batch_dir, args.source_contracts, args.xhs_scope, args.sem_receipt,

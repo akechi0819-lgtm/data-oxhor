@@ -40,7 +40,7 @@ class ReceiverNotificationHTTPTests(unittest.TestCase):
         (self.control/'policy.json').write_text(json.dumps({'send_start_date':'2026-10-26','no_backfill':True,'history_complete':False,'imported_state_ready':True}))
         token='synthetic-only'
         with patch.dict(os.environ,SHADOW_RECEIVER_ROOT=str(root),SHADOW_RECEIVER_TOKEN_SHA256=hashlib.sha256(token.encode()).hexdigest(),SHADOW_RECEIVER_NOTIFY_ENABLED='1'):
-            spec=importlib.util.spec_from_file_location('fixture_notify_receiver',Path(__file__).resolve().parents[1]/'dashboard_product/shadow_bi/p5/receiver.py')
+            spec=importlib.util.spec_from_file_location('fixture_notify_receiver',Path(__file__).resolve().parents[1]/'monitoring_product/notification_receiver.py')
             self.module=importlib.util.module_from_spec(spec);spec.loader.exec_module(self.module)
         self.module.NOTIFY_CONTROL=self.control;self.client=self.module.app.test_client()
         self.headers={'Authorization':'Bearer '+token};self.root=root

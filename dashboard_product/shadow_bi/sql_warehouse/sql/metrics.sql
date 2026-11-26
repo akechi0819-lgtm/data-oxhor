@@ -79,30 +79,65 @@ JOIN business.scoped_facts f ON
 WHERE (f.business_line='training' OR w.comparison='actual')
  AND (f.business_line<>'abroad' OR CAST(f.event_date AS DATE) BETWEEN c.abroad_start AND c.abroad_through);
 
--- Evidence is qualified at the same period and scope as the resulting measure.
+-- Exclusions retain the actual period when available. A rejected source row
+-- without a parseable date has no period and is never assigned a made-up one.
+CREATE OR REPLACE VIEW business.training_exclusion_events AS
+SELECT p.period_id,p.kind,p.status,p.time_progress,'total'::VARCHAR AS unit_id,
+  '全部'::VARCHAR AS acquisition_scope,e.*,w.comparison,
+  p.start_date AS covered_start,p.through_date AS covered_through
+FROM (SELECT * FROM business.training_input_exclusions
+      UNION ALL BY NAME SELECT * FROM business.training_landing_exclusions) e CROSS JOIN business.periods p
+CROSS JOIN (VALUES ('actual'),('prior')) w(comparison)
+WHERE e.event_date IS NOT NULL AND
+  CASE WHEN w.comparison='actual' THEN e.event_date BETWEEN p.start_date AND p.through_date
+       ELSE e.event_date BETWEEN (p.start_date-INTERVAL '1 year')::DATE AND (p.through_date-INTERVAL '1 year')::DATE END
+UNION ALL BY NAME
+SELECT NULL::VARCHAR AS period_id, 'total'::VARCHAR AS unit_id, '全部'::VARCHAR AS acquisition_scope,
+  e.* EXCLUDE(exclude_reason), 'missing_date'::VARCHAR AS exclude_reason
+FROM (SELECT * FROM business.training_input_exclusions
+      UNION ALL BY NAME SELECT * FROM business.training_landing_exclusions) e WHERE e.event_date IS NULL
+UNION ALL BY NAME
+SELECT NULL::VARCHAR AS period_id, 'total'::VARCHAR AS unit_id, '全部'::VARCHAR AS acquisition_scope,
+  f.*, 'missing_date'::VARCHAR AS exclude_reason
+FROM business.training_facts f WHERE TRY_CAST(f.event_date AS DATE) IS NULL
+UNION ALL BY NAME
+SELECT p.period_id,p.kind,p.status,p.time_progress,'total'::VARCHAR AS unit_id,
+  '被动'::VARCHAR AS acquisition_scope,f.*,'actual'::VARCHAR AS comparison,
+  p.start_date AS covered_start,p.through_date AS covered_through,
+  'excluded_acquisition_mode'::VARCHAR AS exclude_reason
+FROM business.training_facts f JOIN business.periods p
+  ON TRY_CAST(f.event_date AS DATE) BETWEEN p.start_date AND p.through_date
+WHERE f.acquisition_mode IS DISTINCT FROM '被动';
+
 CREATE OR REPLACE VIEW core.training_orders_attributed AS
 SELECT *, TRUE AS included, NULL::VARCHAR AS exclude_reason,
  acquisition_mode='被动' AS is_passive
-FROM business.period_events WHERE business_line='training' AND metric='orders';
+FROM business.period_events WHERE business_line='training' AND metric='orders'
+UNION ALL BY NAME
+SELECT *, FALSE AS included, acquisition_mode='被动' AS is_passive
+FROM business.training_exclusion_events WHERE metric='orders';
 
 CREATE OR REPLACE VIEW core.training_cash_attributed AS
 SELECT *, TRUE AS included, NULL::VARCHAR AS exclude_reason,
  acquisition_mode='被动' AS is_passive
-FROM business.period_events WHERE business_line='training' AND metric='cash';
+FROM business.period_events WHERE business_line='training' AND metric='cash'
+UNION ALL BY NAME
+SELECT *, FALSE AS included, acquisition_mode='被动' AS is_passive
+FROM business.training_exclusion_events WHERE metric='cash';
 
 CREATE OR REPLACE VIEW core.training_heads_attributed AS
 WITH class_evidence AS (
  SELECT period_id,unit_id,acquisition_scope,comparison,student_id,class_code,
   sum(value) AS class_cash, bool_or(registration_count>0) AS registered
  FROM core.training_cash_attributed
- WHERE nullif(trim(student_id),'') IS NOT NULL
+ WHERE included AND nullif(trim(student_id),'') IS NOT NULL
  GROUP BY ALL
 ), candidates AS (
  SELECT f.*, c.class_cash,c.registered,
   CASE WHEN nullif(trim(f.student_id),'') IS NULL THEN 'missing_student'
        WHEN NOT core.head_cash_meets_threshold(c.class_cash) THEN 'below_threshold'
        WHEN c.registered IS DISTINCT FROM TRUE THEN 'no_registration' END AS qualification_reason
- FROM core.training_cash_attributed f LEFT JOIN class_evidence c
+ FROM (SELECT * FROM core.training_cash_attributed WHERE included) f LEFT JOIN class_evidence c
  ON f.period_id=c.period_id AND f.unit_id=c.unit_id AND f.acquisition_scope=c.acquisition_scope
  AND f.comparison=c.comparison AND f.student_id=c.student_id AND f.class_code IS NOT DISTINCT FROM c.class_code
 ), ranked AS (

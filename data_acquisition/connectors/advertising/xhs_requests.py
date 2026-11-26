@@ -273,7 +273,7 @@ class XHSExport:
 
 def build_candidate(folder, mapping_manifest, *, native_file, evidence_file,
                     captured_at, start, through, expected_accounts, excluded_account_ids=()):
-    """Create a source fragment for full_daily, keeping formal registration read-only."""
+    """Create a source fragment for independent expense intake, keeping formal registration read-only."""
     from dashboard_product.management.candidate_sources import load_candidate_sources
     folder = Path(folder).resolve(strict=True)
     mapping_manifest = Path(mapping_manifest).resolve(strict=True)

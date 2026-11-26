@@ -241,7 +241,6 @@ class ProjectContextService:
         observations = []
         patterns = (
             ('dashboard_product/config/saved_queries.json', 'runtime_config', None),
-            ('dashboard_product/refresh.py', 'code_literal', r'''DASHBOARD_QUERY_VERSION\s*=\s*['"](v[0-9]+)['"]'''),
             ('docs/architecture.md', 'document_claim', r'dashboard_actuals/(v[0-9]+)'),
         )
         for path, kind, pattern in patterns:
@@ -328,49 +327,7 @@ class ProjectContextService:
         data = {'workspace_id': workspace_id, 'snapshot_id': sid,
                 'business_port': _label(config.get('business_port')),
                 'company_id': _label(config.get('company_id')),
-                'pack': None, 'bridge': None, 'schema': None,
-                'business_readiness': 'not_evaluated', 'quality': 'not_queried',
-                'errors': errors, 'evidence': evidence}
-        pack = None
-        if config.get('pack_path') != 'Work/Pack/pack.json':
-            errors.append({'component': 'pack', 'code': 'POINTER_REJECTED'})
-        else:
-            try:
-                pack, ref = self._json(base + '/Work/Pack/pack.json')
-                evidence.append(ref)
-                data['pack'] = {k: _label(pack.get(k)) for k in ('pack_id', 'pack_version')}
-                if config.get('pack_ref') != data['pack']:
-                    errors.append({'component': 'pack', 'code': 'PACK_REFERENCE_MISMATCH'})
-            except ContextError as exc:
-                errors.append({'component': 'pack', 'code': exc.code})
-        bridge_pointer = config.get('current_bridge_path') or config.get('bridge_reference_path')
-        if bridge_pointer:
-            if not isinstance(bridge_pointer, str) or not (
-                bridge_pointer == 'Work/Bridge/reference.json' or
-                re.fullmatch(r'Output/Bridge/[a-zA-Z0-9_.-]+\.json', bridge_pointer)
-            ):
-                errors.append({'component': 'bridge', 'code': 'POINTER_REJECTED'})
-            else:
-                try:
-                    bridge, ref = self._json(base + '/' + bridge_pointer)
-                    evidence.append(ref)
-                    from workspace_modeling.company_bridge.service import validate_bridge
-                    validation = validate_bridge(bridge, pack=pack)
-                    data['bridge'] = {k: _label(bridge.get(k)) for k in ('bridge_id', 'bridge_version')}
-                    data['bridge'].update({
-                        'contract_status': validation['status'],
-                        'company_matches': bridge.get('company_id') == config.get('company_id'),
-                        'category_counts': validation['counts'],
-                        'snapshot_compatibility': 'not_evaluated',
-                    })
-                    if validation['status'] != 'passed' or not data['bridge']['company_matches']:
-                        errors.append({'component': 'bridge', 'code': 'BRIDGE_INVALID'})
-                except ContextError as exc:
-                    errors.append({'component': 'bridge', 'code': exc.code})
-                except (ValueError, KeyError, TypeError, AttributeError):
-                    errors.append({'component': 'bridge', 'code': 'BRIDGE_INVALID'})
-        else:
-            errors.append({'component': 'bridge', 'code': 'BRIDGE_NOT_CONFIGURED'})
+                'schema': None, 'errors': errors, 'evidence': evidence}
         warehouse = config.get('current_warehouse_path')
         if sid is None:
             errors.append({'component': 'schema', 'code': 'SNAPSHOT_NOT_CONFIGURED'})

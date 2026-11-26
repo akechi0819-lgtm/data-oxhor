@@ -8,9 +8,8 @@ from zoneinfo import ZoneInfo
 import pytest
 
 from data_acquisition.auth.auth_sessions import AuthSessionExpiredError
-from dashboard_product.shadow_bi.p5.full_daily import DailyBlocked
-from data_acquisition.jobs import prepare_full_daily
-from data_acquisition.jobs.business_first_daily import run as run_business_first
+from data_acquisition.ops_io import DailyBlocked
+from data_acquisition.jobs import fee_sources
 
 
 DAY = '2026-11-03'
@@ -51,20 +50,20 @@ def _bundle(folder, source_id):
 
 
 def _stub_non_tencent_sources(monkeypatch, batch):
-    monkeypatch.setattr(prepare_full_daily, 'XHSExport', lambda **_kwargs: object())
-    monkeypatch.setattr(prepare_full_daily, 'run_xhs_authenticated', lambda *_args, **_kwargs: {
+    monkeypatch.setattr(fee_sources, 'XHSExport', lambda **_kwargs: object())
+    monkeypatch.setattr(fee_sources, 'run_xhs_authenticated', lambda *_args, **_kwargs: {
         'started_at': f'{DAY}T09:00:00+08:00', 'expected_accounts': [],
         'native': {'excluded_account_ids': []},
     })
-    monkeypatch.setattr(prepare_full_daily, 'xhs_candidate',
+    monkeypatch.setattr(fee_sources, 'xhs_candidate',
                         lambda folder, *_args, **_kwargs: _bundle(folder, 'xhs'))
-    monkeypatch.setattr(prepare_full_daily, 'OceanExport', lambda *_args, **_kwargs: object())
-    monkeypatch.setattr(prepare_full_daily, 'ACCOUNTS', [])
-    monkeypatch.setattr(prepare_full_daily, 'ocean_candidate',
+    monkeypatch.setattr(fee_sources, 'OceanExport', lambda *_args, **_kwargs: object())
+    monkeypatch.setattr(fee_sources, 'ACCOUNTS', [])
+    monkeypatch.setattr(fee_sources, 'ocean_candidate',
                         lambda folder, *_args, **_kwargs: _bundle(folder, 'ocean'))
-    monkeypatch.setattr(prepare_full_daily, '_tencent_scope_confirmation',
+    monkeypatch.setattr(fee_sources, '_tencent_scope_confirmation',
                         lambda _path=None: {'evidence': {'path': 'unused', 'sha256': 'unused'}})
-    monkeypatch.setattr(prepare_full_daily, 'validate_candidate_authorities', lambda _manifest: {})
+    monkeypatch.setattr(fee_sources, 'validate_candidate_authorities', lambda _manifest: {})
     contracts = batch.parent / 'contracts'
     (contracts / 'xhs-network-sample').mkdir(parents=True)
     (contracts / 'xhs-network-sample/network-contract.json').write_text('{}')
@@ -87,10 +86,10 @@ def test_pending_promotion_scope_skips_old_tencent_exports_and_blocks_collection
     contracts, xhs_scope = _stub_non_tencent_sources(monkeypatch, batch)
     tencent_export = Mock(side_effect=AssertionError('must not instantiate Tencent exporter'))
     tencent_run = Mock(side_effect=AssertionError('must not run old Tencent export'))
-    monkeypatch.setattr(prepare_full_daily, 'TencentExport', tencent_export)
-    monkeypatch.setattr(prepare_full_daily, 'run_tencent_authenticated', tencent_run)
+    monkeypatch.setattr(fee_sources, 'TencentExport', tencent_export)
+    monkeypatch.setattr(fee_sources, 'run_tencent_authenticated', tencent_run)
 
-    collect = prepare_full_daily.collector(batch, contracts, xhs_scope)
+    collect = fee_sources.collector(batch, contracts, xhs_scope)
     with pytest.raises(DailyBlocked, match='collection_incomplete:see_collection_report'):
         collect(workspace, DAY, 'run-test', tmp_path / 'capture')
 
@@ -112,10 +111,10 @@ def test_missing_scope_review_keeps_original_tencent_collection_path(tmp_path, m
     contracts, xhs_scope = _stub_non_tencent_sources(monkeypatch, batch)
     tencent_export = Mock(return_value=object())
     tencent_run = Mock(side_effect=RuntimeError('offline test stub'))
-    monkeypatch.setattr(prepare_full_daily, 'TencentExport', tencent_export)
-    monkeypatch.setattr(prepare_full_daily, 'run_tencent_authenticated', tencent_run)
+    monkeypatch.setattr(fee_sources, 'TencentExport', tencent_export)
+    monkeypatch.setattr(fee_sources, 'run_tencent_authenticated', tencent_run)
 
-    collect = prepare_full_daily.collector(batch, contracts, xhs_scope)
+    collect = fee_sources.collector(batch, contracts, xhs_scope)
     with pytest.raises(DailyBlocked, match='collection_incomplete:see_collection_report'):
         collect(workspace, DAY, 'run-test', tmp_path / 'capture')
 
@@ -125,33 +124,6 @@ def test_missing_scope_review_keeps_original_tencent_collection_path(tmp_path, m
     assert tencent_run.call_count == 2
 
 
-def test_tencent_scope_blocker_stops_expenses_without_rolling_back_base_or_notification(tmp_path):
-    notify = Mock(return_value={
-        'status': 'sent', 'release_id': 'business-release', 'as_of_date': DAY,
-        'message_count': 8, 'message_status_counts': {'sent': 8},
-    })
-    business = Mock(return_value={
-        'status': 'published', 'day': DAY, 'release': 'business-release', 'sources': PAIR,
-    })
-    expenses = Mock(side_effect=lambda _ws, _day, *, collect, **_kwargs:
-                    collect(_ws, _day, 'expense-run', tmp_path / 'capture'))
-    collect = Mock(side_effect=DailyBlocked('collection_incomplete:see_collection_report'))
-
-    result = run_business_first(
-        tmp_path / 'workspace', batch_dir=tmp_path / 'batch', collect=collect,
-        day=DAY, now=NOW, publish_business=business, publish_expenses=expenses,
-        notify=notify, assert_ready=Mock(return_value=PAIR),
-    )
-
-    assert result['status'] == 'partial'
-    assert result['published'] is True
-    assert result['business']['status'] == 'published'
-    assert result['notification']['status'] == 'sent'
-    assert result['expenses']['error_type'] == 'DailyBlocked'
-    assert result['expenses']['reason'] == 'collection_incomplete:see_collection_report'
-    business.assert_called_once()
-    notify.assert_called_once()
-    expenses.assert_called_once()
 
 
 def test_promotion_scope_auth_expiry_saves_once_and_retries_same_verification(tmp_path, monkeypatch):
@@ -173,21 +145,21 @@ def test_promotion_scope_auth_expiry_saves_once_and_retries_same_verification(tm
         return verification
 
     login = Mock()
-    monkeypatch.setattr(prepare_full_daily, 'verify_promotion_scope', verify)
-    monkeypatch.setattr(prepare_full_daily, 'save_tencent_login', login)
+    monkeypatch.setattr(fee_sources, 'verify_promotion_scope', verify)
+    monkeypatch.setattr(fee_sources, 'save_tencent_login', login)
 
-    assert prepare_full_daily._verify_promotion_scope_with_login(workspace, **kwargs) is verification
+    assert fee_sources._verify_promotion_scope_with_login(workspace, **kwargs) is verification
     assert len(calls) == 2
     assert calls[0] == calls[1] == (workspace, kwargs)
     login.assert_called_once_with(workspace)
 
     login.reset_mock()
     monkeypatch.setattr(
-        prepare_full_daily, 'verify_promotion_scope',
+        fee_sources, 'verify_promotion_scope',
         Mock(side_effect=DailyBlocked('tencent_promotion_native_export_required')),
     )
     with pytest.raises(DailyBlocked, match='tencent_promotion_native_export_required'):
-        prepare_full_daily._verify_promotion_scope_with_login(workspace, **kwargs)
+        fee_sources._verify_promotion_scope_with_login(workspace, **kwargs)
     login.assert_not_called()
 
 
@@ -206,7 +178,7 @@ def test_observed_contract_collector_includes_promotion_receipt_and_query_hashes
     })
     contracts, xhs_scope = _stub_non_tencent_sources(monkeypatch, batch)
     monkeypatch.setattr(
-        prepare_full_daily, 'tencent_window_status',
+        fee_sources, 'tencent_window_status',
         lambda *_args, **_kwargs: {
             'export_window_verified': True, 'native_dates_complete': True,
             'unreported_dates': [], 'sparse_display_accepted': False,
@@ -230,7 +202,7 @@ def test_observed_contract_collector_includes_promotion_receipt_and_query_hashes
         return {'task_id': 123, 'phase': 'verified', 'product_scope': scope,
                 'window': [start, through], 'file_sha256': hashlib.sha256(native.read_bytes()).hexdigest()}
 
-    monkeypatch.setattr(prepare_full_daily, 'run_tencent_authenticated', tencent_capture)
+    monkeypatch.setattr(fee_sources, 'run_tencent_authenticated', tencent_capture)
     output_dir = capture_dir / 'tencent-promotion-scope'
     query_file = output_dir / 'queries/bidding_display-page-001.json'
     receipt_file = output_dir / 'promotion-scope-check.json'
@@ -261,7 +233,7 @@ def test_observed_contract_collector_includes_promotion_receipt_and_query_hashes
         }
 
     verify_mock = Mock(side_effect=verify)
-    monkeypatch.setattr(prepare_full_daily, 'verify_promotion_scope', verify_mock)
+    monkeypatch.setattr(fee_sources, 'verify_promotion_scope', verify_mock)
     sem_manifest = tmp_path / 'sem-manifest.json'
     sem_manifest.write_text(json.dumps({'sources': [{'source_id': 'sem'}]}))
     sem_source = {
@@ -273,7 +245,7 @@ def test_observed_contract_collector_includes_promotion_receipt_and_query_hashes
     sem_receipt.write_text(json.dumps({
         'manifest_path': str(sem_manifest), 'sources': [sem_source],
     }))
-    monkeypatch.setattr(prepare_full_daily, 'resolve_sem_receipt', lambda **_kwargs: sem_receipt)
+    monkeypatch.setattr(fee_sources, 'resolve_sem_receipt', lambda **_kwargs: sem_receipt)
     from data_acquisition.connectors.advertising import sem_candidate
     monkeypatch.setattr(sem_candidate, 'load_sem_bundle', lambda _receipt: (
         [{'source_id': 'sem'}], [sem_source],
@@ -286,8 +258,8 @@ def test_observed_contract_collector_includes_promotion_receipt_and_query_hashes
             return {'status': 'staged'}
         return stage
 
-    monkeypatch.setattr(prepare_full_daily, 'receipt_collector', receipt_collector)
-    collect = prepare_full_daily.collector(batch, contracts, xhs_scope, sem_receipt=sem_receipt)
+    monkeypatch.setattr(fee_sources, 'receipt_collector', receipt_collector)
+    collect = fee_sources.collector(batch, contracts, xhs_scope, sem_receipt=sem_receipt)
 
     assert collect(workspace, DAY, 'run-test', capture_dir) == {'status': 'staged'}
     verify_mock.assert_called_once()

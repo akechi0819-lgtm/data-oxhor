@@ -16,21 +16,17 @@ import re
 import shutil
 import tempfile
 
-from data_platform.business_library import load_library, execute_library_query, read_library_result, verify_library_receipt
-from dashboard_product.management.notifications import build_notifications, _performance_month
 from monitoring_product import shared_delivery as delivery, delivery_transport as transport
 
 SCHEMA = 'release_notifications.v1'
 NATIVE_URL = 'https://dashboard.apinova.cn/superset/dashboard/shadow-bi-native/?standalone=1'
 TABLES = ('periods', 'team_periods', 'facts', 'personnel_facts', 'target_roster_references')
 ROOT = Path(__file__).resolve().parents[1]
-RULE_FILES = ('dashboard_product/management/notifications.py', 'dashboard_product/management/aggregate.py',
-              'dashboard_product/online_team/build.py', 'workspace_modeling/operations/personnel.py',
-              'data_platform/business_library.py', 'data_platform/query/service.py', 'data_platform/query/evidence.py',
-              'monitoring_product/release_notifications.py', 'monitoring_product/server_notify.py', 'monitoring_product/shared_delivery.py',
-              'monitoring_product/shared_preview.py', 'monitoring_product/delivery_transport.py')
-RULE_FILES += ('monitoring_product/sql_release_notifications.py',
-               'dashboard_product/shadow_bi/p4/sql_release.py')
+RULE_FILES = ('monitoring_product/release_notifications.py', 'monitoring_product/server_notify.py',
+              'monitoring_product/shared_delivery.py', 'monitoring_product/shared_preview.py',
+              'monitoring_product/delivery_transport.py', 'monitoring_product/sql_release_notifications.py',
+              'dashboard_product/shadow_bi/p4/sql_release.py')
+
 
 
 def canonical(value):
@@ -49,118 +45,9 @@ def rule_binding():
     return {name: sha(ROOT / name) for name in RULE_FILES}
 
 
-def identity(manifest, release_id):
-    if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_-]{0,127}', release_id):
-        raise ValueError('invalid release identity')
-    snapshots = manifest['snapshots']
-    if set(snapshots) != {'training', 'abroad'} or not all(snapshots.values()):
-        raise ValueError('notification release requires both Snapshots')
-    binding = manifest['binding']
-    semantics = {name: binding['inputs'][name] for name in ('Work/Pack/pack.json', 'Work/Bridge/reference.json')}
-    if any(not re.fullmatch('[0-9a-f]{64}', value) for value in semantics.values()):
-        raise ValueError('invalid Pack/Bridge binding')
-    coverage = manifest['coverage']
-    as_of = date.fromisoformat(manifest['as_of_date'])
-    if coverage['data_through'] != (as_of - timedelta(days=1)).isoformat():
-        raise ValueError('release cutoff must be as_of minus one day')
-    if coverage['snapshot_id'] != snapshots['training'] or coverage['study_abroad_source']['snapshot_id'] != snapshots['abroad']:
-        raise ValueError('release coverage Snapshot mismatch')
-    if coverage['study_abroad_source']['through_date'] != coverage['data_through']:
-        raise ValueError('joint source cutoff mismatch')
-    return {'release_id': release_id, 'batch_id': manifest['batch_id'], 'snapshots': snapshots,
-            'as_of_date': manifest['as_of_date'], 'data_through': coverage['data_through'],
-            'database_sha256': manifest['database']['sha256'],
-            'source_binding_sha256': hashlib.sha256(canonical(binding)).hexdigest(),
-            'semantics': semantics}
-
-
-def reconstruct(manifest, read_rows):
-    """Reassemble lossless stored inputs; never recalculate business aggregates."""
-    through = date.fromisoformat(manifest['coverage']['data_through'])
-    months = sorted({through.strftime('%Y-%m'), _performance_month(through)})
-    periods = read_rows('periods', 'WHERE id IN (?, ?)', [months[0], months[-1]])
-    by_id = {p['id']: {**p, 'teams': []} for p in periods}
-    if set(by_id) != set(months) or len(periods) != len(months):
-        raise ValueError('release lacks required notification periods')
-    seen = set()
-    for row in read_rows('team_periods', 'WHERE period_id IN (?, ?)', [months[0], months[-1]]):
-        key = (row['period_id'], row['team_id'])
-        if key in seen or row['view']['id'] != row['team_id']:
-            raise ValueError('duplicate or inconsistent stored team view')
-        seen.add(key)
-        by_id[row['period_id']]['teams'].append(row['view'])
-    starts = [through.replace(day=1).isoformat()]
-    for p in by_id.values():
-        for team in p['teams']:
-            if team.get('person_start'):
-                starts.append(team['person_start'])
-    start = min(starts)
-    facts = read_rows('facts', 'WHERE event_date BETWEEN ? AND ?', [start, through.isoformat()])
-    personal = read_rows('personnel_facts', 'WHERE event_date BETWEEN ? AND ?', [start, through.isoformat()])
-    references = {}
-    for row in read_rows('target_roster_references', '', []):
-        if row['name'] in references and references[row['name']] != row['document']:
-            raise ValueError('ambiguous bound reference')
-        references[row['name']] = row['document']
-    for required in ('people.json', 'offline_market_people.json'):
-        if required not in references or not isinstance(references[required], dict):
-            raise ValueError('release lacks bound roster input: ' + required)
-    public = {'metadata': deepcopy(manifest['coverage']), 'periods': list(by_id.values())}
-    return public, facts, personal, references['people.json'], references['offline_market_people.json']
-
-
 def build_bundle(*, library, batch_id, release_id, output_dir):
-    if (Path(library)/'candidate.json').is_file():
-        from monitoring_product.sql_release_notifications import build_bundle as build_sql_bundle
-        return build_sql_bundle(library=library,batch_id=batch_id,release_id=release_id,output_dir=output_dir)
-    library, output_dir = Path(library).resolve(), Path(output_dir).resolve()
-    if output_dir.exists():
-        raise ValueError('refuse to overwrite notification bundle')
-    manifest, _, manifest_ref = load_library(library, batch_id)
-    source = identity(manifest, release_id)
-    if not set(TABLES).issubset(manifest['tables']):
-        raise ValueError('release notification input closure incomplete')
-    rules = rule_binding()
-    output_dir.parent.mkdir(parents=True, exist_ok=True)
-    stage = Path(tempfile.mkdtemp(prefix='.notification-build-', dir=output_dir.parent))
-    receipts = []
-    try:
-        def rows(table, where, params):
-            result = []
-            for offset in range(0, manifest['tables'][table]['rows'], 200):
-                response = execute_library_query(library=library, batch_id=batch_id,
-                    sql=f'SELECT row_json FROM queries."{table}" {where} ORDER BY rowid LIMIT 200 OFFSET {offset}',
-                    parameters=params, run_id=f'run_notify_{table}_{offset:06}', output_root=stage/'queries',
-                    max_rows=200, max_result_bytes=32_000_000)
-                data = read_library_result(response, output_root=stage/'queries')
-                receipts.append({'path': str((Path('queries')/response['run_id']/response['receipt']['path'])),
-                                 'sha256': response['receipt']['sha256']})
-                result.extend(json.loads(row[0]) for row in data['rows'])
-                if len(data['rows']) < 200:
-                    break
-            return result
-        public, facts, personal, people, abroad = reconstruct(manifest, rows)
-        payload = build_notifications(public, facts, people, abroad, person_facts=personal)
-        metadata = {**public['metadata'], 'run_id': batch_id, 'as_of_date': source['as_of_date'],
-                    'release_id': release_id, 'preview_only': True}
-        payload['metadata'] = metadata
-        shared = {'metadata': metadata, 'notifications_ref': {'path': 'notifications.json',
-                  'sha256': hashlib.sha256(canonical(payload)).hexdigest()}}
-        delivery._validate_contract(shared, payload, source['as_of_date'], sending=False)
-        if rule_binding() != rules or sha(library/'library_manifest.json') != manifest_ref['sha256']:
-            raise ValueError('release or notification rules changed during build')
-        bundle = {'schema_version': SCHEMA, 'source': source, 'source_manifest_sha256': manifest_ref['sha256'],
-                  'notification_rules': rules, 'notification_source_policy': 'team=facts;personal=personnel_facts',
-                  'shared_result': {'path': 'shared_result.json', 'sha256': hashlib.sha256(canonical(shared)).hexdigest()},
-                  'notifications': shared['notifications_ref'], 'query_receipts': receipts,
-                  'dashboard_url': NATIVE_URL, 'team_deep_links': 'not configured; unified native dashboard'}
-        for name, value in [('notifications.json', payload), ('shared_result.json', shared), ('bundle.json', bundle)]:
-            (stage/name).write_bytes(canonical(value))
-        stage.rename(output_dir)
-        return bundle
-    except BaseException:
-        shutil.rmtree(stage, ignore_errors=True)
-        raise
+    from monitoring_product.sql_release_notifications import build_bundle as build_sql_bundle
+    return build_sql_bundle(library=library, batch_id=batch_id, release_id=release_id, output_dir=output_dir)
 
 
 def _bound_file(root, reference):
@@ -173,34 +60,8 @@ def _bound_file(root, reference):
 
 
 def verify_bundle(bundle_path, current_release, *, fresh=False):
-    bundle_path = Path(bundle_path).resolve()
-    root = bundle_path.parent
-    bundle = json.loads(bundle_path.read_bytes())
-    if bundle.get('schema_version') != SCHEMA:
-        raise ValueError('unsupported notification bundle')
-    if bundle.get('source_mode') == 'sql_warehouse':
-        from monitoring_product.sql_release_notifications import verify_bundle as verify_sql_bundle
-        return verify_sql_bundle(bundle_path,current_release,fresh=fresh)
-    current = Path(current_release).resolve(strict=True)
-    manifest, _, ref = load_library(current/'library', bundle['source']['batch_id'])
-    if identity(manifest, current.name) != bundle['source'] or ref['sha256'] != bundle['source_manifest_sha256']:
-        raise ValueError('notification bundle is not the current formal release')
-    if rule_binding() != bundle['notification_rules']:
-        raise ValueError('notification implementation digest mismatch')
-    shared_path = _bound_file(root, bundle['shared_result'])
-    _bound_file(root, bundle['notifications'])
-    shared, payload = delivery.shared_preview._read_shared_notifications(shared_path)
-    expected_metadata = {**manifest['coverage'], 'run_id': manifest['batch_id'],
-                         'as_of_date': manifest['as_of_date'], 'release_id': current.name, 'preview_only': True}
-    if shared['metadata'] != expected_metadata:
-        raise ValueError('notification release/source metadata mismatch')
-    delivery._validate_contract(shared, payload, manifest['as_of_date'], sending=fresh)
-    for reference in bundle['query_receipts']:
-        receipt = _bound_file(root, reference)
-        doc, _ = verify_library_receipt(receipt)
-        if doc['batch_id'] != bundle['source']['batch_id'] or doc['snapshots'] != bundle['source']['snapshots'] or doc['binding_sha256'] != bundle['source']['source_binding_sha256']:
-            raise ValueError('notification query provenance mismatch')
-    return bundle, shared_path
+    from monitoring_product.sql_release_notifications import verify_bundle as verify_sql_bundle
+    return verify_sql_bundle(bundle_path, current_release, fresh=fresh)
 
 
 def require_imported_state(state_dir, state=None):
