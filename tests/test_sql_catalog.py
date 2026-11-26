@@ -115,6 +115,7 @@ def _render_acquisition_scope_sql(key, scope, catalogue, unit='市场总计'):
 
 
 def test_flat_catalogue_preserves_every_legacy_dataset_contract():
+    from dashboard_product.shadow_bi.p4.roi_dashboard import CHARTS, COLUMNS
     from dashboard_product.shadow_bi.sql_warehouse.catalog import _metadata
 
     legacy = _metadata()
@@ -122,11 +123,11 @@ def test_flat_catalogue_preserves_every_legacy_dataset_contract():
     assert set(catalogue) == {view.key for view in legacy}
     for view in legacy:
         entry = catalogue[view.key]
-        assert entry.columns == tuple(view.columns), view.key
+        assert entry.columns == (tuple(COLUMNS) if view.key in CHARTS else tuple(view.columns)), view.key
         assert entry.filters == view.filters, view.key
         assert entry.title == view.title, view.key
         assert entry.page == view.page, view.key
-        assert entry.section == view.section, view.key
+        assert entry.section == ('ROI 看板' if view.key in CHARTS else view.section), view.key
     assert len(catalogue) == 158
     assert 'native_overview_ssc' not in catalogue
     assert all('SSC' not in entry.title for entry in catalogue.values())

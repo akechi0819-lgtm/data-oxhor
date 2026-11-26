@@ -126,3 +126,39 @@ def test_online_daily_cache_preserves_scopes_schema_and_refreshes_on_reinstall()
         assert _relation_schema(con, 'business.online_scoped_daily') == cache_schema
     finally:
         con.close()
+
+
+def test_abroad_exact_paid_channel_contract_in_sql_cache():
+    con = duckdb.connect(':memory:')
+    try:
+        con.execute('CREATE SCHEMA business')
+        con.execute('''CREATE TABLE business.facts(
+            fact_id VARCHAR,business_line VARCHAR,metric VARCHAR,source_record JSON,
+            second_channel VARCHAR,first_channel VARCHAR,raw_second_channel VARCHAR,
+            third_channel VARCHAR,raw_first_channel VARCHAR,work_order_id VARCHAR,
+            event_date DATE,value DECIMAL(24,2),business_group VARCHAR,
+            acquisition_mode VARCHAR,team_id VARCHAR,segment_id VARCHAR)''')
+        examples = ([(label, '腾讯广告') for label in ('微信朋友圈', '微信搜索', '微信搜索乐语', '微信小程序', '微信小程序乐语')] +
+                    [(label, '抖音') for label in ('抖音', '抖音本地推', '抖音来客', '抖音来客私信')] +
+                    [(label, '小红书') for label in ('小红书', '分公司小红书', '小红书付费', '小红书免费', '小红书私信')] +
+                    [('小红书-付费', '小红书'), ('小红书－免费', '小红书'),
+                    ('今日头条', '其他线上来源'), ('抖音品专', '其他线上来源'),
+                    ('小红书品专', '其他线上来源'), ('腾讯广告', '其他线上来源'),
+                    ('微信官微', '微信')])
+        rows = []
+        for index, (third, expected) in enumerate(examples):
+            for metric in ('orders', 'cash'):
+                row = list(_fact(f'{index}-{metric}', 'abroad', metric, '1.00', '2026-11-05',
+                                 segment_id='study_abroad_online'))
+                row[7] = third
+                if expected in ('腾讯广告', '抖音', '小红书'):
+                    row[6] = '百度'
+                rows.append(row)
+        con.executemany('INSERT INTO business.facts VALUES (' + ','.join('?' for _ in rows[0]) + ')', rows)
+        install_platforms(con)
+        actual = dict(con.execute('SELECT fact_id,platform FROM business.platform_audit').fetchall())
+        for index, (_, expected) in enumerate(examples):
+            for metric in ('orders', 'cash'):
+                assert actual[f'{index}-{metric}'] == expected
+    finally:
+        con.close()

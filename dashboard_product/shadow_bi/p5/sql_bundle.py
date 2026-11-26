@@ -70,6 +70,7 @@ def prepare_release(*, candidate, workspace, release_id, output_dir, coverage_te
     ]
     _write(library/'superset-catalogue.json', {
         'schema_version': 'sql_superset_catalogue.v1',
+        'roi_dashboard': True,
         'overview_filter_mode': 'training_business_group',
         'overview_group_ignored_datasets': ignored_datasets,
         'overview_group_additional_datasets': [

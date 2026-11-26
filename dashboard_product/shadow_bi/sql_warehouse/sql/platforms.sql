@@ -75,8 +75,19 @@ WITH choices AS (
    WHEN kind='brand' AND platform='腾讯广告' THEN 1 WHEN kind='category' THEN 2 ELSE 3 END,layer) AS choice
  FROM business.platform_layers
 )
-SELECT f.*,coalesce(c.platform,'其他线上来源') AS platform,c.kind AS classification_kind,c.layer AS classification_layer
-FROM business.facts f LEFT JOIN choices c ON f.fact_id=c.fact_id AND c.choice=1;
+SELECT f.*,
+ CASE WHEN a.platform IS NOT NULL THEN a.platform
+      WHEN f.business_line='abroad' AND f.metric IN ('orders','cash')
+       AND c.platform IN (SELECT platform FROM config.abroad_paid_third_channels) THEN '其他线上来源'
+      ELSE coalesce(c.platform,'其他线上来源') END AS platform,
+ CASE WHEN a.platform IS NOT NULL THEN 'confirmed_abroad_third_channel'
+      WHEN f.business_line='abroad' AND f.metric IN ('orders','cash')
+       AND c.platform IN (SELECT platform FROM config.abroad_paid_third_channels) THEN 'unconfirmed_abroad_paid_channel'
+      ELSE c.kind END AS classification_kind,
+ CASE WHEN a.platform IS NOT NULL THEN 1 ELSE c.layer END AS classification_layer
+FROM business.facts f LEFT JOIN choices c ON f.fact_id=c.fact_id AND c.choice=1
+LEFT JOIN config.abroad_paid_third_channels a ON f.business_line='abroad' AND f.metric IN ('orders','cash')
+ AND a.label=regexp_replace(coalesce(f.third_channel,''),'__ABROAD_PAID_CHANNEL_SEPARATORS__','','g');
 
 CREATE OR REPLACE TABLE business.online_daily_cache AS
 SELECT a.acquisition_scope,CAST(event_date AS DATE) AS event_date,business_line,

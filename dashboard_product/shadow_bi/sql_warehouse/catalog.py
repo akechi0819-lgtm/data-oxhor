@@ -1061,6 +1061,9 @@ def _flat_native_views(metadata, flat_base):
 
 def build_catalogue():
     """Return all legacy dataset contracts backed by flat warehouse SQL."""
+    from dashboard_product.shadow_bi.p4.roi_dashboard import CHARTS, COLUMNS
+    from .roi_dashboard import roi_dashboard_sql
+
     metadata = _metadata()
     p3_contracts = [contract for contract in metadata if not contract.key.startswith('native_')]
     flat_base = {}
@@ -1082,11 +1085,15 @@ def build_catalogue():
         page = contract.page
         sql = flat_base[contract.key].sql if contract.key in flat_base else native_views.get(contract.key).sql if contract.key in native_views else None
         unsupported = unsupported_by_key.get(contract.key, _UNSUPPORTED.get(contract.key))
+        columns, section = tuple(contract.columns), contract.section
+        if contract.key in CHARTS:
+            role, _, _ = CHARTS[contract.key]
+            sql, columns, section = roi_dashboard_sql(role), tuple(COLUMNS), 'ROI 看板'
         if sql is None and unsupported is None:
             unsupported = 'No complete flat SQL mapping is available for this dataset key.'
         entry = DatasetSQL(
-            key=contract.key, title=contract.title, page=page, section=contract.section,
-            columns=tuple(contract.columns), filters=deepcopy(contract.filters), sql=sql,
+            key=contract.key, title=contract.title, page=page, section=section,
+            columns=columns, filters=deepcopy(contract.filters), sql=sql,
             unsupported=unsupported, viz=contract.viz, more=deepcopy(contract.more), contract=contract)
         entries[entry.key] = entry
     return entries

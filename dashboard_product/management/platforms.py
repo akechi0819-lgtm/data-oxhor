@@ -9,6 +9,15 @@ from typing import Any
 
 OTHER = "其他线上来源"
 
+ABROAD_PAID_THIRD_CHANNELS = {
+    "腾讯广告": ("微信朋友圈", "微信搜索", "微信搜索乐语", "微信小程序", "微信小程序乐语"),
+    "抖音": ("抖音", "抖音本地推", "抖音来客", "抖音来客私信"),
+    "小红书": ("小红书", "分公司小红书", "小红书付费", "小红书免费", "小红书私信"),
+}
+ABROAD_PAID_CHANNEL_SEPARATORS = r"[\s_－-]+"
+_ABROAD_PAID_BY_THIRD = {label: platform for platform, labels in ABROAD_PAID_THIRD_CHANNELS.items()
+                         for label in labels}
+
 _BRANDS = (
     ("闲鱼", ("闲鱼",)),
     ("微信", ("微信", "视频号", "公众号", "官微")),
@@ -89,6 +98,14 @@ def classify_business_fact(
         layers = _training_layers(fact, order_labels)
 
     result = _resolve_layers(layers)
+    if line == "abroad":
+        # Both acquisition and contracting carry the original third-level detail here.
+        label = re.sub(ABROAD_PAID_CHANNEL_SEPARATORS, "", str(fact.get("third_channel") or ""))
+        platform = _ABROAD_PAID_BY_THIRD.get(label)
+        if platform:
+            result = {"platform": platform, "basis": "confirmed_abroad_third_channel"}
+        elif result["platform"] in ABROAD_PAID_THIRD_CHANNELS:
+            result = {"platform": OTHER, "basis": "unconfirmed_abroad_paid_channel"}
     raw_labels = []
     seen = set()
     for _, labels, _, _ in layers:

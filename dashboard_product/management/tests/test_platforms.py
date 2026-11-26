@@ -85,6 +85,33 @@ class CanonicalPlatformTests(unittest.TestCase):
 
 
 class ClassifyBusinessFactTests(unittest.TestCase):
+    def test_abroad_paid_platform_requires_confirmed_third_channel(self):
+        examples = {
+            **{label: '腾讯广告' for label in ('微信朋友圈', '微信搜索', '微信搜索乐语', '微信小程序', '微信小程序乐语')},
+            **{label: '抖音' for label in ('抖音', '抖音本地推', '抖音来客', '抖音来客私信')},
+            **{label: '小红书' for label in ('小红书', '分公司小红书', '小红书付费', '小红书免费', '小红书私信')},
+            '小红书-付费': '小红书', '小红书－付费': '小红书',
+            '小红书-免费': '小红书', '小红书－免费': '小红书',
+            '今日头条': OTHER, '抖音品专': OTHER, '小红书品专': OTHER,
+            '腾讯广告': OTHER, '微信官微': '微信',
+        }
+        for metric in ('orders', 'cash'):
+            for third, expected in examples.items():
+                with self.subTest(metric=metric, third_channel=third):
+                    result = classify_business_fact({
+                        'business_line': 'abroad', 'metric': metric, 'third_channel': third,
+                        'raw_second_channel': '百度' if expected in ('腾讯广告', '抖音', '小红书') else None,
+                    })
+                    self.assertEqual(result['platform'], expected)
+
+    def test_training_paid_platform_classification_is_unchanged(self):
+        for metric in ('orders', 'cash'):
+            for label, expected in (('今日头条', '抖音'), ('小红书品专', '小红书'), ('腾讯广告', '腾讯广告')):
+                with self.subTest(metric=metric, label=label):
+                    self.assertEqual(classify_business_fact({
+                        'business_line': 'training', 'metric': metric, 'second_channel': label,
+                    })['platform'], expected)
+
     def test_abroad_recovers_parent_platform_after_generic_third_channel(self):
         result = classify_business_fact({
             "business_line": "abroad",

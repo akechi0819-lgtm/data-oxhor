@@ -59,6 +59,7 @@ def metadata_snapshot():
     from superset.models.dashboard import Dashboard
     from superset.connectors.sqla.models import SqlaTable
     from superset.models.slice import Slice
+    from dashboard_product.shadow_bi.p4.roi_dashboard import CHARTS, table_name
     database = db.session.query(Database).filter_by(database_name=DATABASE_NAME).one()
     dashboard = db.session.query(Dashboard).filter_by(slug='shadow-bi-native').one()
     tables = db.session.query(SqlaTable).filter_by(database_id=database.id).all()
@@ -67,14 +68,17 @@ def metadata_snapshot():
         Slice.datasource_type == 'table', Slice.datasource_id.in_(retired_ids)).all()
         if retired_ids else [])
     charts = {chart.id: chart for chart in [*dashboard.slices, *retired_charts]}
+    roi_tables = {table_name(role) for role, _, _ in CHARTS.values()}
     return {'database_id': database.id, 'sqlalchemy_uri': database.sqlalchemy_uri,
             'extra': database.extra, 'dashboard_id': dashboard.id,
             'position_json': dashboard.position_json, 'json_metadata': dashboard.json_metadata,
             'dataset_sql': {str(table.id): table.sql for table in tables},
             'dataset_names': {str(table.id): table.table_name for table in tables},
             'column_names': {str(column.id): column.column_name for table in tables for column in table.columns},
+            'roi_dataset_ids': [table.id for table in tables if table.table_name in roi_tables],
             'chart_params': {str(chart.id): chart.params for chart in charts.values()},
             'chart_names': {str(chart.id): chart.slice_name for chart in charts.values()},
+            'chart_viz_types': {str(chart.id): chart.viz_type for chart in charts.values()},
             'chart_ids': [chart.id for chart in dashboard.slices]}
 
 
@@ -100,6 +104,13 @@ def restore_metadata(snapshot):
         db.session.get(Slice, int(key)).params = params
     for key, name in snapshot.get('chart_names', {}).items():
         db.session.get(Slice, int(key)).slice_name = name
+    for key, viz_type in snapshot.get('chart_viz_types', {}).items():
+        db.session.get(Slice, int(key)).viz_type = viz_type
+    for dataset_id in snapshot.get('roi_dataset_ids', []):
+        dataset = db.session.get(SqlaTable, dataset_id)
+        for column in list(dataset.columns):
+            if str(column.id) not in snapshot['column_names']:
+                db.session.delete(column)
     for key, name in snapshot['column_names'].items():
         db.session.get(TableColumn, int(key)).column_name = name
     db.session.commit()
@@ -270,6 +281,9 @@ def install_metadata(library, *, current_library=None):
             [chart.id for chart in dashboard.slices
              if chart.datasource_type == 'table' and chart.datasource_id in additional_ids],
             positions)
+    if catalogue.get('roi_dashboard') is True:
+        from dashboard_product.shadow_bi.p4.roi_dashboard import install_roi_dashboard
+        install_roi_dashboard(dashboard, by_name, positions, metadata)
     headers[0]['meta']['code'] = candidate['dashboard_coverage_note']
     fees[0]['meta']['code'] = release['expense_coverage_note']
     metadata['label_colors'] = LABEL_COLORS
@@ -340,8 +354,14 @@ def verify_http(target, audit):
              if isinstance(node, dict) and node.get('type') == 'MARKDOWN']
     if candidate['dashboard_coverage_note'] not in notes or release['expense_coverage_note'] not in notes:
         raise ValueError('正式业务／费用日期与单仓不同')
-    return {'status': 'passed', 'identity': identity, 'metrics_compared': 18, 'checks': checks,
-            'header_matches': True, 'expense_note_matches': True}
+    result = {'status': 'passed', 'identity': identity, 'metrics_compared': 18, 'checks': checks,
+              'header_matches': True, 'expense_note_matches': True}
+    catalogue = json.loads(resolve_file(target/'library', release['superset_catalogue']).read_bytes())
+    if catalogue.get('roi_dashboard') is True:
+        from dashboard_product.shadow_bi.p4.roi_dashboard import verify_roi_dashboard
+        result['roi_dashboard'] = verify_roi_dashboard(
+            client, base, positions, native['datasets'], candidate['through_date'][:7])
+    return result
 
 
 def verify_acceptance(library, release, *, contract_file=Path('/var/lib/shadow-bi/app/sql-contract.json')):
