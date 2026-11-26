@@ -1,5 +1,9 @@
 # Data OXHor 开发文档
 
+## 留学经营范围与历史修订（2026-11-26）
+
+留学经营工单、现金和分域去重人头统一按团队汇总：线上包括线上虚拟人，总计剔除 SSC 并保留国际市场；SSC仍可单列。签约或实缴不能匹配个人而来源明确线上或线下时计入对应团队。六月和七月经确认的四笔历史金额及九月确认来源已修订留学 Snapshot；后续按月份从腾讯文档增补，保留已确认的历史。现行口径见[集成指南](docs/integration-guide.md#22-隔离留学仓与腾讯更新现行)，本轮看板发布及线上读回见 `.local/audits/study-abroad-team-scope-20261126/`。各日期旧验收段落记录当时状态。
+
 ## 项目审理（2026-11-23）
 
 看板取数与 Company Bridge 的差异见[逐项核对](docs/bridge-dashboard-review-20261123.md)。查本机当前 SQL 发布、语培 Snapshot 和留学 Snapshot，请分别读取客户工作区的 `Output/ShadowDaily/sql-current.json`、`Work/workspace.json` 和 `Work/StudyAbroad/current.json`。以下具名发布号、运行日期及调度记录均按当次验收理解。市场交付从[市场工作区](market_workspace/README.md)进入。

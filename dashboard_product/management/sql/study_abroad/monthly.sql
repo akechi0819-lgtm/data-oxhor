@@ -1,5 +1,5 @@
--- International-market ownership only contributes to total and a separate
--- supplemental item. No training data or online/offline team is read or joined.
+-- 留学独立仓来源对账，按标准行中的团队分段，不做正式看板的渠道分段和团队汇总。
+-- 此处 total 包含所有符合来源资格的分段（含 SSC），正式看板取发布批次的 business.team_values。
 WITH facts AS (
 __STUDY_ABROAD_FACTS__
 ), expanded AS (

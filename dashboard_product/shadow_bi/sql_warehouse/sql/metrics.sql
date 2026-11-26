@@ -49,7 +49,8 @@ SELECT * FROM (VALUES
 CREATE OR REPLACE VIEW business.scoped_facts AS
 SELECT s.unit_id,a.acquisition_scope,f.*
 FROM business.facts f JOIN business.scopes s ON
- (s.unit_id='total' OR CASE WHEN f.business_line='training' THEN
+ ((s.unit_id='total' AND (f.business_line<>'abroad' OR f.segment_id IS DISTINCT FROM 'ssc'))
+ OR CASE WHEN f.business_line='training' THEN
    (s.unit_id IN ('overview_prep','overview_high','overview_university') AND f.business_group=s.business_group)
    OR (s.source_team IS NOT NULL AND (f.team_id=s.source_team OR s.source_team='__online__' AND f.team_id IN ('online_private','online_platform'))
     AND f.business_group IN ('留学预备','高中','大学')
@@ -58,7 +59,9 @@ FROM business.facts f JOIN business.scopes s ON
      f.comparison_group='青少' AND (s.selection_mask & 1)>0 OR
      f.comparison_group='初中' AND (s.selection_mask & 2)>0 OR
      f.comparison_group='高中' AND (s.selection_mask & 4)>0))
- ELSE s.abroad_segment IS NOT NULL AND f.segment_id=s.abroad_segment END)
+ ELSE s.abroad_segment IS NOT NULL AND
+   (f.segment_id=s.abroad_segment OR s.unit_id IN ('online','online_scope')
+    AND f.segment_id='study_abroad_virtual') END)
 CROSS JOIN business.acquisition_scopes a
 WHERE (f.business_line<>'training' OR a.acquisition_mode='全部' OR f.acquisition_mode=a.acquisition_mode)
  AND (f.business_line<>'training' OR f.metric<>'cash' OR a.student_type_scope='全部'

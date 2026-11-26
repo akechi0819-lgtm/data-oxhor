@@ -426,8 +426,13 @@ def publish(*, workspace: str | Path, day: str, pair: dict, run_id: str,
         f"{min(coverage['orders_end'], through)}，现金覆盖{coverage['cash_start']}至"
         f"{min(coverage['cash_end'], through)}，不保证覆盖活动完整生命周期。"
     )
-    coverage_template['notes'] = [note for note in coverage_template['notes']
-                                  if not note.startswith('活动按当前Snapshot可用历史累计；')]
+    legacy_scope = 'SSC及待确认归属只计留学总盘，不计线上/线下留学团队；'
+    cash_only_scope = '线上留学现金汇总包含线上虚拟人；留学及小语种现金总计剔除SSC；待确认归属只计留学总盘；'
+    abroad_scope = '工单、现金和去重人头汇总中，线上留学包含虚拟人，留学及小语种总计剔除SSC；待确认归属只计留学总盘；'
+    coverage_template['notes'] = [
+        note.replace(legacy_scope, abroad_scope).replace(cash_only_scope, abroad_scope)
+        for note in coverage_template['notes'] if not note.startswith('活动按当前Snapshot可用历史累计；')
+    ]
     coverage_template['notes'].append(activity_note)
     release = prepare_release(
         candidate=candidate_dir, workspace=workspace, release_id=release_id,

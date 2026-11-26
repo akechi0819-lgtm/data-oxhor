@@ -107,6 +107,35 @@ class SqlNotificationTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'must include start_date and through_date'):
             compile_notifications(self.con, through='2026-11-05', study_abroad_source={})
 
+    def test_online_abroad_cash_ledger_and_head_counts_include_virtual(self):
+        for fact_id, segment, value in (
+            ('online-cash', 'study_abroad_online', 100),
+            ('virtual-cash', 'study_abroad_virtual', 20),
+        ):
+            row = {key: None for key in FACT_COLUMNS}
+            row.update({
+                'fact_id': fact_id, 'metric': 'cash', 'business_line': 'abroad',
+                'event_date': '2026-11-02', 'value': value, 'student_id': fact_id,
+                'customer_domain': 'study_abroad', 'source_product': 'study_abroad',
+                'segment_id': segment, 'owners': [], 'virtual_owners': [],
+            })
+            names = list(FACT_COLUMNS)
+            self.con.execute(
+                'INSERT INTO business.abroad_facts (' + ','.join(names) + ') VALUES (' +
+                ','.join('?' for _ in names) + ')',
+                [row.get(name) for name in names],
+            )
+        payload = compile_notifications(
+            self.con, through='2026-11-05',
+            study_abroad_source={'start_date': '2026-06-01', 'through_date': '2026-11-05',
+                                 'snapshot_id': 'fixture'},
+        )
+        message = next(item for item in payload['messages'] if item['id'] == 'online.abroad')
+        self.assertEqual(message['team_metrics']['cash']['actual'], 120)
+        self.assertEqual(sum(item['value'] for item in message['ledgers']['team_cash']), 120)
+        self.assertEqual(message['team_metrics']['heads']['actual'], 2)
+        self.assertEqual(message['team_metrics']['heads']['parts'][0]['actual'], 2)
+
 
 if __name__ == '__main__':
     unittest.main()

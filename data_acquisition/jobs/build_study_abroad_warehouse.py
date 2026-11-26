@@ -128,6 +128,44 @@ def _roster(people, abroad):
     return result
 
 
+# 两份经核验的六月原件内容对应同一批逐行确认；不按文件名猜测。
+_JUNE_ORIGINS = frozenset({
+    'aab413828f4a2bebb9453354c4d4a6ba46c3f8a4b2c6402afffa9b2d6c12f840',
+    'c5c409470112fae3ed62171f8533089e2411bf31081be50d00fd1eabef3f8b69',
+})
+_JUNE_TEAM_CORRECTIONS = {
+    ('contracts', '留学签约', 57): ('50000.00', '线下组'),
+    ('languages', '语培签约', 54): ('7000.00', '线上组'),
+    ('languages', '语培签约', 55): ('6300.00', '线上组'),
+}
+
+
+def _apply_cash_team_confirmations(tables):
+    """只修正已确认签约团队，原始人员、来源组和来源行保持可追溯。"""
+    for kind in ('contracts', 'languages'):
+        for row in tables[kind]:
+            key = (kind, _text(row.get('origin_sheet')), int(row.get('origin_row_number') or 0))
+            correction = _JUNE_TEAM_CORRECTIONS.get(key) if row.get('origin_sha256') in _JUNE_ORIGINS else None
+            if correction:
+                amount, group = correction
+                if _money(row.get('amount')) != amount:
+                    raise ValueError(f'六月已确认签约来源金额不符：{key}')
+                mapping_source = 'confirmed_june_cash_team'
+            else:
+                group = {'线上': '线上组', '线下': '线下组', '线上组': '线上组', '线下组': '线下组'}.get(_text(row.get('source_group')))
+                if (not group or (_text(row.get('market_group')) and
+                                  not (_text(row.get('market_group')) == group and not _text(row.get('owner')))) or
+                        _text(row.get('owner')) in {'非市场', '国外部签约流转'} or
+                        _text(row.get('source_group')) in NON_MARKET_GROUPS):
+                    continue
+                mapping_source = 'explicit_source_team_without_person_mapping'
+            if correction:
+                row['owner'] = '线下其他' if group == '线下组' else '网络其他'
+            row.update(market_group=group, segment_id=GROUP_SEGMENTS[group],
+                       market_eligible='true', team_eligible='true', personal_eligible='false',
+                       ownership_mapping_source=mapping_source)
+
+
 def normalize_sources(source, people, abroad):
     """Retain raw ownership while resolving the confirmed market segments once."""
     roster = _roster(people, abroad)
@@ -213,6 +251,10 @@ def normalize_sources(source, people, abroad):
                 'event_date': event_date,
                 'resource_id': _identifier(raw.get('resource_id')),
             }
+            if kind != 'resources':
+                row['amount'] = _money(raw.get('amount'))
+                _apply_cash_team_confirmations({kind: [row], 'contracts' if kind == 'languages' else 'languages': []})
+                market = row['market_eligible'] == 'true'
             if market and not event_date:
                 raise ValueError(f'{SOURCE_SHEETS[kind]}已归属记录缺少日期：第{raw["source_row_number"]}行')
             if kind == 'resources':
@@ -418,6 +460,7 @@ def build(*, workspace: Path, source_file: Path, run_id: str, snapshot_id: str,
             from data_acquisition.jobs.study_abroad_snapshot_history import replace_normalized_months
             from data_acquisition.jobs.study_abroad_identity import align_customer_keys
             tables = replace_normalized_months(history_context['tables'], tables, refresh_months)
+            _apply_cash_team_confirmations(tables)
             diagnostics['customer_identity'] = align_customer_keys(tables)
         run_root.mkdir(parents=True)
         inputs = run_root / 'input'
@@ -485,7 +528,7 @@ def build(*, workspace: Path, source_file: Path, run_id: str, snapshot_id: str,
             'diagnostics': diagnostics,
             'amount_basis': {'contracts': '签约金额', 'languages': '实缴金额'},
             'rules': {
-                'blank_owner': 'excluded', 'department_deleted_resource': 'included',
+                'blank_owner': '签约明确团队时仅计团队；其他排除', 'department_deleted_resource': 'included',
                 'personal_deleted_resource': 'excluded', 'signature': 'positive_gross_only',
                 'resource_identity': 'resource_id_first_source_row',
                 'contract_customer_key': '客户ID优先；缺失按姓名暂定去重',

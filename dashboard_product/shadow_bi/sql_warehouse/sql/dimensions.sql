@@ -671,9 +671,9 @@ WITH country_rows AS (
     SELECT e.period_id, e.unit_id, e.acquisition_scope,
         COALESCE(NULLIF(TRIM(CAST(e.line AS VARCHAR)), ''), '条线待确认') AS line,
         COALESCE(NULLIF(TRIM(CAST(e.country AS VARCHAR)), ''), '国家待确认') AS country,
-        SUM(e.value) FILTER (WHERE e.segment_id = 'study_abroad_online') AS online,
+        SUM(e.value) FILTER (WHERE e.segment_id IN ('study_abroad_online','study_abroad_virtual')) AS online,
         SUM(e.value) FILTER (WHERE e.segment_id = 'study_abroad_offline') AS offline,
-        SUM(e.value) FILTER (WHERE e.segment_id NOT IN ('study_abroad_online', 'study_abroad_offline')
+        SUM(e.value) FILTER (WHERE e.segment_id NOT IN ('study_abroad_online', 'study_abroad_virtual', 'study_abroad_offline')
                                   OR e.segment_id IS NULL) AS unassigned
     FROM business.period_events e
     WHERE e.business_line = 'abroad' AND e.comparison = 'actual' AND e.metric = 'orders'
@@ -683,9 +683,9 @@ WITH country_rows AS (
     SELECT e.period_id, s.unit_id, e.acquisition_scope,
         COALESCE(NULLIF(TRIM(CAST(e.line AS VARCHAR)), ''), '条线待确认') AS line,
         COALESCE(NULLIF(TRIM(CAST(e.country AS VARCHAR)), ''), '国家待确认') AS country,
-        SUM(e.value) FILTER (WHERE e.segment_id = 'study_abroad_online') AS online,
+        SUM(e.value) FILTER (WHERE e.segment_id IN ('study_abroad_online','study_abroad_virtual')) AS online,
         SUM(e.value) FILTER (WHERE e.segment_id = 'study_abroad_offline') AS offline,
-        SUM(e.value) FILTER (WHERE e.segment_id NOT IN ('study_abroad_online', 'study_abroad_offline')
+        SUM(e.value) FILTER (WHERE e.segment_id NOT IN ('study_abroad_online', 'study_abroad_virtual', 'study_abroad_offline')
                                   OR e.segment_id IS NULL) AS unassigned
     FROM business.period_events e
     JOIN business.scopes s ON s.unit_id LIKE 'selection_%'

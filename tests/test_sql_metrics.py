@@ -108,6 +108,41 @@ class SqlMetricTests(unittest.TestCase):
         self.assertEqual(c.execute("SELECT actual,status FROM business.team_metrics WHERE period_id='2026-06' AND unit_id='online' AND acquisition_scope='被动' AND business_line='abroad' AND metric='heads'").fetchone(),(None,'separate_counts'))
         self.assertEqual(c.execute("SELECT actual,status FROM business.team_metrics WHERE period_id='2026-12' AND unit_id='online' AND acquisition_scope='被动' AND business_line='training' AND metric='cash'").fetchone(),(None,'future'))
 
+    def test_abroad_online_includes_virtual_and_total_excludes_ssc(self):
+        abroad = []
+        for segment, cash, student in (
+            ('study_abroad_online', 100, 'online'),
+            ('study_abroad_virtual', 20, 'virtual'),
+            ('study_abroad_offline', 30, 'offline'),
+            ('ssc', 40, 'ssc'),
+            ('international_market', 5, 'international'),
+            (None, 7, 'unassigned'),
+        ):
+            label = segment or 'unassigned'
+            abroad.append(fact(label + '-cash', cash, business_line='abroad',
+                               segment_id=segment, student_id=student, customer_domain='study_abroad'))
+            abroad.append(fact(label + '-order', 1, metric='orders', business_line='abroad',
+                               segment_id=segment, student_id=student, customer_domain='study_abroad'))
+        c = self.connect([fact('training-cash', 200)], abroad)
+        rows = c.execute("""
+            SELECT unit_id, cash, orders, study_heads FROM business.team_values
+            WHERE period_id='2026-06' AND acquisition_scope='全部'
+              AND business_line='abroad' AND comparison='actual'
+              AND unit_id IN ('total','online','online_scope','university','virtual','ssc')
+        """).fetchall()
+        values = {unit: (cash, orders, heads) for unit, cash, orders, heads in rows}
+        self.assertEqual(values['total'], (162, 5, 5))
+        self.assertEqual(values['online'], (120, 2, 2))
+        self.assertEqual(values['online_scope'], (120, 2, 2))
+        self.assertEqual(values['university'], (30, 1, 1))
+        self.assertEqual(values['virtual'], (20, 1, 1))
+        self.assertEqual(values['ssc'], (40, 1, 1))
+        self.assertEqual(c.execute("""
+            SELECT cash FROM business.team_values
+            WHERE period_id='2026-06' AND unit_id='total' AND business_line='training'
+              AND acquisition_scope='全部' AND comparison='actual'
+        """).fetchone()[0], 200)
+
     def test_personal_performance_month_and_calendar_month_are_different(self):
         c=self.connect([fact('a',1,metric='orders',event_date='2026-05-26',team_id='offline_market',business_group='高中',owners=['刘彬'])])
         install_personal(c,config_root=ROOT)

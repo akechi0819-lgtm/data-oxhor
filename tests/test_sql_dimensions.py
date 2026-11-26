@@ -443,6 +443,16 @@ class DimensionSqlTests(unittest.TestCase):
         """).fetchone()
         self.assertEqual(grouped, (0.0, 1.0, 0.0, 1.0))
 
+    def test_virtual_resources_are_counted_in_online_country_split(self):
+        self._event(unit='total', line='abroad', metric='orders', value=1,
+                    segment='study_abroad_virtual', country='加拿大', country_line='北美条线')
+        country = self.con.execute("""
+            SELECT online, offline, unassigned, total FROM business.dimension_countries
+            WHERE period_id='2026-06' AND unit_id='total' AND acquisition_scope='被动'
+              AND line='北美条线' AND country='加拿大'
+        """).fetchone()
+        self.assertEqual(country, (2.0, 0.0, 0.0, 2.0))
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -1,5 +1,7 @@
 # Bridge 与看板口径对照（2026-11-23）
 
+> 本文是 2026-11-23 的逐项核对和版本回执。留学线上、SSC、签约团队的经营汇总规则于 2026-11-26 更新，现行执行范围见[集成指南](integration-guide.md#22-隔离留学仓与腾讯更新现行)；本文保留当时证据。
+
 本次核对以工作区绑定的 Bridge 和本地看板代码为依据。经营现金与项目毛签的初中归属已由业务确认。工作区绑定 `Work/Bridge/reference.json`，身份 `bridge_bi_operations`、版本 `1.7.4`，SHA-256 为 `3e6434ee5dd61ba91e1121dfac858e2c7349971641435121850741ab1eb5e068`。原 1.7.3 已保存，其 SHA-256 `937c378eb6cd77651cffd21484dda4dc92829bbc978714b7d3a1b464f5e60db7` 与本次 11 月 23 日 SQL release 的 `semantics` 登记值相同。对照的是 [本次 release](../customers/shadow_bi_daily/Output/ShadowDaily/run_shadow_daily_20261123_121908/sql-attempts/daily-sql-20261123-122141104860-ab4a707d7a/release-output/daily-sql-20261123-122141104860-ab4a707d7a/library/release.json)，并非对服务器当前指针的独立核验。release 将 Bridge 摘要封存，见 [发布实现](../dashboard_product/shadow_bi/p5/sql_bundle.py#L126)。
 
 | 条目 | 对照结论 | 证据与处理 |
@@ -32,3 +34,9 @@
 2026-11-23 用户明确确认经营现金及项目毛签中初中、初中国际学科归留学预备。已用 confirmed_review 构建 1.7.4，并以当前 Pack 与 `snapshot_bi_operations_20261123_121908` 的 describe、quality 回执验证通过；确认输入、校验和旧版存于工作区 `Output/Bridge/1.7.4`、`Output/Bridge/1.7.3`。当前 `Work/Bridge/reference.json` 已切换 1.7.4。已封存的 11 月 23 日 release 未修改，继续绑定 1.7.3 的摘要及其发布时业务上下文；下一次构建将读取当前 1.7.4，须正常生成并验证新 release，本次未发布。
 
 旧版 Bridge 中部分历史 `evidence_refs` 指向已退役的 `customers/bi_operations/Work/workspace.json`、旧 `unified_market_mapping.md` 和旧 `留学-FY26-资源表.xlsx` 路径；旧升级计划迁至 [历史计划](history/dashboard/BRIDGE_SAVED_QUERY_UPGRADE_PLAN.md)。这些路径保留为历史追溯坐标，不替换成新的事实证明。现行工作区入口是 `customers/shadow_bi_daily/Work/workspace.json`，留学参考材料位于其 `Input/Reference/`。1.7.4 本次现金修订候选单独引用当前训练明细、项目现金 SQL 和归一实现作为证据。
+
+## 2026-11-26 留学汇总复核
+
+Bridge 1.7.4 中的虚拟人、SSC 和国际市场是来源分段。正式看板按 [SQL 汇总范围](../dashboard_product/shadow_bi/sql_warehouse/sql/metrics.sql) 计算工单、现金和分产品去重人头，线上包含虚拟人，留学总计排除 SSC 并包含国际市场。签约或实缴无法匹配个人时，明确的线上或线下团队按[留学入仓规则](tencent-docs-study-source.md)计入团队。此次业务确认适用于入仓和看板汇总，Bridge 来源映射无需升版。
+
+[MCP 看板口径摘要](../business_data_mcp/dashboard_business_rules.md)记录上述汇总规则。查询正式指标使用同批看板数据，按来源分段的独立留学仓查询用于对账。新摘要随下一次 SQL release 封存，已发布的上下文仍对应其发布时的摘要。

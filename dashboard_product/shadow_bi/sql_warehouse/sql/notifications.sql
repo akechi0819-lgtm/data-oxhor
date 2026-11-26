@@ -53,7 +53,8 @@ FROM notification_context c JOIN business.facts f ON
   WHEN f.business_line='training' AND c.team_id='online' THEN
    f.team_id='online_platform' AND f.business_group IN ('留学预备','高中','大学')
   WHEN f.business_line='abroad' AND c.team_id='university' THEN f.segment_id='study_abroad_offline'
-  WHEN f.business_line='abroad' AND c.team_id='online' THEN f.segment_id='study_abroad_online'
+  WHEN f.business_line='abroad' AND c.team_id='online' THEN
+   f.segment_id IN ('study_abroad_online','study_abroad_virtual')
   WHEN f.business_line='abroad' AND c.team_id='virtual' THEN f.segment_id='study_abroad_virtual'
   ELSE false END
 WHERE NOT c.personal_only;
