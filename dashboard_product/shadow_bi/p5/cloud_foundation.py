@@ -1,4 +1,5 @@
-"""Build a staged dashboard release on the cloud host from explicit foundation inputs."""
+"""Run fixed SQL against the cloud warehouse's verified landing tables."""
+import base64
 from copy import deepcopy
 import json
 import os
@@ -9,6 +10,7 @@ import shutil
 import subprocess
 import sys
 import tarfile
+import tempfile
 
 from . import sql_daily
 
@@ -20,7 +22,7 @@ _PYTHON = '/srv/shadow-bi/venv/bin/python'
 def _request_path(name):
     if not re.fullmatch(r'daily-[A-Za-z0-9_-]{1,90}', name):
         raise ValueError('invalid foundation build release')
-    return _CLOUD_ROOT/'sql-incoming'/(name+'-foundation')
+    return _CLOUD_ROOT/'sql-incoming'/(name+'-sql-build')
 
 
 def _file_hash(path):
@@ -55,31 +57,40 @@ def prepare_remote_business(*, workspace, day, pair, run_id, release_id, attempt
                             candidate_dir, ssh, ssh_env, command, command_result,
                             current_state, advertising_manifest, code_dir=_CODE,
                             migration_override=None, comparison_contract=None):
-    """Upload two foundations; retrieve only the result of the server-side SQL build."""
-    from data_acquisition.transfer.sql_foundation import prepare_sql_foundation
+    """Send SQL build rules and changes to landing, never a database or Snapshot."""
+    from dashboard_product.shadow_bi.sql_warehouse.build import prepare_sealed_build_inputs
 
     if advertising_manifest is not None and json.loads(Path(advertising_manifest).read_text()) != {'sources':[]}:
         raise ValueError('business publication requires fees to be ingested separately')
     if code_dir != _CODE and code_dir != f'/srv/shadow-bi/.cutover-{release_id}/code':
         raise ValueError('invalid fixed cloud SQL source directory')
-    pointer, _, _, _, migration, contract_sha = current_state
+    pointer, _, baseline, sealed, migration, contract_sha = current_state
     if migration_override is not None:
         migration,contract_sha = migration_override
     snapshots = {'training':pair['sources']['bi']['snapshot_id'],'abroad':pair['sources']['study_abroad']['snapshot_id']}
     job = _request_path(release_id)
     attempt = Path(attempt)
-    bundle = attempt/'foundation.tar'
-    description = prepare_sql_foundation(workspace,training_snapshot=snapshots['training'],
-                                       abroad_snapshot=snapshots['abroad'],output_path=bundle,
-                                       comparison_contract=comparison_contract)
+    inputs = attempt/'build-inputs'
+    prepare_sealed_build_inputs(workspace=workspace,sealed_candidate=sealed/'candidate.json',
+                                output_dir=inputs,comparison_contract=comparison_contract)
+    rules = {name:base64.b64encode((inputs/name).read_bytes()).decode('ascii')
+             for name in ('build-inputs.json','scorecard.json','empty-fees.json')}
     request = {'release':release_id,'batch':run_id,'as_of':day,'old':pointer['release'],
-               'snapshots':snapshots,'foundation_sha256':description['sha256'],
+               'snapshots':snapshots,'build_inputs':rules,
                'coverage':pointer['coverage'],'previous_warehouse_sha256':pointer['warehouse_sha256'],
                'catalogue_sha256':migration['catalogue_sha256'],'contract_sha256':contract_sha}
+    if snapshots != baseline['snapshots']:
+        from .landing_sync import local_changes
+
+        index = command_result(ssh+[_cloud_command(code_dir,'--index',pointer['release'],pointer['warehouse_sha256'])],
+                               attempt/'cloud-landing-index.log',text=True,env=ssh_env)
+        patch,metadata,landing,coverage = local_changes(workspace=Path(workspace),snapshots=snapshots,day=day,
+            batch_id=run_id,output=attempt,index=index,old_release=pointer['release'],old_sha=pointer['warehouse_sha256'])
+        request.update(delta=patch,landing_metadata=metadata,landing_contract=landing,source_coverage=coverage)
+        sql_daily._atomic_json(attempt/'delta-summary.json',{
+            name:{'changed_values':len(table['values']),'removed_rows':sum(table['removed'].values()),'rows':len(table['order'])}
+            for name,table in patch['tables'].items()})
     _upload_request(job,request,attempt,ssh,ssh_env,command)
-    with bundle.open('rb') as stream:
-        command(ssh[:1]+['-C']+ssh[1:]+[f'umask 077; cat > {shlex.quote(str(job/"foundation.tar"))}'],
-                attempt/'foundation-transfer.log',stdin=stream,env=ssh_env)
     return _run_and_fetch(job,request,attempt,candidate_dir,ssh,ssh_env,command_result,code_dir)
 
 
@@ -101,13 +112,17 @@ def prepare_remote_costs(*, workspace, day, pair, run_id, release_id, attempt,
 
 def _upload_request(job,request,attempt,ssh,ssh_env,command):
     setup = f'umask 077; mkdir -p {shlex.quote(str(job.parent))}; mkdir {shlex.quote(str(job))}; cat > {shlex.quote(str(job/"request.json"))}'
-    command(ssh+[setup],attempt/'cloud-request.log',input=json.dumps(request,default=str),text=True,env=ssh_env)
+    command(ssh[:1]+['-C']+ssh[1:]+[setup],attempt/'cloud-request.log',input=json.dumps(request,default=str),text=True,env=ssh_env)
+
+
+def _cloud_command(code_dir,*args):
+    return (f'set -eu; set -a; . /etc/shadow-bi.env; set +a; cd {shlex.quote(code_dir)}; '
+            f'{_PYTHON} -m dashboard_product.shadow_bi.p5.cloud_foundation {shlex.join(args)}')
 
 
 def _run_and_fetch(job,request,attempt,candidate_dir,ssh,ssh_env,command_result,code_dir):
     release_id,run_id = request['release'],request['batch']
-    call = (f'set -eu; set -a; . /etc/shadow-bi.env; set +a; cd {shlex.quote(code_dir)}; '
-            f'{_PYTHON} -m dashboard_product.shadow_bi.p5.cloud_foundation {shlex.quote(release_id)}')
+    call = _cloud_command(code_dir,release_id)
     staged = command_result(ssh+[call],attempt/'cloud-sql-build.log',text=True,env=ssh_env)
     if staged.get('status')!='prepared' or staged.get('release')!=release_id or staged.get('batch_id')!=run_id:
         raise ValueError('invalid cloud foundation build receipt')
@@ -133,33 +148,14 @@ def _run_and_fetch(job,request,attempt,candidate_dir,ssh,ssh_env,command_result,
     candidate_dir.mkdir(parents=True)
     for item in ('candidate.json','warehouse.duckdb','notification-preview.json'):
         shutil.copyfile(release_root/'library'/item,candidate_dir/item)
-    evidence_archive = attempt/'cloud-source-evidence.tar'
-    with evidence_archive.open('wb') as evidence, (attempt/'cloud-evidence-transfer.log').open('w') as errors:
-        subprocess.run(ssh[:1]+['-C']+ssh[1:]+[f'cat {shlex.quote(str(job/"source-evidence.tar"))}'],
-                       stdout=evidence,stderr=errors,check=True,env=ssh_env)
-    if _file_hash(evidence_archive)!=staged['evidence_sha256']:
-        raise ValueError('cloud source evidence archive hash mismatch')
-    with tarfile.open(evidence_archive) as packaged:
-        if any(Path(item.name).parts[0] not in ('source-evidence','source-order')
-               or not (item.isfile() or item.isdir()) for item in packaged.getmembers()):
-            raise ValueError('unexpected cloud source evidence member')
-        packaged.extractall(candidate_dir,filter='data')
-    from data_platform.query.evidence import read_query_result
-    for ref in candidate['source_queries']:
-        read_query_result(ref,output_root=candidate_dir/'source-evidence')
-    source = dict(staged['source'])
-    source['source_order_receipts'] = [str(candidate_dir/Path(item).relative_to(job))
-                                       for item in source['source_order_receipts']]
-    if not all(Path(path).is_file() for path in source['source_order_receipts']):
-        raise ValueError('cloud source traversal receipts are missing')
     return {'prepared':staged,'local_release_root':release_root,'candidate':candidate,
-            'release_manifest':release_manifest,'source':source}
+            'release_manifest':release_manifest,'source':staged['source']}
 
 
 def build_on_server(release_id):
-    from data_acquisition.transfer.sql_foundation import extract_sql_foundation
     from dashboard_product.shadow_bi.p5.sql_bundle import prepare_release
-    from dashboard_product.shadow_bi.sql_warehouse.build import build_local
+    from dashboard_product.shadow_bi.sql_warehouse.build import build_from_sealed
+    from data_platform.sql_release_query import resolve_sql_release
 
     os.umask(0o077)
     job = _request_path(release_id)
@@ -174,63 +170,62 @@ def build_on_server(release_id):
         raise ValueError('cloud expense baseline does not match the current release')
     batch,day = request['batch'],request['as_of']
     candidate_dir = job/'candidate'
+    sealed = resolve_sql_release(old)
+    if not sealed or ('delta' not in request and sealed.candidate['snapshots']!=request['snapshots']):
+        raise ValueError('云端当前基础表身份不匹配')
+    old_manifest = json.loads((old_library/'release.json').read_text())
+    landing = {'descriptions':sealed.landing_description,'provenance':sealed.landing_provenance,
+               'semantics':old_manifest['semantics'],'business_context':old_manifest['business_context']}
     if 'costs' in request:
         from decimal import Decimal
         from ops.costs import build_cost_candidate
 
-        previous_job = _request_path(old.name)
-        origin = json.loads((previous_job/'foundation-origin.json').read_text())
-        origin_job = _request_path(origin['release'])
-        workspace = origin_job/'foundation/workspace'
-        old_manifest = json.loads((old_library/'candidate.json').read_text())
-        if old_manifest['snapshots']!=request['snapshots'] or old_manifest['as_of_date']!=day:
+        if sealed.candidate['as_of_date']!=day:
             raise ValueError('fee update does not match the current business Snapshot')
-        baseline = job/'baseline'
-        baseline.mkdir()
-        for name in ('candidate.json','warehouse.duckdb','notification-preview.json'):
-            os.link(old_library/name,baseline/name)
-        (baseline/'source-evidence').symlink_to(origin_job/'candidate/source-evidence',target_is_directory=True)
         costs = request['costs']
         for row in costs['rows']:
             if row['amount'] is not None:
                 row['amount'] = Decimal(row['amount'])
-        candidate = build_cost_candidate(baseline_dir=baseline,output_dir=candidate_dir,costs=costs,batch_id=batch)
-        shutil.copytree(origin_job/'source-order',job/'source-order')
-        source = {'source_order_receipts':[str(job/Path(item).relative_to(origin_job))
-                                          for item in old_manifest['source_order_receipts']]}
-        coverage = request['coverage']
+        candidate = build_cost_candidate(baseline_dir=old_library,output_dir=candidate_dir,costs=costs,batch_id=batch)
     else:
-        foundation = extract_sql_foundation(job/'foundation.tar',expected_sha256=request['foundation_sha256'],
-                                           output_dir=job/'foundation')
-        if foundation['snapshots']!=request['snapshots']:
-            raise ValueError('cloud foundation Snapshot identities differ')
-        workspace = Path(foundation['workspace'])
-        origin = {'release':release_id,'sha256':request['foundation_sha256']}
-        source = sql_daily.source_order_receipts(workspace=workspace,training_snapshot=request['snapshots']['training'],
-                                               as_of_date=day,batch_id=batch,output_root=job/'source-order')
-        blank = job/'no-new-expenses.json'
-        sql_daily._atomic_json(blank,{'sources':[]})
-        candidate = build_local(workspace=workspace,output_dir=candidate_dir,batch_id=batch,
-            training_snapshot=request['snapshots']['training'],abroad_snapshot=request['snapshots']['abroad'],
-            as_of_date=day,config_root=Path.cwd(),source_order_receipts=source['source_order_receipts'],
-            expense_baseline=old_library,advertising_manifest=blank)
-        coverage = _release_coverage(request['coverage'],source,candidate)
-    sql_daily._atomic_json(job/'foundation-origin.json',origin)
+        inputs = job/'build-inputs'
+        inputs.mkdir()
+        rules = request['build_inputs']
+        if set(rules)!= {'build-inputs.json','scorecard.json','empty-fees.json'}:
+            raise ValueError('invalid fixed SQL build inputs')
+        for name,value in rules.items():
+            (inputs/name).write_bytes(base64.b64decode(value,validate=True))
+        updates = metadata = None
+        if 'delta' in request:
+            from data_acquisition.transfer.sql_landing_delta import apply_delta
+            from .landing_sync import read_cloud_rows
+
+            with tempfile.TemporaryDirectory(prefix='landing-read-',dir=job) as temporary:
+                old_rows=read_cloud_rows(old,old.name,sealed.batch_id,Path(temporary))
+                updates=apply_delta(old_rows,request['delta'],expected_release=old.name,
+                                    expected_warehouse_sha256=request['previous_warehouse_sha256'])
+            metadata=request['landing_metadata']
+            if metadata['snapshots']!=request['snapshots']:
+                raise ValueError('基础表增量后的批次身份不符')
+            landing=request['landing_contract']
+        candidate = build_from_sealed(sealed_library=old_library,output_dir=candidate_dir,batch_id=batch,
+                                     as_of_date=day,config_root=Path.cwd(),build_inputs=inputs,
+                                     **({'landing_updates':updates,'landing_metadata':metadata} if updates is not None else {}))
+    source = {'source_order_receipts':candidate['source_order_receipts']}
+    coverage = (_release_coverage(request['coverage'],{'coverage':request['source_coverage']},candidate)
+                if 'source_coverage' in request else request['coverage'])
+    coverage['notes'] = [note.replace('，留学及小语种总计剔除SSC','') for note in coverage['notes']]
     acceptance = {'mode':'runtime_contract','migration_acceptance':{'sha256':request['contract_sha256']},
                   'runtime_contract':{'status':'passed','catalogue_sha256':request['catalogue_sha256'],
                                       'candidate_identity_passed':True,'source_gates_passed':True}}
-    result = prepare_release(candidate=candidate_dir,workspace=workspace,release_id=release_id,output_dir=job/'result',
-        coverage_template=coverage,acceptance=acceptance)
+    result = prepare_release(candidate=candidate_dir,workspace=job,release_id=release_id,output_dir=job/'result',
+        coverage_template=coverage,acceptance=acceptance,landing_contract=landing)
     library = Path(result['library'])
     if _file_hash(library/'superset-catalogue.json')!=request['catalogue_sha256']:
         raise ValueError('server-generated SQL catalogue differs from the approved contract')
     if (_CLOUD_ROOT/'current').resolve(strict=True)!=old:
         raise ValueError('current cloud release changed during SQL build')
     target = _CLOUD_ROOT/'releases'/release_id
-    evidence_archive = job/'source-evidence.tar'
-    with tarfile.open(evidence_archive,'w') as evidence:
-        evidence.add(candidate_dir/'source-evidence',arcname='source-evidence')
-        evidence.add(job/'source-order',arcname='source-order')
     # Repository code builds in a private directory; only the derived runtime library is installed.
     if target.exists():
         raise ValueError('cloud SQL target release already exists')
@@ -239,11 +234,30 @@ def build_on_server(release_id):
     (target/'library').chmod(0o755)
     for path in (target/'library').iterdir():
         path.chmod(0o644)
+    (candidate_dir/'warehouse.duckdb').unlink()
+    (candidate_dir/'notification-preview.json').unlink()
     return {'status':'prepared','release':release_id,'batch_id':batch,'warehouse_sha256':candidate['database']['sha256'],
-            'archive_sha256':result['archive_sha256'],'source':source,'foundation_sha256':origin['sha256'],
-            'evidence_sha256':_file_hash(evidence_archive),'foundation_snapshots':request['snapshots'],
+            'archive_sha256':result['archive_sha256'],'source':source,'foundation_snapshots':request['snapshots'],
+            'uploaded_database_files':0,
             'computed_on':'cloud_fixed_sql','mode':'costs' if 'costs' in request else 'business'}
 
 
+def cloud_landing_index(release_id,warehouse_sha):
+    from data_acquisition.transfer.sql_landing_delta import make_index
+    from data_platform.sql_release_query import resolve_sql_release
+    from .landing_sync import read_cloud_rows
+
+    release = (_CLOUD_ROOT/'current').resolve(strict=True)
+    if release.parent!=_CLOUD_ROOT/'releases' or release.name!=release_id:
+        raise ValueError('current changed before landing index')
+    sealed=resolve_sql_release(release)
+    if not sealed or _file_hash(sealed.warehouse)!=warehouse_sha:
+        raise ValueError('current warehouse differs from landing index request')
+    with tempfile.TemporaryDirectory(prefix='landing-index-',dir=_CLOUD_ROOT/'sql-incoming') as temporary:
+        return make_index(read_cloud_rows(release,release_id,sealed.batch_id,Path(temporary)),
+                          release=release_id,warehouse_sha256=warehouse_sha)
+
+
 if __name__=='__main__':
-    print(json.dumps(build_on_server(sys.argv[1]),ensure_ascii=False))
+    result=cloud_landing_index(*sys.argv[2:]) if sys.argv[1]=='--index' else build_on_server(sys.argv[1])
+    print(json.dumps(result,ensure_ascii=False))

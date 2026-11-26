@@ -30,7 +30,8 @@ def _write(path, value):
     path.write_text(json.dumps(value, ensure_ascii=False, indent=2, allow_nan=False)+'\n')
 
 
-def prepare_release(*, candidate, workspace, release_id, output_dir, coverage_template, acceptance):
+def prepare_release(*, candidate, workspace, release_id, output_dir, coverage_template, acceptance,
+                    landing_contract=None):
     from dashboard_product.shadow_bi.sql_warehouse.catalog import build_catalogue, catalogue_status
     from dashboard_product.shadow_bi.sql_warehouse.foundation import TABLES
     from dashboard_product.shadow_bi.p35.expense_coverage import format_coverage
@@ -79,41 +80,23 @@ def prepare_release(*, candidate, workspace, release_id, output_dir, coverage_te
         ],
         'datasets': entries,
     })
-    pointers = {
-        'training': json.loads((workspace/'Work/workspace.json').read_bytes()),
-        'study': json.loads((workspace/'Work/StudyAbroad/current.json').read_bytes()),
-    }
-    descriptions = {}
-    for domain, snapshot_key, path_key, allowed in (
-        ('training', 'training', 'current_warehouse_path', TABLES['training']),
-        ('study', 'abroad', 'warehouse', TABLES['abroad']),
-    ):
-        snapshot = manifest['snapshots'][snapshot_key]
-        description = describe_warehouse(warehouse=workspace/pointers[domain][path_key], snapshot_id=snapshot)
-        description['relations'] = [item for item in description['relations']
-                                   if item['schema'] == 'landing' and item['name'] in allowed]
-        if len(description['relations']) != len(allowed):
-            raise ValueError('原始公开表结构不完整')
-        descriptions[domain] = description
-    _write(library/'landing-description.json', descriptions)
-    provenance = {}
-    for response in manifest['source_queries']:
-        receipt_path = resolve_file(candidate/'source-evidence'/response['run_id'], response['receipt'])
-        receipt = json.loads(receipt_path.read_bytes())
-        relations, sources = receipt['referenced_relations'], receipt['referenced_source_ids']
-        if len(relations) != 1 or len(sources) != 1:
-            raise ValueError('基础导入回执不是单表来源')
-        domain = 'training' if response['snapshot_id'] == manifest['snapshots']['training'] else 'study'
-        snapshot = manifest['snapshots']['training' if domain == 'training' else 'abroad']
-        if response['snapshot_id'] != snapshot or receipt['snapshot_id'] != snapshot:
-            raise ValueError('基础导入回执 Snapshot 身份不符')
-        value = {'source_id': sources[0], 'snapshot_id': snapshot, 'domain': domain}
-        if relations[0] in provenance and provenance[relations[0]] != value:
-            raise ValueError('同一基础表来源不一致')
-        provenance[relations[0]] = value
+    if landing_contract is None:
+        descriptions,provenance,semantics,business_context = _workspace_contract(workspace,candidate,manifest,TABLES)
+    else:
+        descriptions = landing_contract['descriptions']
+        provenance = landing_contract['provenance']
+        semantics = landing_contract['semantics']
+        business_context = landing_contract['business_context']
+        domains = {'training':'training','study':'abroad'}
+        if any(descriptions[domain]['snapshot_id']!=manifest['snapshots'][source] for domain,source in domains.items()):
+            raise ValueError('同步基础表描述与候选仓身份不符')
+        if any(value['domain'] not in domains or value['snapshot_id']!=manifest['snapshots'][domains[value['domain']]]
+               for value in provenance.values()):
+            raise ValueError('同步基础表血缘与候选仓身份不符')
     expected = {'landing.'+name for names in TABLES.values() for name in names}
     if set(provenance) != expected:
         raise ValueError('基础表来源血缘不完整')
+    _write(library/'landing-description.json', descriptions)
     fees = query_candidate(candidate=candidate, batch_id=manifest['batch_id'],
         sql='SELECT business_line,platform,CAST(MAX(end_date) AS VARCHAR),grain FROM business.expense_sources GROUP BY business_line,platform,grain ORDER BY business_line,platform,grain',
         run_id='run_sql_release_fee_note', output_root=output_dir/'evidence', max_rows=200)
@@ -124,13 +107,9 @@ def prepare_release(*, candidate, workspace, release_id, output_dir, coverage_te
     coverage.update(data_through=manifest['through_date'], snapshot_id=manifest['snapshots']['training'],
                     study_abroad_source=source_coverage, run_id=manifest['batch_id'],
                     created_at=datetime.now(timezone.utc).isoformat())
-    reference = 'Work/Bridge/reference.json'
-    semantics = {reference: hashlib.sha256((workspace/reference).read_bytes()).hexdigest()}
     acceptance = {**acceptance, 'candidate_sha256': hashlib.sha256((library/'candidate.json').read_bytes()).hexdigest()}
     _write(library/'acceptance.json', acceptance)
-    from business_data_mcp.build_context import build_bundle
-    business_context = build_bundle(workspace=workspace)
-    if business_context["manifest"]["source_sha256"]["bridge"] != semantics[reference]:
+    if business_context["manifest"]["source_sha256"]["bridge"] != semantics['Work/Bridge/reference.json']:
         raise ValueError("发布口径与 Bridge 不一致")
     release = {
         'schema_version': 'sql_warehouse_release.v1', 'release_id': release_id,
@@ -154,3 +133,41 @@ def prepare_release(*, candidate, workspace, release_id, output_dir, coverage_te
     return {'release': release_id, 'library': str(library), 'archive': str(archive),
             'archive_sha256': hashlib.sha256(archive.read_bytes()).hexdigest(),
             'release_manifest': file_ref(library/'release.json', library, 'application/json')}
+
+
+def _workspace_contract(workspace,candidate,manifest,tables):
+    from business_data_mcp.build_context import build_bundle
+    pointers = {
+        'training': json.loads((workspace/'Work/workspace.json').read_bytes()),
+        'study': json.loads((workspace/'Work/StudyAbroad/current.json').read_bytes()),
+    }
+    descriptions = {}
+    for domain, snapshot_key, path_key, allowed in (
+        ('training', 'training', 'current_warehouse_path', tables['training']),
+        ('study', 'abroad', 'warehouse', tables['abroad']),
+    ):
+        snapshot = manifest['snapshots'][snapshot_key]
+        description = describe_warehouse(warehouse=workspace/pointers[domain][path_key], snapshot_id=snapshot)
+        description['relations'] = [item for item in description['relations']
+                                   if item['schema'] == 'landing' and item['name'] in allowed]
+        if len(description['relations']) != len(allowed):
+            raise ValueError('原始公开表结构不完整')
+        descriptions[domain] = description
+    provenance = {}
+    for response in manifest['source_queries']:
+        receipt_path = resolve_file(candidate/'source-evidence'/response['run_id'], response['receipt'])
+        receipt = json.loads(receipt_path.read_bytes())
+        relations, sources = receipt['referenced_relations'], receipt['referenced_source_ids']
+        if len(relations) != 1 or len(sources) != 1:
+            raise ValueError('基础导入回执不是单表来源')
+        domain = 'training' if response['snapshot_id'] == manifest['snapshots']['training'] else 'study'
+        snapshot = manifest['snapshots']['training' if domain == 'training' else 'abroad']
+        if response['snapshot_id'] != snapshot or receipt['snapshot_id'] != snapshot:
+            raise ValueError('基础导入回执 Snapshot 身份不符')
+        value = {'source_id': sources[0], 'snapshot_id': snapshot, 'domain': domain}
+        if relations[0] in provenance and provenance[relations[0]] != value:
+            raise ValueError('同一基础表来源不一致')
+        provenance[relations[0]] = value
+    reference = 'Work/Bridge/reference.json'
+    semantics = {reference: hashlib.sha256((workspace/reference).read_bytes()).hexdigest()}
+    return descriptions,provenance,semantics,build_bundle(workspace=workspace)

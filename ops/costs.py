@@ -159,7 +159,8 @@ def build_cost_candidate(*, baseline_dir, output_dir, costs, batch_id):
     try:
         shutil.copy2(database, output / "warehouse.duckdb")
         shutil.copy2(preview, output / "notification-preview.json")
-        shutil.copytree(baseline / "source-evidence", output / "source-evidence")
+        if (baseline / "source-evidence").is_dir():
+            shutil.copytree(baseline / "source-evidence", output / "source-evidence")
         with duckdb.connect(str(output / "warehouse.duckdb")) as connection:
             result = replace_sources(connection, costs, batch_id + "_fees")
             display_dates = records(connection, "SELECT * FROM business.update_dates")[0]

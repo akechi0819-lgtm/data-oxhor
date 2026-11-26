@@ -4,6 +4,8 @@
 
 日更由 `ops run business` 进入 SQL 建仓及 P4 发布，既有调度的 `data_acquisition.jobs.prepare_full_daily --publish` 转入同一业务入口。费用通过 `ops ingest-cost` 独立录入。本机已记录的发布批次、双 Snapshot 和业务截止日见 `customers/shadow_bi_daily/Output/ShadowDaily/sql-current.json`。核对线上版本时读取服务器正式 release 及其激活回执，比对批次和截止日。核对日程时读取宿主 bi-3 的启停状态及最近执行回执。以下具名批次均为当日记录。
 
+重构版的正式 Superset 与日报读取服务器当前的同一套数仓。Mac 校验源数据和服务器基础表，提供变化的原始行及其来源证据。服务器在隔离候选上应用增量并运行受版本控制的 SQL，验收后切换。基础表相同的切换只传建仓规则，直接重用云端基础表。费用补录发送结构化费用明细，由服务器对同一业务基础更新费用。完整 Snapshot、静态看板、原始下载目录和认证材料不参与发布。
+
 部署重构分支时，通知 HTTP 的 systemd 单元与 `monitoring_product.notification_receiver:app` 同批同步。核验状态、预览及回执接口后再切换服务。固定通知发布入口和逐消息投递台账沿用既有路径。
 
 ## 历史：新生老生口径与构建配置（2026-11-12）
