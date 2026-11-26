@@ -4,7 +4,7 @@ import unittest
 
 import duckdb
 
-from dashboard_product.management.breakdowns import UNIVERSITY_SCHOOL_ATTRIBUTES
+from dashboard_product.shadow_bi.sql_warehouse.common_rules import UNIVERSITY_SCHOOL_ATTRIBUTES
 from dashboard_product.shadow_bi.sql_warehouse.native_channel_cache import (
     TABLE,
     SCOPES,

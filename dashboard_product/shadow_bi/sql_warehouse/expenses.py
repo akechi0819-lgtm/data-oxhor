@@ -208,10 +208,10 @@ def parse_manifest(path: str | Path, *, candidate: bool = True,
 
 def _ocean_account(entry):
     """Reuse the collector's confirmed account mapping, rejecting ambiguity."""
-    from data_acquisition.connectors.advertising.ocean_download import ACCOUNTS
+    from dashboard_product.management.advertising_sources import OCEAN_ACCOUNTS
     if entry.get('account_id'):
         return str(entry['account_id'])
-    matches=[a[0] for a in ACCOUNTS if a[1]==entry.get('business_line') and a[2]==entry.get('business_group')]
+    matches=[a[0] for a in OCEAN_ACCOUNTS if a[1]==entry.get('business_line') and a[2]==entry.get('business_group')]
     if len(matches)>1:
         matches=[a for a in matches if a in entry['source_id']]
     if len(matches)!=1:

@@ -197,7 +197,7 @@ def source_order_receipts(*, workspace: str | Path, training_snapshot: str,
     from dashboard_product.management.cutoff import calculation_cutoff
     from data_platform.query.evidence import resolve_file
     from workspace_modeling.operations.personnel import date_to_perf_month
-    from dashboard_product.management.aggregate import _calendar_month_window
+    from dashboard_product.shadow_bi.sql_warehouse.common_rules import _calendar_month_window
 
     workspace = Path(workspace).resolve(strict=True)
     root = Path(output_root).resolve()

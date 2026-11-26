@@ -9,8 +9,7 @@ def test_active_advertising_and_source_rules_are_sealed():
     assert {
         'dashboard_product/management/tencent_sources.py',
         'dashboard_product/management/candidate_sources.py',
-        'data_acquisition/connectors/advertising/tencent_native.py',
-        'data_acquisition/connectors/advertising/ocean_requests.py',
+        'dashboard_product/management/tencent_native.py',
         'data_acquisition/connectors/study_abroad_source.py',
         'data_acquisition/workspace_snapshot.py',
     } <= rules.keys()

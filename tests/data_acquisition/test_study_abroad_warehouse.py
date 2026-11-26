@@ -11,9 +11,24 @@ from pathlib import Path
 
 from openpyxl import Workbook
 
-from dashboard_product.management.study_abroad_query import query_sample
 from data_acquisition.jobs import build_study_abroad_warehouse
 from data_platform.query.evidence import read_query_result
+from data_platform.query.service import execute_query
+
+
+def query_sample(*, workspace, snapshot_id, run_id, start_date, end_date, query_name):
+    sql_root = Path(__file__).resolve().parents[2] / "dashboard_product/management/sql/study_abroad"
+    sql = (sql_root / f"{query_name}.sql").read_text().strip().rstrip(";")
+    if query_name in {"monthly", "people"}:
+        facts = (sql_root / "facts.sql").read_text().strip().rstrip(";")
+        sql = sql.replace("__STUDY_ABROAD_FACTS__", facts)
+    pointer = json.loads((workspace / "Work/StudyAbroad/current.json").read_text())
+    assert pointer["snapshot_id"] == snapshot_id
+    return execute_query(
+        warehouse=workspace / pointer["warehouse"], snapshot_id=snapshot_id, run_id=run_id,
+        output_root=workspace / "Output/StudyAbroad", sql=sql,
+        parameters=[start_date, end_date], max_rows=10000, max_result_bytes=20_000_000,
+    )
 
 
 RESOURCE_HEADERS = [

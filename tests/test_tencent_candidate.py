@@ -48,23 +48,6 @@ class TencentCandidateTests(unittest.TestCase):
   from dashboard_product.management.candidate_sources import load_candidate_sources
   parsed=load_candidate_sources(path)
   self.assertEqual(len(parsed['rows']),2);self.assertEqual(sum(r['amount'] for r in parsed['rows']),3.75)
- def test_full_daily_stages_capture_identity_and_stops_reading_original(self):
-  from data_acquisition.jobs.fee_sources import receipt_collector
-  manifest=self.root/'manifest.json';manifest.write_text(json.dumps({'sources':[self.entry]}))
-  receipt=self.root/'capture.json';receipt.write_text(json.dumps({'manifest_path':str(manifest),'sources':[{'files':[{'path':str(self.raw),'sha256':self.sha(self.raw)},{'path':str(self.state),'sha256':self.sha(self.state)}],'evidence':{'path':str(self.state),'sha256':self.sha(self.state)}}]}))
-  stage=self.root/'stage';stage.mkdir();captured=receipt_collector(receipt)(self.root,'2026-10-29','run_test',stage)
-  entry=json.loads(Path(captured['manifest_path']).read_text())['sources'][0]
-  self.assertTrue(Path(entry['capture_evidence']['path']).is_relative_to(stage))
-  self.state.write_text('{}')
-  self.assertEqual(len(load_candidate_sources(Path(captured['manifest_path']))['rows']),1)
- def test_capture_identity_outside_bundle_is_not_silently_referenced(self):
-  from data_acquisition.jobs.fee_sources import receipt_collector
-  from data_acquisition.ops_io import DailyBlocked
-  manifest=self.root/'manifest.json';manifest.write_text(json.dumps({'sources':[self.entry]}))
-  proof=self.root/'other-proof.json';proof.write_text('{}')
-  receipt=self.root/'capture.json';receipt.write_text(json.dumps({'manifest_path':str(manifest),'sources':[{'files':[{'path':str(self.raw),'sha256':self.sha(self.raw)}],'evidence':{'path':str(proof),'sha256':self.sha(proof)}}]}))
-  stage=self.root/'stage';stage.mkdir()
-  with self.assertRaisesRegex(DailyBlocked,'capture_evidence_not_in_bundle'):receipt_collector(receipt)(self.root,'2026-10-29','run_test',stage)
  def test_group_aggregate_and_designated_sem_cannot_supplement_native_tencent(self):
   for other,reason in [({'kind':'network_weekly'},'group_aggregate_forbidden'),({'kind':'sem_daily','source_id':'sem','sheets':{'x':{'platform':'微信'}}},'authority_conflict')]:
    with self.assertRaisesRegex(CandidateSourceError,reason):validate_candidate_authorities({'sources':[self.entry,other]})

@@ -1,7 +1,7 @@
 """Preserve native dimension traversal using query-local SQL JSON arrays."""
 from __future__ import annotations
 
-from dashboard_product.management.breakdowns import UNIVERSITY_SCHOOL_ATTRIBUTES
+from dashboard_product.shadow_bi.sql_warehouse.common_rules import UNIVERSITY_SCHOOL_ATTRIBUTES
 from dashboard_product.shadow_bi.sql_warehouse.native_school import _replace_cte
 
 

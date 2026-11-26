@@ -393,3 +393,13 @@ class ExpenseWarehouseTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+def test_ocean_historical_account_mapping_without_collector():
+    import pytest
+    from dashboard_product.shadow_bi.sql_warehouse.expenses import _ocean_account
+
+    assert _ocean_account({'business_line': 'training', 'business_group': '大学'}) == '1862323317815369'
+    assert _ocean_account({'account_id': 'explicit'}) == 'explicit'
+    with pytest.raises(ValueError, match='唯一已确认账户身份'):
+        _ocean_account({'business_line': 'abroad', 'business_group': '留学整体', 'source_id': 'ambiguous'})
+    assert _ocean_account({'business_line': 'abroad', 'business_group': '留学整体',
+                           'source_id': 'capture-1830170629798923'}) == '1830170629798923'

@@ -10,61 +10,16 @@ _PATH_ENV={
  'SOURCE_BATCH':'SHADOW_BI_SOURCE_BATCH', 'LIBRARY':'SHADOW_BI_LIBRARY',
  'BATCH':'SHADOW_BI_BATCH',
 }
-_RUNTIME_PATHS=('AUDIT','LIBRARY','BATCH')
-_SOURCE_PATHS=('SOURCE_LIBRARY','SOURCE_BATCH')
+def __getattr__(name):
+ if name not in _PATH_ENV:
+  raise AttributeError(name)
+ value = os.environ.get(_PATH_ENV[name])
+ if value is None and name in {'SOURCE_LIBRARY', 'SOURCE_BATCH'}:
+  return None
+ if not value:
+  raise ValueError(f'运行配置缺少 {_PATH_ENV[name]}')
+ return Path(value) if name in {'AUDIT', 'SOURCE_LIBRARY', 'LIBRARY'} else value
 
-def _current_paths(root):
- workspace=Path(root)/'customers/shadow_bi_daily'
- pointer=workspace/'Output/ShadowDaily/current.json'
- try:
-  current=json.loads(pointer.read_text(encoding='utf-8'))
- except FileNotFoundError as exc:
-  raise FileNotFoundError(f'新版数仓current发布指针缺失：{pointer}') from exc
- except json.JSONDecodeError as exc:
-  raise ValueError(f'新版数仓current发布指针不是有效JSON：{pointer}') from exc
- if not isinstance(current,dict):
-  raise ValueError(f'新版数仓current发布指针不是JSON对象：{pointer}')
- run_id=current.get('run_id')
- if (current.get('status')!='published' or not isinstance(run_id,str)
-     or not run_id.startswith('run_shadow_daily_') or Path(run_id).name!=run_id):
-  raise ValueError(f'新版数仓current发布指针未指向已发布日更批次：{pointer}')
- batch=run_id+'_business'
- run_root=workspace/'Output/ShadowDaily'/run_id
- paths={
-  'AUDIT':Path(root)/'.local/audits'/f'shadow-bi-p3-{run_id}',
-  'SOURCE_LIBRARY':workspace/'Output/ShadowBI'/batch/'library',
-  'SOURCE_BATCH':batch,
-  'LIBRARY':run_root/'presentation',
-  'BATCH':run_id,
- }
- for name in ('SOURCE_LIBRARY','LIBRARY'):
-  if not paths[name].is_dir():
-   raise FileNotFoundError(f'新版数仓current批次缺少P3 {name}：{paths[name]}')
- return paths
-
-def _paths_for_environment(root,environ):
- explicit={name:environ.get(env_name) for name,env_name in _PATH_ENV.items()}
- if any(value=='' for value in explicit.values()):
-  raise ValueError('SHADOW_BI_* path and batch environment values must not be empty')
- runtime_configured=all(explicit[name] is not None for name in _RUNTIME_PATHS)
- source_configured=all(explicit[name] is not None for name in _SOURCE_PATHS)
- source_unused=all(explicit[name] is None for name in _SOURCE_PATHS)
- if runtime_configured and (source_configured or source_unused):
-  current={}
- else:
-  current=_current_paths(root)
- result={}
- for name,value in explicit.items():
-  selected=value if value is not None else current.get(name)
-  result[name]=Path(selected) if name in {'AUDIT','SOURCE_LIBRARY','LIBRARY'} and selected is not None else selected
- return result
-
-_PATHS=_paths_for_environment(ROOT,os.environ)
-AUDIT=_PATHS['AUDIT']
-SOURCE_LIBRARY=_PATHS['SOURCE_LIBRARY']
-SOURCE_BATCH=_PATHS['SOURCE_BATCH']
-LIBRARY=_PATHS['LIBRARY']
-BATCH=_PATHS['BATCH']
 PAGES={'overview':'市场总览','virtual':'线上虚拟人','prep':'留学预备与高中','university':'大学','online':'线上平台','capacity':'人员产能'}
 
 def q(s):return '"'+s.replace('"','""')+'"'

@@ -7,12 +7,12 @@ from .relations import load_rows
 
 def install_personal(con, *, config_root):
     # _roster reads only fixed configuration, never customer records.
-    from dashboard_product.management.aggregate import _roster
+    from dashboard_product.shadow_bi.sql_warehouse.common_rules import _roster
     root = Path(config_root)
     people = json.loads((root/'workspace_modeling/operations/people.json').read_text())
     abroad = json.loads((root/'dashboard_product/config/offline_market_people.json').read_text())
     roster = _roster(people, abroad)
-    from dashboard_product.management.enhancements import _group_members
+    from dashboard_product.shadow_bi.sql_warehouse.common_rules import _group_members
     membership=_group_members(people)
     if any(p['business_line']=='training+abroad' for p in roster):
         raise ValueError('人员主业务配置冲突')

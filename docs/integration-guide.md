@@ -3,9 +3,9 @@
 ## 1. 公开入口
 
 - `python -m ops status` 核对候选、发布版本与完成状态。日更、补数、费用及腾讯同步见[运维手册](operator-runbook.md)。
-- `market_workspace/oxhor` 绑定正式经营工作区。受控查询、归因证据和导出见[市场接口](../market_workspace/INTERFACES.md)。
+- `market_workspace/oxhor` 绑定正式经营工作区。受控查询、归因证据和导出见[市场工作区](../market_workspace/AGENTS.md)。
 - `python -m interfaces.data_platform --help` 提供 `inspect`、`ingest`、`describe`、`quality`、`query` 及已确认查询等低层入口。输入与输出使用明确路径、独立 run ID 和 Snapshot 身份。
-- Business Data MCP 同事安装与验证见[客户端接入](../business_data_mcp/client/接入说明.md)；工作区元数据见[Project Intelligence](project-intelligence.md)。
+- Business Data MCP 同事安装与验证见[客户端接入](../business_data_mcp/client/接入说明.md)。
 
 ## 2. 快照、语义和业务口径
 
@@ -42,17 +42,7 @@ python3 -m data_acquisition.jobs.build_study_abroad_warehouse \
   --through-date 2026-09-30
 ```
 
-受控查询（左闭右开，自动限制在明确来源截止日以内）：
-
-```bash
-python3 -m dashboard_product.management.study_abroad_query \
-  --workspace customers/shadow_bi_daily \
-  --snapshot-id snapshot_study_abroad_sample_20260930_v1 \
-  --run-id run_study_abroad_monthly_20261008_final \
-  --start-date 2026-06-01 --end-date 2026-10-01 --query-name monthly
-```
-
-命名 SQL 位于 `dashboard_product/management/sql/study_abroad/`：`facts` 为逐行事实，`monthly` 为源数据口径的自然月汇总，`people` 为按人工归属人的个人源投影，`checks` 为排除与源质量核对。这里的 `monthly` 用于来源对账，各级统计排除 SSC，线上按来源团队，不套用正式看板的虚拟人归类。核对正式看板应查询同批 SQL release 的 `business.team_values` 或 `business.team_metrics`。月汇总和个人 SQL 由入口展开公共事实 CTE；每份查询回执保存完整可重放 SQL 和参数。所有业务查询只引用独立来源 `landing.study_abroad_market__*`，通过现有 Data Platform 执行，输出根为 `Output/StudyAbroad`。6—9月历史已标准化入仓，日常按明确月份更新腾讯来源；额外补历史须提供明确来源并发布新版本，缺资料不外推。
+正式留学指标通过 `market_workspace/oxhor` 绑定当前 SQL release，查询 `mart.study_abroad_summary` 或 `mart.team_metrics`。逐行归因使用已准入的 `core.abroad_facts_attributed`；需要对照历史来源时，使用 Data Platform 绑定当前留学 Snapshot，核对 `landing.study_abroad_market__*`。各级统计排除 SSC。6—9 月历史已标准化入仓，日常按明确月份更新腾讯来源；追加历史须有明确来源及新版本。
 
 留学渠道归因消费 FY26 渠道参考及 `dashboard_product/config/study_abroad_channel_decisions.json` 中已确认的同源三层规则。来源团队与经营范围分别核算，未命中保留证据。渠道人数不能相加代替总盘去重。
 

@@ -2,6 +2,17 @@
 
 from __future__ import annotations
 
+# Confirmed account identities used to interpret historical expense imports.
+OCEAN_ACCOUNTS = (
+    ('1862323317815369', 'training', '大学'),
+    ('1862687614826500', 'training', '高中'),
+    ('1872833578712263', 'training', '留学预备'),
+    ('1862048006734852', 'abroad', '留学整体'),
+    ('1830170629798923', 'abroad', '留学整体'),
+    ('1810699393202185', 'abroad', '留学整体'),
+    ('1813785787039897', 'training', None),
+)
+
 import csv
 import hashlib
 import io

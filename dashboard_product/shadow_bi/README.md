@@ -4,7 +4,7 @@
 
 ## 当前代码链路
 
-日更入口为 `python -m ops run business`。现行调度以 `prepare_full_daily --publish --business-only` 转入同一业务链，发布正式 SQL release 后核验通知。费用通过 `ops ingest-cost` 独立录入，`ops fetch-cost-optional` 可生成隔离采集证据。
+日更入口为 `python -m ops run business`。现行调度以 `prepare_full_daily --publish --business-only` 转入同一业务链，发布正式 SQL release 后核验通知。费用通过 `ops ingest-cost` 独立录入。
 
 本地 SQL 基线由 `customers/shadow_bi_daily/Output/ShadowDaily/sql-current.json` 显式指定；服务器使用正式 `current`。通知沿用 DeliveryState、去重和 no-backfill 门禁，具体消费逻辑见 `monitoring_product/sql_release_notifications.py` 与 `shared_delivery`。
 

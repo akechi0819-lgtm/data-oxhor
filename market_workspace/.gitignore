@@ -1,7 +1,7 @@
-/Programs/*
-!/Programs/.gitkeep
-/Scratch/*
-!/Scratch/.gitkeep
+/tasks/*
+!/tasks/.gitkeep
+/Programs/
+/Scratch/
 /Reports/*
 !/Reports/.gitkeep
 /Evidence/*

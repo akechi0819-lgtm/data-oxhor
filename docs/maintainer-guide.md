@@ -1,6 +1,6 @@
 > **2026-10-28唯一正式数据源**：本机main只使用 `customers/shadow_bi_daily`。旧 `bi_operations` 与独立 `shadow_bi_operations` 数仓、c373客户副本和废弃派生成品已清理。原始输入、确认资产和必要证据保留；P1 Superset运行环境是测试依赖，不是另一套正式数仓。验收与回执见[开发文档](../DEVELOPMENT.md)。
 
-日更入口为 `python -m ops run business`。现行调度以 `prepare_full_daily --publish --business-only` 转入同一业务链，发布正式 SQL release 后核验通知。费用通过 `ops ingest-cost` 独立录入，`ops fetch-cost-optional` 可生成隔离采集证据。
+日更入口为 `python -m ops run business`。现行调度以 `prepare_full_daily --publish --business-only` 转入同一业务链，发布正式 SQL release 后核验通知。费用通过 `ops ingest-cost` 独立录入。
 
 通用核心回归可用已有Python3.12执行`python3 -B -m pytest tests dashboard_product/tests dashboard_product/management/tests monitoring_product/tests -p no:cacheprovider`；Superset认证测试在核心环境明确skip，必须另外在固定Superset环境运行`python -B -m unittest tests.test_shadow_bi_legacy_auth`。两类环境分别报告，不把skip计为通过。
 
@@ -12,13 +12,12 @@
 
 - Python 要求 `>=3.12`；运行时核心依赖 DuckDB `1.5.5`。
 - 安装开发测试环境：`sh tools/install_runtime.sh test`。
-- 运行完整回归：`sh tools/run_tests.sh -v`；入口使用项目 `.venv` 中的 pytest，覆盖 `tests`、`dashboard_product/tests`、`dashboard_product/management/tests`、`monitoring_product/tests`，默认不生成字节码缓存。Project Intelligence的MCP协议测试在未独立安装SDK时明确skip。
+- 运行完整回归：`sh tools/run_tests.sh -v`；入口使用项目 `.venv` 中的 pytest，覆盖 `tests`、`dashboard_product/tests`、`dashboard_product/management/tests`、`monitoring_product/tests`，默认不生成字节码缓存。
 - CLI 冒烟使用 `python3 -m ops --help`、`python3 -m interfaces.data_platform --help`、`market_workspace/oxhor --help` 及 `python3 -m monitoring_product.shared_delivery --help`。
 语培、留学、看板和通知按显式 Snapshot 与 release 追溯。历史静态与 39 表路径已退役。
 - 看板回归：`python3 -m unittest discover -s dashboard_product/tests -v`。
 - 通知投递适配回归：`python3 -m unittest monitoring_product.tests.test_shared_delivery -v`；mock 测试不连接服务器。服务器发布状态和接口边界以部署回执为准。
 - PPT Master 属于宿主全局 Skill；不要在项目内恢复其副本、安装 profile 或完整性测试。
-- 项目上下文服务见 [Project Intelligence](./project-intelligence.md)。定向回归：`.venv/bin/python -B -m unittest tests.project_intelligence.test_service -v`，已由主测试发现入口覆盖。新增暴露文件须评审 `project_intelligence/policy.py`，不得直接放开整个目录。
 
 ## 维护原则
 
@@ -68,7 +67,3 @@
 以下为10月26日历史收口状态，10月28日整合见文首。10月26日本地代码、文档与工作树收口见[整合记录](archive/local-project-alignment-20261026.md)。`main`为整合基线；c373保留数据、证据和稳定运行路径，其源码对齐main后以detached HEAD保留，不作为另一条开发分支。服务器raw receiver、只读历史基线、受限双Snapshot/quality/共享聚合计算和固定publisher当时已有实际部署及运行回执；raw候选因截止门禁失败而未发布。此段仅记录历史状态；旧 raw 通道后于 2026-11-07 SQL 切换时退役，当前发布入口与状态见本页顶部及[看板部署说明](../dashboard_product/DEPLOYMENT.md)。
 
 当前状态、已知限制与本次施工记录统一维护在 [DEVELOPMENT.md](../DEVELOPMENT.md)。[历史交接](history/project-handoff-through-20260918.md) 仅保留过去决策与验收事实，不作为日常操作入口；看板运行以模块 README 和 DEPLOYMENT 为准。
-
-## Project Intelligence MCP 可选测试
-
-Project Intelligence 的 stdio MCP 测试需在既有虚拟环境单独安装 `mcp==2.2.0`，再从源码根目录运行 `.venv/bin/python -B -m unittest tests.project_intelligence.test_service tests.project_intelligence.test_mcp -v`。`pyproject.toml` 没有 `.[mcp]` extra，也没有打包 Project Intelligence 或其 console 入口；独立的 Business Data MCP 使用 `business-data-mcp` extra，两者用途不同。协议测试启动真实 stdio 子进程，未安装可选依赖时明确 skip，不能据此宣称 MCP 验收通过。详见 [stdio MCP](./project-intelligence-mcp.md)。

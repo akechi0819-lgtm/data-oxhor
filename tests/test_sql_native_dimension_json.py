@@ -9,7 +9,7 @@ from dashboard_product.shadow_bi.sql_warehouse.native_dimension_json import (
     grade_json_source, native_channel_json_sql, native_grade_json_sql,
     university_channel_json_source,
 )
-from dashboard_product.management.breakdowns import UNIVERSITY_SCHOOL_ATTRIBUTES
+from dashboard_product.shadow_bi.sql_warehouse.common_rules import UNIVERSITY_SCHOOL_ATTRIBUTES
 
 
 class NativeDimensionJsonTests(unittest.TestCase):

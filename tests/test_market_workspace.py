@@ -95,6 +95,20 @@ class MarketWorkspaceTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'Evidence must'):
             market_data.execute(self.args('--sql-file', str(sql)))
 
+    def test_new_task_stays_inside_market_workspace(self):
+        task = '202611-经营分析'
+        root = self.market / 'tasks' / task
+        sql = root / 'scratch/query.sql'
+        sql.parent.mkdir(parents=True)
+        sql.write_text('SELECT 1')
+        self.assertEqual(market_data._query_paths(self.args('--task', task, '--sql-file', str(sql))),
+                         (root / 'evidence', sql))
+        obsolete = self.root / 'workspace/tasks' / task / 'scratch/query.sql'
+        obsolete.parent.mkdir(parents=True)
+        obsolete.write_text('SELECT 2')
+        with self.assertRaisesRegex(ValueError, 'SQL must'):
+            market_data._query_paths(self.args('--task', task, '--sql-file', str(obsolete)))
+
     def test_existing_run_cannot_be_overwritten(self):
         sql = self.market / 'draft.sql'
         sql.write_text('SELECT 1')

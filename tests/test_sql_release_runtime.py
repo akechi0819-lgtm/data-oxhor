@@ -1,11 +1,8 @@
 """单仓发布身份及通知读取合同；不访问网络或客户文件。"""
-from copy import deepcopy
 import json
 
 import pytest
 
-from dashboard_product.management.tests import test_notifications as fixture_notifications
-from dashboard_product.management.tests.reference_notifications import build_notifications
 from dashboard_product.shadow_bi.p4.sql_release import load_release, verify_acceptance
 from data_platform.query.evidence import file_ref
 from monitoring_product import release_notifications as notifications
@@ -128,18 +125,15 @@ def test_ssc_metadata_rollback_restores_names_sql_chart_and_layout(monkeypatch):
 
 @pytest.fixture
 def release(tmp_path):
+    from pathlib import Path
+
     root = tmp_path/'daily-sql-fixture'
     library = root/'library'
     library.mkdir(parents=True)
-    fixture = fixture_notifications.ManagementNotificationsTest()
-    fixture.setUp()
-    public = deepcopy(fixture.public)
-    public['metadata']['snapshot_id'] = 'snapshot_training'
-    public['metadata']['study_abroad_source'].update(snapshot_id='snapshot_abroad', through_date='2026-09-28')
-    payload = build_notifications(public, fixture.facts,
-                                  fixture.people, fixture.abroad_people)
+    fixture = json.loads((Path(__file__).parent/'fixtures/sql_notification_preview.json').read_text())
+    payload = fixture['payload']
     through = payload['data_through']
-    coverage = {**public['metadata'], 'data_through': through}
+    coverage = {**fixture['metadata'], 'data_through': through}
     (library/'warehouse.duckdb').write_bytes(b'sealed database file; query adapter tested separately')
     (library/'notification-preview.json').write_text(json.dumps(payload, ensure_ascii=False))
     candidate = {'schema_version': 'sql_warehouse_candidate.v1', 'batch_id': 'run_sql_fixture',

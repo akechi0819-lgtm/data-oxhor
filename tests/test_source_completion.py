@@ -16,7 +16,7 @@ def test_declared_dict_cannot_select_a_calculation_cutoff():
 ])
 def test_verified_zero_day_preserves_real_personal_26_to_25_rules(asof,observed,expected,month,start,end):
     from workspace_modeling.operations.personnel import date_to_perf_month
-    from dashboard_product.management.aggregate import _calendar_month_window
+    from dashboard_product.shadow_bi.sql_warehouse.common_rules import _calendar_month_window
     coverage={'orders_start':'2025-03-01','cash_start':'2024-06-01','orders_end':observed,'cash_end':observed}
     proof=VerifiedCompletion(asof,expected,'raw-calendar','a'*64,'b'*64)
     through=calculation_cutoff(coverage,asof,proof)

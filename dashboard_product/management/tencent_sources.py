@@ -3,7 +3,7 @@ import hashlib,json,re
 from datetime import date
 from decimal import Decimal
 from pathlib import Path
-from data_acquisition.connectors.advertising.tencent_native import inspect_report
+from .tencent_native import inspect_report
 
 TENCENT_MANUAL = 'tencent_manual_csv'
 

@@ -49,15 +49,6 @@ def _parser():
     cost.add_argument('--input', type=Path, required=True)
     cost.add_argument('--platform', choices=('xhs', 'douyin', 'tencent', 'sem'), required=True)
     cost.add_argument('--confirm-zero', action='append', default=[])
-    fetch = commands.add_parser('fetch-cost-optional')
-    fetch.add_argument('--batch-dir', type=Path, required=True)
-    fetch.add_argument('--source-contracts', type=Path, required=True)
-    fetch.add_argument('--xhs-scope', type=Path, required=True)
-    sem = fetch.add_mutually_exclusive_group()
-    sem.add_argument('--sem-receipt', type=Path)
-    sem.add_argument('--sem-auto', action='store_true')
-    fetch.add_argument('--sem-executable-path', type=Path)
-    fetch.add_argument('--tencent-scope-confirmation', type=Path)
     return parser
 
 
@@ -118,16 +109,6 @@ def main(argv=None):
         elif args.command == 'ingest-cost':
             result = ingest_costs(workspace, runtime, day=_today(), input_path=args.input,
                                   platform=args.platform, confirmed_zero=args.confirm_zero)
-        else:
-            from data_acquisition.jobs.fee_sources import collector
-
-            day = _today()
-            acquire = collector(args.batch_dir, args.source_contracts, args.xhs_scope, args.sem_receipt,
-                                sem_auto=args.sem_auto, sem_executable_path=args.sem_executable_path,
-                                tencent_confirmation=args.tencent_scope_confirmation)
-            capture = args.batch_dir / 'capture'
-            capture.mkdir(parents=True, exist_ok=True)
-            result = acquire(workspace, day, 'optional-fee-' + day, capture)
         notice = result.get('notification') or {}
         if notice.get('reason') == 'already_sent_today':
             print('notify: skipped (already_sent_today)', file=sys.stderr)

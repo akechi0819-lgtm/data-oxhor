@@ -1,6 +1,6 @@
 # 日常监控
 
-日更入口为 `python -m ops run business`。现行调度以 `prepare_full_daily --publish --business-only` 转入同一业务链，发布正式 SQL release 后核验通知。费用通过 `ops ingest-cost` 独立录入，`ops fetch-cost-optional` 可生成隔离采集证据。
+日更入口为 `python -m ops run business`。现行调度以 `prepare_full_daily --publish --business-only` 转入同一业务链，发布正式 SQL release 后核验通知。费用通过 `ops ingest-cost` 独立录入。
 
 > **历史运行回执（2026-10-26）**：固定服务器通知适配从正式 release 构建8条消息，经 `shared_delivery` 去重投递；当日人工触发有8条 `sent` 记录，另一个HTTP job保留 `unknown`，只读对账确认其 `no_send_performed=true`。不得把job本身记为sent或重发该批消息。raw worker当日运行到39张业务表后因截止门禁失败，没有发布release；该状态不代表本地 bi-3 总入口。Dot上海10:00记录针对通知，与BI采集／刷新分开。回执见[通知作业修复记录](../docs/archive/notification-job-receipt-repair-20261026.md)和[BI部署说明](../dashboard_product/DEPLOYMENT.md)。
 

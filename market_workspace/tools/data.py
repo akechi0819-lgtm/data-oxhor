@@ -55,7 +55,7 @@ def parser():
             command.add_argument('--sql-file', type=Path, required=True)
             command.add_argument('--layer', choices=('raw', 'semantic'))
             command.add_argument('--release-id', help='显式绑定 status 显示的封存 SQL 版本')
-            command.add_argument('--task', help='workspace/tasks 下的 YYYYMM-任务名')
+            command.add_argument('--task', help='市场工作区 tasks 下的 YYYYMM-任务名')
         if name == 'saved-query':
             command.add_argument('--query-id', required=True)
             command.add_argument('--version', required=True)
@@ -80,10 +80,10 @@ def _query_paths(args):
     else:
         if not re.fullmatch(r"[0-9]{4}(0[1-9]|1[0-2])-[^/\\]{1,80}", task):
             raise ValueError('任务目录须为 YYYYMM-任务名')
-        task_root = REPO / 'workspace' / 'tasks' / task
+        task_root = MARKET / 'tasks' / task
         evidence, sql_root = task_root / 'evidence', task_root / 'scratch'
         if task_root.resolve() != task_root or sql_root.resolve() != sql_root:
-            raise ValueError('任务目录须位于项目工作区内')
+            raise ValueError('任务目录须位于市场工作区内')
     if evidence.resolve() != evidence:
         raise ValueError('Evidence must be a real directory inside the selected workspace')
     sql = args.sql_file.resolve()
@@ -165,6 +165,7 @@ def execute(args):
             'paths': {
                 'market_workspace': str(MARKET), 'data_workspace': str(SOURCE),
                 'workspace_config': str(SOURCE / 'Work/workspace.json'),
+                'tasks': str(MARKET / 'tasks'),
                 'evidence': str(MARKET / 'Evidence'), 'reports': str(MARKET / 'Reports'),
             },
         }

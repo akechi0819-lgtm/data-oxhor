@@ -13,4 +13,4 @@ DuckDB is distributed under the MIT License. Source and license:
 
 ## MCP Python SDK（可选）
 
-Project Intelligence 的 stdio 适配器依赖官方 `mcp==2.2.0`，用于协议、类型、传输和本地客户端测试，不随核心业务运行强制安装。SDK 采用 MIT License，源码和许可证见 [modelcontextprotocol/python-sdk](https://github.com/modelcontextprotocol/python-sdk)。传递依赖以已安装发行包附带的许可证为准。
+Business Data MCP 依赖官方 `mcp==2.2.0`，用于协议、类型和传输，不随核心业务运行强制安装。SDK 采用 MIT License，源码和许可证见 [modelcontextprotocol/python-sdk](https://github.com/modelcontextprotocol/python-sdk)。传递依赖以已安装发行包附带的许可证为准。

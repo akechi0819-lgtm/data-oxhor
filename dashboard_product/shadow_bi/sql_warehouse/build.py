@@ -13,7 +13,7 @@ from .relations import quote,records
 
 def _rule_binding(root):
     roots = ('dashboard_product/config', 'workspace_modeling/operations', 'data_acquisition/jobs',
-             'data_acquisition/connectors/advertising', 'data_platform/query',
+             'data_platform/query',
              'dashboard_product/management', 'dashboard_product/online_team/config')
     files = {path for name in roots for path in (root / name).rglob('*')
              if path.is_file() and 'tests' not in path.parts and path.suffix in ('.py', '.sql', '.json', '.toml')}

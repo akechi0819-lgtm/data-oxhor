@@ -6,7 +6,7 @@ from .relations import load_rows
 
 
 def install_radar(con,*,config_root):
-    from dashboard_product.management.capacity_radar import _training_roster,_abroad_roster
+    from dashboard_product.shadow_bi.sql_warehouse.common_rules import _training_roster,_abroad_roster
     root=Path(config_root)
     people=json.loads((root/'workspace_modeling/operations/people.json').read_text())
     abroad=json.loads((root/'dashboard_product/config/offline_market_people.json').read_text())

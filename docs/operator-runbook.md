@@ -8,7 +8,7 @@ Mac 默认运行 `ops run business`，也可在当前 Python 环境运行 `pytho
 
 人工补全量时将 `orders.xlsx`、`cash.xlsx` 放入 `runtime/inbox/manual/YYYY-MM-DD/` 后运行 `ops run business --day YYYY-MM-DD --from-manual`，可同目录附 `tencent.xlsx`。未附腾讯表时仍走现有留学采集。工单及现金会用文件 SHA 写入补数清单并走原门禁。日报由服务器每日键在共享投递锁内判定。若已确认 8 条，则返回 `notify: skipped (already_sent_today)`；传输未知的条目由原服务保持阻塞。只更新看板的操作可用 `--no-notify`。
 
-费用录入使用 `ops ingest-cost --input 费用.csv --platform xhs --confirm-zero 高中=YYYY-MM-DD`，同一命令也支持 XLSX、JSON 以及抖音、腾讯和 SEM。列名为日期、业务组、金额或 `date,business_group,amount`。业务组未出现在记录中的日期保留缺失，空金额仍为缺失，需要明确的业务组与日期声明才能录入零消费。SEM 需指定明细平台，零声明填 `高中/百度=YYYY-MM-DD`。费用独立候选沿用当前业务仓的封存数据与通知预览，经整仓发布更新费用视图，录入过程不调用日报入口。原生费用抓取保留在 `ops fetch-cost-optional`，用于产生本地核验资料。
+费用录入使用 `ops ingest-cost --input 费用.csv --platform xhs --confirm-zero 高中=YYYY-MM-DD`，同一命令也支持 XLSX、JSON 以及抖音、腾讯和 SEM。列名为日期、业务组、金额或 `date,business_group,amount`。业务组未出现在记录中的日期保留缺失，空金额仍为缺失，需要明确的业务组与日期声明才能录入零消费。SEM 需指定明细平台，零声明填 `高中/百度=YYYY-MM-DD`。费用独立候选沿用当前业务仓的封存数据与通知预览，经整仓发布更新费用视图，录入过程不调用日报入口。
 
 腾讯历史账户日账以逐日明细为准，表头汇总差额不计入费用。腾讯有投放的业务组在 ROI 看板按缺日 0 元计算，留学预备没有腾讯投放；原始账目仍可区分缺失与已确认零消费。已确认的期间账单保留原周期。历史账单、群报及费用口径见[费用与 ROI](dashboard-advertising-costs.md)。
 

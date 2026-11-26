@@ -6,7 +6,7 @@ Data OXHor 通过同一组可核验 Snapshot 生产经营看板、报告和腾�
 
 1. `ops run business` 通过 BI 与腾讯文档取得语培、留学输入。语培在落盘、窗口合并及发布前校验表头、行数、日期与跨版本回撤。人工原件以文件 SHA 绑定，经相同门禁。
 2. Data Platform 生成不可变 Snapshot。SQL 构建将明确的语培、留学 Snapshot 组装为同一 release，旧 `business.*` 数据集与 Superset 发布合同继续由既有验证器核验。
-3. SQL 候选在本地隔离构建并封存。激活后才更新 Current。当前版本比对可查 `release-comparison.json`。
+3. Mac 同步基础行增量，云端以固定 SQL 隔离构建候选并核对历史可比窗口。激活后更新正式指针，Mac 共用 `runtime/releases/<发布号>/library` 作为日更基线和只读查询仓。版本比对可查 `release-comparison.json`。
 4. 日报使用当次通知结果。服务端在共享投递锁下对每条消息去重，无法确认的发送留待核对。
 5. 费用独立按日录入和发布。事务替换的费用候选沿用核验的业务版本及通知预览。空额保留缺失，零额须有确认。
 
@@ -27,6 +27,6 @@ Business Data MCP 为同一个 result ID 固定查询范围、期间及可比指
 
 ## 任务、维护与权限
 
-三个项目技能从[根入口](../AGENTS.md)加载。新市场任务在 `workspace/tasks/` 保存草稿、证据和交付物。正式数据、运维程序与历史证据沿用已登记的位置。
+三个项目技能从[根入口](../AGENTS.md)加载。新市场任务在 `market_workspace/tasks/` 保存草稿、证据和交付物。正式数据、运维程序与历史证据沿用已登记的位置。
 
-Project Intelligence 提供本地只读上下文。运行与检查入口见[运维手册](operator-runbook.md)，部署看[看板合同](../dashboard_product/DEPLOYMENT.md)，开发与回滚看[维护指南](maintainer-guide.md)。
+运行与检查入口见[运维手册](operator-runbook.md)，部署看[看板合同](../dashboard_product/DEPLOYMENT.md)，开发与回滚看[维护指南](maintainer-guide.md)。

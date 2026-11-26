@@ -1,0 +1,1350 @@
+{
+  "metadata": {
+    "data_through": "2026-09-28",
+    "study_abroad_source": {
+      "snapshot_id": "snapshot_abroad",
+      "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "start_date": "2026-09-01",
+      "through_date": "2026-09-28",
+      "no_yoy": true,
+      "cross_system_customers": "not_aligned"
+    },
+    "snapshot_id": "snapshot_training"
+  },
+  "payload": {
+    "schema_version": "management_notifications.v1",
+    "data_through": "2026-09-28",
+    "messages": [
+      {
+        "id": "prep.training",
+        "channel_id": "offline_youth",
+        "business_line": "training",
+        "title": "线下青少语培",
+        "month": "2026-09",
+        "window": {
+          "data_through": "2026-09-28",
+          "team_start": "2026-09-01",
+          "team_end": null,
+          "team_through": "2026-09-28",
+          "team_progress": 0.9333333333333333,
+          "person_month": "2026-10",
+          "person_start": "2026-09-26",
+          "person_end": "2026-10-25",
+          "person_through": "2026-09-28",
+          "person_progress": 0.1
+        },
+        "team_metrics": {
+          "orders": {
+            "actual": 4,
+            "target": 10,
+            "completion": 0.4,
+            "status": "available",
+            "daily_actual": 0,
+            "daily_average": 0.14285714285714285,
+            "daily_required": 3,
+            "behind": true
+          },
+          "cash": {
+            "actual": 1000,
+            "target": 2000,
+            "completion": 0.5,
+            "status": "available"
+          },
+          "heads": {
+            "actual": 1,
+            "target": null,
+            "completion": null,
+            "status": "available"
+          }
+        },
+        "people": [],
+        "channels": [],
+        "ledgers": {
+          "personal_orders": [],
+          "personal_secondary_orders": [],
+          "team_orders": [],
+          "personal_cash": [],
+          "team_cash": [],
+          "unassigned_cash": []
+        }
+      },
+      {
+        "id": "high.training",
+        "channel_id": "offline_high_school",
+        "business_line": "training",
+        "title": "线下高中语培",
+        "month": "2026-09",
+        "window": {
+          "data_through": "2026-09-28",
+          "team_start": "2026-09-01",
+          "team_end": null,
+          "team_through": "2026-09-28",
+          "team_progress": 0.9333333333333333,
+          "person_month": "2026-10",
+          "person_start": "2026-09-26",
+          "person_end": "2026-10-25",
+          "person_through": "2026-09-28",
+          "person_progress": 0.1
+        },
+        "team_metrics": {
+          "orders": {
+            "actual": 4,
+            "target": 10,
+            "completion": 0.4,
+            "status": "available",
+            "daily_actual": 0,
+            "daily_average": 0.14285714285714285,
+            "daily_required": 3,
+            "behind": true
+          },
+          "cash": {
+            "actual": 1000,
+            "target": 2000,
+            "completion": 0.5,
+            "status": "available"
+          },
+          "heads": {
+            "actual": 1,
+            "target": null,
+            "completion": null,
+            "status": "available"
+          }
+        },
+        "people": [],
+        "channels": [],
+        "ledgers": {
+          "personal_orders": [],
+          "personal_secondary_orders": [],
+          "team_orders": [],
+          "personal_cash": [],
+          "team_cash": [],
+          "unassigned_cash": []
+        }
+      },
+      {
+        "id": "high.abroad",
+        "channel_id": "offline_high_school",
+        "business_line": "abroad",
+        "title": "高中留学",
+        "month": "2026-09",
+        "window": {
+          "data_through": "2026-09-28",
+          "team_start": "2026-09-01",
+          "team_end": null,
+          "team_through": "2026-09-28",
+          "team_progress": 0.9333333333333333,
+          "person_month": "2026-10",
+          "person_start": "2026-09-26",
+          "person_end": "2026-10-25",
+          "person_through": "2026-09-28",
+          "person_progress": 0.1
+        },
+        "team_metrics": {},
+        "people": [
+          {
+            "name": "马玥",
+            "home_group": "高中",
+            "business_line": "abroad",
+            "training_target": null,
+            "training_actual": 0,
+            "training_completion": null,
+            "abroad_target": null,
+            "abroad_actual": 1.5,
+            "abroad_completion": null,
+            "cash_actual": {
+              "actual": null,
+              "target": null,
+              "completion": null,
+              "status": "available"
+            },
+            "heads_actual": {
+              "actual": null,
+              "target": null,
+              "completion": null,
+              "status": "available"
+            },
+            "orders_target": null,
+            "orders_actual": 1.5,
+            "orders_completion": null,
+            "heads_target": null,
+            "heads_completion": null,
+            "behind": null,
+            "expected_orders": null,
+            "orders_gap": null,
+            "remaining_orders": null,
+            "remaining_workdays": 19,
+            "today_orders": 1.5,
+            "daily_orders": null
+          }
+        ],
+        "channels": [
+          {
+            "name": "转介绍",
+            "month": 1,
+            "today": 1,
+            "share": 0.6666666666666666
+          },
+          {
+            "name": "合作院校",
+            "month": 0.5,
+            "today": 0.5,
+            "share": 0.3333333333333333
+          }
+        ],
+        "ledgers": {
+          "personal_orders": [
+            {
+              "fact_id": "high-abroad-cocreate",
+              "metric": "orders",
+              "business_line": "abroad",
+              "event_date": "2026-09-28",
+              "value": 1,
+              "work_order_id": "high-abroad-cocreate",
+              "team_id": "offline_market",
+              "business_group": null,
+              "owners": [
+                "马玥",
+                "留学同事"
+              ],
+              "first_channel": "市场活动",
+              "second_channel": "合作院校",
+              "acquisition_mode": "offline",
+              "offline_channel_eligible": true,
+              "counts_toward_completion": true,
+              "exclusion_reason": null,
+              "order_status": "正常",
+              "source_record": {
+                "ID": "high-abroad-cocreate",
+                "团队": "offline_market"
+              },
+              "segment_id": "study_abroad_offline",
+              "source_product": "study_abroad",
+              "customer_domain": "study_abroad",
+              "source_kind": "study_abroad_warehouse",
+              "person_credits": {
+                "马玥": {
+                  "weight": 0.5,
+                  "value": 0.5
+                }
+              }
+            },
+            {
+              "fact_id": "high-abroad-own",
+              "metric": "orders",
+              "business_line": "abroad",
+              "event_date": "2026-09-28",
+              "value": 1,
+              "work_order_id": "high-abroad-own",
+              "team_id": "offline_market",
+              "business_group": null,
+              "owners": [
+                "马玥"
+              ],
+              "first_channel": "市场活动",
+              "second_channel": "转介绍",
+              "acquisition_mode": "offline",
+              "offline_channel_eligible": true,
+              "counts_toward_completion": true,
+              "exclusion_reason": null,
+              "order_status": "正常",
+              "source_record": {
+                "ID": "high-abroad-own",
+                "团队": "offline_market"
+              },
+              "segment_id": "study_abroad_offline",
+              "source_product": "study_abroad",
+              "customer_domain": "study_abroad",
+              "source_kind": "study_abroad_warehouse",
+              "person_credits": {
+                "马玥": {
+                  "weight": 1,
+                  "value": 1
+                }
+              }
+            }
+          ],
+          "personal_secondary_orders": [],
+          "team_orders": [],
+          "personal_cash": [],
+          "team_cash": [],
+          "unassigned_cash": []
+        },
+        "personal_only": true,
+        "source_coverage": {
+          "snapshot_id": "snapshot_abroad",
+          "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "start_date": "2026-09-01",
+          "through_date": "2026-09-28",
+          "no_yoy": true,
+          "cross_system_customers": "not_aligned"
+        }
+      },
+      {
+        "id": "university.training",
+        "channel_id": "offline_university",
+        "business_line": "training",
+        "title": "线下大学语培",
+        "month": "2026-09",
+        "window": {
+          "data_through": "2026-09-28",
+          "team_start": "2026-09-01",
+          "team_end": null,
+          "team_through": "2026-09-28",
+          "team_progress": 0.9333333333333333,
+          "person_month": "2026-10",
+          "person_start": "2026-09-26",
+          "person_end": "2026-10-25",
+          "person_through": "2026-09-28",
+          "person_progress": 0.1
+        },
+        "team_metrics": {
+          "orders": {
+            "actual": 4,
+            "target": 10,
+            "completion": 0.4,
+            "status": "available",
+            "daily_actual": 2,
+            "daily_average": 0.14285714285714285,
+            "daily_required": 3,
+            "behind": true
+          },
+          "cash": {
+            "actual": 1000,
+            "target": 2000,
+            "completion": 0.5,
+            "status": "available"
+          },
+          "heads": {
+            "actual": 1,
+            "target": null,
+            "completion": null,
+            "status": "available"
+          }
+        },
+        "people": [
+          {
+            "name": "大学同事",
+            "home_group": "大学",
+            "business_line": "training+abroad",
+            "training_target": 10,
+            "training_actual": 4,
+            "training_completion": 0.4,
+            "abroad_target": 1,
+            "abroad_actual": 0,
+            "abroad_completion": 0,
+            "cash_actual": {
+              "actual": 1000,
+              "target": 2000,
+              "completion": 0.5,
+              "status": "available"
+            },
+            "heads_actual": {
+              "actual": 1,
+              "target": null,
+              "completion": null,
+              "status": "available"
+            },
+            "orders_target": 10,
+            "orders_actual": 4,
+            "orders_completion": 0.4,
+            "secondary_business_line": "abroad",
+            "secondary_orders_target": 1,
+            "secondary_orders_actual": 0,
+            "secondary_orders_completion": 0.0,
+            "heads_target": 4,
+            "heads_completion": 0.25,
+            "behind": false,
+            "expected_orders": 1,
+            "orders_gap": 3,
+            "remaining_orders": 6,
+            "remaining_workdays": 19,
+            "today_orders": 1,
+            "daily_orders": 0.3157894736842105
+          }
+        ],
+        "channels": [
+          {
+            "name": "回收渠道",
+            "month": 1,
+            "today": 1,
+            "share": 0.5
+          },
+          {
+            "name": "线上讲座",
+            "month": 1,
+            "today": 1,
+            "share": 0.5
+          }
+        ],
+        "ledgers": {
+          "personal_orders": [
+            {
+              "fact_id": "train-included",
+              "metric": "orders",
+              "business_line": "training",
+              "event_date": "2026-09-28",
+              "value": 1,
+              "work_order_id": "train-included",
+              "team_id": "offline_market",
+              "business_group": "大学",
+              "owners": [
+                "大学同事"
+              ],
+              "first_channel": "市场活动",
+              "second_channel": "线上讲座",
+              "acquisition_mode": null,
+              "offline_channel_eligible": false,
+              "counts_toward_completion": true,
+              "exclusion_reason": null,
+              "order_status": "正常",
+              "source_record": {
+                "ID": "train-included",
+                "团队": "offline_market"
+              },
+              "person_credits": {
+                "大学同事": {
+                  "weight": 1,
+                  "value": 1
+                }
+              }
+            },
+            {
+              "fact_id": "train-recycled",
+              "metric": "orders",
+              "business_line": "training",
+              "event_date": "2026-09-28",
+              "value": 1,
+              "work_order_id": "train-recycled",
+              "team_id": "offline_market",
+              "business_group": "大学",
+              "owners": [
+                "大学同事"
+              ],
+              "first_channel": "市场活动",
+              "second_channel": "回收渠道",
+              "acquisition_mode": null,
+              "offline_channel_eligible": false,
+              "counts_toward_completion": false,
+              "exclusion_reason": "工单已回收",
+              "order_status": "已回收",
+              "source_record": {
+                "ID": "train-recycled",
+                "团队": "offline_market"
+              },
+              "person_credits": {
+                "大学同事": {
+                  "weight": 1,
+                  "value": 1
+                }
+              }
+            }
+          ],
+          "personal_secondary_orders": [
+            {
+              "fact_id": "abroad-included",
+              "metric": "orders",
+              "business_line": "abroad",
+              "event_date": "2026-09-28",
+              "value": 1,
+              "work_order_id": "abroad-included",
+              "team_id": "offline_market",
+              "business_group": null,
+              "owners": [
+                "大学同事"
+              ],
+              "first_channel": "市场活动",
+              "second_channel": "官方合作高校",
+              "acquisition_mode": "offline",
+              "offline_channel_eligible": true,
+              "counts_toward_completion": true,
+              "exclusion_reason": null,
+              "order_status": "正常",
+              "source_record": {
+                "ID": "abroad-included",
+                "团队": "offline_market"
+              },
+              "segment_id": "study_abroad_offline",
+              "source_product": "study_abroad",
+              "customer_domain": "study_abroad",
+              "source_kind": "study_abroad_warehouse",
+              "person_credits": {
+                "大学同事": {
+                  "weight": 1,
+                  "value": 1
+                }
+              }
+            }
+          ],
+          "team_orders": [
+            {
+              "fact_id": "train-included",
+              "metric": "orders",
+              "business_line": "training",
+              "event_date": "2026-09-28",
+              "value": 1,
+              "work_order_id": "train-included",
+              "team_id": "offline_market",
+              "business_group": "大学",
+              "owners": [
+                "大学同事"
+              ],
+              "first_channel": "市场活动",
+              "second_channel": "线上讲座",
+              "acquisition_mode": null,
+              "offline_channel_eligible": false,
+              "counts_toward_completion": true,
+              "exclusion_reason": null,
+              "order_status": "正常",
+              "source_record": {
+                "ID": "train-included",
+                "团队": "offline_market"
+              }
+            },
+            {
+              "fact_id": "train-recycled",
+              "metric": "orders",
+              "business_line": "training",
+              "event_date": "2026-09-28",
+              "value": 1,
+              "work_order_id": "train-recycled",
+              "team_id": "offline_market",
+              "business_group": "大学",
+              "owners": [
+                "大学同事"
+              ],
+              "first_channel": "市场活动",
+              "second_channel": "回收渠道",
+              "acquisition_mode": null,
+              "offline_channel_eligible": false,
+              "counts_toward_completion": false,
+              "exclusion_reason": "工单已回收",
+              "order_status": "已回收",
+              "source_record": {
+                "ID": "train-recycled",
+                "团队": "offline_market"
+              }
+            }
+          ],
+          "personal_cash": [],
+          "team_cash": [],
+          "unassigned_cash": []
+        }
+      },
+      {
+        "id": "university.abroad",
+        "channel_id": "offline_university",
+        "business_line": "abroad",
+        "title": "线下大学留学",
+        "month": "2026-09",
+        "window": {
+          "data_through": "2026-09-28",
+          "team_start": "2026-09-01",
+          "team_end": null,
+          "team_through": "2026-09-28",
+          "team_progress": 0.9333333333333333,
+          "person_month": "2026-10",
+          "person_start": "2026-09-26",
+          "person_end": "2026-10-25",
+          "person_through": "2026-09-28",
+          "person_progress": 0.1
+        },
+        "team_metrics": {
+          "orders": {
+            "actual": 2,
+            "target": 5,
+            "completion": 0.4,
+            "status": "available",
+            "source_coverage": {
+              "snapshot_id": "snapshot_study_fixture",
+              "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "start_date": "2026-09-01",
+              "through_date": "2026-09-30",
+              "no_yoy": true,
+              "cross_system_customers": "not_aligned"
+            },
+            "daily_actual": 3,
+            "daily_average": 0.07142857142857142,
+            "daily_required": 1.5,
+            "behind": true
+          },
+          "cash": {
+            "actual": null,
+            "target": null,
+            "completion": null,
+            "status": "available",
+            "source_coverage": {
+              "snapshot_id": "snapshot_study_fixture",
+              "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "start_date": "2026-09-01",
+              "through_date": "2026-09-30",
+              "no_yoy": true,
+              "cross_system_customers": "not_aligned"
+            }
+          },
+          "heads": {
+            "actual": null,
+            "target": null,
+            "completion": null,
+            "status": "available",
+            "source_coverage": {
+              "snapshot_id": "snapshot_study_fixture",
+              "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "start_date": "2026-09-01",
+              "through_date": "2026-09-30",
+              "no_yoy": true,
+              "cross_system_customers": "not_aligned"
+            }
+          }
+        },
+        "people": [
+          {
+            "name": "留学同事",
+            "home_group": "大学",
+            "business_line": "abroad",
+            "training_target": 2,
+            "training_actual": 0,
+            "training_completion": 0,
+            "abroad_target": 20,
+            "abroad_actual": 1,
+            "abroad_completion": 0.05,
+            "cash_actual": {
+              "actual": null,
+              "target": null,
+              "completion": null,
+              "status": "available"
+            },
+            "heads_actual": {
+              "actual": null,
+              "target": null,
+              "completion": null,
+              "status": "available"
+            },
+            "orders_target": 20,
+            "orders_actual": 1,
+            "orders_completion": 0.05,
+            "secondary_business_line": "training",
+            "secondary_orders_target": 2,
+            "secondary_orders_actual": 0,
+            "secondary_orders_completion": 0.0,
+            "heads_target": null,
+            "heads_completion": null,
+            "behind": true,
+            "expected_orders": 2,
+            "orders_gap": -1,
+            "remaining_orders": 19,
+            "remaining_workdays": 19,
+            "today_orders": 1.5,
+            "daily_orders": 1
+          }
+        ],
+        "channels": [
+          {
+            "name": "合作院校",
+            "month": 1,
+            "today": 1,
+            "share": 0.3333333333333333
+          },
+          {
+            "name": "官方合作高校",
+            "month": 1,
+            "today": 1,
+            "share": 0.3333333333333333
+          },
+          {
+            "name": "转介绍",
+            "month": 1,
+            "today": 1,
+            "share": 0.3333333333333333
+          }
+        ],
+        "ledgers": {
+          "personal_orders": [
+            {
+              "fact_id": "abroad-personal-only",
+              "metric": "orders",
+              "business_line": "abroad",
+              "event_date": "2026-09-28",
+              "value": 1,
+              "work_order_id": "abroad-personal-only",
+              "team_id": "online_platform",
+              "business_group": null,
+              "owners": [
+                "留学同事"
+              ],
+              "first_channel": "市场活动",
+              "second_channel": "网络资源",
+              "acquisition_mode": "online",
+              "offline_channel_eligible": false,
+              "counts_toward_completion": true,
+              "exclusion_reason": null,
+              "order_status": "正常",
+              "source_record": {
+                "ID": "abroad-personal-only",
+                "团队": "online_platform"
+              },
+              "segment_id": "study_abroad_online",
+              "source_product": "study_abroad",
+              "customer_domain": "study_abroad",
+              "source_kind": "study_abroad_warehouse",
+              "person_credits": {
+                "留学同事": {
+                  "weight": 1,
+                  "value": 1
+                }
+              }
+            },
+            {
+              "fact_id": "high-abroad-cocreate",
+              "metric": "orders",
+              "business_line": "abroad",
+              "event_date": "2026-09-28",
+              "value": 1,
+              "work_order_id": "high-abroad-cocreate",
+              "team_id": "offline_market",
+              "business_group": null,
+              "owners": [
+                "马玥",
+                "留学同事"
+              ],
+              "first_channel": "市场活动",
+              "second_channel": "合作院校",
+              "acquisition_mode": "offline",
+              "offline_channel_eligible": true,
+              "counts_toward_completion": true,
+              "exclusion_reason": null,
+              "order_status": "正常",
+              "source_record": {
+                "ID": "high-abroad-cocreate",
+                "团队": "offline_market"
+              },
+              "segment_id": "study_abroad_offline",
+              "source_product": "study_abroad",
+              "customer_domain": "study_abroad",
+              "source_kind": "study_abroad_warehouse",
+              "person_credits": {
+                "留学同事": {
+                  "weight": 0.5,
+                  "value": 0.5
+                }
+              }
+            }
+          ],
+          "personal_secondary_orders": [],
+          "team_orders": [
+            {
+              "fact_id": "abroad-included",
+              "metric": "orders",
+              "business_line": "abroad",
+              "event_date": "2026-09-28",
+              "value": 1,
+              "work_order_id": "abroad-included",
+              "team_id": "offline_market",
+              "business_group": null,
+              "owners": [
+                "大学同事"
+              ],
+              "first_channel": "市场活动",
+              "second_channel": "官方合作高校",
+              "acquisition_mode": "offline",
+              "offline_channel_eligible": true,
+              "counts_toward_completion": true,
+              "exclusion_reason": null,
+              "order_status": "正常",
+              "source_record": {
+                "ID": "abroad-included",
+                "团队": "offline_market"
+              },
+              "segment_id": "study_abroad_offline",
+              "source_product": "study_abroad",
+              "customer_domain": "study_abroad",
+              "source_kind": "study_abroad_warehouse"
+            },
+            {
+              "fact_id": "high-abroad-cocreate",
+              "metric": "orders",
+              "business_line": "abroad",
+              "event_date": "2026-09-28",
+              "value": 1,
+              "work_order_id": "high-abroad-cocreate",
+              "team_id": "offline_market",
+              "business_group": null,
+              "owners": [
+                "马玥",
+                "留学同事"
+              ],
+              "first_channel": "市场活动",
+              "second_channel": "合作院校",
+              "acquisition_mode": "offline",
+              "offline_channel_eligible": true,
+              "counts_toward_completion": true,
+              "exclusion_reason": null,
+              "order_status": "正常",
+              "source_record": {
+                "ID": "high-abroad-cocreate",
+                "团队": "offline_market"
+              },
+              "segment_id": "study_abroad_offline",
+              "source_product": "study_abroad",
+              "customer_domain": "study_abroad",
+              "source_kind": "study_abroad_warehouse"
+            },
+            {
+              "fact_id": "high-abroad-own",
+              "metric": "orders",
+              "business_line": "abroad",
+              "event_date": "2026-09-28",
+              "value": 1,
+              "work_order_id": "high-abroad-own",
+              "team_id": "offline_market",
+              "business_group": null,
+              "owners": [
+                "马玥"
+              ],
+              "first_channel": "市场活动",
+              "second_channel": "转介绍",
+              "acquisition_mode": "offline",
+              "offline_channel_eligible": true,
+              "counts_toward_completion": true,
+              "exclusion_reason": null,
+              "order_status": "正常",
+              "source_record": {
+                "ID": "high-abroad-own",
+                "团队": "offline_market"
+              },
+              "segment_id": "study_abroad_offline",
+              "source_product": "study_abroad",
+              "customer_domain": "study_abroad",
+              "source_kind": "study_abroad_warehouse"
+            }
+          ],
+          "personal_cash": [],
+          "team_cash": [],
+          "unassigned_cash": []
+        },
+        "source_coverage": {
+          "snapshot_id": "snapshot_abroad",
+          "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "start_date": "2026-09-01",
+          "through_date": "2026-09-28",
+          "no_yoy": true,
+          "cross_system_customers": "not_aligned"
+        }
+      },
+      {
+        "id": "virtual.mixed",
+        "channel_id": "online_private",
+        "business_line": "mixed",
+        "title": "线上虚拟人",
+        "month": "2026-09",
+        "window": {
+          "data_through": "2026-09-28",
+          "team_start": "2026-09-01",
+          "team_end": null,
+          "team_through": "2026-09-28",
+          "team_progress": 0.9333333333333333,
+          "person_month": "2026-10",
+          "person_start": "2026-09-26",
+          "person_end": "2026-10-25",
+          "person_through": "2026-09-28",
+          "person_progress": 0.1
+        },
+        "team_metrics": {
+          "orders": {
+            "actual": 2,
+            "target": 10,
+            "completion": 0.2,
+            "status": "available",
+            "daily_actual": 7,
+            "daily_average": 0.07142857142857142,
+            "daily_required": 4,
+            "behind": true
+          },
+          "cash": {
+            "actual": 1000,
+            "target": 2000,
+            "completion": 0.5,
+            "status": "available"
+          },
+          "heads": {
+            "actual": 1,
+            "target": null,
+            "completion": null,
+            "status": "available"
+          }
+        },
+        "people": [
+          {
+            "name": "虚拟甲",
+            "home_group": "大学",
+            "business_line": "training",
+            "training_target": 10,
+            "training_actual": 1,
+            "training_completion": 0.1,
+            "abroad_target": 1,
+            "abroad_actual": 1,
+            "abroad_completion": 1,
+            "combined_target": 10,
+            "combined_actual": 2,
+            "combined_prior": 0,
+            "combined_completion": 0.2,
+            "cash_actual": {
+              "actual": 700,
+              "target": 1000,
+              "completion": 0.7,
+              "status": "available"
+            },
+            "heads_actual": {
+              "actual": 1,
+              "target": null,
+              "completion": null,
+              "status": "available"
+            },
+            "orders_target": 10,
+            "orders_actual": 2,
+            "orders_completion": 0.2,
+            "heads_target": 2,
+            "heads_completion": 0.5,
+            "behind": false,
+            "expected_orders": 1,
+            "orders_gap": 1,
+            "remaining_orders": 8,
+            "remaining_workdays": 19,
+            "today_orders": 1,
+            "daily_orders": 0.42105263157894735
+          },
+          {
+            "name": "虚拟乙",
+            "home_group": "大学",
+            "business_line": "training",
+            "training_target": 5,
+            "training_actual": 0,
+            "training_completion": 0,
+            "abroad_target": 1,
+            "abroad_actual": 1,
+            "abroad_completion": 1,
+            "combined_target": 5,
+            "combined_actual": 1,
+            "combined_prior": 0,
+            "combined_completion": 0.2,
+            "cash_actual": {
+              "actual": 0,
+              "target": 0,
+              "completion": null,
+              "status": "available"
+            },
+            "heads_actual": {
+              "actual": 0,
+              "target": null,
+              "completion": null,
+              "status": "available"
+            },
+            "orders_target": 5,
+            "orders_actual": 1,
+            "orders_completion": 0.2,
+            "heads_target": 1,
+            "heads_completion": 0.0,
+            "behind": false,
+            "expected_orders": 0.5,
+            "orders_gap": 0.5,
+            "remaining_orders": 4,
+            "remaining_workdays": 19,
+            "today_orders": 1,
+            "daily_orders": 0.21052631578947367
+          }
+        ],
+        "channels": [
+          {
+            "name": "删除工单",
+            "month": 5,
+            "today": 5,
+            "share": 0.7142857142857143
+          },
+          {
+            "name": "共同讲座",
+            "month": 1,
+            "today": 1,
+            "share": 0.14285714285714285
+          },
+          {
+            "name": "虚拟人",
+            "month": 1,
+            "today": 1,
+            "share": 0.14285714285714285
+          }
+        ],
+        "ledgers": {
+          "personal_orders": [
+            {
+              "fact_id": "virtual-deleted",
+              "metric": "orders",
+              "business_line": "training",
+              "event_date": "2026-09-28",
+              "value": 5,
+              "work_order_id": "virtual-deleted",
+              "team_id": "online_private",
+              "business_group": "大学",
+              "owners": [
+                "虚拟甲"
+              ],
+              "first_channel": "市场活动",
+              "second_channel": "删除工单",
+              "acquisition_mode": null,
+              "offline_channel_eligible": false,
+              "counts_toward_completion": false,
+              "exclusion_reason": "工单已删除",
+              "order_status": "删除",
+              "source_record": {
+                "ID": "virtual-deleted",
+                "团队": "online_private"
+              },
+              "person_credits": {
+                "虚拟甲": {
+                  "weight": 1,
+                  "value": 5
+                }
+              }
+            },
+            {
+              "fact_id": "virtual-extra",
+              "metric": "orders",
+              "business_line": "training",
+              "event_date": "2026-09-28",
+              "value": 1,
+              "work_order_id": "virtual-extra",
+              "team_id": "online_private",
+              "business_group": "大学",
+              "owners": [
+                "虚拟乙"
+              ],
+              "first_channel": "市场活动",
+              "second_channel": "共同讲座",
+              "acquisition_mode": null,
+              "offline_channel_eligible": false,
+              "counts_toward_completion": true,
+              "exclusion_reason": null,
+              "order_status": "正常",
+              "source_record": {
+                "ID": "virtual-extra",
+                "团队": "online_private"
+              },
+              "person_credits": {
+                "虚拟乙": {
+                  "weight": 1,
+                  "value": 1
+                }
+              }
+            },
+            {
+              "fact_id": "virtual-training",
+              "metric": "orders",
+              "business_line": "training",
+              "event_date": "2026-09-28",
+              "value": 1,
+              "work_order_id": "virtual-training",
+              "team_id": "online_private",
+              "business_group": "大学",
+              "owners": [
+                "虚拟甲"
+              ],
+              "first_channel": "市场活动",
+              "second_channel": "虚拟人",
+              "acquisition_mode": null,
+              "offline_channel_eligible": false,
+              "counts_toward_completion": true,
+              "exclusion_reason": null,
+              "order_status": "正常",
+              "source_record": {
+                "ID": "virtual-training",
+                "团队": "online_private"
+              },
+              "person_credits": {
+                "虚拟甲": {
+                  "weight": 1,
+                  "value": 1
+                }
+              }
+            }
+          ],
+          "personal_secondary_orders": [],
+          "team_orders": [
+            {
+              "fact_id": "virtual-deleted",
+              "metric": "orders",
+              "business_line": "training",
+              "event_date": "2026-09-28",
+              "value": 5,
+              "work_order_id": "virtual-deleted",
+              "team_id": "online_private",
+              "business_group": "大学",
+              "owners": [
+                "虚拟甲"
+              ],
+              "first_channel": "市场活动",
+              "second_channel": "删除工单",
+              "acquisition_mode": null,
+              "offline_channel_eligible": false,
+              "counts_toward_completion": false,
+              "exclusion_reason": "工单已删除",
+              "order_status": "删除",
+              "source_record": {
+                "ID": "virtual-deleted",
+                "团队": "online_private"
+              }
+            },
+            {
+              "fact_id": "virtual-extra",
+              "metric": "orders",
+              "business_line": "training",
+              "event_date": "2026-09-28",
+              "value": 1,
+              "work_order_id": "virtual-extra",
+              "team_id": "online_private",
+              "business_group": "大学",
+              "owners": [
+                "虚拟乙"
+              ],
+              "first_channel": "市场活动",
+              "second_channel": "共同讲座",
+              "acquisition_mode": null,
+              "offline_channel_eligible": false,
+              "counts_toward_completion": true,
+              "exclusion_reason": null,
+              "order_status": "正常",
+              "source_record": {
+                "ID": "virtual-extra",
+                "团队": "online_private"
+              }
+            },
+            {
+              "fact_id": "virtual-training",
+              "metric": "orders",
+              "business_line": "training",
+              "event_date": "2026-09-28",
+              "value": 1,
+              "work_order_id": "virtual-training",
+              "team_id": "online_private",
+              "business_group": "大学",
+              "owners": [
+                "虚拟甲"
+              ],
+              "first_channel": "市场活动",
+              "second_channel": "虚拟人",
+              "acquisition_mode": null,
+              "offline_channel_eligible": false,
+              "counts_toward_completion": true,
+              "exclusion_reason": null,
+              "order_status": "正常",
+              "source_record": {
+                "ID": "virtual-training",
+                "团队": "online_private"
+              }
+            }
+          ],
+          "personal_cash": [],
+          "team_cash": [],
+          "unassigned_cash": []
+        }
+      },
+      {
+        "id": "online.training",
+        "channel_id": "online_platform",
+        "business_line": "training",
+        "title": "线上平台语培",
+        "month": "2026-09",
+        "window": {
+          "data_through": "2026-09-28",
+          "team_start": "2026-09-01",
+          "team_end": null,
+          "team_through": "2026-09-28",
+          "team_progress": 0.9333333333333333,
+          "person_month": "2026-09",
+          "person_start": null,
+          "person_end": null,
+          "person_through": null,
+          "person_progress": null
+        },
+        "team_metrics": {
+          "orders": {
+            "actual": 4,
+            "target": 10,
+            "completion": 0.4,
+            "status": "available",
+            "daily_actual": 0,
+            "daily_average": 0.14285714285714285,
+            "daily_required": 3,
+            "behind": true
+          },
+          "cash": {
+            "actual": 1000,
+            "target": 2000,
+            "completion": 0.5,
+            "status": "available"
+          },
+          "heads": {
+            "actual": 1,
+            "target": null,
+            "completion": null,
+            "status": "available"
+          }
+        },
+        "people": [],
+        "channels": [],
+        "ledgers": {
+          "personal_orders": [],
+          "personal_secondary_orders": [],
+          "team_orders": [],
+          "personal_cash": [],
+          "team_cash": [],
+          "unassigned_cash": []
+        }
+      },
+      {
+        "id": "online.abroad",
+        "channel_id": "online_platform",
+        "business_line": "abroad",
+        "title": "线上平台留学",
+        "month": "2026-09",
+        "window": {
+          "data_through": "2026-09-28",
+          "team_start": "2026-09-01",
+          "team_end": null,
+          "team_through": "2026-09-28",
+          "team_progress": 0.9333333333333333,
+          "person_month": "2026-09",
+          "person_start": null,
+          "person_end": null,
+          "person_through": null,
+          "person_progress": null
+        },
+        "team_metrics": {
+          "orders": {
+            "actual": 2,
+            "target": 5,
+            "completion": 0.4,
+            "status": "available",
+            "source_coverage": {
+              "snapshot_id": "snapshot_study_fixture",
+              "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "start_date": "2026-09-01",
+              "through_date": "2026-09-30",
+              "no_yoy": true,
+              "cross_system_customers": "not_aligned"
+            },
+            "daily_actual": 2,
+            "daily_average": 0.07142857142857142,
+            "daily_required": 1.5,
+            "behind": true
+          },
+          "cash": {
+            "actual": null,
+            "target": null,
+            "completion": null,
+            "status": "available",
+            "source_coverage": {
+              "snapshot_id": "snapshot_study_fixture",
+              "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "start_date": "2026-09-01",
+              "through_date": "2026-09-30",
+              "no_yoy": true,
+              "cross_system_customers": "not_aligned"
+            }
+          },
+          "heads": {
+            "actual": null,
+            "target": null,
+            "completion": null,
+            "status": "available",
+            "source_coverage": {
+              "snapshot_id": "snapshot_study_fixture",
+              "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "start_date": "2026-09-01",
+              "through_date": "2026-09-30",
+              "no_yoy": true,
+              "cross_system_customers": "not_aligned"
+            }
+          }
+        },
+        "people": [],
+        "channels": [
+          {
+            "name": "网络资源",
+            "month": 2,
+            "today": 2,
+            "share": 1.0
+          }
+        ],
+        "ledgers": {
+          "personal_orders": [],
+          "personal_secondary_orders": [],
+          "team_orders": [
+            {
+              "fact_id": "abroad-personal-only",
+              "metric": "orders",
+              "business_line": "abroad",
+              "event_date": "2026-09-28",
+              "value": 1,
+              "work_order_id": "abroad-personal-only",
+              "team_id": "online_platform",
+              "business_group": null,
+              "owners": [
+                "留学同事"
+              ],
+              "first_channel": "市场活动",
+              "second_channel": "网络资源",
+              "acquisition_mode": "online",
+              "offline_channel_eligible": false,
+              "counts_toward_completion": true,
+              "exclusion_reason": null,
+              "order_status": "正常",
+              "source_record": {
+                "ID": "abroad-personal-only",
+                "团队": "online_platform"
+              },
+              "segment_id": "study_abroad_online",
+              "source_product": "study_abroad",
+              "customer_domain": "study_abroad",
+              "source_kind": "study_abroad_warehouse"
+            },
+            {
+              "fact_id": "online-included",
+              "metric": "orders",
+              "business_line": "abroad",
+              "event_date": "2026-09-28",
+              "value": 1,
+              "work_order_id": "online-included",
+              "team_id": "online_platform",
+              "business_group": null,
+              "owners": [],
+              "first_channel": "市场活动",
+              "second_channel": "网络资源",
+              "acquisition_mode": "online",
+              "offline_channel_eligible": false,
+              "counts_toward_completion": true,
+              "exclusion_reason": null,
+              "order_status": "正常",
+              "source_record": {
+                "ID": "online-included",
+                "团队": "online_platform"
+              },
+              "segment_id": "study_abroad_online",
+              "source_product": "study_abroad",
+              "customer_domain": "study_abroad",
+              "source_kind": "study_abroad_warehouse"
+            }
+          ],
+          "personal_cash": [],
+          "team_cash": [],
+          "unassigned_cash": []
+        },
+        "source_coverage": {
+          "snapshot_id": "snapshot_abroad",
+          "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "start_date": "2026-09-01",
+          "through_date": "2026-09-28",
+          "no_yoy": true,
+          "cross_system_customers": "not_aligned"
+        }
+      }
+    ]
+  }
+}
