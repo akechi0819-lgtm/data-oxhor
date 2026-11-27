@@ -44,10 +44,11 @@ def _retire_obsolete_bundles(*, warehouse, home, entry_lock, dispatch_lock):
     locks = (Path(dispatch_lock), Path(entry_lock), home/'.run.lock',
              queue/'.notify.lock', state_dir/shared_delivery.LOCK_FILENAME)
     with ExitStack() as stack:
-        for path in locks:
+        for index, path in enumerate(locks):
             if path.is_symlink():
                 raise ValueError('notification lock cannot be a symlink')
-            lock = stack.enter_context(path.open('r+b'))
+            # Both /run locks are created by root-owned entry scripts on demand.
+            lock = stack.enter_context(path.open('a+b' if index < 2 else 'r+b'))
             fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
 
         releases = warehouse/'releases'

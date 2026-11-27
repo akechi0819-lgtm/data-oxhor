@@ -159,3 +159,13 @@ def test_empty_or_absent_bundle_directory_needs_no_notification_locks(environmen
     assert run(environment)['removed'] == []
     (home/'bundles').rmdir()
     assert run(environment)['removed'] == []
+
+
+def test_root_entry_and_dispatch_locks_can_be_recreated_after_restart(environment):
+    _, home, entry, dispatch, state, _ = environment
+    sent(state, '2026-11-25')
+    folder = bundle(home, 'daily-retired', '2026-11-25')
+    entry.unlink()
+    dispatch.unlink()
+    assert run(environment)['removed'] == [folder.name]
+    assert entry.is_file() and dispatch.is_file()
