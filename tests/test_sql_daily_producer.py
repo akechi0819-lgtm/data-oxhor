@@ -149,6 +149,72 @@ def test_sql_release_archive_accepts_only_the_seven_runtime_files(tmp_path):
         sql_daily._validate_archive(unsafe_path, release)
 
 
+def test_successful_query_compaction_preserves_receipts_and_is_retryable(tmp_path):
+    from data_platform.query.service import execute_query
+    from tests.platform.test_query_service import warehouse
+
+    database = tmp_path / 'warehouse.duckdb'
+    warehouse(database)
+    attempt = tmp_path / 'attempt'
+    attempt.mkdir()
+    receipt_paths = []
+    for group in ('landing-evidence', 'source-order'):
+        response = execute_query(warehouse=database, snapshot_id='snapshot_query_test',
+                                 sql='SELECT * FROM landing.values_table', run_id='run_compact',
+                                 output_root=attempt / group)
+        receipt_paths.append(attempt / group / response['run_id'] / response['receipt']['path'])
+    index = attempt / 'cloud-landing-index.log'
+    index.write_text('large index')
+    originals = [path.read_bytes() for path in receipt_paths]
+    result = sql_daily.compact_query_results(attempt)
+    assert result['status'] == 'compacted' and result['results_removed'] == 2
+    assert not index.exists()
+    for path, content in zip(receipt_paths, originals, strict=True):
+        assert path.read_bytes() == content
+        assert (path.parent / 'query.sql').exists()
+        assert (path.parent / 'parameters.json').exists()
+        assert not (path.parent / 'result.json').exists()
+    assert sql_daily.compact_query_results(attempt) == result
+
+
+def test_query_compaction_rejects_changed_result_without_removing_others(tmp_path):
+    from data_platform.query.service import execute_query
+    from tests.platform.test_query_service import warehouse
+
+    database = tmp_path / 'warehouse.duckdb'
+    warehouse(database)
+    attempt = tmp_path / 'attempt'
+    attempt.mkdir()
+    results = []
+    for group in ('landing-evidence', 'source-order'):
+        response = execute_query(warehouse=database, snapshot_id='snapshot_query_test',
+                                 sql='SELECT * FROM landing.values_table', run_id='run_compact',
+                                 output_root=attempt / group)
+        receipt = attempt / group / response['run_id'] / response['receipt']['path']
+        results.append(receipt.parent / 'result.json')
+    results[-1].write_text('{}')
+    index = attempt / 'cloud-landing-index.log'
+    index.write_text('index')
+    with pytest.raises(ValueError, match='identity mismatch'):
+        sql_daily.compact_query_results(attempt)
+    assert all(path.exists() for path in results)
+    assert index.exists()
+    assert not (attempt / 'query-results-retention.json').exists()
+
+
+def test_query_compaction_does_not_follow_external_query_evidence(tmp_path):
+    external = tmp_path / 'external'
+    external.mkdir()
+    (external / 'result.json').write_text('evidence in another directory')
+    attempt = tmp_path / 'attempt'
+    attempt.mkdir()
+    (attempt / 'landing-evidence').symlink_to(external, target_is_directory=True)
+    with pytest.raises(ValueError, match='cannot be a symlink'):
+        sql_daily.compact_query_results(attempt)
+    assert (external / 'result.json').exists()
+    assert not (attempt / 'query-results-retention.json').exists()
+
+
 def test_cloud_download_reassembles_and_checks_compressed_segments(tmp_path,monkeypatch):
     import gzip
     import random
@@ -474,6 +540,7 @@ def test_publish_builds_runtime_contract_and_updates_pointer_only_after_activati
         assert json.loads((workspace/'Output/ShadowDaily/sql-current.json').read_text())['release'] == pointer['release']
         return
     result = sql_daily.publish(**kwargs)
+    assert result['query_retention']['status'] == 'compacted'
 
     assert prepared_coverage['notes'] == [
         'preserve this note',

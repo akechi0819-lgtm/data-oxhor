@@ -1,66 +1,102 @@
-import tempfile
-import unittest
-from datetime import datetime, timezone
+import json
 from pathlib import Path
 
+import pytest
+
+from ops.pipeline import _retain_published
+from ops import retention
 from ops.retention import retain_candidates
 
 
-class RetentionTests(unittest.TestCase):
-    def setUp(self):
-        self.tmp = tempfile.TemporaryDirectory()
-        self.addCleanup(self.tmp.cleanup)
-        root = Path(self.tmp.name)
-        self.candidates = root / 'candidates'
-        self.candidates.mkdir()
-        self.cold = root / 'cold'
-        self.now = datetime(2026, 11, 26, tzinfo=timezone.utc)
-
-    def candidate(self, name, *, created='2026-11-01T00:00:00+00:00', day='2026-11-01'):
-        path = self.candidates / name
-        path.mkdir()
-        return {'path': str(path), 'created_at': created, 'biz_day': day, 'verified_release_id': 'release-' + name}
-
-    def retain(self, entries, **kwargs):
-        defaults = dict(current=None, predecessor=None, in_progress=[], referenced=[])
-        defaults.update(kwargs)
-        return retain_candidates(self.candidates, self.cold, enrolled=entries, now=self.now, **defaults)
-
-    def test_only_expired_unreferenced_enrolled_non_month_end_moves(self):
-        entries = [self.candidate(name) for name in ('expired', 'current', 'previous', 'running', 'referenced', 'young', 'month_end')]
-        entries[5]['created_at'] = '2026-11-19T00:00:00+00:00'
-        entries[6]['biz_day'] = '2026-10-31'
-        unregistered = self.candidate('unregistered')
-        nested = Path(entries[4]['path']) / 'evidence'
-        nested.mkdir()
-        pointer = self.candidates.parent / 'current-link'
-        pointer.symlink_to(entries[1]['path'])
-        moved = self.retain(entries, current=pointer, predecessor=entries[2]['path'], in_progress=[entries[3]['path']], referenced=[nested])
-        self.assertEqual(moved, [str(self.cold / 'expired')])
-        self.assertTrue((self.cold / 'expired').is_dir())
-        for entry in entries[1:] + [unregistered]:
-            self.assertTrue(Path(entry['path']).is_dir())
-
-    def test_invalid_enrollment_or_reference_never_moves_candidates(self):
-        valid = self.candidate('valid')
-        invalid = self.candidate('invalid')
-        invalid['verified_release_id'] = ''
-        with self.assertRaises(ValueError):
-            self.retain([valid, invalid])
-        self.assertTrue(Path(valid['path']).exists())
-        with self.assertRaises(FileNotFoundError):
-            self.retain([valid], current=self.candidates / 'missing')
-        self.assertTrue(Path(valid['path']).exists())
-
-    def test_collision_prevents_any_move(self):
-        first, second = self.candidate('first'), self.candidate('second')
-        self.cold.mkdir()
-        (self.cold / 'second').mkdir()
-        with self.assertRaises(ValueError):
-            self.retain([first, second])
-        self.assertTrue(Path(first['path']).exists())
-        self.assertTrue(Path(second['path']).exists())
+def candidate(root, name):
+    path = root / name
+    path.mkdir()
+    (path / 'warehouse.duckdb').write_bytes(b'fixture')
+    return {'path': str(path), 'created_at': '2026-11-27T09:00:00+08:00',
+            'biz_day': '2026-11-27', 'verified_release_id': name}
 
 
-if __name__ == '__main__':
-    unittest.main()
+def test_deletes_old_enrolled_release_and_keeps_current_predecessor_and_references(tmp_path):
+    root = tmp_path / 'releases'
+    root.mkdir()
+    entries = [candidate(root, name) for name in ('old', 'current', 'previous', 'referenced')]
+    nested = Path(entries[2]['path']) / 'library'
+    nested.mkdir()
+    removed = retain_candidates(root, enrolled=entries, current=entries[1]['path'],
+                                predecessor=nested, referenced=[entries[3]['path']])
+    assert removed == [entries[0]['path']]
+    assert not Path(entries[0]['path']).exists()
+    assert all(Path(entry['path']).is_dir() for entry in entries[1:])
+    assert not (tmp_path / 'releases-cold').exists()
+
+
+def test_invalid_entry_or_missing_reference_does_not_delete(tmp_path):
+    root = tmp_path / 'releases'
+    root.mkdir()
+    old, current, previous = [candidate(root, name) for name in ('old', 'current', 'previous')]
+    invalid = dict(previous, verified_release_id='another-release')
+    with pytest.raises(ValueError, match='identity'):
+        retain_candidates(root, enrolled=[old, current, invalid], current=current['path'],
+                          predecessor=previous['path'], referenced=[])
+    assert Path(old['path']).is_dir()
+    with pytest.raises(FileNotFoundError):
+        retain_candidates(root, enrolled=[old, current], current=current['path'],
+                          predecessor=root / 'missing', referenced=[])
+    assert Path(old['path']).is_dir()
+
+
+def test_retry_recovers_after_partial_deletion(tmp_path):
+    root = tmp_path / 'releases'
+    root.mkdir()
+    old, current, previous = [candidate(root, name) for name in ('old', 'current', 'previous')]
+    (root / 'old' / 'warehouse.duckdb').unlink()
+    (root / 'old').rmdir()
+    assert retain_candidates(root, enrolled=[old, current, previous], current=current['path'],
+                             predecessor=previous['path'], referenced=[]) == [old['path']]
+
+
+def test_published_callback_keeps_previous_library_within_direct_release(tmp_path):
+    root = tmp_path / 'releases'
+    root.mkdir()
+    old, previous, current = [candidate(root, name) for name in ('old', 'previous', 'current')]
+    previous_library = Path(previous['path']) / 'library'
+    previous_library.mkdir()
+    (tmp_path / 'release-retention.json').write_text(json.dumps([old, previous]))
+    events = []
+    _retain_published(tmp_path, {'release': 'current', 'candidate': current['path'],
+                                 'predecessor': str(previous_library), 'biz_day': '2026-11-27'}, events.append)
+    assert events == [{'status': 'passed', 'removed': [old['path']]}]
+    assert [e['path'] for e in json.loads((tmp_path / 'release-retention.json').read_text())] == [
+        previous['path'], current['path']]
+    assert not Path(old['path']).exists()
+
+
+def test_callback_records_failure_and_retries_partial_deletion(tmp_path, monkeypatch):
+    root = tmp_path / 'releases'
+    root.mkdir()
+    old1, old2, previous, current = [
+        candidate(root, name) for name in ('old1', 'old2', 'previous', 'current')
+    ]
+    (tmp_path / 'release-retention.json').write_text(json.dumps([old1, old2, previous]))
+    original = retention.shutil.rmtree
+
+    def fail_second(path):
+        if path.name == 'old2':
+            raise OSError('simulated filesystem failure')
+        original(path)
+
+    publication = {'release': 'current', 'candidate': current['path'],
+                   'predecessor': previous['path'], 'biz_day': '2026-11-27'}
+    events = []
+    monkeypatch.setattr(retention.shutil, 'rmtree', fail_second)
+    _retain_published(tmp_path, publication, events.append)
+    assert events[-1] == {'status': 'failed', 'error_type': 'OSError'}
+    assert not Path(old1['path']).exists() and Path(old2['path']).is_dir()
+    assert len(json.loads((tmp_path / 'release-retention.json').read_text())) == 4
+
+    monkeypatch.setattr(retention.shutil, 'rmtree', original)
+    _retain_published(tmp_path, publication, events.append)
+    assert events[-1] == {'status': 'passed', 'removed': [old1['path'], old2['path']]}
+    assert [entry['path'] for entry in json.loads((tmp_path / 'release-retention.json').read_text())] == [
+        previous['path'], current['path']]
+    assert not Path(old2['path']).exists()

@@ -89,15 +89,17 @@ def _retain_published(runtime, publication, record):
         protected = json.loads(references.read_text()) if references.exists() else []
         entry = {'path': publication['candidate'], 'created_at': datetime.now(business.SHANGHAI).isoformat(),
                  'biz_day': publication['biz_day'], 'verified_release_id': publication['release']}
-        enrolled.append(entry)
+        if not isinstance(enrolled, list) or any(not isinstance(item, dict) for item in enrolled):
+            raise ValueError('invalid candidate enrollment schema')
+        if not any(item.get('path') == entry['path'] for item in enrolled):
+            enrolled.append(entry)
         atomic_json(index, enrolled)
-        archived = retain_candidates(candidates, runtime / 'releases-cold', enrolled=enrolled,
-                                     current=publication['candidate'], predecessor=publication['predecessor'],
-                                     in_progress=(), referenced=protected)
-        if archived:
-            names = {Path(path).name for path in archived}
-            atomic_json(index, [item for item in enrolled if Path(item['path']).name not in names])
-        record({'status': 'passed', 'archived': archived})
+        removed = retain_candidates(candidates, enrolled=enrolled, current=publication['candidate'],
+                                    predecessor=publication['predecessor'], referenced=protected)
+        if removed:
+            removed_paths = set(removed)
+            atomic_json(index, [item for item in enrolled if item['path'] not in removed_paths])
+        record({'status': 'passed', 'removed': removed})
     except (ValueError, OSError, KeyError, TypeError) as error:
         record({'status': 'failed', 'error_type': type(error).__name__})
 

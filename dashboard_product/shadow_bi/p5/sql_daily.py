@@ -31,6 +31,71 @@ def sha256_file(path: str | Path) -> str:
     return digest.hexdigest()
 
 
+def compact_query_results(attempt: str | Path) -> dict:
+    """Keep sealed query metadata after publication and remove bulky result rows."""
+    from data_platform.query.evidence import resolve_file
+
+    attempt = Path(attempt).resolve(strict=True)
+    result_files = []
+    receipts = []
+    previous_path = attempt / "query-results-retention.json"
+    if previous_path.is_symlink():
+        raise ValueError("query retention receipt cannot be a symlink")
+    previous = _read_json(previous_path, "query retention receipt") if previous_path.exists() else {}
+    earlier = {item["receipt"]: item for item in previous.get("receipts", [])}
+    for name in ("landing-evidence", "source-order"):
+        root = attempt / name
+        if root.is_symlink():
+            raise ValueError("controlled query evidence cannot be a symlink")
+        if not root.is_dir():
+            continue
+        for path in sorted(root.rglob("receipt.json")):
+            if path.resolve() != path:
+                raise ValueError("controlled query receipt cannot be a symlink")
+            receipt = _read_json(path, "controlled query receipt")
+            if receipt.get("schema_version") != "query_receipt.v1":
+                raise ValueError("controlled query receipt schema is invalid")
+            receipt_name = str(path.relative_to(attempt))
+            details = {
+                "receipt": receipt_name,
+                "receipt_sha256": sha256_file(path),
+                "result_sha256": receipt["result"]["sha256"],
+                "result_bytes": receipt["result"]["size_bytes"],
+                "row_count": receipt["row_count"],
+            }
+            result = path.parent / receipt["result"]["path"]
+            if result.name != "result.json" or result.parent != path.parent or result.is_symlink():
+                raise ValueError("controlled query result path is invalid")
+            if result.exists():
+                result_files.append(resolve_file(path.parent, receipt["result"]))
+            elif earlier.get(receipt_name) != details:
+                raise ValueError("controlled query result is missing without retention receipt")
+            receipts.append(details)
+
+    index = attempt / "cloud-landing-index.log"
+    index_summary = previous.get("cloud_landing_index")
+    if index.is_symlink():
+        raise ValueError("cloud landing index must be a regular file")
+    if index.is_file():
+        index_summary = {"sha256": sha256_file(index), "bytes": index.stat().st_size}
+    record = {
+        "status": "pending",
+        "results_removed": len(receipts),
+        "result_bytes_removed": sum(item["result_bytes"] for item in receipts),
+        "receipts": receipts,
+        "cloud_landing_index": index_summary,
+        "note": "Original query receipts, SQL and parameters are retained. Result rows and the cloud index are removed.",
+    }
+    _atomic_json(previous_path, record)
+    for result in result_files:
+        result.unlink()
+    if index.exists():
+        index.unlink()
+    record["status"] = "compacted"
+    _atomic_json(previous_path, record)
+    return record
+
+
 def _read_json(path: Path, label: str) -> dict:
     try:
         value = json.loads(path.read_text(encoding="utf-8"))
@@ -484,6 +549,13 @@ cd /srv/shadow-bi/code
         # 业务已实际发布；维护回执未知应单独显式报告，不能阻断业务通知。
         retention = {'status': 'unconfirmed', 'error_type': type(error).__name__,
                      'evidence': str(attempt / 'retirement.log')}
+    try:
+        compacted = compact_query_results(attempt)
+        query_retention = {"status": compacted["status"],
+                           "results_removed": compacted["results_removed"],
+                           "result_bytes_removed": compacted["result_bytes_removed"]}
+    except (OSError, ValueError, KeyError, TypeError) as error:
+        query_retention = {"status": "unconfirmed", "error_type": type(error).__name__}
     return {
         "status": "published", "day": day, "release": release_id,
         "predecessor_candidate": str(baseline.resolve()),
@@ -496,6 +568,7 @@ cd /srv/shadow-bi/code
         "source_order_receipts": source["source_order_receipts"],
         "sql_activation": activated,
         "server_retention": retention,
+        "query_retention": query_retention,
         "migration_acceptance_sha256": migration_sha,
         "completed_at": datetime.now().astimezone().isoformat(),
     }

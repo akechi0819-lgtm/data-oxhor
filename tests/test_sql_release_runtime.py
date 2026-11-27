@@ -335,3 +335,60 @@ def test_retire_only_verified_previous_sql_bundle(release, tmp_path, monkeypatch
         assert result['status'] == 'retired' and result['warehouse_count_in_releases'] == 1
         assert not old.exists() and not (base/'previous').exists()
     assert (current/'library/warehouse.duckdb').is_file()
+
+
+def test_failed_activation_restores_previous_release_before_retention(release, tmp_path, monkeypatch):
+    from pathlib import Path
+    import shutil
+    from dashboard_product.shadow_bi.p4 import sql_release as runtime
+
+    fixture, _, _, _ = release
+    base = tmp_path / 'server'
+    old = base / 'releases' / fixture.name
+    old.parent.mkdir(parents=True)
+    shutil.move(fixture, old)
+    target = old.parent / 'daily-sql-candidate'
+    shutil.copytree(old, target)
+    manifest_path = target / 'library/release.json'
+    manifest = json.loads(manifest_path.read_text())
+    manifest['release_id'] = target.name
+    manifest_path.write_text(json.dumps(manifest))
+    current = base / 'current'
+    current.symlink_to(old)
+    maintenance = tmp_path / 'maintenance'
+
+    def path(value):
+        return {'/var/lib/shadow-bi': base, '/run/shadow-bi-maintenance': maintenance}.get(str(value), Path(value))
+
+    original = {'sqlalchemy_uri': 'duckdb:///previous'}
+    metadata = dict(original)
+    actions = []
+
+    def metadata_call(action, library=None, *, snapshot=None):
+        actions.append(action)
+        if action == 'snapshot':
+            return dict(metadata)
+        if action == 'install':
+            assert current.resolve() == target
+            metadata['sqlalchemy_uri'] = str(library)
+        else:
+            assert current.resolve() == old
+            metadata.update(snapshot)
+
+    def fail_readback(candidate, audit):
+        assert candidate == current.resolve() == target and maintenance.exists()
+        raise ValueError('injected readback failure')
+
+    monkeypatch.setattr(runtime, 'Path', path)
+    monkeypatch.setattr(runtime, 'verify_acceptance', lambda *args, **kwargs: None)
+    monkeypatch.setattr(runtime, '_metadata_call', metadata_call)
+    monkeypatch.setattr(runtime.subprocess, 'run', lambda *args, **kwargs: None)
+    monkeypatch.setattr(runtime, '_wait_health', lambda: None)
+    monkeypatch.setattr(runtime, 'verify_http', fail_readback)
+
+    with pytest.raises(ValueError, match='injected readback failure'):
+        runtime._activate(target, expected_current=old.name)
+    assert current.resolve() == old and metadata == original
+    assert actions == ['snapshot', 'install', 'restore']
+    assert not maintenance.exists() and not (base / 'previous').exists()
+    assert load_release(current / 'library')[0]['release_id'] == old.name
