@@ -504,8 +504,17 @@ def retire_previous(target, *, expected_previous):
         for release in retired:
             shutil.rmtree(release)
         previous_link.unlink()
+        from monitoring_product.bundle_retention import retire_obsolete_bundles
+
+        try:
+            notification_bundles = retire_obsolete_bundles(warehouse=base)
+        except (OSError, ValueError, KeyError, TypeError) as error:
+            # The release is already verified. Report cleanup separately so a
+            # busy or unavailable notification store cannot block delivery.
+            notification_bundles = {'status': 'unconfirmed', 'error_type': type(error).__name__}
         return {'status': 'retired', 'current': current.name, 'removed': expected_previous,
-                'warehouse_count_in_releases': len(list((base/'releases').glob('*/library/warehouse.duckdb')))}
+                'warehouse_count_in_releases': len(list((base/'releases').glob('*/library/warehouse.duckdb'))),
+                'notification_bundle_retention': notification_bundles}
 
 
 def main():

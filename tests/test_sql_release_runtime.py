@@ -296,6 +296,7 @@ def test_retire_only_verified_previous_sql_bundle(release, tmp_path, monkeypatch
     from pathlib import Path
     import shutil
     from dashboard_product.shadow_bi.p4 import sql_release as runtime
+    from monitoring_product import bundle_retention
     root, _, _, _ = release
     base = tmp_path/'server'
     (base/'releases').mkdir(parents=True)
@@ -324,16 +325,32 @@ def test_retire_only_verified_previous_sql_bundle(release, tmp_path, monkeypatch
         (old/'library/unreviewed.txt').write_text('keep')
     real_path = Path
     monkeypatch.setattr(runtime, 'Path', lambda value: base if str(value) == '/var/lib/shadow-bi' else real_path(value))
+    calls = []
+
+    def retire_bundles(*, warehouse):
+        assert warehouse == base and (base/'current').resolve() == current
+        assert not old.exists() and not (base/'previous').exists()
+        calls.append(warehouse)
+        if has_replaced_previous:
+            raise OSError('injected cleanup failure')
+        return {'status': 'passed', 'removed': ['old-bundle']}
+
+    monkeypatch.setattr(bundle_retention, 'retire_obsolete_bundles', retire_bundles)
     if unexpected_file:
         with pytest.raises(ValueError, match='未核销'):
             runtime.retire_previous(current, expected_previous=old.name)
         assert old.is_dir() and (base/'previous').is_symlink()
         if has_replaced_previous:
             assert older.is_dir()
+        assert not calls
     else:
         result = runtime.retire_previous(current, expected_previous=old.name)
         assert result['status'] == 'retired' and result['warehouse_count_in_releases'] == 1
         assert not old.exists() and not (base/'previous').exists()
+        assert calls == [base]
+        expected = ({'status': 'unconfirmed', 'error_type': 'OSError'} if has_replaced_previous else
+                    {'status': 'passed', 'removed': ['old-bundle']})
+        assert result['notification_bundle_retention'] == expected
     assert (current/'library/warehouse.duckdb').is_file()
 
 
