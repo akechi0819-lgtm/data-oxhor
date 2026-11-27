@@ -189,7 +189,6 @@ def _business_recheck(publish_business, workspace, day, manifest, assert_ready,
 
 def _default_publishers():
     from dashboard_product.shadow_bi.p5.daily import run as publish_business
-    from data_acquisition.ops_io import run as publish_expenses
     from data_acquisition.jobs.daily_warehouses import assert_daily_ready
     from data_acquisition.jobs.daily_notification import notify_published
     return publish_business, notify_published, assert_daily_ready

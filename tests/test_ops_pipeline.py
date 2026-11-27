@@ -13,6 +13,14 @@ DAY = '2026-11-26'
 NOW = datetime.fromisoformat(DAY + 'T09:30:00+08:00')
 
 
+def test_default_publishers_load_real_entrypoints():
+    from dashboard_product.shadow_bi.p5.daily import run
+    from data_acquisition.jobs.daily_notification import notify_published
+    from data_acquisition.jobs.daily_warehouses import assert_daily_ready
+
+    assert business._default_publishers() == (run, notify_published, assert_daily_ready)
+
+
 def test_incremental_notification_then_manual_rebuild_does_not_resend(tmp_path, capsys):
     workspace, runtime = tmp_path / 'workspace', tmp_path / 'runtime'
     workspace.mkdir()
